@@ -513,6 +513,33 @@
     display: none;
   }
 
+  .expense-payment-toggle {
+    display: flex;
+    align-items: center;
+    gap: .7rem;
+    min-height: 2.75rem;
+    padding: .65rem .75rem;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-sm);
+    color: var(--sz-color-text);
+    background: color-mix(in srgb, var(--sz-color-primary) 5%, var(--sz-color-surface));
+    cursor: pointer;
+  }
+
+  .expense-payment-toggle input[type="checkbox"] {
+    display: block;
+    inline-size: 1.1rem !important;
+    width: 1.1rem !important;
+    height: 1.1rem;
+    margin: 0;
+    accent-color: var(--sz-color-primary);
+  }
+
+  .expense-payment-toggle span {
+    font-size: var(--sz-font-size-sm);
+    font-weight: var(--sz-font-weight-semibold);
+  }
+
   .expense-add-card {
     display: flex;
     align-items: center;
@@ -649,6 +676,7 @@
     const vehicleExpenseTypes = new Set(['CARBURANT', 'DKV', 'VOITURES']);
     const defaultDate = window.COLLAB_EXPENSE_TODAY || '';
     const context = window.COLLAB_EXPENSE_CONTEXT || {};
+    const canUseCompanyCreditCard = Boolean(context.tem_cartao_credito);
     const defaultCompanyFeid = String(context.feid || context.pefeid || '');
     const draftState = window.COLLAB_EXPENSE_DRAFT || { header_stamp: '', lines: [] };
     let pendingPhotoZone = null;
@@ -804,6 +832,7 @@
         kms: card?.querySelector('[data-expense-kms]')?.value || '',
         viatura: card?.querySelector('[data-expense-vehicle]')?.value || '',
         obs: card?.querySelector('[data-expense-obs]')?.value || '',
+        pago_cartao_credito: !!card?.querySelector('[data-expense-company-card]')?.checked,
       };
     }
 
@@ -1172,6 +1201,7 @@
       const savedType = saved.tipo || '';
       const savedCompany = String(saved.feid || defaultCompanyFeid || '');
       const savedObs = String(saved.obs || '').slice(0, 100);
+      const savedPaidWithCompanyCard = Boolean(saved.pago_cartao_credito);
       const savedVehicle = saved.viatura || '';
       const savedValor = Number(saved.valor || 0) > 0 ? String(saved.valor) : '';
       const savedKms = Number(saved.kms || 0) > 0 ? String(saved.kms) : '';
@@ -1225,6 +1255,12 @@
                   ${companyOptions(savedCompany)}
                 </select>
               </label>
+              ${canUseCompanyCreditCard ? `
+                <label class="expense-payment-toggle">
+                  <input type="checkbox" data-expense-company-card${savedPaidWithCompanyCard ? ' checked' : ''}>
+                  <span>Pago com cartão de crédito da empresa</span>
+                </label>
+              ` : ''}
               <label class="sz_field">
                 <span class="sz_label">Observações</span>
                 <textarea class="sz_textarea" rows="2" maxlength="100" placeholder="Observações da despesa" data-expense-obs>${escapeHtml(savedObs)}</textarea>

@@ -7,6 +7,7 @@ from datetime import date
 from urllib.parse import urlsplit
 
 from flask import Blueprint, abort, current_app, jsonify, make_response, redirect, render_template, request, session, url_for
+from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 
 from models import db
 from sqlalchemy import text
@@ -18,6 +19,7 @@ from services.booking_portal_service import (
     calcular_preco,
     confirmar_email_portal,
     criar_pedido_reserva,
+    criar_checkout_teste_portal,
     criar_password_reset_portal,
     get_alojamento,
     get_alojamentos_disponiveis_page,
@@ -27,6 +29,8 @@ from services.booking_portal_service import (
     criar_verificacao_email_portal,
     portal_user_exists,
     redefinir_password_portal,
+    sincronizar_checkout_teste_portal,
+    PortalPaymentError,
 )
 from services.email_service import EmailServiceError, queue_email, send_email_now
 
@@ -41,6 +45,9 @@ PORTAL_RESEND_COOLDOWN_SESSION_KEY = "PORTOBREAK_VERIFICATION_RESEND_AT"
 PORTAL_RESEND_COOLDOWN_SECONDS = 60
 PORTAL_PASSWORD_RESET_COOLDOWN_SESSION_KEY = "PORTOBREAK_PASSWORD_RESET_AT"
 PORTAL_PASSWORD_RESET_COOLDOWN_SECONDS = 60
+PORTAL_PAYMENT_ACCESS_SESSION_KEY = "PORTOBREAK_PAYMENT_ACCESS"
+PORTAL_GUEST_PORTAL_TOKEN_SALT = "portobreak-guest-portal-v1"
+PORTAL_GUEST_PORTAL_TOKEN_MAX_AGE = 60 * 60 * 24 * 365
 
 TRANSLATIONS = {
     "pt": {
@@ -92,6 +99,7 @@ TRANSLATIONS = {
         "request_soon": "Pedido de reserva em breve",
         "book_now": "Reservar",
         "booking_request": "Pedido de reserva",
+        "payment_details": "Pagamento",
         "booking_request_sent": "Pedido de reserva recebido",
         "booking_request_sent_text": "Recebemos o seu pedido. A nossa equipa vai confirmar a disponibilidade final e responder por email.",
         "account_confirmation_sent": "Enviamos um link para validar o email e ativar a sua conta.",
@@ -114,13 +122,31 @@ TRANSLATIONS = {
         "password": "Password",
         "confirm_password": "Confirmar password",
         "notes": "Observacoes",
-        "submit_booking_request": "Enviar pedido de reserva",
+        "submit_booking_request": "Avancar para pagamento",
+        "start_test_payment": "Avancar para pagamento",
+        "test_payment_notice": "O pagamento sera processado de forma segura pela Stripe.",
+        "test_payment_title": "Pagamento",
+        "test_payment_completed": "Pagamento concluido",
+        "test_payment_completed_text": "O pagamento foi recebido e a sua reserva esta confirmada. Enviamos tambem os detalhes por email.",
+        "test_payment_cancelled": "Pagamento cancelado",
+        "test_payment_cancelled_text": "Pode voltar ao alojamento e retomar o processo quando quiser.",
+        "test_payment_unavailable": "Nao foi possivel preparar o pagamento.",
         "required_field": "Preencha os campos obrigatorios.",
         "invalid_email": "Indique um email valido.",
         "password_mismatch": "As passwords nao coincidem.",
         "password_short": "A password deve ter pelo menos 8 caracteres.",
         "email_already_registered": "Ja existe uma conta com este email.",
         "booking_unavailable": "Nao foi possivel criar o pedido para estas datas.",
+        "booking_as_account": "A reservar como {name}",
+        "account_details_prefilled": "Os dados da sua conta foram preenchidos para este pedido.",
+        "already_have_account": "Ja tem conta?",
+        "sign_in_to_continue": "Entrar",
+        "reservation_summary": "Resumo da reserva",
+        "guest_portal": "Portal do hospede",
+        "open_guest_portal": "Abrir portal do hospede",
+        "booking_reference": "Referencia da reserva",
+        "total_paid": "Total pago",
+        "payment_confirmed": "Pagamento confirmado",
         "login": "Entrar",
         "logout": "Terminar sessao",
         "account": "Conta",
@@ -230,6 +256,7 @@ TRANSLATIONS = {
         "request_soon": "Booking request coming soon",
         "book_now": "Book",
         "booking_request": "Booking request",
+        "payment_details": "Payment",
         "booking_request_sent": "Booking request received",
         "booking_request_sent_text": "We received your request. Our team will confirm final availability and reply by email.",
         "account_confirmation_sent": "We sent a link to validate your email and activate your account.",
@@ -252,13 +279,31 @@ TRANSLATIONS = {
         "password": "Password",
         "confirm_password": "Confirm password",
         "notes": "Notes",
-        "submit_booking_request": "Send booking request",
+        "submit_booking_request": "Continue to payment",
+        "start_test_payment": "Continue to payment",
+        "test_payment_notice": "Your payment will be processed securely by Stripe.",
+        "test_payment_title": "Payment",
+        "test_payment_completed": "Payment completed",
+        "test_payment_completed_text": "Your payment was received and your booking is confirmed. We also sent the details by email.",
+        "test_payment_cancelled": "Payment cancelled",
+        "test_payment_cancelled_text": "You can return to the stay and resume the process whenever you like.",
+        "test_payment_unavailable": "We could not prepare the payment.",
         "required_field": "Fill in the required fields.",
         "invalid_email": "Enter a valid email.",
         "password_mismatch": "Passwords do not match.",
         "password_short": "Password must be at least 8 characters.",
         "email_already_registered": "An account with this email already exists.",
         "booking_unavailable": "The request could not be created for these dates.",
+        "booking_as_account": "Booking as {name}",
+        "account_details_prefilled": "Your account details were filled in for this request.",
+        "already_have_account": "Already have an account?",
+        "sign_in_to_continue": "Sign in",
+        "reservation_summary": "Booking summary",
+        "guest_portal": "Guest portal",
+        "open_guest_portal": "Open guest portal",
+        "booking_reference": "Booking reference",
+        "total_paid": "Total paid",
+        "payment_confirmed": "Payment confirmed",
         "login": "Sign in",
         "logout": "Sign out",
         "account": "Account",
@@ -368,6 +413,7 @@ TRANSLATIONS = {
         "request_soon": "Solicitud de reserva proximamente",
         "book_now": "Reservar",
         "booking_request": "Solicitud de reserva",
+        "payment_details": "Pago",
         "booking_request_sent": "Solicitud recibida",
         "booking_request_sent_text": "Hemos recibido tu solicitud. Nuestro equipo confirmara la disponibilidad final y respondera por email.",
         "account_confirmation_sent": "Hemos enviado un enlace para validar tu email y activar tu cuenta.",
@@ -390,13 +436,31 @@ TRANSLATIONS = {
         "password": "Password",
         "confirm_password": "Confirmar password",
         "notes": "Observaciones",
-        "submit_booking_request": "Enviar solicitud de reserva",
+        "submit_booking_request": "Continuar al pago",
+        "start_test_payment": "Continuar al pago",
+        "test_payment_notice": "Stripe procesara tu pago de forma segura.",
+        "test_payment_title": "Pago",
+        "test_payment_completed": "Pago completado",
+        "test_payment_completed_text": "Hemos recibido tu pago y tu reserva esta confirmada. Tambien enviamos los detalles por email.",
+        "test_payment_cancelled": "Pago cancelado",
+        "test_payment_cancelled_text": "Puedes volver al alojamiento y retomar el proceso cuando quieras.",
+        "test_payment_unavailable": "No ha sido posible preparar el pago.",
         "required_field": "Rellena los campos obligatorios.",
         "invalid_email": "Indica un email valido.",
         "password_mismatch": "Las passwords no coinciden.",
         "password_short": "La password debe tener al menos 8 caracteres.",
         "email_already_registered": "Ya existe una cuenta con este email.",
         "booking_unavailable": "No ha sido posible crear la solicitud para estas fechas.",
+        "booking_as_account": "Reservando como {name}",
+        "account_details_prefilled": "Los datos de tu cuenta se han completado para esta solicitud.",
+        "already_have_account": "Ya tienes cuenta?",
+        "sign_in_to_continue": "Entrar",
+        "reservation_summary": "Resumen de la reserva",
+        "guest_portal": "Portal del huesped",
+        "open_guest_portal": "Abrir portal del huesped",
+        "booking_reference": "Referencia de la reserva",
+        "total_paid": "Total pagado",
+        "payment_confirmed": "Pago confirmado",
         "login": "Entrar",
         "logout": "Cerrar sesion",
         "account": "Cuenta",
@@ -506,6 +570,7 @@ TRANSLATIONS = {
         "request_soon": "Demande de reservation bientot disponible",
         "book_now": "Reserver",
         "booking_request": "Demande de reservation",
+        "payment_details": "Paiement",
         "booking_request_sent": "Demande recue",
         "booking_request_sent_text": "Nous avons recu votre demande. Notre equipe confirmera la disponibilite finale et repondra par email.",
         "account_confirmation_sent": "Nous avons envoye un lien pour valider votre email et activer votre compte.",
@@ -528,13 +593,31 @@ TRANSLATIONS = {
         "password": "Mot de passe",
         "confirm_password": "Confirmer le mot de passe",
         "notes": "Observations",
-        "submit_booking_request": "Envoyer la demande",
+        "submit_booking_request": "Continuer vers le paiement",
+        "start_test_payment": "Continuer vers le paiement",
+        "test_payment_notice": "Votre paiement sera traite de maniere securisee par Stripe.",
+        "test_payment_title": "Paiement",
+        "test_payment_completed": "Paiement termine",
+        "test_payment_completed_text": "Votre paiement a ete recu et votre reservation est confirmee. Nous avons aussi envoye les details par email.",
+        "test_payment_cancelled": "Paiement annule",
+        "test_payment_cancelled_text": "Vous pouvez revenir au logement et reprendre le processus quand vous le souhaitez.",
+        "test_payment_unavailable": "Impossible de preparer le paiement.",
         "required_field": "Remplissez les champs obligatoires.",
         "invalid_email": "Indiquez un email valide.",
         "password_mismatch": "Les mots de passe ne correspondent pas.",
         "password_short": "Le mot de passe doit contenir au moins 8 caracteres.",
         "email_already_registered": "Un compte existe deja avec cet email.",
         "booking_unavailable": "Impossible de creer la demande pour ces dates.",
+        "booking_as_account": "Reservation en tant que {name}",
+        "account_details_prefilled": "Les informations de votre compte ont ete renseignees pour cette demande.",
+        "already_have_account": "Vous avez deja un compte ?",
+        "sign_in_to_continue": "Se connecter",
+        "reservation_summary": "Resume de la reservation",
+        "guest_portal": "Portail voyageur",
+        "open_guest_portal": "Ouvrir le portail voyageur",
+        "booking_reference": "Reference de reservation",
+        "total_paid": "Total paye",
+        "payment_confirmed": "Paiement confirme",
         "login": "Se connecter",
         "logout": "Se deconnecter",
         "account": "Compte",
@@ -650,6 +733,10 @@ def _portal_current_user() -> dict | None:
         "id": str(user.get("PBUSERSTAMP") or ""),
         "nome": str(user.get("NOME") or "").strip(),
         "email": str(user.get("EMAIL") or "").strip(),
+        "telefone": str(user.get("TELEFONE") or "").strip(),
+        "morada": str(user.get("MORADA") or "").strip(),
+        "pais": str(user.get("PAIS") or "").strip(),
+        "nif": str(user.get("NIF") or "").strip(),
     }
 
 
@@ -665,6 +752,25 @@ def _safe_portal_next(value: str) -> str:
     ):
         return raw
     return ""
+
+
+def _remember_payment_access(kind: str, identifier: str) -> None:
+    value = str(identifier or "").strip()
+    if not value:
+        return
+    access = dict(session.get(PORTAL_PAYMENT_ACCESS_SESSION_KEY) or {})
+    items = [str(item) for item in (access.get(kind) or []) if str(item).strip()]
+    if value not in items:
+        items.append(value)
+    access[kind] = items[-12:]
+    session[PORTAL_PAYMENT_ACCESS_SESSION_KEY] = access
+    session.modified = True
+
+
+def _has_payment_access(kind: str, identifier: str) -> bool:
+    value = str(identifier or "").strip()
+    access = dict(session.get(PORTAL_PAYMENT_ACCESS_SESSION_KEY) or {})
+    return bool(value and value in {str(item) for item in (access.get(kind) or [])})
 
 
 def _with_lang_cookie(response, lang):
@@ -945,6 +1051,77 @@ def _portobreak_public_url(endpoint: str, **values) -> str:
         or "https://portobreak.com"
     ).strip().rstrip("/")
     return f"{base_url}{url_for(endpoint, **values)}"
+
+
+def _guest_portal_serializer() -> URLSafeTimedSerializer:
+    secret = str(current_app.config.get("SECRET_KEY") or "").strip()
+    if not secret:
+        raise RuntimeError("A chave da aplicacao nao esta configurada.")
+    return URLSafeTimedSerializer(secret, salt=PORTAL_GUEST_PORTAL_TOKEN_SALT)
+
+
+def _guest_portal_url(booking_id: str, email: str, lang: str) -> str:
+    token = _guest_portal_serializer().dumps({
+        "booking_id": str(booking_id or "").strip(),
+        "email": str(email or "").strip().lower(),
+    })
+    return _portobreak_public_url("booking_portal.guest_portal", token=token, lang=lang)
+
+
+def _guest_summary_from_booking(booking: dict, t: dict) -> str:
+    parts = []
+    for key, label_key in (("ADULTOS", "adults"), ("CRIANCAS", "children"), ("BEBES", "babies")):
+        try:
+            count = int(booking.get(key) or 0)
+        except (TypeError, ValueError):
+            count = 0
+        if count:
+            parts.append(f"{count} {t[label_key]}")
+    return " / ".join(parts)
+
+
+def _confirmed_booking_summary(booking_id: str, *, payment_id: str | None = None, lang: str = "pt", lock=False) -> dict | None:
+    booking_id = str(booking_id or "").strip()
+    if not booking_id:
+        return None
+    payment_condition = "AND P.PBPAYSTAMP = :payment_id" if payment_id else ""
+    lock_hint = " WITH (UPDLOCK, HOLDLOCK)" if lock else ""
+    booking = db.session.execute(
+        text(
+            f"""
+            SELECT TOP 1
+                B.PBBKSTAMP, B.PBUSERSTAMP, B.EMAIL_ID, B.ALSTAMP, B.AL_NOME,
+                B.CHECKIN, B.CHECKOUT, B.NOITES, B.ADULTOS, B.CRIANCAS, B.BEBES,
+                B.CLIENTE_NOME, B.CLIENTE_EMAIL, B.PRECO_ESTIMADO, B.PRECO_LABEL,
+                R.RESERVA, P.PBPAYSTAMP
+            FROM dbo.PB_BOOKING_REQUESTS AS B{lock_hint}
+            INNER JOIN dbo.PB_STRIPE_TEST_PAYMENTS AS P ON P.PBBKSTAMP = B.PBBKSTAMP
+            INNER JOIN dbo.RS AS R ON R.RSSTAMP = P.RSSTAMP
+            WHERE B.PBBKSTAMP = :booking_id
+              {payment_condition}
+              AND B.ESTADO = 'CONFIRMADO'
+              AND P.ESTADO = 'PAGO_TESTE'
+            """
+        ),
+        {"booking_id": booking_id, "payment_id": payment_id},
+    ).mappings().first()
+    if not booking:
+        return None
+
+    result = dict(booking)
+    alojamento = get_alojamento(result.get("ALSTAMP"), lang=lang) or {}
+    result["nome"] = alojamento.get("nome") or str(result.get("AL_NOME") or "").strip()
+    result["foto"] = alojamento.get("foto") or ""
+    result["localizacao"] = alojamento.get("localizacao") or ""
+    result["guest_summary"] = _guest_summary_from_booking(result, _t(lang))
+    result["dates"] = f"{result.get('CHECKIN') or ''} - {result.get('CHECKOUT') or ''}".strip(" -")
+    total = str(result.get("PRECO_LABEL") or "").strip()
+    if not total and result.get("PRECO_ESTIMADO") is not None:
+        total = f"{result['PRECO_ESTIMADO']:.2f} EUR"
+    result["total"] = total
+    result["reservation_code"] = str(result.get("RESERVA") or "").strip()
+    result["portal_url"] = _guest_portal_url(result["PBBKSTAMP"], result.get("CLIENTE_EMAIL") or "", lang)
+    return result
 
 
 def _send_account_verification_email(verification: dict, *, lang: str) -> int | None:
@@ -1287,6 +1464,176 @@ def _send_booking_confirmation_email(success: dict, customer: dict, params: dict
     return None
 
 
+def _send_paid_booking_confirmation_email(payment: dict, lang: str) -> int | None:
+    """Send the booking confirmation once Stripe payment and the RS record exist."""
+    payment_id = str(payment.get("id") or "").strip()
+    booking_id = str(payment.get("booking_id") or "").strip()
+    reservation_code = str(payment.get("reservation_code") or "").strip()
+    if not payment_id or not booking_id or not reservation_code:
+        return None
+
+    try:
+        booking = _confirmed_booking_summary(booking_id, payment_id=payment_id, lang=lang, lock=True)
+        if not booking or booking.get("EMAIL_ID"):
+            db.session.rollback()
+            return None
+
+        email = str(booking.get("CLIENTE_EMAIL") or "").strip()
+        if not email:
+            db.session.rollback()
+            return None
+
+        content = {
+            "pt": {
+                "subject": "Reserva confirmada - Porto Break",
+                "greeting": "Ola",
+                "intro": "O seu pagamento foi recebido e a sua reserva esta confirmada.",
+                "stay": "Alojamento",
+                "dates": "Datas",
+                "guests": "Hospedes",
+                "total": "Total pago",
+                "reference": "Referencia",
+                "note": "Pode consultar todos os detalhes da sua estadia no portal do hospede.",
+                "button": "Abrir portal do hospede",
+                "link": "Se o botao nao abrir, use este link:",
+            },
+            "en": {
+                "subject": "Booking confirmed - Porto Break",
+                "greeting": "Hello",
+                "intro": "Your payment was received and your booking is confirmed.",
+                "stay": "Stay",
+                "dates": "Dates",
+                "guests": "Guests",
+                "total": "Total paid",
+                "reference": "Reference",
+                "note": "You can view all your stay details in the guest portal.",
+                "button": "Open guest portal",
+                "link": "If the button does not open, use this link:",
+            },
+            "es": {
+                "subject": "Reserva confirmada - Porto Break",
+                "greeting": "Hola",
+                "intro": "Hemos recibido tu pago y tu reserva esta confirmada.",
+                "stay": "Alojamiento",
+                "dates": "Fechas",
+                "guests": "Huespedes",
+                "total": "Total pagado",
+                "reference": "Referencia",
+                "note": "Puedes consultar todos los detalles de tu estancia en el portal del huesped.",
+                "button": "Abrir portal del huesped",
+                "link": "Si el boton no abre, utiliza este enlace:",
+            },
+            "fr": {
+                "subject": "Reservation confirmee - Porto Break",
+                "greeting": "Bonjour",
+                "intro": "Votre paiement a ete recu et votre reservation est confirmee.",
+                "stay": "Logement",
+                "dates": "Dates",
+                "guests": "Voyageurs",
+                "total": "Total paye",
+                "reference": "Reference",
+                "note": "Vous pouvez consulter tous les details de votre sejour dans le portail voyageur.",
+                "button": "Ouvrir le portail voyageur",
+                "link": "Si le bouton ne fonctionne pas, utilisez ce lien :",
+            },
+        }
+        copy = content.get(lang) or content["pt"]
+        reservation = booking.get("reservation_code") or reservation_code
+        customer_name = str(booking.get("CLIENTE_NOME") or "").strip()
+        greeting = f"{copy['greeting']} {customer_name},".strip() if customer_name else f"{copy['greeting']},"
+        rows = [
+            (copy["stay"], str(booking.get("nome") or "")),
+            (copy["dates"], booking.get("dates") or ""),
+            (copy["guests"], booking.get("guest_summary") or ""),
+            (copy["total"], booking.get("total") or ""),
+            (copy["reference"], reservation),
+        ]
+        portal_url = str(booking.get("portal_url") or "")
+        text_body = "\n".join([
+            greeting,
+            "",
+            copy["intro"],
+            "",
+            *[f"{label}: {value}" for label, value in rows],
+            "",
+            copy["note"],
+            copy["button"] + ": " + portal_url,
+            "",
+            "Porto Break",
+        ])
+        html_rows = "".join(
+            "<tr>"
+            f"<td style=\"padding:8px 10px;color:#6b6258;font-weight:700;\">{html.escape(label)}</td>"
+            f"<td style=\"padding:8px 10px;color:#1c1917;font-weight:800;\">{html.escape(value)}</td>"
+            "</tr>"
+            for label, value in rows
+        )
+        image_block = ""
+        if booking.get("foto"):
+            image_block = (
+                f'<img src="{html.escape(str(booking["foto"]), quote=True)}" '
+                f'alt="{html.escape(str(booking.get("nome") or "Porto Break"), quote=True)}" '
+                'style="display:block;width:100%;height:230px;object-fit:cover;border-radius:10px 10px 0 0;" />'
+            )
+        body_html = f"""
+        <div style="font-family:Inter,Arial,sans-serif;color:#1c1917;background:#f5f1ea;padding:28px 16px;">
+          <div style="max-width:620px;margin:0 auto;background:#ffffff;border:1px solid #e2d8ca;border-radius:12px;overflow:hidden;">
+            {image_block}
+            <div style="padding:28px;">
+              <p style="margin:0 0 8px;color:#f97316;font-size:12px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;">Porto Break</p>
+              <h1 style="margin:0 0 14px;font-size:28px;line-height:1.15;">{html.escape(str(booking.get('nome') or ''))}</h1>
+              <p style="margin:0 0 20px;">{html.escape(greeting)}</p>
+              <p style="margin:0 0 22px;color:#615a52;line-height:1.5;">{html.escape(copy['intro'])}</p>
+              <table style="width:100%;border-collapse:collapse;background:#f7f3ed;border-radius:8px;overflow:hidden;">{html_rows}</table>
+              <p style="margin:22px 0 14px;color:#615a52;font-size:14px;line-height:1.5;">{html.escape(copy['note'])}</p>
+              <p style="margin:0 0 20px;"><a href="{html.escape(portal_url, quote=True)}" style="display:inline-block;background:#f97316;color:#ffffff;text-decoration:none;border-radius:7px;padding:13px 18px;font-weight:800;">{html.escape(copy['button'])}</a></p>
+              <p style="margin:0;color:#766e64;font-size:12px;line-height:1.5;">{html.escape(copy['link'])}<br><a href="{html.escape(portal_url, quote=True)}" style="color:#0b5f9e;word-break:break-all;">{html.escape(portal_url)}</a></p>
+            </div>
+          </div>
+        </div>
+        """
+        email_id = queue_email(
+            to=email,
+            subject=copy["subject"],
+            body_html=body_html,
+            body_text=text_body,
+            priority=3,
+            context="PORTOBREAK_BOOKING_CONFIRMED",
+            context_id=reservation,
+            created_by="portobreak_public",
+            from_email="noreply@portobreak.com",
+            from_name="Porto Break",
+        )
+        db.session.execute(
+            text(
+                """
+                UPDATE dbo.PB_BOOKING_REQUESTS
+                SET EMAIL_ID = :email_id, DTALT = SYSUTCDATETIME()
+                WHERE PBBKSTAMP = :booking_id
+                  AND EMAIL_ID IS NULL
+                """
+            ),
+            {"email_id": email_id, "booking_id": booking_id},
+        )
+        db.session.commit()
+        send_result = send_email_now(email_id)
+        if not send_result.get("ok"):
+            current_app.logger.warning(
+                "Email de confirmacao Porto Break %s ficou com erro para reserva %s: %s",
+                email_id,
+                reservation,
+                send_result.get("error") or "",
+            )
+        return int(email_id)
+    except EmailServiceError:
+        db.session.rollback()
+        current_app.logger.exception("Nao foi possivel enviar email de confirmacao Porto Break para reserva %s", reservation_code)
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception("Erro inesperado ao enviar email de confirmacao Porto Break para reserva %s", reservation_code)
+    return None
+
+
 @bp.route("/portal-reservas/recuperar-password", methods=["GET", "POST"])
 @bp.route("/reservas/recuperar-password", methods=["GET", "POST"])
 def password_recovery():
@@ -1529,6 +1876,7 @@ def reserve(al_id):
     lang = _resolve_lang()
     t = _t(lang)
     params = _search_params(lang)
+    portal_user = _portal_current_user()
     alojamento = get_alojamento(al_id, lang=lang)
     if not alojamento:
         abort(404)
@@ -1556,14 +1904,25 @@ def reserve(al_id):
         "nif": "",
         "observacoes": "",
     }
+    if portal_user:
+        customer.update({
+            "nome": portal_user.get("nome") or "",
+            "email": portal_user.get("email") or "",
+            "telefone": portal_user.get("telefone") or "",
+            "morada": portal_user.get("morada") or "",
+            "pais": portal_user.get("pais") or ("Portugal" if lang == "pt" else ""),
+            "nif": portal_user.get("nif") or "",
+        })
     account_mode = "guest"
     form_errors = []
     success = None
 
     if request.method == "POST":
-        account_mode = "account" if request.form.get("account_mode") == "account" else "guest"
+        account_mode = "signed_in" if portal_user else ("account" if request.form.get("account_mode") == "account" else "guest")
         customer = _booking_customer_from_form()
-        create_account = account_mode == "account"
+        if portal_user:
+            customer["email"] = portal_user.get("email") or ""
+        create_account = account_mode == "account" and not portal_user
         form_errors = _booking_form_errors(customer, create_account=create_account, t=t)
         if not booking_errors and not form_errors:
             try:
@@ -1573,6 +1932,7 @@ def reserve(al_id):
                     customer,
                     create_account=create_account,
                     password=request.form.get("password") if create_account else None,
+                    authenticated_user_id=portal_user.get("id") if portal_user else None,
                     ip=request.headers.get("CF-Connecting-IP") or request.remote_addr or "",
                     user_agent=request.headers.get("User-Agent", ""),
                 )
@@ -1584,7 +1944,8 @@ def reserve(al_id):
                     })
                     success["verification_email_id"] = _send_account_verification_email(verification, lang=lang)
                     success["email_verification_sent"] = bool(success["verification_email_id"])
-                success["email_id"] = _send_booking_confirmation_email(success, customer, params, preco, lang)
+                _remember_payment_access("booking", success["id"])
+                return _start_portal_payment(success["id"], lang, portal_user)
             except ValueError as exc:
                 db.session.rollback()
                 if str(exc) == "email_ja_registado":
@@ -1606,10 +1967,133 @@ def reserve(al_id):
         form_errors=form_errors,
         customer=customer,
         account_mode=account_mode,
+        signed_in_user=portal_user,
+        booking_account_label=(t["booking_as_account"].format(name=portal_user.get("nome") or portal_user.get("email") or "") if portal_user else ""),
         preco=preco,
         success=success,
         detail_url=url_for("booking_portal.detail", al_id=al_id, **_reservation_query_args(params, lang)),
-        page_title=t["booking_request"],
+        login_url=url_for(
+            "booking_portal.login",
+            lang=lang,
+            next=url_for("booking_portal.reserve", al_id=al_id, **_reservation_query_args(params, lang)),
+        ),
+        page_title=t["payment_details"],
+    )
+
+
+def _start_portal_payment(request_id, lang, portal_user):
+    t = _t(lang)
+    if not portal_user and not _has_payment_access("booking", request_id):
+        abort(404)
+
+    placeholder = "PORTOBREAK_CHECKOUT_SESSION"
+    result_base_url = url_for(
+        "booking_portal.payment_result",
+        lang=lang,
+        session_id=placeholder,
+        _external=True,
+    ).replace(placeholder, "{CHECKOUT_SESSION_ID}")
+    try:
+        checkout = criar_checkout_teste_portal(
+            request_id,
+            portal_user.get("id") if portal_user else None,
+            success_url=f"{result_base_url}&checkout=success",
+            cancel_url=f"{result_base_url}&checkout=cancel",
+            lang=lang,
+        )
+    except PortalPaymentError as exc:
+        current_app.logger.warning("Pagamento Stripe de teste indisponivel para pedido %s: %s", request_id, exc)
+        return _render_booking_template(
+            "booking_portal/payment_result.html",
+            lang,
+            payment=None,
+            payment_error=str(exc) or t["test_payment_unavailable"],
+            cancelled=False,
+            back_url=url_for("booking_portal.index", lang=lang),
+            page_title=t["test_payment_title"],
+        )
+    except Exception:
+        current_app.logger.exception("Erro ao criar checkout Stripe de teste para pedido %s", request_id)
+        return _render_booking_template(
+            "booking_portal/payment_result.html",
+            lang,
+            payment=None,
+            payment_error=t["test_payment_unavailable"],
+            cancelled=False,
+            back_url=url_for("booking_portal.index", lang=lang),
+            page_title=t["test_payment_title"],
+        )
+    _remember_payment_access("checkout", checkout["session_id"])
+    return redirect(checkout["checkout_url"])
+
+
+@bp.route("/portal-reservas/pagamento/<request_id>", methods=["POST"])
+@bp.route("/reservas/pagamento/<request_id>", methods=["POST"])
+def start_payment(request_id):
+    lang = _resolve_lang()
+    portal_user = _portal_current_user()
+    return _start_portal_payment(request_id, lang, portal_user)
+
+
+@bp.route("/portal-reservas/pagamento/resultado")
+@bp.route("/reservas/pagamento/resultado")
+def payment_result():
+    lang = _resolve_lang()
+    t = _t(lang)
+    portal_user = _portal_current_user()
+    session_id = str(request.args.get("session_id") or "").strip()
+    if not session_id:
+        abort(404)
+    if not portal_user and not _has_payment_access("checkout", session_id):
+        abort(404)
+    cancelled = str(request.args.get("checkout") or "").strip().lower() == "cancel"
+    booking = None
+    try:
+        payment = sincronizar_checkout_teste_portal(session_id, portal_user.get("id") if portal_user else None)
+        if not payment:
+            abort(404)
+        if payment.get("paid") and payment.get("reservation_code"):
+            _send_paid_booking_confirmation_email(payment, lang)
+            booking = _confirmed_booking_summary(payment.get("booking_id"), payment_id=payment.get("id"), lang=lang)
+        payment_error = ""
+    except PortalPaymentError as exc:
+        current_app.logger.warning("Erro a confirmar checkout Stripe de teste %s: %s", session_id, exc)
+        payment = None
+        payment_error = str(exc) or t["test_payment_unavailable"]
+    except Exception:
+        current_app.logger.exception("Erro inesperado a confirmar checkout Stripe de teste %s", session_id)
+        payment = None
+        payment_error = t["test_payment_unavailable"]
+    return _render_booking_template(
+        "booking_portal/payment_result.html",
+        lang,
+        payment=payment,
+        booking=booking,
+        payment_error=payment_error,
+        cancelled=cancelled,
+        back_url=url_for("booking_portal.index", lang=lang),
+        page_title=t["test_payment_title"],
+    )
+
+
+@bp.route("/portal-reservas/portal/<token>")
+@bp.route("/reservas/portal/<token>")
+def guest_portal(token):
+    lang = _resolve_lang()
+    try:
+        payload = _guest_portal_serializer().loads(token, max_age=PORTAL_GUEST_PORTAL_TOKEN_MAX_AGE)
+    except (BadSignature, SignatureExpired):
+        abort(404)
+    booking_id = str((payload or {}).get("booking_id") or "").strip()
+    token_email = str((payload or {}).get("email") or "").strip().lower()
+    booking = _confirmed_booking_summary(booking_id, lang=lang)
+    if not booking or str(booking.get("CLIENTE_EMAIL") or "").strip().lower() != token_email:
+        abort(404)
+    return _render_booking_template(
+        "booking_portal/guest_portal.html",
+        lang,
+        booking=booking,
+        page_title=_t(lang)["guest_portal"],
     )
 
 

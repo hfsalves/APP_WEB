@@ -1447,7 +1447,7 @@
 
     try {
       // usa o endpoint genÃ©rico de options com 1 coluna
-      const q = encodeURIComponent("SELECT LOGIN FROM US ORDER BY 1");
+      const q = encodeURIComponent("SELECT LOGIN FROM US WHERE ISNULL(INATIVO,0)=0 AND ISNULL(USCLIENTE,0)=0 ORDER BY 1");
       const r = await fetch(`/generic/api/options?query=${q}`);
       const js = await r.json();
       const opts = Array.isArray(js) ? js : (Array.isArray(js.options) ? js.options : []);
@@ -1482,7 +1482,7 @@
 
 {% block scripts %}
   {{ super() }}
-  <script src="{{ url_for('static', filename='js/monitor.js') }}?v=3"></script>
+  <script src="{{ url_for('static', filename='js/monitor.js') }}?v=4"></script>
   <script>
     // Corrige rótulo com má codificação: "Duração (min)"
     document.addEventListener('DOMContentLoaded', () => {
@@ -1620,7 +1620,7 @@
 
         try {
           // Users
-          const qu = encodeURIComponent("SELECT LOGIN FROM US WHERE ISNULL(INATIVO,0)=0 ORDER BY 1");
+          const qu = encodeURIComponent("SELECT LOGIN FROM US WHERE ISNULL(INATIVO,0)=0 AND ISNULL(USCLIENTE,0)=0 ORDER BY 1");
           const ru = await fetch(`/generic/api/options?query=${qu}`);
           const ou = await ru.json();
           const listU = Array.isArray(ou) ? ou : (ou.options || []);
@@ -1703,7 +1703,7 @@
 
         try {
           // Users
-          const qu = encodeURIComponent("SELECT LOGIN FROM US WHERE ISNULL(INATIVO,0)=0 ORDER BY 1");
+          const qu = encodeURIComponent("SELECT LOGIN FROM US WHERE ISNULL(INATIVO,0)=0 AND ISNULL(USCLIENTE,0)=0 ORDER BY 1");
           const ru = await fetch(`/generic/api/options?query=${qu}`);
           const ou = await ru.json();
           const listU = Array.isArray(ou) ? ou : (ou.options || []);
@@ -1777,7 +1777,7 @@
         // defaults
         try {
           // Utilizadores
-          const qu = encodeURIComponent("SELECT LOGIN FROM US WHERE ISNULL(INATIVO,0)=0 ORDER BY 1");
+          const qu = encodeURIComponent("SELECT LOGIN FROM US WHERE ISNULL(INATIVO,0)=0 AND ISNULL(USCLIENTE,0)=0 ORDER BY 1");
           const ru = await fetch(`/generic/api/options?query=${qu}`);
           const ou = await ru.json();
           const listU = Array.isArray(ou) ? ou : (ou.options || []);
@@ -2219,7 +2219,5 @@
           };
         }
       } catch(_){}
-
-
 
 

@@ -62,6 +62,12 @@ def _safe_decimal(value: Any) -> Decimal:
         return Decimal('0.00')
 
 
+def _safe_bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    return str(value or '').strip().lower() in {'1', 'true', 'on', 'yes', 'sim'}
+
+
 def _phc_value(value: Any) -> Decimal:
     return (_safe_decimal(value) * PHC_CONVERSION_RATE).quantize(Decimal('0.00001'), rounding=ROUND_HALF_UP)
 
@@ -281,6 +287,8 @@ def ensure_colaborador_despesas_schema() -> None:
                     CONSTRAINT DF_COLAB_DESPESA_LINHA_VALSEMIVA DEFAULT 0,
                 VALOR_IVA decimal(18,2) NOT NULL
                     CONSTRAINT DF_COLAB_DESPESA_LINHA_VALIVA DEFAULT 0,
+                PAGO_CARTAO_CREDITO bit NOT NULL
+                    CONSTRAINT DF_COLAB_DESPESA_LINHA_CARTAO DEFAULT 0,
                 ESTADO varchar(20) NOT NULL
                     CONSTRAINT DF_COLAB_DESPESA_LINHA_ESTADO DEFAULT 'RASCUNHO',
                 ANULADA bit NOT NULL
@@ -389,6 +397,14 @@ def ensure_colaborador_despesas_schema() -> None:
         END
     """))
     db.session.execute(text("""
+        IF COL_LENGTH('dbo.COLAB_DESPESA_LINHA', 'PAGO_CARTAO_CREDITO') IS NULL
+        BEGIN
+            ALTER TABLE dbo.COLAB_DESPESA_LINHA
+            ADD PAGO_CARTAO_CREDITO bit NOT NULL
+                CONSTRAINT DF_COLAB_DESPESA_LINHA_CARTAO DEFAULT 0;
+        END
+    """))
+    db.session.execute(text("""
         IF COL_LENGTH('dbo.COLAB_DESPESA_LINHA', 'PHC_STATUS') IS NULL
         BEGIN
             ALTER TABLE dbo.COLAB_DESPESA_LINHA
@@ -445,6 +461,26 @@ def ensure_colaborador_despesas_schema() -> None:
     _schema_ready_databases.add(database_name)
 
 
+def _employee_has_company_credit_card(phc_db: str, phc_server: str, peno: int) -> bool:
+    if not phc_db or not peno:
+        return False
+    try:
+        with pyodbc.connect(_phc_conn_str(phc_db, phc_server), timeout=8) as conn:
+            cursor = conn.cursor()
+            row = cursor.execute("""
+                SELECT TOP 1
+                    CASE WHEN ISNULL(PE2.U_CARCRED, 0) <> 0 THEN 1 ELSE 0 END AS TEM_CARTAO_CREDITO
+                FROM dbo.PE
+                INNER JOIN dbo.PE2
+                    ON PE.PESTAMP = PE2.PE2STAMP
+                WHERE PE.NO = ?
+            """, int(peno)).fetchone()
+            return bool(row and row[0])
+    except Exception:
+        current_app.logger.exception('Erro ao verificar o cartão de crédito do colaborador na PE2.')
+        return False
+
+
 def get_colaborador_context(user) -> dict[str, Any]:
     userstamp = str(getattr(user, 'USSTAMP', '') or '').strip()
     login = str(getattr(user, 'LOGIN', '') or '').strip()
@@ -483,6 +519,11 @@ def get_colaborador_context(user) -> dict[str, Any]:
         'phc_db': str(row.get('PHC_DB') or '').strip(),
         'phc_server': str(row.get('PHC_SERVER') or '').strip(),
     }
+    colaborador['tem_cartao_credito'] = _employee_has_company_credit_card(
+        colaborador['phc_db'],
+        colaborador['phc_server'],
+        colaborador['peno'],
+    )
     colaborador['completo'] = bool(
         colaborador['peno']
         and colaborador['penome']
@@ -952,6 +993,7 @@ def serialize_line(row: dict[str, Any]) -> dict[str, Any]:
         'taxaiva': float(row.get('TAXAIVA') or 0),
         'valor_sem_iva': float(row.get('VALOR_SEM_IVA') or 0),
         'valor_iva': float(row.get('VALOR_IVA') or 0),
+        'pago_cartao_credito': bool(row.get('PAGO_CARTAO_CREDITO') or False),
         'phc_status': str(row.get('PHC_STATUS') or '').strip(),
         'phc_bostamp': str(row.get('PHC_BOSTAMP') or '').strip(),
         'phc_bistamp': str(row.get('PHC_BISTAMP') or '').strip(),
@@ -1046,6 +1088,7 @@ def upsert_expense_line(user, payload: dict[str, Any], file_storage=None) -> dic
     kms = _safe_decimal(payload.get('kms'))
     viatura = str(payload.get('viatura') or '').strip()[:50]
     obs = str(payload.get('obs') or '').strip()[:100]
+    pago_cartao_credito = _safe_bool(payload.get('pago_cartao_credito')) and bool(colaborador.get('tem_cartao_credito'))
     line_feid = _safe_int(payload.get('feid') or payload.get('empresa_feid'))
     if not line_feid:
         line_feid = _safe_int(header.get('FEID') or colaborador.get('feid') or colaborador.get('pefeid'))
@@ -1062,6 +1105,7 @@ def upsert_expense_line(user, payload: dict[str, Any], file_storage=None) -> dic
         'kms': kms,
         'viatura': viatura,
         'obs': obs,
+        'pago_cartao_credito': pago_cartao_credito,
         'feid': int(company.get('feid') or line_feid or 0),
         'empresa': empresa,
         'login': login,
@@ -1095,6 +1139,7 @@ def upsert_expense_line(user, payload: dict[str, Any], file_storage=None) -> dic
             KMS = :kms,
             VIATURA = :viatura,
             OBS = :obs,
+            PAGO_CARTAO_CREDITO = :pago_cartao_credito,
             FEID = :feid,
             EMPRESA = :empresa,
             ESTADO = 'RASCUNHO',

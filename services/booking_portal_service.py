@@ -7,7 +7,11 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal, ROUND_HALF_UP
 import json
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
 
+from flask import current_app
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -30,6 +34,14 @@ CLEANING_FEE = Decimal("30.00")
 TOURIST_TAX_PER_GUEST_NIGHT = Decimal("3.00")
 TOURIST_TAX_MAX_DAYS = 7
 _TABLE_EXISTS_CACHE = {}
+
+
+class PortalPaymentError(RuntimeError):
+    """A user-facing failure while preparing a Porto Break test payment."""
+
+
+class PortalPaymentConfigurationError(PortalPaymentError):
+    """Raised when test payments are not explicitly configured."""
 
 
 def _new_stamp() -> str:
@@ -893,7 +905,8 @@ def get_portal_user(pbuserstamp: str) -> dict | None:
     row = db.session.execute(
         text(
             """
-            SELECT PBUSERSTAMP, NOME, EMAIL, EMAIL_CONFIRMADO, ATIVO
+            SELECT PBUSERSTAMP, NOME, EMAIL, TELEFONE, MORADA, PAIS, NIF,
+                   EMAIL_CONFIRMADO, ATIVO
             FROM dbo.PB_USERS
             WHERE PBUSERSTAMP = :user_id
               AND ISNULL(ATIVO, 0) = 1
@@ -1175,7 +1188,17 @@ def redefinir_password_portal(token: str, password: str) -> str:
     return "updated"
 
 
-def criar_pedido_reserva(al_id, params: dict, customer: dict, *, create_account=False, password=None, ip="", user_agent="") -> dict:
+def criar_pedido_reserva(
+    al_id,
+    params: dict,
+    customer: dict,
+    *,
+    create_account=False,
+    password=None,
+    authenticated_user_id=None,
+    ip="",
+    user_agent="",
+) -> dict:
     alojamento = get_alojamento(al_id)
     if not alojamento:
         raise ValueError("alojamento_inexistente")
@@ -1201,7 +1224,12 @@ def criar_pedido_reserva(al_id, params: dict, customer: dict, *, create_account=
     pbuserstamp = None
     email_verification = None
     email_normalizado = _normalize_email(customer.get("email"))
-    if create_account:
+    if authenticated_user_id:
+        authenticated_user = get_portal_user(authenticated_user_id)
+        if not authenticated_user or not bool(authenticated_user.get("EMAIL_CONFIRMADO")):
+            raise ValueError("conta_invalida")
+        pbuserstamp = _clean(authenticated_user.get("PBUSERSTAMP"))
+    elif create_account:
         if portal_user_exists(email_normalizado):
             raise ValueError("email_ja_registado")
         password_hash, password_algo = hash_password(password or "")
@@ -1292,6 +1320,7 @@ def criar_pedido_reserva(al_id, params: dict, customer: dict, *, create_account=
     return {
         "id": request_stamp,
         "user_id": pbuserstamp,
+        "created_account": bool(create_account),
         "preco": preco,
         "alojamento": alojamento,
         "checkin": checkin_date,
@@ -1299,3 +1328,431 @@ def criar_pedido_reserva(al_id, params: dict, customer: dict, *, create_account=
         "noites": noites,
         "email_verification": email_verification,
     }
+
+
+def _portal_payment_table_exists(table_name: str) -> bool:
+    key = f"portal-payment:{table_name}"
+    if key in _TABLE_EXISTS_CACHE:
+        return _TABLE_EXISTS_CACHE[key]
+    exists = bool(db.session.execute(
+        text(
+            """
+            SELECT TOP 1 1
+            FROM INFORMATION_SCHEMA.TABLES
+            WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = :table_name
+            """
+        ),
+        {"table_name": table_name},
+    ).scalar())
+    _TABLE_EXISTS_CACHE[key] = exists
+    return exists
+
+
+def _portal_payment_require_table() -> None:
+    if not _portal_payment_table_exists("PB_STRIPE_TEST_PAYMENTS"):
+        raise PortalPaymentConfigurationError(
+            "O pagamento de teste ainda nao esta configurado. Aplique a migracao do portal."
+        )
+
+
+def _portal_para_text(code: str) -> str:
+    key = _clean(code)
+    if not key:
+        return ""
+    try:
+        row = db.session.execute(
+            text(
+                """
+                SELECT TOP 1 CVALOR
+                FROM dbo.PARA
+                WHERE UPPER(LTRIM(RTRIM(PARAMETRO))) = UPPER(LTRIM(RTRIM(:code)))
+                """
+            ),
+            {"code": key},
+        ).mappings().first()
+        if row:
+            value = _clean(row.get("CVALOR"))
+            if value:
+                return value
+    except Exception:
+        current_app.logger.exception("Erro ao ler parametro Stripe de teste do portal.")
+    try:
+        return _clean((current_app.config.get("PARA_VALUES") or {}).get(key))
+    except Exception:
+        return ""
+
+
+def _portal_stripe_test_secret_key() -> str:
+    secret_key = _portal_para_text("SHOP_STRIPE_SECRET_KEY")
+    if secret_key.startswith("sk_test_"):
+        return secret_key
+    if secret_key:
+        raise PortalPaymentConfigurationError(
+            "A configuracao Stripe ainda nao esta preparada para este ambiente."
+        )
+    raise PortalPaymentConfigurationError("A configuracao Stripe esta em falta.")
+
+
+def _portal_stripe_test_request(method: str, path: str, data=None, *, idempotency_key: str = "") -> dict:
+    secret_key = _portal_stripe_test_secret_key()
+    method = _clean(method).upper() or "GET"
+    resource = _clean(path)
+    if not resource.startswith("/"):
+        resource = f"/{resource}"
+    payload = None
+    if data:
+        encoded = urlencode(data, doseq=True)
+        if method == "GET":
+            resource = f"{resource}{'&' if '?' in resource else '?'}{encoded}"
+        else:
+            payload = encoded.encode("utf-8")
+    request_obj = Request(
+        f"https://api.stripe.com{resource}",
+        data=payload,
+        method=method,
+        headers={"Authorization": f"Bearer {secret_key}"},
+    )
+    if payload is not None:
+        request_obj.add_header("Content-Type", "application/x-www-form-urlencoded")
+    if idempotency_key:
+        request_obj.add_header("Idempotency-Key", idempotency_key)
+    try:
+        with urlopen(request_obj, timeout=35) as response:
+            raw = response.read().decode("utf-8")
+    except HTTPError as exc:
+        body = exc.read().decode("utf-8", errors="replace")
+        try:
+            message = json.loads(body).get("error", {}).get("message") or body
+        except Exception:
+            message = body
+        raise PortalPaymentError(f"Stripe: {message}") from exc
+    except URLError as exc:
+        raise PortalPaymentError("A Stripe esta indisponivel. Tente novamente daqui a instantes.") from exc
+    try:
+        return json.loads(raw)
+    except Exception as exc:
+        raise PortalPaymentError("A Stripe devolveu uma resposta invalida.") from exc
+
+
+def _portal_test_payment_booking(request_id: str, user_id: str | None = None) -> dict | None:
+    owner_filter = "AND PBUSERSTAMP = :user_id" if _clean(user_id) else ""
+    return db.session.execute(
+        text(
+            f"""
+            SELECT TOP 1 PBBKSTAMP, PBUSERSTAMP, AL_NOME, CHECKIN, CHECKOUT,
+                   CLIENTE_EMAIL, PRECO_ESTIMADO, PRECO_LABEL, ESTADO
+            FROM dbo.PB_BOOKING_REQUESTS
+            WHERE PBBKSTAMP = :request_id
+              {owner_filter}
+            """
+        ),
+        {"request_id": _clean(request_id), "user_id": _clean(user_id)},
+    ).mappings().first()
+
+
+def criar_checkout_teste_portal(
+    request_id: str,
+    user_id: str | None = None,
+    *,
+    success_url: str,
+    cancel_url: str,
+    lang: str = "pt",
+) -> dict:
+    _portal_payment_require_table()
+    _portal_stripe_test_secret_key()
+    booking = _portal_test_payment_booking(request_id, user_id)
+    if not booking or _clean(booking.get("ESTADO")).upper() != "PENDENTE":
+        raise PortalPaymentError("O pedido de reserva nao esta disponivel para pagamento de teste.")
+    amount = _to_decimal(booking.get("PRECO_ESTIMADO"))
+    if amount <= 0:
+        raise PortalPaymentError("O pedido de reserva nao tem um valor valido para testar o pagamento.")
+
+    payment_id = _new_stamp()
+    idempotency_key = f"portobreak-test-{payment_id.replace('-', '')[:24]}"
+    db.session.execute(
+        text(
+            """
+            INSERT INTO dbo.PB_STRIPE_TEST_PAYMENTS
+            (
+                PBPAYSTAMP, PBBKSTAMP, PBUSERSTAMP, ESTADO, MOEDA, VALOR,
+                IDEMPOTENCY_KEY, DTCRI, DTALT
+            )
+            VALUES
+            (
+                :payment_id, :request_id, :user_id, 'CRIADO', 'EUR', :amount,
+                :idempotency_key, SYSUTCDATETIME(), SYSUTCDATETIME()
+            )
+            """
+        ),
+        {
+            "payment_id": payment_id,
+            "request_id": booking["PBBKSTAMP"],
+            "user_id": _clean(booking.get("PBUSERSTAMP")) or None,
+            "amount": amount,
+            "idempotency_key": idempotency_key,
+        },
+    )
+    db.session.commit()
+    try:
+        stripe_session = _portal_stripe_test_request(
+            "POST",
+            "/v1/checkout/sessions",
+            {
+                "mode": "payment",
+                "success_url": success_url,
+                "cancel_url": cancel_url,
+                "locale": lang if lang in {"pt", "en", "es", "fr"} else "auto",
+                "client_reference_id": payment_id,
+                "payment_method_types[0]": "card",
+                "metadata[pb_payment_id]": payment_id,
+                "metadata[pb_booking_request_id]": booking["PBBKSTAMP"],
+                "metadata[environment]": "test",
+                "line_items[0][quantity]": "1",
+                "line_items[0][price_data][currency]": "eur",
+                "line_items[0][price_data][unit_amount]": str(int(amount * 100)),
+                "line_items[0][price_data][product_data][name]": "Pedido de reserva Porto Break",
+                "line_items[0][price_data][product_data][description]": (
+                    f"{_clean(booking.get('AL_NOME'))[:120]} · "
+                    f"{_to_date(booking.get('CHECKIN')).isoformat()} a {_to_date(booking.get('CHECKOUT')).isoformat()}"
+                )[:250],
+            },
+            idempotency_key=idempotency_key,
+        )
+        checkout_session_id = _clean(stripe_session.get("id"))
+        checkout_url = _clean(stripe_session.get("url"))
+        if not checkout_session_id or not checkout_url:
+            raise PortalPaymentError("Nao foi possivel criar a sessao de checkout Stripe.")
+        db.session.execute(
+            text(
+                """
+                UPDATE dbo.PB_STRIPE_TEST_PAYMENTS
+                SET CHECKOUT_SESSION_ID = :session_id,
+                    PAYMENT_INTENT_ID = :payment_intent_id,
+                    STRIPE_STATUS = :stripe_status,
+                    DTALT = SYSUTCDATETIME()
+                WHERE PBPAYSTAMP = :payment_id
+                """
+            ),
+            {
+                "payment_id": payment_id,
+                "session_id": checkout_session_id,
+                "payment_intent_id": _clean(stripe_session.get("payment_intent")) or None,
+                "stripe_status": _clean(stripe_session.get("status")) or None,
+            },
+        )
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        try:
+            db.session.execute(
+                text(
+                    """
+                    UPDATE dbo.PB_STRIPE_TEST_PAYMENTS
+                    SET ESTADO = 'FALHADO', DTALT = SYSUTCDATETIME()
+                    WHERE PBPAYSTAMP = :payment_id
+                    """
+                ),
+                {"payment_id": payment_id},
+            )
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+        raise
+    return {
+        "id": payment_id,
+        "checkout_url": checkout_url,
+        "session_id": checkout_session_id,
+    }
+
+
+def sincronizar_checkout_teste_portal(session_id: str, user_id: str | None = None) -> dict | None:
+    _portal_payment_require_table()
+    owner_filter = "AND PBUSERSTAMP = :user_id" if _clean(user_id) else ""
+    payment = db.session.execute(
+        text(
+            f"""
+            SELECT TOP 1 PBPAYSTAMP, PBBKSTAMP, ESTADO, VALOR, MOEDA, CHECKOUT_SESSION_ID
+            FROM dbo.PB_STRIPE_TEST_PAYMENTS
+            WHERE CHECKOUT_SESSION_ID = :session_id
+              {owner_filter}
+            """
+        ),
+        {"session_id": _clean(session_id), "user_id": _clean(user_id)},
+    ).mappings().first()
+    if not payment:
+        return None
+    stripe_session = _portal_stripe_test_request(
+        "GET", f"/v1/checkout/sessions/{_clean(session_id)}"
+    )
+    paid = (
+        _clean(stripe_session.get("status")) == "complete"
+        and _clean(stripe_session.get("payment_status")) == "paid"
+    )
+    if paid:
+        state = "PAGO_TESTE"
+    elif _clean(stripe_session.get("status")) == "expired":
+        state = "EXPIRADO"
+    else:
+        state = "CRIADO"
+    db.session.execute(
+        text(
+            """
+            UPDATE dbo.PB_STRIPE_TEST_PAYMENTS
+            SET ESTADO = :state,
+                PAYMENT_INTENT_ID = :payment_intent_id,
+                STRIPE_STATUS = :stripe_status,
+                DTALT = SYSUTCDATETIME()
+            WHERE PBPAYSTAMP = :payment_id
+            """
+        ),
+        {
+            "payment_id": payment["PBPAYSTAMP"],
+            "state": state,
+            "payment_intent_id": _clean(stripe_session.get("payment_intent")) or None,
+            "stripe_status": _clean(stripe_session.get("payment_status") or stripe_session.get("status")) or None,
+        },
+    )
+    db.session.commit()
+    reservation = registar_reserva_portal_pagamento(payment["PBPAYSTAMP"]) if paid else None
+    return {
+        "id": payment["PBPAYSTAMP"],
+        "booking_id": payment["PBBKSTAMP"],
+        "paid": paid,
+        "state": state,
+        "amount": _to_decimal(payment.get("VALOR")),
+        "currency": _clean(payment.get("MOEDA")) or "EUR",
+        "reservation_code": (reservation or {}).get("reserva"),
+        "rsstamp": (reservation or {}).get("rsstamp"),
+    }
+
+
+def registar_reserva_portal_pagamento(payment_id: str) -> dict | None:
+    """Create the operational RS reservation exactly once after a successful Stripe payment."""
+    _portal_payment_require_table()
+    payment = db.session.execute(
+        text(
+            """
+            SELECT TOP 1
+                P.PBPAYSTAMP, P.PBBKSTAMP, P.RSSTAMP, P.ESTADO AS PAGAMENTO_ESTADO,
+                B.ALSTAMP, B.CHECKIN, B.CHECKOUT, B.NOITES, B.ADULTOS, B.CRIANCAS, B.BEBES,
+                B.CLIENTE_NOME, B.CLIENTE_EMAIL, B.CLIENTE_TELEFONE, B.CLIENTE_MORADA,
+                B.CLIENTE_PAIS, B.CLIENTE_NIF, B.PRECO_ESTIMADO, B.OBSERVACOES,
+                LTRIM(RTRIM(ISNULL(AL.NOME, ''))) AS ALOJAMENTO_INTERNO
+            FROM dbo.PB_STRIPE_TEST_PAYMENTS AS P
+            INNER JOIN dbo.PB_BOOKING_REQUESTS AS B ON B.PBBKSTAMP = P.PBBKSTAMP
+            INNER JOIN dbo.AL AS AL ON AL.ALSTAMP = B.ALSTAMP
+            WHERE P.PBPAYSTAMP = :payment_id
+            """
+        ),
+        {"payment_id": _clean(payment_id)},
+    ).mappings().first()
+    if not payment or _clean(payment.get("PAGAMENTO_ESTADO")) != "PAGO_TESTE":
+        return None
+
+    existing_stamp = _clean(payment.get("RSSTAMP"))
+    if existing_stamp:
+        existing = db.session.execute(
+            text("SELECT TOP 1 RSSTAMP, RESERVA FROM dbo.RS WHERE RSSTAMP = :rsstamp"),
+            {"rsstamp": existing_stamp},
+        ).mappings().first()
+        if existing:
+            return {"rsstamp": existing["RSSTAMP"], "reserva": existing["RESERVA"]}
+
+    alojamento = _clean(payment.get("ALOJAMENTO_INTERNO"))
+    checkin = _to_date(payment.get("CHECKIN"))
+    checkout = _to_date(payment.get("CHECKOUT"))
+    if not alojamento or not checkin or not checkout or checkout <= checkin:
+        raise PortalPaymentError("Nao foi possivel registar a reserva paga.")
+
+    conflict = db.session.execute(
+        text(
+            """
+            SELECT TOP 1 RSSTAMP
+            FROM dbo.RS WITH (UPDLOCK, HOLDLOCK)
+            WHERE LTRIM(RTRIM(ISNULL(ALOJAMENTO, ''))) COLLATE SQL_Latin1_General_CP1_CI_AI
+                    = LTRIM(RTRIM(:alojamento)) COLLATE SQL_Latin1_General_CP1_CI_AI
+              AND ISNULL(CANCELADA, 0) = 0
+              AND CAST(DATAIN AS date) < :checkout
+              AND CAST(DATAOUT AS date) > :checkin
+            """
+        ),
+        {"alojamento": alojamento, "checkin": checkin, "checkout": checkout},
+    ).scalar()
+    if conflict:
+        raise PortalPaymentError("As datas deixaram de estar disponiveis antes de a reserva ser registada.")
+
+    rsstamp = _new_stamp().replace("-", "")[:25].upper()
+    reservation_code = f"PB{payment['PBPAYSTAMP'].replace('-', '')[:12].upper()}"
+    total = _to_decimal(payment.get("PRECO_ESTIMADO"))
+    cleaning = CLEANING_FEE if total >= CLEANING_FEE else Decimal("0.00")
+    stay_value = (total - cleaning).quantize(_DEC2)
+    obs = f"PortoBreak online | Stripe {payment['PBPAYSTAMP']}"
+    extra_obs = _clean(payment.get("OBSERVACOES"))
+    if extra_obs:
+        obs = f"{obs} | {extra_obs}"
+
+    db.session.execute(
+        text(
+            """
+            INSERT INTO dbo.RS
+            (
+                RSSTAMP, ALOJAMENTO, RDATA, ORIGEM, RESERVA,
+                DATAIN, DATAOUT, HORAIN, HORAOUT, NOITES,
+                NOME, PAIS, ADULTOS, CRIANCAS, BEBES,
+                ESTADIA, LIMPEZA, COMISSAO, OBS,
+                FTNOME, FTMORADA, FTLOCAL, FTNCONT, FTEMAIL
+            )
+            VALUES
+            (
+                :rsstamp, :alojamento, CAST(GETDATE() AS date), 'PORTOBREAK', :reserva,
+                :checkin, :checkout, '15:00', '11:00', :noites,
+                :nome, :pais, :adultos, :criancas, :bebes,
+                :estadia, :limpeza, 0, :obs,
+                :ftnome, :ftmorada, :ftlocal, :ftncont, :ftemail
+            )
+            """
+        ),
+        {
+            "rsstamp": rsstamp,
+            "alojamento": alojamento[:60],
+            "reserva": reservation_code[:25],
+            "checkin": checkin,
+            "checkout": checkout,
+            "noites": _to_count(payment.get("NOITES"), default=0) or 0,
+            "nome": _clean(payment.get("CLIENTE_NOME"))[:60],
+            "pais": _clean(payment.get("CLIENTE_PAIS"))[:60],
+            "adultos": _to_count(payment.get("ADULTOS"), default=0) or 0,
+            "criancas": _to_count(payment.get("CRIANCAS"), default=0) or 0,
+            "bebes": _to_count(payment.get("BEBES"), default=0) or 0,
+            "estadia": stay_value,
+            "limpeza": cleaning,
+            "obs": obs[:250],
+            "ftnome": _clean(payment.get("CLIENTE_NOME"))[:55],
+            "ftmorada": _clean(payment.get("CLIENTE_MORADA"))[:55],
+            "ftlocal": _clean(payment.get("CLIENTE_PAIS"))[:43],
+            "ftncont": _clean(payment.get("CLIENTE_NIF"))[:20],
+            "ftemail": _clean(payment.get("CLIENTE_EMAIL"))[:200],
+        },
+    )
+    db.session.execute(
+        text(
+            """
+            UPDATE dbo.PB_STRIPE_TEST_PAYMENTS
+            SET RSSTAMP = :rsstamp, DTALT = SYSUTCDATETIME()
+            WHERE PBPAYSTAMP = :payment_id
+            """
+        ),
+        {"rsstamp": rsstamp, "payment_id": payment["PBPAYSTAMP"]},
+    )
+    db.session.execute(
+        text(
+            """
+            UPDATE dbo.PB_BOOKING_REQUESTS
+            SET ESTADO = 'CONFIRMADO', DTALT = SYSUTCDATETIME()
+            WHERE PBBKSTAMP = :booking_id
+            """
+        ),
+        {"booking_id": payment["PBBKSTAMP"]},
+    )
+    db.session.commit()
+    return {"rsstamp": rsstamp, "reserva": reservation_code[:25]}

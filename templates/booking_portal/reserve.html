@@ -39,7 +39,7 @@
         <p class="booking-kicker booking-kicker-dark">{{ t.booking_request }}</p>
         <h1>{{ t.booking_request_sent }}</h1>
         <p>{{ t.booking_request_sent_text }}</p>
-        {% if success.user_id %}
+        {% if success.created_account %}
           <p>{{ t.account_confirmation_sent }}</p>
         {% endif %}
         <div class="booking-success-reference">#{{ success.id }}</div>
@@ -100,8 +100,21 @@
         </aside>
 
         <section class="booking-reservation-card">
-          <p class="booking-kicker booking-kicker-dark">{{ t.booking_request }}</p>
+          <p class="booking-kicker booking-kicker-dark">{{ t.payment_details }}</p>
           <h2>{{ t.customer_details }}</h2>
+
+          {% if signed_in_user %}
+            <div class="booking-signed-in-summary">
+              <strong>{{ booking_account_label }}</strong>
+              <span>{{ signed_in_user.email }}</span>
+              <p>{{ t.account_details_prefilled }}</p>
+            </div>
+          {% else %}
+            <div class="booking-account-access">
+              <span>{{ t.already_have_account }}</span>
+              <a href="{{ login_url }}">{{ t.sign_in_to_continue }}</a>
+            </div>
+          {% endif %}
 
           {% if booking_errors %}
             <div class="booking-alert">
@@ -126,16 +139,18 @@
           {% endif %}
 
           <form method="post" class="booking-reservation-form" data-reservation-form>
-            <div class="booking-choice-grid">
-              <label class="{% if account_mode != 'account' %}is-active{% endif %}">
-                <input type="radio" name="account_mode" value="guest" {% if account_mode != 'account' %}checked{% endif %}>
-                <span>{{ t.reserve_as_guest }}</span>
-              </label>
-              <label class="{% if account_mode == 'account' %}is-active{% endif %}">
-                <input type="radio" name="account_mode" value="account" {% if account_mode == 'account' %}checked{% endif %}>
-                <span>{{ t.create_user_account }}</span>
-              </label>
-            </div>
+            {% if not signed_in_user %}
+              <div class="booking-choice-grid">
+                <label class="{% if account_mode != 'account' %}is-active{% endif %}">
+                  <input type="radio" name="account_mode" value="guest" {% if account_mode != 'account' %}checked{% endif %}>
+                  <span>{{ t.reserve_as_guest }}</span>
+                </label>
+                <label class="{% if account_mode == 'account' %}is-active{% endif %}">
+                  <input type="radio" name="account_mode" value="account" {% if account_mode == 'account' %}checked{% endif %}>
+                  <span>{{ t.create_user_account }}</span>
+                </label>
+              </div>
+            {% endif %}
 
             <div class="booking-form-grid">
               <label class="booking-form-field">
@@ -144,7 +159,7 @@
               </label>
               <label class="booking-form-field">
                 <span>{{ t.email }} *</span>
-                <input name="email" type="email" value="{{ customer.email }}" autocomplete="email" required maxlength="255">
+                <input name="email" type="email" value="{{ customer.email }}" autocomplete="email" required maxlength="255" {% if signed_in_user %}readonly{% endif %}>
               </label>
               <label class="booking-form-field">
                 <span>{{ t.country }} *</span>
@@ -164,16 +179,18 @@
               </label>
             </div>
 
-            <div class="booking-form-grid booking-password-fields" data-account-fields {% if account_mode != 'account' %}hidden{% endif %}>
-              <label class="booking-form-field">
-                <span>{{ t.password }} *</span>
-                <input name="password" type="password" autocomplete="new-password" minlength="8">
-              </label>
-              <label class="booking-form-field">
-                <span>{{ t.confirm_password }} *</span>
-                <input name="confirm_password" type="password" autocomplete="new-password" minlength="8">
-              </label>
-            </div>
+            {% if not signed_in_user %}
+              <div class="booking-form-grid booking-password-fields" data-account-fields {% if account_mode != 'account' %}hidden{% endif %}>
+                <label class="booking-form-field">
+                  <span>{{ t.password }} *</span>
+                  <input name="password" type="password" autocomplete="new-password" minlength="8">
+                </label>
+                <label class="booking-form-field">
+                  <span>{{ t.confirm_password }} *</span>
+                  <input name="confirm_password" type="password" autocomplete="new-password" minlength="8">
+                </label>
+              </div>
+            {% endif %}
 
             <label class="booking-form-field">
               <span>{{ t.notes }}</span>

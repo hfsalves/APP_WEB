@@ -215,7 +215,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       let list = [];
       if (isLpAdmin && !IS_ADMIN) {
-        const q = encodeURIComponent("SELECT LOGIN FROM US WHERE INATIVO = 0 AND ISNULL(EQUIPA,'') <> ''");
+        const q = encodeURIComponent("SELECT LOGIN FROM US WHERE ISNULL(INATIVO,0)=0 AND ISNULL(USCLIENTE,0)=0 AND ISNULL(EQUIPA,'') <> ''");
         const url = `/generic/api/options?query=${q}&_ts=${Date.now()}`;
         try { console.log('[monitor] fetch equipa limpeza (LP admin):', url); } catch(_) {}
         const res = await fetch(url, { cache: 'no-store' });
@@ -223,12 +223,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const rows = await res.json();
         list = (rows || []).map(r => (typeof r === 'object' ? Object.values(r)[0] : r));
       } else {
-        const url = `/generic/api/US?INATIVO=0&scope=filters&_ts=${Date.now()}`;
+        const q = encodeURIComponent("SELECT LOGIN FROM US WHERE ISNULL(INATIVO,0)=0 AND ISNULL(USCLIENTE,0)=0 ORDER BY 1");
+        const url = `/generic/api/options?query=${q}&_ts=${Date.now()}`;
         try { console.log('[monitor] fetch filtros users:', url); } catch(_) {}
         const res = await fetch(url, { cache: 'no-store' });
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const rows = await res.json();
-        list = rows || [];
+        list = (rows || []).map(r => (typeof r === 'object' ? (r.value || Object.values(r)[0]) : r));
       }
       const set = new Set(list.map(r => (r.LOGIN || r || '').toString().trim()).filter(Boolean));
       try {
@@ -247,12 +248,13 @@ document.addEventListener('DOMContentLoaded', () => {
       console.error('[monitor] fallback users (erro fetch)', err);
       // Tenta um endpoint alternativo simples (sem scope)
       try {
-        const altUrl = `/generic/api/US?INATIVO=0&_ts=${Date.now()}`;
+        const q = encodeURIComponent("SELECT LOGIN FROM US WHERE ISNULL(INATIVO,0)=0 AND ISNULL(USCLIENTE,0)=0 ORDER BY 1");
+        const altUrl = `/generic/api/options?query=${q}&_ts=${Date.now()}`;
         console.log('[monitor] tenta fetch alternativo users:', altUrl);
         const res2 = await fetch(altUrl, { cache: 'no-store' });
         if (res2.ok) {
           const rows2 = await res2.json();
-          const set2 = new Set((rows2 || []).map(r => (r.LOGIN || '').toString().trim()).filter(Boolean));
+          const set2 = new Set((rows2 || []).map(r => (r.value || r.LOGIN || '').toString().trim()).filter(Boolean));
           set2.add(CURRENT_USER);
           cacheUsers = Array.from(set2).sort((a,b)=>a.localeCompare(b));
           return cacheUsers;
