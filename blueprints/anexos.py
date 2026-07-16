@@ -1,7 +1,7 @@
 import os
 import uuid
 from datetime import datetime
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify, current_app, send_file
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
 from sqlalchemy import text
@@ -12,6 +12,32 @@ bp = Blueprint('anexos', __name__, url_prefix='/api/anexos')
 # Pasta onde vamos guardar os ficheiros (relativa a current_app.root_path)
 UPLOAD_FOLDER = os.path.join('static', 'images', 'anexos')
 ALLOWED_EXT = {'png','jpg','jpeg','gif','pdf','docx','xlsx','txt','webm','mp4','mov','m4v'}
+
+
+@bp.route('/phc-va/<source>/<stamp>', methods=['GET'])
+@login_required
+def view_phc_va_attachment(source, stamp):
+    from services.phc_va_attachments_service import (
+        PhcVaAttachmentNotFound,
+        get_phc_va_attachment_file,
+    )
+
+    try:
+        attachment = get_phc_va_attachment_file(source, stamp)
+    except PhcVaAttachmentNotFound as exc:
+        return jsonify({'error': str(exc)}), 404
+    except Exception:
+        current_app.logger.exception('Falha ao abrir anexo PHC de viatura')
+        return jsonify({'error': 'Não foi possível abrir o anexo.'}), 500
+
+    return send_file(
+        attachment.path,
+        mimetype=attachment.mimetype,
+        as_attachment=False,
+        download_name=attachment.download_name,
+        conditional=True,
+        max_age=0,
+    )
 
 # — Listar anexos de um registo —
 @bp.route('', methods=['GET'])

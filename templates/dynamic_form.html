@@ -10,6 +10,16 @@
       <div class="sz_page_subtitle">{% if record_stamp %}{{ _('common.edit_record') }}{% else %}{{ _('common.new_record') }}{% endif %}</div>
     </div>
     <div class="sz_contextbar_right">
+      {% if table_name|upper == 'VA' %}
+      <button
+        type="button"
+        id="btnVaSnc"
+        class="sz_button sz_button_ghost d-inline-flex align-items-center gap-2"
+        {% if not record_stamp %}disabled title="Guarda a viatura antes de configurar o SNC"{% endif %}>
+        <i class="fa fa-list-check"></i>
+        <span>SNC</span>
+      </button>
+      {% endif %}
       {% if table_name|upper == 'AL' %}
       <button
         type="button"
@@ -296,6 +306,59 @@
 </div>
 <!-- fim do Modal -->
 
+{% if table_name|upper == 'VA' %}
+<div class="modal fade" id="vaSncModal" tabindex="-1" aria-labelledby="vaSncModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable sz_va_snc_modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <h5 class="modal-title" id="vaSncModalLabel">Artigos e códigos SNC</h5>
+          <div class="sz_text_muted sz_text_sm" id="vaSncVehicle"></div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('common.close') }}"></button>
+      </div>
+      <div class="modal-body">
+        <div class="sz_va_snc_intro">
+          Pesquisa a matrícula em todas as bases PHC configuradas na FE e mantém cada registo na respetiva origem.
+        </div>
+        <div id="vaSncStatus" class="sz_va_snc_status" role="status" aria-live="polite" hidden></div>
+        <div class="sz_va_snc_toolbar">
+          <button type="button" id="btnVaSncAdd" class="sz_button sz_button_secondary">
+            <i class="fa fa-plus"></i>
+            <span>Adicionar artigo</span>
+          </button>
+          <span id="vaSncCount" class="sz_badge sz_badge_info">0 associações</span>
+        </div>
+        <div class="sz_table_wrap sz_va_snc_table_wrap">
+          <table class="sz_table sz_table_compact sz_va_snc_table">
+            <thead>
+              <tr>
+                <th>Referência</th>
+                <th>Designação</th>
+                <th>Código SNC</th>
+                <th>Origem</th>
+                <th class="sz_col_fit"><span class="visually-hidden">Ações</span></th>
+              </tr>
+            </thead>
+            <tbody id="vaSncTableBody"></tbody>
+          </table>
+          <div id="vaSncEmpty" class="sz_va_snc_empty" hidden>
+            Ainda não existem artigos associados a esta viatura.
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="sz_button sz_button_secondary" data-bs-dismiss="modal">{{ _('common.cancel') }}</button>
+        <button type="button" id="btnVaSncSave" class="sz_button sz_button_primary">
+          <i class="fa fa-save"></i>
+          <span>{{ _('common.save') }}</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 {% if table_name|upper == 'DBW' %}
 <div class="modal fade" id="dashboardLinkLineModal" tabindex="-1" aria-labelledby="dashboardLinkLineModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
@@ -416,6 +479,9 @@
 </script>
 
 <script type="module" src="{{ url_for('static', filename='js/dynamic_form.js') }}"></script>
+{% if table_name|upper == 'VA' %}
+<script type="module" src="{{ url_for('static', filename='js/va_snc.js') }}?v=3"></script>
+{% endif %}
 
 {% block scripts %}
   {{ super() }}

@@ -748,3 +748,196 @@ Press CTRL+C to quit
 127.0.0.1 - - [16/Jul/2026 11:50:17] "GET /static/js/push.js?v=1784194679 HTTP/1.1" 304 -
 127.0.0.1 - - [16/Jul/2026 11:50:18] "GET /static/css/style.css HTTP/1.1" 200 -
 127.0.0.1 - - [16/Jul/2026 11:50:18] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+[2026-07-16 11:50:48,136] WARNING in app: Falhou ligação SQL Server via 192.168.1.50,1433 (DRIVER={ODBC Driver 18 for SQL Server};SERVER=192.168.1.50,1433;DATABASE=GESTAO;UID=sa;PWD=***;TrustServerCertificate=Yes;Application Name=SZERO): ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+127.0.0.1 - - [16/Jul/2026 11:50:48] "GET /ferias/aprovacao HTTP/1.1" 404 -
+Address already in use
+Port 8001 is in use by another program. Either identify and stop that program, or start the server with a different port.
+[2026-07-16 11:51:13,830] WARNING in app: Falhou ligação SQL Server via 192.168.1.50,1433 (DRIVER={ODBC Driver 18 for SQL Server};SERVER=192.168.1.50,1433;DATABASE=GESTAO;UID=sa;PWD=***;TrustServerCertificate=Yes;Application Name=SZERO): ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://10.0.1.114:8001
+Press CTRL+C to quit
+127.0.0.1 - - [16/Jul/2026 11:51:15] "GET /ferias/aprovacao HTTP/1.1" 302 -
+127.0.0.1 - - [16/Jul/2026 12:45:38] "GET /ferias/aprovacao HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 12:45:38] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:45:38] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:45:38] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:45:38] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:45:38] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:45:38] "GET /static/js/push.js?v=1784199071 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 12:45:38] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:45:59] "GET /aprovacao-ferias?semana=2026-07-20 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 12:45:59] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:45:59] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:45:59] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:45:59] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:45:59] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:45:59] "GET /static/js/push.js?v=1784199071 HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:45:59] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:46:01] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:46:02] "GET /aprovacao-ferias?semana=2026-07-27 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 12:46:02] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:46:02] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:46:02] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:46:02] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:46:02] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:46:02] "GET /static/js/push.js?v=1784199071 HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:46:02] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:46:04] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:46:05] "GET /aprovacao-ferias?semana=2026-08-03 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 12:46:05] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:46:05] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:46:05] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:46:05] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:46:05] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:46:05] "GET /static/js/push.js?v=1784199071 HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:46:05] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:46:07] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:46:24] "GET /aprovacao-ferias HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 12:46:24] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:46:24] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:46:24] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:46:24] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:46:24] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:46:24] "GET /static/js/push.js?v=1784199071 HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:46:24] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:46:26] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:52:16] "GET /aprovacao-ferias HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 12:52:17] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:52:17] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:52:17] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:52:17] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:52:17] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:52:17] "GET /static/js/push.js?v=1784199071 HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:52:17] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:52:17] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:52:18] "GET /service-worker.js HTTP/1.1" 304 -
+[2026-07-16 12:52:45,683] WARNING in app: Falhou ligação SQL Server via 192.168.1.50,1433 (DRIVER={ODBC Driver 18 for SQL Server};SERVER=192.168.1.50,1433;DATABASE=GESTAO;UID=sa;PWD=***;TrustServerCertificate=Yes;Application Name=SZERO): ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://10.0.1.114:8001
+Press CTRL+C to quit
+127.0.0.1 - - [16/Jul/2026 12:52:47] "GET /ferias/aprovacao HTTP/1.1" 302 -
+[2026-07-16 12:53:16,146] WARNING in app: Falhou ligação SQL Server via 192.168.1.50,1433 (DRIVER={ODBC Driver 18 for SQL Server};SERVER=192.168.1.50,1433;DATABASE=GESTAO;UID=sa;PWD=***;TrustServerCertificate=Yes;Application Name=SZERO): ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://10.0.1.114:8001
+Press CTRL+C to quit
+127.0.0.1 - - [16/Jul/2026 12:53:29] "GET /ferias/aprovacao HTTP/1.1" 302 -
+127.0.0.1 - - [16/Jul/2026 12:53:33] "POST /api/profile/viewmode HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 12:53:33] "POST /api/profile/viewmode HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 12:53:36] "POST /api/profile/viewmode HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 12:53:36] "POST /api/profile/viewmode HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 12:53:44] "GET /aprovacao-ferias HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 12:53:44] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:53:44] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:53:44] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:53:44] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:53:44] "GET /static/js/push.js?v=1784202794 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 12:53:44] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:53:44] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:53:44] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:53:46] "GET /service-worker.js HTTP/1.1" 304 -
+[2026-07-16 12:56:23,101] WARNING in app: Falhou ligação SQL Server via 192.168.1.50,1433 (DRIVER={ODBC Driver 18 for SQL Server};SERVER=192.168.1.50,1433;DATABASE=GESTAO;UID=sa;PWD=***;TrustServerCertificate=Yes;Application Name=SZERO): ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://10.0.1.114:8001
+Press CTRL+C to quit
+127.0.0.1 - - [16/Jul/2026 12:56:26] "GET /ferias/aprovacao HTTP/1.1" 302 -
+127.0.0.1 - - [16/Jul/2026 12:56:42] "GET /aprovacao-ferias HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 12:56:42] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:56:42] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:56:42] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:56:42] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:56:42] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:56:42] "GET /static/js/push.js?v=1784202980 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 12:56:42] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:56:42] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:56:44] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:57:41] "GET /aprovacao-ferias HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 12:57:41] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:57:41] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:57:41] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:57:41] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:57:41] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:57:41] "GET /static/js/push.js?v=1784202980 HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:57:42] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:57:42] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 12:57:43] "GET /service-worker.js HTTP/1.1" 304 -
+[2026-07-16 12:57:51,759] WARNING in app: Falhou ligação SQL Server via 192.168.1.50,1433 (DRIVER={ODBC Driver 18 for SQL Server};SERVER=192.168.1.50,1433;DATABASE=GESTAO;UID=sa;PWD=***;TrustServerCertificate=Yes;Application Name=SZERO): ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://10.0.1.114:8001
+Press CTRL+C to quit
+127.0.0.1 - - [16/Jul/2026 12:57:54] "GET /ferias/aprovacao HTTP/1.1" 302 -
+127.0.0.1 - - [16/Jul/2026 12:58:08] "GET /aprovacao-ferias?semana=2026-07-20&fragment=1 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 12:58:13] "GET /aprovacao-ferias?semana=2026-07-27&fragment=1 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 12:58:17] "GET /aprovacao-ferias?semana=2026-08-03&fragment=1 HTTP/1.1" 200 -
+[2026-07-16 13:00:58,608] WARNING in app: Falhou ligação SQL Server via 192.168.1.50,1433 (DRIVER={ODBC Driver 18 for SQL Server};SERVER=192.168.1.50,1433;DATABASE=GESTAO;UID=sa;PWD=***;TrustServerCertificate=Yes;Application Name=SZERO): ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://10.0.1.114:8001
+Press CTRL+C to quit
+127.0.0.1 - - [16/Jul/2026 13:01:01] "GET /ferias/aprovacao HTTP/1.1" 302 -
+127.0.0.1 - - [16/Jul/2026 13:01:03] "GET /aprovacao-ferias?semana=2026-08-03 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 13:01:03] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 13:01:03] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 13:01:03] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 13:01:03] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 13:01:03] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 13:01:03] "GET /static/js/push.js?v=1784203256 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 13:01:03] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 13:01:03] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 13:01:04] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 13:01:16] "GET /aprovacao-ferias?semana=2026-08-10&fragment=1 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 13:01:19] "GET /aprovacao-ferias?semana=2026-08-17&fragment=1 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 13:02:13] "GET /aprovacao-ferias?semana=2026-08-17 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 13:02:13] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 13:02:13] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 13:02:13] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 13:02:13] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 13:02:13] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 13:02:13] "GET /static/js/push.js?v=1784203256 HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 13:02:14] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 13:02:14] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 13:02:15] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 13:03:48] "GET /aprovacao-ferias?semana=2026-08-17 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 13:03:48] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 13:03:48] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 13:03:48] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 13:03:48] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 13:03:48] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 13:03:48] "GET /static/js/push.js?v=1784203256 HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 13:03:49] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 13:03:49] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 13:03:50] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 13:04:02] "GET /aprovacao-ferias?semana=2026-08-17 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 13:04:02] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 13:04:02] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 13:04:02] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 13:04:02] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 13:04:02] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 13:04:02] "GET /static/js/push.js?v=1784203256 HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 13:04:02] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 13:04:02] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 13:04:04] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 13:04:50] "GET /aprovacao-ferias?semana=2026-08-17 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 13:04:50] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 13:04:50] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 13:04:50] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 13:04:50] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 13:04:50] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 13:04:50] "GET /static/js/push.js?v=1784203256 HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 13:04:50] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 13:04:50] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 13:04:51] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 13:05:04] "GET /aprovacao-ferias?semana=2026-08-10&fragment=1 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 13:05:07] "GET /aprovacao-ferias?semana=2026-08-03&fragment=1 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 13:05:10] "GET /aprovacao-ferias?semana=2026-07-27&fragment=1 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 13:05:14] "GET /aprovacao-ferias?semana=2026-07-20&fragment=1 HTTP/1.1" 200 -

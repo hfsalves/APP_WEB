@@ -2689,6 +2689,10 @@ def create_app():
                 # Agrupadores (ordem % 100 == 0)
                 elif m.ordem % 100 == 0:
                     mostrar = False  # SÃ³ serÃ¡ True se algum filho for permitido (mais abaixo)
+                # A aprovação de férias é limitada aos utilizadores com ACL explícita,
+                # incluindo quando o utilizador é administrador.
+                elif table_key == 'FERIAS_APROVACAO':
+                    mostrar = perms.get(table_key, {}).get('consultar', False)
                 # Todos os outros: sÃ³ se tem acesso
                 else:
                     mostrar = user_is_admin or perms.get(str(m.tabela or '').strip().upper(), {}).get('consultar', False)
@@ -26039,26 +26043,71 @@ def create_app():
             app.logger.exception('Erro ao gravar alterações de férias.')
             return jsonify({'ok': False, 'error': 'Erro ao gravar alterações de férias.'}), 500
 
+    def _can_open_ferias_aprovacao() -> bool:
+        login = str(getattr(current_user, 'LOGIN', '') or '').strip()
+        if not login:
+            return False
+        return bool(db.session.execute(text("""
+            SELECT TOP 1 1
+            FROM dbo.ACESSOS
+            WHERE LOWER(LTRIM(RTRIM(ISNULL(UTILIZADOR, '')))) = LOWER(:login)
+              AND UPPER(LTRIM(RTRIM(ISNULL(TABELA, '')))) = 'FERIAS_APROVACAO'
+              AND ISNULL(CONSULTAR, 0) = 1
+        """), {'login': login}).scalar())
+
     @app.route('/ferias/aprovacao')
     @app.route('/aprovacao-ferias')
     @login_required
     def ferias_aprovacao_page():
         from services.ferias_aprovacao_service import list_ferias_aprovacao
 
+        if not _can_open_ferias_aprovacao():
+            return abort(403)
+
         try:
-            payload = list_ferias_aprovacao(request.args.get('semana'))
+            payload = list_ferias_aprovacao(
+                week=request.args.get('semana'),
+                start_value=request.args.get('inicio'),
+                end_value=request.args.get('fim'),
+                company_feid=request.args.get('empresa'),
+            )
         except Exception:
             app.logger.exception('Erro ao carregar o painel de aprovação de férias.')
             payload = {
                 'start': date.today() - timedelta(days=date.today().weekday()),
                 'end': date.today() + timedelta(days=55 - date.today().weekday()),
                 'previous_week': date.today() - timedelta(days=7 + date.today().weekday()),
+                'previous_end': date.today() + timedelta(days=48 - date.today().weekday()),
                 'next_week': date.today() + timedelta(days=7 - date.today().weekday()),
+                'next_end': date.today() + timedelta(days=62 - date.today().weekday()),
                 'days': [],
+                'months': [],
                 'employees': [],
                 'warnings': ['as empresas configuradas'],
+                'companies': [],
+                'selected_feid': 0,
             }
+        if request.args.get('fragment') == '1':
+            return render_template('_ferias_aprovacao_grid.html', **payload)
         return render_template('ferias_aprovacao.html', page_title='Aprovação de férias', **payload)
+
+    @app.route('/api/ferias/aprovacao/alteracoes', methods=['POST'])
+    @login_required
+    def api_ferias_aprovacao_alteracoes():
+        from services.ferias_aprovacao_service import apply_ferias_approval_action
+
+        if not _can_open_ferias_aprovacao():
+            return jsonify({'ok': False, 'error': 'Sem permissão para aprovar férias.'}), 403
+
+        try:
+            return jsonify(apply_ferias_approval_action(current_user, request.get_json(silent=True) or {}))
+        except ValueError as exc:
+            db.session.rollback()
+            return jsonify({'ok': False, 'error': str(exc)}), 400
+        except Exception:
+            db.session.rollback()
+            app.logger.exception('Erro ao aplicar decisão de férias.')
+            return jsonify({'ok': False, 'error': 'Erro ao aplicar a decisão de férias.'}), 500
 
     @app.route('/recibos')
     @app.route('/colaborador/recibos')

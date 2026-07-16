@@ -7,20 +7,28 @@
   <section class="sz_contextbar vacation-approval-context">
     <div>
       <h1>Aprovação de férias</h1>
-      <p>{{ employees|length }} colaboradores · 8 semanas de planeamento</p>
+      <p>{{ employees|length }} colaboradores · {{ days|length }} dias de planeamento</p>
     </div>
     <div class="vacation-approval-navigation" aria-label="Navegação semanal">
-      <a class="vacation-nav-button" href="{{ url_for('ferias_aprovacao_page', semana=previous_week.isoformat()) }}" title="Recuar uma semana" aria-label="Recuar uma semana">
+      <a id="vacationPrevious" class="vacation-nav-button vacation-week-nav" href="{{ url_for('ferias_aprovacao_page', inicio=previous_week.isoformat(), fim=previous_end.isoformat(), empresa=selected_feid or None) }}" title="Recuar uma semana" aria-label="Recuar uma semana">
         <i class="fa-solid fa-chevron-left"></i>
       </a>
-      <div class="vacation-range">
-        <strong>{{ start.strftime('%d/%m/%Y') }} - {{ end.strftime('%d/%m/%Y') }}</strong>
-        <span>Segunda-feira a domingo</span>
+      <div class="vacation-date-controls" id="vacationPeriodControls">
+        <label>Desde<input class="sz_input" id="vacationStart" type="date" value="{{ start.isoformat() }}"></label>
+        <label>Até<input class="sz_input" id="vacationEnd" type="date" value="{{ end.isoformat() }}"></label>
       </div>
-      <a class="vacation-nav-button" href="{{ url_for('ferias_aprovacao_page', semana=next_week.isoformat()) }}" title="Avançar uma semana" aria-label="Avançar uma semana">
+      <a id="vacationNext" class="vacation-nav-button vacation-week-nav" href="{{ url_for('ferias_aprovacao_page', inicio=next_week.isoformat(), fim=next_end.isoformat(), empresa=selected_feid or None) }}" title="Avançar uma semana" aria-label="Avançar uma semana">
         <i class="fa-solid fa-chevron-right"></i>
       </a>
-      <a class="sz_button sz_button_secondary" href="{{ url_for('ferias_aprovacao_page') }}">
+      <label class="vacation-company-control">Empresa
+        <select class="sz_select" id="vacationCompany">
+          <option value="">Todas</option>
+          {% for company in companies %}
+            <option value="{{ company.feid }}" {{ 'selected' if company.feid == selected_feid else '' }}>{{ company.nome }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <a id="vacationCurrent" class="sz_button sz_button_secondary vacation-week-nav" href="{{ url_for('ferias_aprovacao_page', empresa=selected_feid or None) }}">
         <i class="fa-solid fa-calendar-day"></i><span>Semana atual</span>
       </a>
     </div>
@@ -30,100 +38,330 @@
     <div class="vacation-approval-warning"><i class="fa-solid fa-triangle-exclamation"></i> Não foi possível ler férias em: {{ warnings|join(', ') }}.</div>
   {% endif %}
 
-  <section class="vacation-approval-panel">
-    <div class="vacation-approval-legend" aria-label="Legenda">
-      <span><i class="legend-swatch is-approved"></i> Aprovada</span>
-      <span><i class="legend-swatch is-pending"></i> Por aprovar</span>
-      <span><i class="legend-swatch is-weekend"></i> Fim de semana</span>
-      <span><i class="legend-swatch is-holiday"></i> Feriado</span>
-    </div>
+  <div id="vacationGridContainer">{% include '_ferias_aprovacao_grid.html' %}</div>
 
-    <div class="vacation-grid-scroll">
-      <table class="vacation-grid">
-        <thead>
-          <tr>
-            <th class="vacation-person-header">Colaborador</th>
-            {% for day in days %}
-              <th class="{{ 'is-weekend' if day.weekend else '' }} {{ 'is-week-break' if day.week_break else '' }}">
-                <span>{{ day.weekday }}</span><strong>{{ day.day }}</strong><small>{{ day.month }}</small>
-              </th>
-            {% endfor %}
-          </tr>
-        </thead>
-        <tbody>
-          {% for employee in employees %}
-            <tr>
-              <th class="vacation-person-cell">
-                <strong>{{ employee.nome or 'Sem nome' }}</strong>
-                <span>N.º {{ employee.no }} · {{ employee.empresa }}</span>
-              </th>
-              {% for day in days %}
-                {% set status = employee.statuses.get(day.key, '') %}
-                {% set is_holiday = day.key in employee.holidays %}
-                <td class="{{ 'is-weekend' if day.weekend else '' }} {{ 'is-holiday' if is_holiday else '' }} {{ 'is-approved' if status == 'approved' else '' }} {{ 'is-pending' if status == 'pending' else '' }} {{ 'is-week-break' if day.week_break else '' }}" title="{{ 'Férias aprovadas' if status == 'approved' else ('Férias por aprovar' if status == 'pending' else ('Feriado' if is_holiday else ('Fim de semana' if day.weekend else '')) ) }}">
-                  {% if status == 'approved' %}<i class="fa-solid fa-check"></i>{% elif status == 'pending' %}<i class="fa-solid fa-clock"></i>{% endif %}
-                </td>
-              {% endfor %}
-            </tr>
-          {% else %}
-            <tr><td class="vacation-grid-empty" colspan="57">Sem colaboradores ativos.</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </section>
+  <div class="vacation-action-modal" id="vacationActionModal" hidden>
+    <div class="vacation-action-backdrop" data-vacation-action-close></div>
+    <section class="vacation-action-dialog" role="dialog" aria-modal="true" aria-labelledby="vacationActionTitle">
+      <header>
+        <div>
+          <h2 id="vacationActionTitle">Férias</h2>
+          <p id="vacationActionDescription"></p>
+        </div>
+        <button type="button" class="sz_button sz_button_ghost vacation-action-close" data-vacation-action-close aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
+      </header>
+      <div class="vacation-action-options" id="vacationActionOptions"></div>
+      <footer><button type="button" class="sz_button sz_button_secondary" data-vacation-action-close>Cancelar</button></footer>
+    </section>
+  </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
 {{ super() }}
 <style>
-  .vacation-approval-page { display: grid; gap: var(--sz-space-3); min-height: 0; }
+  .vacation-approval-page { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: var(--sz-space-3); min-width: 0; max-width: calc(100vw - 6rem); height: calc(100vh - 4.75rem); margin: 0 var(--sz-space-3); overflow: hidden; color: var(--sz-color-text); }
   .vacation-approval-context { display: flex; justify-content: space-between; align-items: center; gap: var(--sz-space-4); }
-  .vacation-approval-context h1 { margin: 0; font-size: 1.3rem; }
-  .vacation-approval-context p { margin: .25rem 0 0; color: var(--sz-color-text-muted); }
-  .vacation-approval-navigation { display: flex; align-items: center; justify-content: flex-end; gap: var(--sz-space-2); }
-  .vacation-nav-button { width: 2.55rem; height: 2.55rem; display: inline-grid; place-items: center; border: 1px solid var(--sz-color-border); border-radius: var(--sz-radius-sm); color: var(--sz-color-text); background: var(--sz-color-surface); text-decoration: none; }
+  .vacation-approval-context h1 { margin: 0; color: var(--sz-color-text) !important; font-size: 1.3rem; }
+  .vacation-approval-context p { margin: .25rem 0 0; color: var(--sz-color-text-muted) !important; }
+  .vacation-approval-navigation { display: flex; align-items: flex-end; justify-content: flex-end; gap: var(--sz-space-2); }
+  .vacation-nav-button { width: 2.55rem; height: 2.55rem; display: inline-grid; place-items: center; border: 1px solid var(--sz-color-border); border-radius: var(--sz-radius-sm); color: var(--sz-color-text) !important; background: var(--sz-color-surface); text-decoration: none; }
   .vacation-nav-button:hover { border-color: var(--sz-color-primary); color: var(--sz-color-primary); }
-  .vacation-range { min-width: 13.5rem; text-align: center; }
-  .vacation-range strong, .vacation-range span { display: block; }
-  .vacation-range span { margin-top: .15rem; color: var(--sz-color-text-muted); font-size: .78rem; }
+  .vacation-date-controls { display: flex; gap: var(--sz-space-2); }
+  .vacation-date-controls label, .vacation-company-control { display: grid; gap: .25rem; color: var(--sz-color-text-muted); font-size: .72rem; font-weight: 600; }
+  .vacation-date-controls .sz_input { width: 9rem; min-height: 2.55rem; }
+  .vacation-company-control .sz_select { width: 11.5rem; min-height: 2.55rem; }
   .vacation-approval-warning { padding: .7rem .9rem; border: 1px solid #a67c32; border-radius: var(--sz-radius-sm); background: rgba(166, 124, 50, .14); color: var(--sz-color-text); }
-  .vacation-approval-panel { min-width: 0; padding: var(--sz-space-3); border: 1px solid var(--sz-color-border); border-radius: var(--sz-radius-md); background: var(--sz-color-surface); }
+  .vacation-approval-panel { display: flex; flex-direction: column; min-width: 0; min-height: 0; padding: var(--sz-space-3); border: 1px solid var(--sz-color-border); border-radius: var(--sz-radius-md); background: var(--sz-color-surface); }
+  #vacationGridContainer { min-width: 0; min-height: 0; height: 100%; transition: opacity .16s ease; }
+  #vacationGridContainer > .vacation-approval-panel { height: 100%; box-sizing: border-box; }
+  #vacationGridContainer.is-loading { opacity: .45; pointer-events: none; }
   .vacation-approval-legend { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; margin-bottom: var(--sz-space-3); color: var(--sz-color-text-muted); font-size: .82rem; }
   .vacation-approval-legend span { display: inline-flex; align-items: center; gap: .35rem; }
   .legend-swatch { width: .75rem; height: .75rem; display: inline-block; border: 1px solid var(--sz-color-border); border-radius: 2px; }
-  .legend-swatch.is-approved { background: #2f67b5; border-color: #2f67b5; }
-  .legend-swatch.is-pending { background: #a8c2e6; border-color: #85a8d9; }
-  .legend-swatch.is-weekend { background: rgba(167, 181, 199, .35); }
-  .legend-swatch.is-holiday { background: rgba(213, 128, 145, .45); border-color: #c97989; }
-  .vacation-grid-scroll { max-width: 100%; overflow: auto; border: 1px solid var(--sz-color-border); border-radius: var(--sz-radius-sm); scrollbar-color: var(--sz-color-border) transparent; }
+  .legend-swatch.is-approved { background: var(--sz-color-primary); border-color: var(--sz-color-primary); }
+  .legend-swatch.is-pending { background: color-mix(in srgb, var(--sz-color-primary) 42%, var(--sz-color-surface)); border-color: color-mix(in srgb, var(--sz-color-primary) 68%, var(--sz-color-border)); }
+  .legend-swatch.is-weekend { background: color-mix(in srgb, var(--sz-color-text-muted) 28%, var(--sz-color-surface)); }
+  .legend-swatch.is-holiday { background: color-mix(in srgb, var(--sz-color-danger) 36%, var(--sz-color-surface)); border-color: color-mix(in srgb, var(--sz-color-danger) 68%, var(--sz-color-border)); }
+  .vacation-grid-scroll { width: 100%; max-width: 100%; flex: 1 1 auto; min-height: 0; overflow: auto; border: 1px solid var(--sz-color-border); border-radius: var(--sz-radius-sm); scrollbar-color: var(--sz-color-border) transparent; scrollbar-width: auto; }
+  .vacation-grid-scroll::-webkit-scrollbar { height: .8rem; }
+  .vacation-grid-scroll::-webkit-scrollbar-thumb { border: 3px solid var(--sz-color-surface); border-radius: 999px; background: var(--sz-color-border); }
   .vacation-grid { width: max-content; min-width: 100%; border-spacing: 0; border-collapse: separate; font-size: .75rem; }
-  .vacation-grid th, .vacation-grid td { width: 2rem; min-width: 2rem; height: 2.45rem; padding: 0; border-right: 1px solid var(--sz-color-border); border-bottom: 1px solid var(--sz-color-border); text-align: center; }
-  .vacation-grid thead th { position: sticky; top: 0; z-index: 3; background: var(--sz-color-surface-raised, var(--sz-color-surface)); color: var(--sz-color-text-muted); font-weight: 600; }
-  .vacation-grid thead th span, .vacation-grid thead th strong, .vacation-grid thead th small { display: block; line-height: 1; }
-  .vacation-grid thead th span { margin-bottom: .18rem; font-size: .64rem; text-transform: uppercase; }
-  .vacation-grid thead th strong { color: var(--sz-color-text); font-size: .82rem; }
-  .vacation-grid thead th small { margin-top: .14rem; font-size: .6rem; }
+  .vacation-grid th, .vacation-grid td { width: 1.7rem; min-width: 1.7rem; height: 2.45rem; padding: 0; border-right: 1px solid var(--sz-color-border); border-bottom: 1px solid var(--sz-color-border); text-align: center; }
+  .vacation-grid thead th { position: sticky; background: var(--sz-color-surface-raised, var(--sz-color-surface)); color: var(--sz-color-text-muted); font-weight: 600; }
+  .vacation-grid .vacation-month-row th:not(.vacation-person-header) { top: 0; z-index: 4; height: 1.85rem; padding: 0 .25rem; color: var(--sz-color-text); text-align: left; font-size: .72rem; }
+  .vacation-grid .vacation-day-row th { top: 1.85rem; z-index: 3; height: 1.75rem; color: var(--sz-color-text); font-size: .72rem; }
   .vacation-person-header, .vacation-person-cell { position: sticky; left: 0; z-index: 2; width: 18rem !important; min-width: 18rem !important; padding: .45rem .7rem !important; text-align: left !important; background: var(--sz-color-surface-raised, var(--sz-color-surface)); box-shadow: 2px 0 0 rgba(0, 0, 0, .08); }
-  .vacation-person-header { z-index: 5 !important; }
-  .vacation-person-cell strong, .vacation-person-cell span { display: block; }
+  .vacation-person-header { top: 0; z-index: 5 !important; }
+  .vacation-person-cell strong { display: block; }
   .vacation-person-cell strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--sz-color-text); }
-  .vacation-person-cell span { margin-top: .14rem; overflow: hidden; color: var(--sz-color-text-muted); font-size: .68rem; text-overflow: ellipsis; white-space: nowrap; }
-  .vacation-grid td { color: #fff; background: transparent; }
-  .vacation-grid td.is-weekend, .vacation-grid th.is-weekend { background: rgba(167, 181, 199, .20); }
-  .vacation-grid td.is-holiday { background: rgba(213, 128, 145, .32); }
-  .vacation-grid td.is-approved { background: #2f67b5; }
-  .vacation-grid td.is-pending { background: #a8c2e6; color: #274b78; }
+  .vacation-grid td { color: var(--sz-color-text); background: transparent; }
+  .vacation-grid td.is-weekend, .vacation-grid th.is-weekend { background: color-mix(in srgb, var(--sz-color-text-muted) 23%, var(--sz-color-surface)); }
+  .vacation-grid td.is-holiday { background: color-mix(in srgb, var(--sz-color-danger) 28%, var(--sz-color-surface)); }
+  .vacation-grid td.is-approved { background: var(--sz-color-primary); color: var(--sz-color-surface); }
+  .vacation-grid td.is-pending { background: color-mix(in srgb, var(--sz-color-primary) 43%, var(--sz-color-surface)); color: var(--sz-color-text); }
+  .vacation-grid td.is-removal-pending { background: color-mix(in srgb, var(--sz-color-warning, #f59e0b) 38%, var(--sz-color-surface)); color: var(--sz-color-text); }
+  .vacation-grid td.vacation-action-cell:not(.is-weekend):not(.is-holiday) { cursor: pointer; }
+  .vacation-grid td.vacation-action-cell:not(.is-weekend):not(.is-holiday):hover { outline: 2px solid var(--sz-color-primary); outline-offset: -2px; }
+  .vacation-grid td.is-selected { outline: 2px solid var(--sz-color-text); outline-offset: -3px; }
   .vacation-grid td i { font-size: .63rem; }
   .vacation-grid .is-week-break { border-left: 2px solid var(--sz-color-primary); }
   .vacation-grid-empty { width: auto !important; padding: 1.25rem !important; color: var(--sz-color-text-muted); text-align: center !important; }
+  .vacation-action-modal[hidden] { display: none; }
+  .vacation-action-modal { position: fixed; z-index: 1100; inset: 0; display: grid; place-items: center; padding: var(--sz-space-3); }
+  .vacation-action-backdrop { position: absolute; inset: 0; background: color-mix(in srgb, var(--sz-color-bg-main) 72%, transparent); backdrop-filter: blur(2px); }
+  .vacation-action-dialog { position: relative; width: min(28rem, 100%); border: 1px solid var(--sz-color-border); border-radius: var(--sz-radius-md); background: var(--sz-color-surface); box-shadow: 0 1.5rem 3rem rgba(0, 0, 0, .3); overflow: hidden; }
+  .vacation-action-dialog header, .vacation-action-dialog footer { display: flex; align-items: center; justify-content: space-between; gap: var(--sz-space-3); padding: var(--sz-space-3); border-bottom: 1px solid var(--sz-color-border); }
+  .vacation-action-dialog footer { justify-content: flex-end; border-top: 1px solid var(--sz-color-border); border-bottom: 0; }
+  .vacation-action-dialog h2 { margin: 0; color: var(--sz-color-text); font-size: 1.05rem; }
+  .vacation-action-dialog p { margin: .3rem 0 0; color: var(--sz-color-text-muted); font-size: .86rem; }
+  .vacation-action-close { width: 2.3rem; height: 2.3rem; padding: 0; justify-content: center; }
+  .vacation-action-options { display: grid; gap: var(--sz-space-2); padding: var(--sz-space-3); }
+  .vacation-action-options .sz_button { width: 100%; justify-content: flex-start; }
+  .vacation-action-options .is-danger { border-color: color-mix(in srgb, var(--sz-color-danger) 70%, var(--sz-color-border)); color: var(--sz-color-danger); }
   @media (max-width: 760px) {
+    .vacation-approval-page { max-width: calc(100vw - 1rem); height: calc(100vh - 4.25rem); margin: 0 .5rem; }
     .vacation-approval-context { align-items: flex-start; flex-direction: column; }
-    .vacation-approval-navigation { width: 100%; justify-content: space-between; }
-    .vacation-range { min-width: 0; flex: 1; }
+    .vacation-approval-navigation { width: 100%; flex-wrap: wrap; justify-content: space-between; }
+    .vacation-date-controls { flex: 1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .vacation-date-controls .sz_input, .vacation-company-control .sz_select { width: 100%; }
+    .vacation-company-control { flex-basis: 100%; }
     .vacation-approval-navigation .sz_button span { display: none; }
     .vacation-person-header, .vacation-person-cell { width: 12.5rem !important; min-width: 12.5rem !important; }
   }
 </style>
+<script>
+  (() => {
+    const container = document.getElementById('vacationGridContainer');
+    const baseUrl = {{ url_for('ferias_aprovacao_page')|tojson }};
+    const startInput = document.getElementById('vacationStart');
+    const endInput = document.getElementById('vacationEnd');
+    const companySelect = document.getElementById('vacationCompany');
+    const actionModal = document.getElementById('vacationActionModal');
+    const actionTitle = document.getElementById('vacationActionTitle');
+    const actionDescription = document.getElementById('vacationActionDescription');
+    const actionOptions = document.getElementById('vacationActionOptions');
+    let selectedCells = [];
+    let pointerSelection = null;
+    let suppressClickUntil = 0;
+
+    const dateFromIso = (iso) => new Date(`${iso}T12:00:00`);
+    const dateToIso = (value) => value.toISOString().slice(0, 10);
+    const requestUrl = (start = '', end = '', company = '') => {
+      const url = new URL(baseUrl, window.location.origin);
+      if (start) url.searchParams.set('inicio', start);
+      if (end) url.searchParams.set('fim', end);
+      if (company) url.searchParams.set('empresa', company);
+      return url;
+    };
+
+    function updateNavigation(start, end, company) {
+      const startDate = dateFromIso(start);
+      const endDate = dateFromIso(end);
+      const previousStart = new Date(startDate); previousStart.setDate(previousStart.getDate() - 7);
+      const previousEnd = new Date(endDate); previousEnd.setDate(previousEnd.getDate() - 7);
+      const nextStart = new Date(startDate); nextStart.setDate(nextStart.getDate() + 7);
+      const nextEnd = new Date(endDate); nextEnd.setDate(nextEnd.getDate() + 7);
+      document.getElementById('vacationPrevious').href = requestUrl(dateToIso(previousStart), dateToIso(previousEnd), company).href;
+      document.getElementById('vacationNext').href = requestUrl(dateToIso(nextStart), dateToIso(nextEnd), company).href;
+      document.getElementById('vacationCurrent').href = requestUrl('', '', company).href;
+    }
+
+    async function loadGrid(url) {
+      if (container.dataset.loading === '1') return;
+      container.dataset.loading = '1';
+      container.classList.add('is-loading');
+      try {
+        const fragmentUrl = new URL(url, window.location.origin);
+        fragmentUrl.searchParams.set('fragment', '1');
+        const response = await fetch(fragmentUrl, { headers: { 'X-Requested-With': 'fetch' } });
+        if (!response.ok) throw new Error('Não foi possível atualizar o calendário.');
+        container.innerHTML = await response.text();
+        selectedCells = [];
+        const grid = container.querySelector('[data-week-grid]');
+        const start = grid?.dataset.start;
+        const end = grid?.dataset.end;
+        const company = grid?.dataset.company || '';
+        if (!start || !end) throw new Error('O período devolvido não é válido.');
+        startInput.value = start;
+        endInput.value = end;
+        companySelect.value = company;
+        updateNavigation(start, end, company);
+        const historyUrl = requestUrl(start, end, company);
+        window.history.pushState({}, '', `${historyUrl.pathname}${historyUrl.search}`);
+        container.querySelector('.vacation-grid-scroll')?.scrollTo({ left: 0, behavior: 'smooth' });
+      } catch (error) {
+        window.alert(error.message || 'Não foi possível atualizar o calendário.');
+      } finally {
+        container.dataset.loading = '0';
+        container.classList.remove('is-loading');
+      }
+    }
+
+    const actionConfig = {
+      pending: {
+        title: 'Férias por aprovar',
+        actions: [
+          { key: 'approve', label: 'Aprovar férias', icon: 'fa-check' },
+          { key: 'reject', label: 'Rejeitar férias', icon: 'fa-xmark', danger: true },
+        ],
+      },
+      approved: {
+        title: 'Férias aprovadas',
+        actions: [{ key: 'remove', label: 'Remover férias', icon: 'fa-trash', danger: true }],
+      },
+      empty: {
+        title: 'Marcar férias',
+        actions: [{ key: 'mark', label: 'Marcar férias', icon: 'fa-calendar-plus' }],
+      },
+      removal: {
+        title: 'Pedido de remoção',
+        actions: [
+          { key: 'accept_removal', label: 'Aceitar remoção', icon: 'fa-check' },
+          { key: 'reject_removal', label: 'Rejeitar remoção', icon: 'fa-xmark', danger: true },
+        ],
+      },
+    };
+
+    function clearSelection() {
+      container.querySelectorAll('.vacation-action-cell.is-selected').forEach((cell) => cell.classList.remove('is-selected'));
+      selectedCells = [];
+    }
+
+    function cellData(cell) {
+      if (!cell || cell.classList.contains('is-weekend') || cell.classList.contains('is-holiday')) return null;
+      const day = cell.dataset.vacationDay;
+      const state = cell.dataset.vacationState;
+      const peno = cell.dataset.vacationEmployee;
+      const feid = cell.dataset.vacationCompany;
+      return day && state && peno && feid ? { day, state, peno, feid } : null;
+    }
+
+    function addSelection(cell, base) {
+      const data = cellData(cell);
+      if (!data || !base || data.state !== base.state || data.peno !== base.peno || data.feid !== base.feid) return;
+      if (!selectedCells.includes(cell)) {
+        selectedCells.push(cell);
+        cell.classList.add('is-selected');
+      }
+    }
+
+    function closeActionModal() {
+      actionModal.hidden = true;
+      clearSelection();
+    }
+
+    function openActionModal() {
+      const first = cellData(selectedCells[0]);
+      const config = first && actionConfig[first.state];
+      if (!first || !config) return;
+      const count = selectedCells.length;
+      actionTitle.textContent = config.title;
+      actionDescription.textContent = `${count} dia${count === 1 ? '' : 's'} selecionado${count === 1 ? '' : 's'}.`;
+      actionOptions.innerHTML = config.actions.map((item) => `
+        <button type="button" class="sz_button sz_button_secondary ${item.danger ? 'is-danger' : ''}" data-vacation-action="${item.key}">
+          <i class="fa-solid ${item.icon}"></i><span>${item.label}</span>
+        </button>
+      `).join('');
+      actionModal.hidden = false;
+      actionOptions.querySelector('button')?.focus();
+    }
+
+    async function applyAction(action) {
+      const first = cellData(selectedCells[0]);
+      if (!first) return;
+      const labels = {
+        approve: 'aprovar', reject: 'rejeitar', remove: 'remover', mark: 'marcar',
+        accept_removal: 'aceitar a remoção de', reject_removal: 'rejeitar a remoção de',
+      };
+      const count = selectedCells.length;
+      if (!window.confirm(`Confirma ${labels[action]} ${count} dia${count === 1 ? '' : 's'} de férias?`)) return;
+      actionOptions.querySelectorAll('button').forEach((button) => { button.disabled = true; });
+      try {
+        const response = await fetch('/api/ferias/aprovacao/alteracoes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({
+            action,
+            feid: Number(first.feid),
+            peno: Number(first.peno),
+            days: selectedCells.map((cell) => cell.dataset.vacationDay),
+          }),
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.ok) throw new Error(result.error || 'Não foi possível gravar a decisão.');
+        closeActionModal();
+        await loadGrid(window.location.href);
+      } catch (error) {
+        window.alert(error.message || 'Não foi possível gravar a decisão.');
+        actionOptions.querySelectorAll('button').forEach((button) => { button.disabled = false; });
+      }
+    }
+
+    function wireNavigation() {
+      document.querySelectorAll('.vacation-week-nav').forEach((link) => {
+        link.addEventListener('click', async (event) => {
+          event.preventDefault();
+          await loadGrid(link.href);
+        });
+      });
+    }
+
+    function loadFilters() {
+      const start = startInput.value;
+      let end = endInput.value;
+      if (!start || !end) return;
+      if (end < start) {
+        end = start;
+        endInput.value = end;
+      }
+      loadGrid(requestUrl(start, end, companySelect.value));
+    }
+
+    startInput.addEventListener('change', loadFilters);
+    endInput.addEventListener('change', loadFilters);
+    companySelect.addEventListener('change', loadFilters);
+    container.addEventListener('pointerdown', (event) => {
+      const cell = event.target.closest('.vacation-action-cell');
+      const base = cellData(cell);
+      if (!base) return;
+      clearSelection();
+      addSelection(cell, base);
+      pointerSelection = { base, pointerId: event.pointerId };
+      cell.setPointerCapture?.(event.pointerId);
+      event.preventDefault();
+    });
+    container.addEventListener('pointermove', (event) => {
+      if (!pointerSelection || event.pointerId !== pointerSelection.pointerId) return;
+      const cell = document.elementFromPoint(event.clientX, event.clientY)?.closest('.vacation-action-cell');
+      addSelection(cell, pointerSelection.base);
+    });
+    container.addEventListener('pointerup', (event) => {
+      if (!pointerSelection || event.pointerId !== pointerSelection.pointerId) return;
+      pointerSelection = null;
+      suppressClickUntil = Date.now() + 250;
+      window.setTimeout(openActionModal, 0);
+    });
+    container.addEventListener('click', (event) => {
+      if (Date.now() < suppressClickUntil) return;
+      const cell = event.target.closest('.vacation-action-cell');
+      const base = cellData(cell);
+      if (!base) return;
+      clearSelection();
+      addSelection(cell, base);
+      openActionModal();
+    });
+    actionModal.addEventListener('click', (event) => {
+      if (event.target.closest('[data-vacation-action-close]')) closeActionModal();
+      const actionButton = event.target.closest('[data-vacation-action]');
+      if (actionButton) applyAction(actionButton.dataset.vacationAction);
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && !actionModal.hidden) closeActionModal();
+    });
+    wireNavigation();
+    updateNavigation(startInput.value, endInput.value, companySelect.value);
+  })();
+</script>
 {% endblock %}

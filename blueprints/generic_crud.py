@@ -1514,6 +1514,392 @@ def al_translate_instrucoes(alstamp):
         return jsonify({'error': str(e)}), 500
 
 # --------------------------------------------------
+# VA: artigos / códigos SNC no PHC
+# --------------------------------------------------
+def _va_snc_origin_key(value: str) -> str:
+    return re.sub(r'[^A-Z0-9]+', '', str(value or '').upper())
+
+
+def _va_snc_origin_database_hint(origin: str) -> str:
+    key = _va_snc_origin_key(origin)
+    if key.startswith('INTERSOL'):
+        return 'INTERSOL'
+    if 'FRANCE' in key:
+        return 'HSOLS_FR'
+    if 'ALLEMAGNE' in key or 'ALEMANHA' in key or key.endswith('DE'):
+        return 'HSOLS_DE'
+    if 'ESPAGNE' in key or 'ESPANHA' in key:
+        return 'HSOLS_ES'
+    if 'MAROC' in key or 'MARROC' in key:
+        return 'HSOLS_MA'
+    if 'PORTUGAL' in key:
+        return 'HSOLS_PT'
+    if 'G2S' in key:
+        return 'HSOLS_G2S'
+    if 'GRE' in key:
+        return 'HSOLS_GRE'
+    return ''
+
+
+def _va_snc_phc_sources() -> list[dict]:
+    rows = db.session.execute(text("""
+        SELECT
+            ISNULL(FEID, 0) AS FEID,
+            LTRIM(RTRIM(ISNULL(NOME, ''))) AS NOME,
+            LTRIM(RTRIM(ISNULL(NOMEFISCAL, ''))) AS NOMEFISCAL,
+            LTRIM(RTRIM(ISNULL(PHC_DB, ''))) AS PHC_DB,
+            LTRIM(RTRIM(ISNULL(PHC_SERVER, ''))) AS PHC_SERVER
+        FROM dbo.FE
+        WHERE LTRIM(RTRIM(ISNULL(PHC_DB, ''))) <> ''
+        ORDER BY ISNULL(FEID, 0)
+    """)).mappings().all()
+    sources = [dict(row) for row in rows]
+    origin_labels = {
+        'HSOLS_FR': 'HSOLS FRANCE',
+        'HSOLS_PT': 'HSOLS PORTUGAL',
+        'HSOLS_DE': 'HSOLS ALLEMAGNE',
+        'HSOLS_ES': 'HSOLS ESPAGNE',
+        'HSOLS_MA': 'HSOLS MAROC',
+        'INTERSOL': 'INTERSOL-ALSACE',
+        'GR360': 'GR360',
+        'HSOLS_G2S': 'HSOLS G2S',
+        'HSOLS_GRE': 'HSOLS GRE',
+    }
+    valid_sources = []
+    seen_databases = set()
+    for source in sources:
+        database_name = str(source.get('PHC_DB') or '').strip()
+        if not re.fullmatch(r'[A-Za-z0-9_-]{1,128}', database_name):
+            continue
+        database_key = database_name.upper()
+        if database_key in seen_databases:
+            continue
+        seen_databases.add(database_key)
+        source['PHC_DB'] = database_name
+        source['ORIGIN_LABEL'] = origin_labels.get(
+            database_key,
+            str(source.get('NOME') or source.get('NOMEFISCAL') or database_name).strip(),
+        )
+        valid_sources.append(source)
+    return valid_sources
+
+
+def _va_snc_source_by_database(database_name: str) -> dict:
+    database_key = str(database_name or '').strip().upper()
+    source = next((item for item in _va_snc_phc_sources()
+                   if str(item.get('PHC_DB') or '').strip().upper() == database_key), None)
+    if source is None:
+        raise ValueError('A base PHC indicada não está configurada na FE.')
+    return source
+
+
+def _va_snc_phc_source(origin: str) -> dict:
+    clean_origin = str(origin or '').strip()
+    if not clean_origin:
+        raise ValueError('A viatura não tem uma Origem definida; não é possível determinar a base PHC.')
+
+    sources = _va_snc_phc_sources()
+    hint = _va_snc_origin_database_hint(clean_origin)
+    source = next((item for item in sources
+                   if hint and str(item.get('PHC_DB') or '').strip().upper() == hint), None)
+
+    if source is None:
+        origin_key = _va_snc_origin_key(clean_origin)
+        source = next((item for item in sources if any(
+            candidate and (candidate == origin_key or candidate in origin_key or origin_key in candidate)
+            for candidate in (
+                _va_snc_origin_key(item.get('NOME')),
+                _va_snc_origin_key(item.get('NOMEFISCAL')),
+                _va_snc_origin_key(item.get('PHC_DB')),
+            )
+        )), None)
+
+    if source is None:
+        raise ValueError(f'Não existe na FE uma base PHC configurada para a origem “{clean_origin}”.')
+
+    source['ORIGEM'] = clean_origin
+    return source
+
+
+def _va_snc_quoted_phc_database(source: dict) -> str:
+    database_name = str(source.get('PHC_DB') or '').strip()
+    return '[' + database_name.replace(']', ']]') + ']'
+
+
+def _va_snc_cpoo_options(source: dict) -> list[dict]:
+    quoted_database = _va_snc_quoted_phc_database(source)
+    rows = db.session.execute(text(f"""
+        SELECT
+            LTRIM(RTRIM(ISNULL(CPOOSTAMP, ''))) AS CPOOSTAMP,
+            TRY_CAST(CPOO AS int) AS SNC,
+            LTRIM(RTRIM(ISNULL(DESCCPOO, ''))) AS DESCRICAO
+        FROM {quoted_database}.dbo.CPOO
+        WHERE ISNULL(CPOO, 0) <> 0
+        ORDER BY TRY_CAST(CPOO AS int), LTRIM(RTRIM(ISNULL(DESCCPOO, '')))
+    """)).mappings().all()
+    return [{
+        'cpoostamp': str(row.get('CPOOSTAMP') or '').strip(),
+        'snc': int(row.get('SNC') or 0),
+        'descricao': str(row.get('DESCRICAO') or '').strip(),
+    } for row in rows if str(row.get('CPOOSTAMP') or '').strip()]
+
+
+def _va_snc_vehicle(vastamp: str) -> dict | None:
+    row = db.session.execute(text("""
+        SELECT TOP 1
+            LTRIM(RTRIM(ISNULL(VASTAMP, ''))) AS VASTAMP,
+            LTRIM(RTRIM(ISNULL(MATRICULA, ''))) AS MATRICULA,
+            LTRIM(RTRIM(ISNULL(MARCA, ''))) AS MARCA,
+            LTRIM(RTRIM(ISNULL(MODELO, ''))) AS MODELO,
+            LTRIM(RTRIM(ISNULL(ORIGEM, ''))) AS ORIGEM
+        FROM dbo.VA
+        WHERE LTRIM(RTRIM(ISNULL(VASTAMP, ''))) = :vastamp
+    """), {'vastamp': vastamp}).mappings().first()
+    return dict(row) if row else None
+
+
+@bp.route('/api/va/<vastamp>/snc', methods=['GET'])
+@login_required
+def va_snc_list(vastamp):
+    if not has_permission('VA', 'consultar'):
+        return jsonify({'error': 'Sem permissão para consultar viaturas.'}), 403
+    try:
+        vastamp = str(vastamp or '').strip()
+        vehicle = _va_snc_vehicle(vastamp)
+        if not vehicle:
+            return jsonify({'error': 'Viatura não encontrada.'}), 404
+        default_source = _va_snc_phc_source(vehicle.get('ORIGEM'))
+        sources = _va_snc_phc_sources()
+        cpoo_options_by_database = {}
+        result_rows = []
+        matricula = str(vehicle.get('MATRICULA') or '').strip()
+        for source in sources:
+            database_name = source['PHC_DB']
+            quoted_database = _va_snc_quoted_phc_database(source)
+            cpoo_options = _va_snc_cpoo_options(source)
+            cpoo_options_by_database[database_name] = cpoo_options
+            cpoo_by_code = {item['snc']: item for item in cpoo_options}
+            rows = db.session.execute(text(f"""
+                SELECT
+                    LTRIM(RTRIM(ISNULL(VS.U_VASNCSTAMP, ''))) AS U_VASNCSTAMP,
+                    LTRIM(RTRIM(ISNULL(ST.STSTAMP, ''))) AS STSTAMP,
+                    LTRIM(RTRIM(ISNULL(VS.REF, ''))) AS REF,
+                    LTRIM(RTRIM(ISNULL(VS.DESIGN, ''))) AS DESIGN,
+                    TRY_CAST(VS.SNC AS int) AS SNC
+                FROM {quoted_database}.dbo.U_VASNC VS
+                OUTER APPLY (
+                    SELECT TOP 1 LTRIM(RTRIM(ISNULL(S.STSTAMP, ''))) AS STSTAMP
+                    FROM {quoted_database}.dbo.ST S
+                    WHERE LTRIM(RTRIM(ISNULL(S.REF, ''))) = LTRIM(RTRIM(ISNULL(VS.REF, '')))
+                    ORDER BY LTRIM(RTRIM(ISNULL(S.STSTAMP, '')))
+                ) ST
+                WHERE LTRIM(RTRIM(ISNULL(VS.MATRICULA, ''))) = :matricula
+                ORDER BY LTRIM(RTRIM(ISNULL(VS.REF, '')))
+            """), {'matricula': matricula}).mappings().all()
+            result_rows.extend({
+                'vasncstamp': str(row.get('U_VASNCSTAMP') or '').strip(),
+                'ststamp': str(row.get('STSTAMP') or '').strip(),
+                'ref': str(row.get('REF') or '').strip(),
+                'design': str(row.get('DESIGN') or '').strip(),
+                'cpoostamp': str(cpoo_by_code.get(int(row.get('SNC') or 0), {}).get('cpoostamp') or ''),
+                'snc': int(row.get('SNC') or 0),
+                'origin': source['ORIGIN_LABEL'],
+                'phc_database': database_name,
+            } for row in rows)
+        return jsonify({
+            'vehicle': vehicle,
+            'rows': sorted(result_rows, key=lambda item: (item['origin'], item['ref'])),
+            'cpoo_options_by_database': cpoo_options_by_database,
+            'phc_sources': [{
+                'origin': source['ORIGIN_LABEL'],
+                'phc_database': source['PHC_DB'],
+                'company': source.get('NOME') or source.get('NOMEFISCAL') or '',
+            } for source in sources],
+            'can_edit': bool(has_permission('VA', 'editar')),
+            'phc_database': default_source['PHC_DB'],
+            'phc_company': default_source.get('NOME') or default_source.get('NOMEFISCAL') or '',
+        })
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception as exc:
+        current_app.logger.exception('Erro ao carregar associações SNC da viatura')
+        return jsonify({'error': str(exc)}), 500
+
+
+@bp.route('/api/va/<vastamp>/snc/articles', methods=['GET'])
+@login_required
+def va_snc_articles(vastamp):
+    if not has_permission('VA', 'consultar'):
+        return jsonify({'error': 'Sem permissão para consultar viaturas.'}), 403
+    try:
+        vehicle = _va_snc_vehicle(str(vastamp or '').strip())
+        if not vehicle:
+            return jsonify({'error': 'Viatura não encontrada.'}), 404
+        requested_database = str(request.args.get('phc_database') or '').strip()
+        source = (_va_snc_source_by_database(requested_database) if requested_database
+                  else _va_snc_phc_source(vehicle.get('ORIGEM')))
+        quoted_database = _va_snc_quoted_phc_database(source)
+        query = str(request.args.get('q') or '').strip()[:80]
+        rows = db.session.execute(text(f"""
+            SELECT TOP 40
+                LTRIM(RTRIM(ISNULL(STSTAMP, ''))) AS STSTAMP,
+                LTRIM(RTRIM(ISNULL(REF, ''))) AS REF,
+                LTRIM(RTRIM(ISNULL(DESIGN, ''))) AS DESIGN
+            FROM {quoted_database}.dbo.ST
+            WHERE (:query = '' OR REF LIKE :pattern OR DESIGN LIKE :pattern)
+            ORDER BY
+                CASE WHEN LTRIM(RTRIM(ISNULL(REF, ''))) = :query THEN 0 ELSE 1 END,
+                LTRIM(RTRIM(ISNULL(REF, ''))), LTRIM(RTRIM(ISNULL(DESIGN, '')))
+        """), {
+            'query': query,
+            'pattern': f'%{query}%',
+        }).mappings().all()
+        return jsonify({'items': [{
+            'ststamp': str(row.get('STSTAMP') or '').strip(),
+            'ref': str(row.get('REF') or '').strip(),
+            'design': str(row.get('DESIGN') or '').strip(),
+        } for row in rows]})
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception as exc:
+        current_app.logger.exception('Erro ao pesquisar artigos para SNC da viatura')
+        return jsonify({'error': str(exc)}), 500
+
+
+@bp.route('/api/va/<vastamp>/snc', methods=['POST'])
+@login_required
+def va_snc_save(vastamp):
+    if not has_permission('VA', 'editar'):
+        return jsonify({'error': 'Sem permissão para editar viaturas.'}), 403
+    try:
+        vastamp = str(vastamp or '').strip()
+        vehicle = _va_snc_vehicle(vastamp)
+        if not vehicle:
+            return jsonify({'error': 'Viatura não encontrada.'}), 404
+        matricula = str(vehicle.get('MATRICULA') or '').strip()
+        sources = _va_snc_phc_sources()
+        source_by_database = {source['PHC_DB'].upper(): source for source in sources}
+        raw_rows = (request.get_json(silent=True) or {}).get('rows')
+        if not isinstance(raw_rows, list):
+            return jsonify({'error': 'Lista de associações inválida.'}), 400
+        if len(raw_rows) > 500:
+            return jsonify({'error': 'O limite é de 500 associações por viatura.'}), 400
+
+        normalized = []
+        seen_existing_stamps = set()
+        for index, raw in enumerate(raw_rows):
+            if not isinstance(raw, dict):
+                return jsonify({'error': f'Associação {index + 1} inválida.'}), 400
+            vasncstamp = str(raw.get('vasncstamp') or '').strip()
+            ststamp = str(raw.get('ststamp') or '').strip()
+            cpoostamp = str(raw.get('cpoostamp') or '').strip()
+            database_key = str(raw.get('phc_database') or '').strip().upper()
+            source = source_by_database.get(database_key)
+            if not source:
+                return jsonify({'error': f'Seleciona uma origem válida na linha {index + 1}.'}), 400
+            if not ststamp or not cpoostamp:
+                return jsonify({'error': f'Preenche a origem, o artigo e o código SNC na linha {index + 1}.'}), 400
+            existing_key = (database_key, vasncstamp)
+            if vasncstamp and existing_key in seen_existing_stamps:
+                return jsonify({'error': f'A associação da linha {index + 1} está repetida.'}), 400
+            if vasncstamp:
+                seen_existing_stamps.add(existing_key)
+            normalized.append({
+                'vasncstamp': vasncstamp,
+                'ststamp': ststamp,
+                'cpoostamp': cpoostamp,
+                'phc_database': source['PHC_DB'],
+            })
+
+        for source in sources:
+            database_name = source['PHC_DB']
+            quoted_database = _va_snc_quoted_phc_database(source)
+            source_rows = [row for row in normalized if row['phc_database'] == database_name]
+
+            if source_rows:
+                article_stamps = list({row['ststamp'] for row in source_rows})
+                article_rows = db.session.execute(text(f"""
+                    SELECT
+                        LTRIM(RTRIM(ISNULL(STSTAMP, ''))) AS STSTAMP,
+                        LTRIM(RTRIM(ISNULL(REF, ''))) AS REF,
+                        LTRIM(RTRIM(ISNULL(DESIGN, ''))) AS DESIGN
+                    FROM {quoted_database}.dbo.ST
+                    WHERE STSTAMP IN :ststamps
+                """).bindparams(bindparam('ststamps', expanding=True)), {
+                    'ststamps': article_stamps,
+                }).mappings().all()
+                article_map = {
+                    str(row.get('STSTAMP') or '').strip(): {
+                        'ref': str(row.get('REF') or '').strip(),
+                        'design': str(row.get('DESIGN') or '').strip(),
+                    }
+                    for row in article_rows
+                }
+                if set(article_map) != set(article_stamps):
+                    db.session.rollback()
+                    return jsonify({'error': f'Um ou mais artigos deixaram de estar disponíveis em {database_name}.'}), 400
+                cpoo_map = {item['cpoostamp']: item for item in _va_snc_cpoo_options(source)}
+                if any(row['cpoostamp'] not in cpoo_map for row in source_rows):
+                    db.session.rollback()
+                    return jsonify({'error': f'Um ou mais códigos SNC deixaram de estar disponíveis em {database_name}.'}), 400
+            else:
+                article_map = {}
+                cpoo_map = {}
+
+            existing = db.session.execute(text(f"""
+                SELECT LTRIM(RTRIM(ISNULL(U_VASNCSTAMP, ''))) AS U_VASNCSTAMP
+                FROM {quoted_database}.dbo.U_VASNC
+                WHERE LTRIM(RTRIM(ISNULL(MATRICULA, ''))) = :matricula
+            """), {'matricula': matricula}).mappings().all()
+            existing_stamps = {
+                str(row.get('U_VASNCSTAMP') or '').strip()
+                for row in existing if str(row.get('U_VASNCSTAMP') or '').strip()
+            }
+            submitted_existing_stamps = {row['vasncstamp'] for row in source_rows if row['vasncstamp']}
+            if not submitted_existing_stamps.issubset(existing_stamps):
+                db.session.rollback()
+                return jsonify({'error': f'Uma ou mais associações deixaram de pertencer a {database_name}.'}), 400
+            removed = list(existing_stamps - submitted_existing_stamps)
+            if removed:
+                db.session.execute(text(f"""
+                    DELETE FROM {quoted_database}.dbo.U_VASNC
+                    WHERE U_VASNCSTAMP IN :stamps
+                """).bindparams(bindparam('stamps', expanding=True)), {'stamps': removed})
+
+            for row in source_rows:
+                article = article_map[row['ststamp']]
+                cpoo = cpoo_map[row['cpoostamp']]
+                params = {
+                    'matricula': matricula,
+                    'ref': article['ref'],
+                    'design': article['design'],
+                    'snc': cpoo['snc'],
+                }
+                if row['vasncstamp']:
+                    db.session.execute(text(f"""
+                        UPDATE {quoted_database}.dbo.U_VASNC
+                        SET MATRICULA=:matricula, REF=:ref, DESIGN=:design, SNC=:snc
+                        WHERE U_VASNCSTAMP=:u_vasncstamp
+                    """), {**params, 'u_vasncstamp': row['vasncstamp']})
+                else:
+                    db.session.execute(text(f"""
+                        INSERT INTO {quoted_database}.dbo.U_VASNC
+                        (U_VASNCSTAMP, MATRICULA, REF, DESIGN, SNC)
+                        VALUES (:u_vasncstamp, :matricula, :ref, :design, :snc)
+                    """), {**params, 'u_vasncstamp': _generate_stamp_value(25)})
+
+        db.session.commit()
+        return jsonify({'success': True, 'count': len(normalized)})
+    except ValueError as exc:
+        db.session.rollback()
+        return jsonify({'error': str(exc)}), 400
+    except Exception as exc:
+        db.session.rollback()
+        current_app.logger.exception('Erro ao gravar associações SNC da viatura')
+        return jsonify({'error': str(exc)}), 500
+
+
+# --------------------------------------------------
 # Views para front-end
 # --------------------------------------------------
 @bp.route('/view/calendar/')
