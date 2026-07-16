@@ -24,3 +24,278 @@ WARNING: This is a development server. Do not use it in a production deployment.
  * Running on http://127.0.0.1:8001
  * Running on http://10.0.1.114:8001
 Press CTRL+C to quit
+[2026-07-16 09:10:43,827] WARNING in app: Falhou ligação SQL Server via 192.168.1.50,1433 (DRIVER={ODBC Driver 18 for SQL Server};SERVER=192.168.1.50,1433;DATABASE=GESTAO;UID=sa;PWD=***;TrustServerCertificate=Yes;Application Name=SZERO): ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://10.0.1.114:8001
+Press CTRL+C to quit
+127.0.0.1 - - [16/Jul/2026 09:29:00] "GET / HTTP/1.1" 302 -
+127.0.0.1 - - [16/Jul/2026 09:29:01] "GET /gr_planning/monitor HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:01] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:01] "GET /gr_planning/static/gr_planning_host.css?v=1784189441 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:01] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:01] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:01] "GET /static/manifest.json HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:01] "GET /static/js/push.js?v=1784189441 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:01] "GET /static/js/ui.js HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:01] "GET /gr_planning/static/gr_monitor.js?v=1784189441 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:01] "GET /api/gr_planning/monitor/status-options HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:01] "GET /api/gr_planning/monitor/tasks?start=2026-06-16&end=2026-09-14&_=1784190541450 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:02] "GET /gr_planning/monitor HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:02] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:02] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:02] "GET /gr_planning/static/gr_planning_host.css?v=1784189441 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:02] "GET /static/js/ui.js HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:02] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:02] "GET /static/js/push.js?v=1784189441 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:02] "GET /gr_planning/static/gr_monitor.js?v=1784189441 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:02] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:02] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:02] "GET /gr_planning/static/gr_planning_host.css?v=1784189441 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:02] "GET /api/gr_planning/monitor/status-options HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:02] "GET /api/gr_planning/monitor/tasks?start=2026-06-16&end=2026-09-14&_=1784190542595 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:09] "GET /dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:10] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 09:29:10] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:10] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:10] "GET /static/js/dashboard.js?v=1784189441 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:10] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 09:29:10] "GET /static/js/push.js?v=1784189441 HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 09:29:10] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:10] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:10] "GET /api/dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:10] "POST /api/widgets/COMPLIANCE_DATAS_30D/run HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:11] "POST /api/widgets/MAPA_GESTAO_GR_RESUMO/run HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:12] "POST /api/widgets/MAPA_GESTAO_GR_TOP_LUCRO/run HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:12] "POST /api/widgets/MAPA_GESTAO_GR_TOP_PREJUIZO/run HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:15] "GET /despesas HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:15] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:15] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:15] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:15] "GET /static/js/ui.js HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:15] "GET /static/js/push.js?v=1784189441 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:15] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:15] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:19] "GET /dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:19] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:19] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:19] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:19] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:20] "GET /api/dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:20] "POST /api/widgets/COMPLIANCE_DATAS_30D/run HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:20] "GET /gr_planning/monitor HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:20] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:20] "GET /gr_planning/static/gr_planning_host.css?v=1784189441 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:21] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:21] "GET /gr_planning/static/gr_monitor.js?v=1784189441 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:21] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:21] "GET /gr_planning/static/gr_planning_host.css?v=1784189441 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:21] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:21] "GET /api/gr_planning/monitor/status-options HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:21] "GET /api/gr_planning/monitor/tasks?start=2026-06-16&end=2026-09-14&_=1784190561017 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:21] "POST /api/widgets/MAPA_GESTAO_GR_TOP_LUCRO/run HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:22] "POST /api/widgets/MAPA_GESTAO_GR_RESUMO/run HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:22] "POST /api/widgets/MAPA_GESTAO_GR_TOP_PREJUIZO/run HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:23] "GET /dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:23] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:23] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:23] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:23] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:23] "GET /api/dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:24] "POST /api/widgets/COMPLIANCE_DATAS_30D/run HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:25] "POST /api/widgets/MAPA_GESTAO_GR_TOP_PREJUIZO/run HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:25] "GET /ferias HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:25] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:25] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:25] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 09:29:25] "GET /static/js/push.js?v=1784189441 HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 09:29:25] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 09:29:26] "POST /api/widgets/MAPA_GESTAO_GR_RESUMO/run HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:26] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:26] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:29:26] "POST /api/widgets/MAPA_GESTAO_GR_TOP_LUCRO/run HTTP/1.1" 200 -
+[2026-07-16 09:51:32,780] WARNING in app: Falhou ligação SQL Server via 192.168.1.50,1433 (DRIVER={ODBC Driver 18 for SQL Server};SERVER=192.168.1.50,1433;DATABASE=GESTAO;UID=sa;PWD=***;TrustServerCertificate=Yes;Application Name=SZERO): ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://10.0.1.114:8001
+Press CTRL+C to quit
+127.0.0.1 - - [16/Jul/2026 09:53:09] "GET /recibos HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:53:09] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:53:09] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:53:09] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:53:09] "GET /static/manifest.json HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:53:09] "GET /static/js/ui.js HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:53:09] "GET /static/js/push.js?v=1784191890 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:53:10] "GET /recibos HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:53:10] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:53:10] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:53:10] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 09:53:10] "GET /static/js/push.js?v=1784191890 HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 09:53:10] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 09:53:10] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:53:10] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:53:15] "GET /api/colaborador/recibos/ac_00153_202604.pdf/pdf HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:53:19] "GET /ferias?ano=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:53:19] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:53:19] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:53:19] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:53:19] "GET /static/js/ui.js HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:53:19] "GET /static/manifest.json HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:53:19] "GET /static/js/push.js?v=1784191890 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:53:20] "GET /ferias?ano=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:53:20] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 09:53:20] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 09:53:20] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 09:53:20] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 09:53:20] "GET /static/js/push.js?v=1784191890 HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 09:53:20] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:53:20] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:53:23] "GET /recibos HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:53:23] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:53:23] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:53:23] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:53:23] "GET /static/manifest.json HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:53:23] "GET /static/js/ui.js HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:53:23] "GET /static/js/push.js?v=1784191890 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:53:24] "GET /recibos HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:53:24] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 09:53:24] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 09:53:24] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:53:24] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:53:24] "GET /static/js/push.js?v=1784191890 HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 09:53:24] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:53:24] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:53:26] "GET /api/colaborador/recibos/rv_00153_202606.pdf/pdf HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:53:44] "GET /recibos HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:53:45] "GET /recibos HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:53:45] "GET /recibos HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:53:45] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 09:53:45] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 09:53:45] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 09:53:45] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 09:53:45] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 09:53:45] "GET /static/js/push.js?v=1784191890 HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 09:53:45] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 09:53:45] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 09:53:48] "GET /api/colaborador/recibos/rv_00153_202606.pdf/pdf HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 09:53:49] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 09:53:55] "GET /api/colaborador/recibos/ac_00153_202606.pdf/pdf HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:53:57] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 09:54:13] "GET /api/colaborador/recibos/rv_00153_202606.pdf/pdf HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 09:54:15] "GET /service-worker.js HTTP/1.1" 304 -
+[2026-07-16 09:56:21,063] WARNING in app: Falhou ligação SQL Server via 192.168.1.50,1433 (DRIVER={ODBC Driver 18 for SQL Server};SERVER=192.168.1.50,1433;DATABASE=GESTAO;UID=sa;PWD=***;TrustServerCertificate=Yes;Application Name=SZERO): ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://10.0.1.114:8001
+Press CTRL+C to quit
+127.0.0.1 - - [16/Jul/2026 09:57:06] "GET /recibos HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:57:06] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 09:57:06] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 09:57:06] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 09:57:06] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 09:57:06] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 09:57:06] "GET /static/js/push.js?v=1784192178 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:57:06] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 09:57:06] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 09:57:07] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 09:57:08] "GET /api/colaborador/recibos/rv_00153_202606.pdf/pdf HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:57:10] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 09:57:16] "GET /api/colaborador/recibos/ac_00153_202501.pdf/pdf HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 09:57:18] "GET /service-worker.js HTTP/1.1" 304 -
+[2026-07-16 10:10:55,157] WARNING in app: Falhou ligação SQL Server via 192.168.1.50,1433 (DRIVER={ODBC Driver 18 for SQL Server};SERVER=192.168.1.50,1433;DATABASE=GESTAO;UID=sa;PWD=***;TrustServerCertificate=Yes;Application Name=SZERO): ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://10.0.1.114:8001
+Press CTRL+C to quit
+127.0.0.1 - - [16/Jul/2026 10:11:11] "GET /recibos HTTP/1.1" 302 -
+127.0.0.1 - - [16/Jul/2026 10:12:58] "GET /recibos HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 10:12:58] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 10:12:58] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 10:12:58] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 10:12:58] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 10:12:58] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 10:12:58] "GET /static/js/push.js?v=1784193053 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 10:12:58] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 10:12:58] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 10:13:00] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 10:13:07] "GET /api/colaborador/recibos/ac_00153_202501.pdf/pdf HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 10:13:09] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 10:13:14] "POST /api/colaborador/recibos/ac_00153_202501.pdf/assinar HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 10:13:15] "GET /recibos HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 10:13:15] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 10:13:15] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 10:13:15] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 10:13:15] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 10:13:15] "GET /static/js/push.js?v=1784193053 HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 10:13:15] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 10:13:15] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 10:13:15] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 10:13:16] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 10:13:33] "GET /recibos HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 10:13:33] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 10:13:33] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 10:13:33] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 10:13:33] "GET /static/js/ui.js HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 10:13:33] "GET /static/js/push.js?v=1784193053 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 10:13:33] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 10:13:33] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 10:13:33] "GET /favicon.ico HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 10:13:33] "GET /static/images/favicon.ico HTTP/1.1" 200 -
+[2026-07-16 10:15:34,133] WARNING in app: Falhou ligação SQL Server via 192.168.1.50,1433 (DRIVER={ODBC Driver 18 for SQL Server};SERVER=192.168.1.50,1433;DATABASE=GESTAO;UID=sa;PWD=***;TrustServerCertificate=Yes;Application Name=SZERO): ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://10.0.1.114:8001
+Press CTRL+C to quit
+127.0.0.1 - - [16/Jul/2026 10:16:20] "GET /api/colaborador/recibos/rv_00153_202501.pdf/pdf HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 10:16:23] "GET /recibos HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 10:16:23] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 10:16:23] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 10:16:23] "GET /static/js/ui.js HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 10:16:23] "GET /static/manifest.json HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 10:16:23] "GET /static/js/push.js?v=1784193331 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 10:16:23] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 10:16:23] "GET /favicon.ico HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 10:16:25] "GET /recibos HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 10:16:25] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 10:16:25] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 10:16:25] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 10:16:25] "GET /static/js/push.js?v=1784193331 HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 10:16:25] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 10:16:25] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 10:16:25] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 10:16:25] "GET /static/images/favicon.ico HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 10:16:29] "GET /api/colaborador/recibos/ac_00153_202502.pdf/pdf HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 10:16:37] "POST /api/colaborador/recibos/ac_00153_202502.pdf/assinar HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 10:16:38] "GET /recibos HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 10:16:38] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 10:16:38] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 10:16:38] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 10:16:38] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 10:16:38] "GET /static/js/push.js?v=1784193331 HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 10:16:38] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 10:16:38] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 10:16:38] "GET /static/images/favicon.ico HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 10:16:42] "GET /api/colaborador/recibos/rv_00153_202502.pdf/pdf HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 10:16:43] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 10:16:57] "GET /recibos HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 10:16:57] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 10:16:57] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 10:16:57] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 10:16:57] "GET /static/js/ui.js HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 10:16:57] "GET /static/manifest.json HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 10:16:57] "GET /static/js/push.js?v=1784193331 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 10:16:57] "GET /favicon.ico HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 10:16:58] "GET /recibos HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 10:16:58] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 10:16:58] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 10:16:58] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 10:16:58] "GET /static/js/ui.js HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 10:16:58] "GET /static/js/push.js?v=1784193331 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 10:16:58] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 10:16:58] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 10:16:58] "GET /static/images/favicon.ico HTTP/1.1" 200 -

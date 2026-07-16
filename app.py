@@ -26039,6 +26039,65 @@ def create_app():
             app.logger.exception('Erro ao gravar alterações de férias.')
             return jsonify({'ok': False, 'error': 'Erro ao gravar alterações de férias.'}), 500
 
+    @app.route('/recibos')
+    @app.route('/colaborador/recibos')
+    @login_required
+    def colaborador_recibos_page():
+        from services.colaborador_recibos_service import list_colaborador_recibos
+
+        try:
+            payload = list_colaborador_recibos(current_user)
+        except Exception:
+            app.logger.exception('Erro ao carregar recibos do colaborador.')
+            payload = {
+                'colaborador': {},
+                'documents': [],
+                'warning': 'Erro ao carregar os documentos do colaborador.',
+            }
+        return render_template(
+            'colaborador_recibos.html',
+            page_title='Recibos',
+            colaborador=payload.get('colaborador') or {},
+            documents=payload.get('documents') or [],
+            documents_warning=payload.get('warning') or '',
+        )
+
+    @app.route('/api/colaborador/recibos/<string:filename>/pdf')
+    @login_required
+    def api_colaborador_recibo_pdf(filename):
+        from services.colaborador_recibos_service import get_colaborador_recibo_path
+
+        document = get_colaborador_recibo_path(current_user, filename)
+        if not document:
+            abort(404)
+        path, metadata = document
+        return send_file(
+            path,
+            mimetype='application/pdf',
+            as_attachment=False,
+            download_name=metadata['filename'],
+            max_age=0,
+            conditional=True,
+        )
+
+    @app.route('/api/colaborador/recibos/<string:filename>/assinar', methods=['POST'])
+    @login_required
+    def api_colaborador_recibo_assinar(filename):
+        from services.colaborador_recibos_service import sign_colaborador_ac_document
+
+        try:
+            payload = request.get_json(silent=True) or {}
+            return jsonify(sign_colaborador_ac_document(
+                current_user,
+                filename,
+                payload.get('signature_data'),
+            ))
+        except ValueError as exc:
+            return jsonify({'ok': False, 'error': str(exc)}), 400
+        except Exception:
+            app.logger.exception('Erro ao assinar mapa de ajudas de custo.')
+            return jsonify({'ok': False, 'error': 'Não foi possível guardar a assinatura no PHC.'}), 500
+
     @app.route('/api/colaborador/despesas/line', methods=['POST'])
     @login_required
     def api_colaborador_despesas_line_save():

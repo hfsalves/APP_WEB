@@ -1,0 +1,519 @@
+{% extends "base.html" %}
+
+{% block title %}Recibos{% endblock %}
+
+{% block extra_head %}
+  {{ super() }}
+  <script>
+    (() => {
+      const viewport = document.querySelector('meta[name="viewport"]');
+      if (viewport) viewport.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover');
+    })();
+  </script>
+{% endblock %}
+
+{% block content %}
+<div class="sz_page receipts-page">
+  <div class="sz_page_container receipts-shell">
+    <header class="sz_contextbar sz_page_contextbar receipts-contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_page_title">Recibos</div>
+        <div class="sz_page_subtitle">
+          N.º {{ colaborador.peno or '-' }} · {{ colaborador.penome or 'Sem ficha associada' }} · {{ colaborador.empresa or 'Sem empresa' }}
+        </div>
+      </div>
+    </header>
+
+    <main class="sz_page_body receipts-body">
+      {% if documents_warning %}
+        <section class="receipts-alert" role="status">
+          <i class="fa-solid fa-circle-info"></i>
+          <span>{{ documents_warning }}</span>
+        </section>
+      {% endif %}
+
+      <section class="receipts-section" aria-label="Documentos do colaborador">
+        <div class="receipts-section-head">
+          <div>
+            <h2>Documentos</h2>
+            <p>{{ documents|length }} documento{{ '' if documents|length == 1 else 's' }}</p>
+          </div>
+        </div>
+
+        {% if documents %}
+          <div class="receipts-list">
+            {% for document in documents %}
+              <article class="receipt-item {{ 'is-unsigned-ac' if document.type == 'AC' and document.signable else '' }}">
+                <a
+                  class="receipt-card {{ 'has-status' if document.type == 'AC' and document.signed else '' }}"
+                  href="{{ url_for('api_colaborador_recibo_pdf', filename=document.filename) }}"
+                  target="_blank"
+                  rel="noopener"
+                  aria-label="Abrir {{ document.title }} de {{ document.period_label }}">
+                  <span class="receipt-card-icon {{ 'is-expense' if document.type == 'AC' else '' }}">
+                    <i class="fa-solid {{ 'fa-receipt' if document.type == 'AC' else 'fa-file-invoice-dollar' }}"></i>
+                  </span>
+                  <span class="receipt-card-main">
+                    <strong>{{ document.title }}</strong>
+                    <span>{{ document.period_label }}</span>
+                  </span>
+                  {% if document.type == 'AC' and document.signed %}
+                    <span class="receipt-signed"><i class="fa-solid fa-check"></i> Assinado</span>
+                  {% endif %}
+                </a>
+                {% if document.type == 'AC' and document.signable %}
+                  <button class="receipt-sign-button" type="button" data-sign-ac="{{ document.filename }}" data-title="{{ document.period_label }}">
+                    <i class="fa-solid fa-signature"></i>
+                    <span>Assinar</span>
+                  </button>
+                {% endif %}
+              </article>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="receipts-empty">
+            <i class="fa-regular fa-folder-open"></i>
+            <span>Sem documentos disponíveis.</span>
+          </div>
+        {% endif %}
+      </section>
+    </main>
+  </div>
+
+  <div class="receipt-sign-modal" id="receiptSignatureModal" hidden aria-hidden="true">
+    <div class="receipt-sign-backdrop" data-sign-close></div>
+    <section class="receipt-sign-dialog" role="dialog" aria-modal="true" aria-labelledby="receiptSignatureTitle">
+      <header class="receipt-sign-head">
+        <div>
+          <h2 id="receiptSignatureTitle">Assinar mapa</h2>
+          <p id="receiptSignaturePeriod"></p>
+        </div>
+        <button class="receipt-icon-button" type="button" data-sign-close aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
+      </header>
+      <div class="receipt-sign-pad-wrap">
+        <canvas id="receiptSignaturePad" aria-label="Área para assinatura"></canvas>
+        <span>Assine aqui</span>
+      </div>
+      <footer class="receipt-sign-actions">
+        <button class="receipt-secondary-button" type="button" id="receiptSignatureClear"><i class="fa-solid fa-eraser"></i><span>Limpar</span></button>
+        <button class="receipt-primary-button" type="button" id="receiptSignatureSubmit"><i class="fa-solid fa-check"></i><span>Confirmar assinatura</span></button>
+      </footer>
+    </section>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<style>
+  .receipts-page,
+  .receipts-shell {
+    width: 100%;
+    min-height: 0;
+    max-width: 100%;
+    overflow: hidden;
+  }
+
+  .receipts-shell {
+    display: grid !important;
+    grid-template-rows: auto minmax(0, 1fr);
+    height: 100%;
+    padding-bottom: var(--sz-space-4);
+  }
+
+  .receipts-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sz-space-3);
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .receipts-body::-webkit-scrollbar {
+    display: none;
+  }
+
+  .receipts-alert,
+  .receipts-section {
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    background: var(--sz-color-surface);
+  }
+
+  .receipts-alert {
+    display: flex;
+    gap: var(--sz-space-2);
+    align-items: center;
+    padding: var(--sz-space-3);
+    color: var(--sz-color-text-secondary);
+  }
+
+  .receipts-alert i {
+    color: var(--sz-color-warning, #f59e0b);
+  }
+
+  .receipts-section {
+    padding: var(--sz-space-3);
+  }
+
+  .receipts-section-head h2 {
+    margin: 0;
+    color: var(--sz-color-text);
+    font-size: 1rem;
+    font-weight: var(--sz-font-weight-semibold);
+  }
+
+  .receipts-section-head p {
+    margin: .15rem 0 0;
+    color: var(--sz-color-text-secondary);
+    font-size: var(--sz-font-size-sm);
+  }
+
+  .receipts-list {
+    display: grid;
+    gap: var(--sz-space-2);
+    margin-top: var(--sz-space-3);
+  }
+
+  .receipt-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--sz-space-2);
+    align-items: stretch;
+  }
+
+  .receipt-card {
+    display: grid;
+    grid-template-columns: 2.7rem minmax(0, 1fr);
+    gap: var(--sz-space-3);
+    align-items: center;
+    width: 100%;
+    min-height: 4.5rem;
+    padding: var(--sz-space-3);
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    background: color-mix(in srgb, var(--sz-color-primary) 5%, var(--sz-color-surface));
+    color: var(--sz-color-text);
+    font: inherit;
+    text-align: left;
+    text-decoration: none;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+
+  .receipt-card.has-status {
+    grid-template-columns: 2.7rem minmax(0, 1fr) auto;
+  }
+
+  .receipt-item:not(.is-unsigned-ac) .receipt-card {
+    grid-column: 1 / -1;
+  }
+
+  .receipt-card:hover,
+  .receipt-card:focus-visible {
+    border-color: color-mix(in srgb, var(--sz-color-primary) 60%, var(--sz-color-border));
+    background: color-mix(in srgb, var(--sz-color-primary) 10%, var(--sz-color-surface));
+    outline: none;
+  }
+
+  .receipt-card:active {
+    transform: scale(.992);
+  }
+
+  .receipt-card-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.7rem;
+    height: 2.7rem;
+    border-radius: var(--sz-radius-sm);
+    color: var(--sz-color-primary);
+    background: color-mix(in srgb, var(--sz-color-primary) 15%, var(--sz-color-surface));
+    font-size: 1.15rem;
+  }
+
+  .receipt-card-icon.is-expense {
+    color: var(--sz-color-warning, #f59e0b);
+    background: color-mix(in srgb, var(--sz-color-warning, #f59e0b) 16%, var(--sz-color-surface));
+  }
+
+  .receipt-card-main {
+    display: grid;
+    gap: .15rem;
+    min-width: 0;
+  }
+
+  .receipt-card-main strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .receipt-card-main span {
+    color: var(--sz-color-text-secondary);
+    font-size: var(--sz-font-size-sm);
+  }
+
+  .receipt-signed {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    color: var(--sz-color-success, #248a5a);
+    font-size: var(--sz-font-size-sm);
+    white-space: nowrap;
+  }
+
+  .receipt-sign-button,
+  .receipt-secondary-button,
+  .receipt-primary-button,
+  .receipt-icon-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: .45rem;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-sm);
+    font: inherit;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+
+  .receipt-sign-button {
+    min-width: 6.5rem;
+    padding: 0 var(--sz-space-3);
+    color: var(--sz-color-primary);
+    background: color-mix(in srgb, var(--sz-color-primary) 9%, var(--sz-color-surface));
+  }
+
+  .receipt-sign-button:active,
+  .receipt-secondary-button:active,
+  .receipt-primary-button:active {
+    transform: scale(.98);
+  }
+
+  .receipt-sign-modal[hidden] { display: none; }
+
+  .receipt-sign-modal {
+    position: fixed;
+    z-index: 1200;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: var(--sz-space-3);
+  }
+
+  .receipt-sign-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(4, 12, 24, .62);
+  }
+
+  .receipt-sign-dialog {
+    position: relative;
+    z-index: 1;
+    width: min(100%, 34rem);
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    background: var(--sz-color-surface);
+    box-shadow: 0 1.25rem 3rem rgba(0, 0, 0, .28);
+    overflow: hidden;
+  }
+
+  .receipt-sign-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--sz-space-3);
+    padding: var(--sz-space-3);
+    border-bottom: 1px solid var(--sz-color-border);
+  }
+
+  .receipt-sign-head h2,
+  .receipt-sign-head p { margin: 0; }
+  .receipt-sign-head h2 { font-size: 1rem; }
+  .receipt-sign-head p { margin-top: .2rem; color: var(--sz-color-text-secondary); font-size: var(--sz-font-size-sm); }
+
+  .receipt-icon-button {
+    width: 2.45rem;
+    height: 2.45rem;
+    flex: 0 0 auto;
+    color: var(--sz-color-text-secondary);
+    background: transparent;
+  }
+
+  .receipt-sign-pad-wrap {
+    position: relative;
+    height: 13rem;
+    margin: var(--sz-space-3);
+    border: 1px dashed color-mix(in srgb, var(--sz-color-primary) 50%, var(--sz-color-border));
+    border-radius: var(--sz-radius-sm);
+    background: #fff;
+    overflow: hidden;
+  }
+
+  .receipt-sign-pad-wrap canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    touch-action: none;
+    cursor: crosshair;
+  }
+
+  .receipt-sign-pad-wrap span {
+    position: absolute;
+    left: 50%;
+    bottom: .65rem;
+    transform: translateX(-50%);
+    color: #7d8794;
+    font-size: var(--sz-font-size-sm);
+    pointer-events: none;
+  }
+
+  .receipt-sign-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--sz-space-2);
+    padding: 0 var(--sz-space-3) var(--sz-space-3);
+  }
+
+  .receipt-secondary-button,
+  .receipt-primary-button { min-height: 2.65rem; padding: 0 var(--sz-space-3); }
+  .receipt-secondary-button { color: var(--sz-color-text); background: transparent; }
+  .receipt-primary-button { color: #fff; border-color: var(--sz-color-primary); background: var(--sz-color-primary); }
+  .receipt-primary-button:disabled { opacity: .62; cursor: wait; }
+
+  .receipts-empty {
+    display: grid;
+    justify-items: center;
+    gap: var(--sz-space-2);
+    padding: 3.5rem var(--sz-space-3);
+    color: var(--sz-color-text-secondary);
+    text-align: center;
+  }
+
+  .receipts-empty i {
+    font-size: 1.7rem;
+  }
+
+  @media (max-width: 768px) {
+    .receipts-shell {
+      padding: var(--sz-space-3);
+      padding-top: calc(var(--sz-space-3) + env(safe-area-inset-top, 0px));
+      padding-bottom: calc(var(--sz-space-3) + env(safe-area-inset-bottom, 0px));
+    }
+
+    .receipts-contextbar {
+      padding: var(--sz-space-3);
+    }
+
+    .receipt-sign-dialog { width: 100%; }
+    .receipt-sign-pad-wrap { height: 11.5rem; }
+    .receipt-sign-button { min-width: 3rem; padding: 0 var(--sz-space-2); }
+    .receipt-sign-button span { display: none; }
+
+  }
+</style>
+<script>
+  (() => {
+    const modal = document.getElementById('receiptSignatureModal');
+    const canvas = document.getElementById('receiptSignaturePad');
+    const period = document.getElementById('receiptSignaturePeriod');
+    const clearButton = document.getElementById('receiptSignatureClear');
+    const submitButton = document.getElementById('receiptSignatureSubmit');
+    if (!modal || !canvas) return;
+
+    const context = canvas.getContext('2d');
+    let filename = '';
+    let drawing = false;
+    let hasStroke = false;
+    let previous = null;
+
+    function resizeCanvas() {
+      const rect = canvas.getBoundingClientRect();
+      const ratio = Math.max(window.devicePixelRatio || 1, 1);
+      canvas.width = Math.max(1, Math.round(rect.width * ratio));
+      canvas.height = Math.max(1, Math.round(rect.height * ratio));
+      context.setTransform(ratio, 0, 0, ratio, 0, 0);
+      context.fillStyle = '#ffffff';
+      context.fillRect(0, 0, rect.width, rect.height);
+      context.strokeStyle = '#17263b';
+      context.lineWidth = 2.2;
+      context.lineCap = 'round';
+      context.lineJoin = 'round';
+      hasStroke = false;
+      previous = null;
+    }
+
+    function point(event) {
+      const rect = canvas.getBoundingClientRect();
+      return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+    }
+
+    function closeModal() {
+      modal.hidden = true;
+      modal.setAttribute('aria-hidden', 'true');
+      filename = '';
+      drawing = false;
+    }
+
+    document.querySelectorAll('[data-sign-ac]').forEach((button) => {
+      button.addEventListener('click', () => {
+        filename = button.dataset.signAc || '';
+        period.textContent = button.dataset.title || '';
+        modal.hidden = false;
+        modal.setAttribute('aria-hidden', 'false');
+        requestAnimationFrame(resizeCanvas);
+      });
+    });
+    document.querySelectorAll('[data-sign-close]').forEach((button) => button.addEventListener('click', closeModal));
+    clearButton.addEventListener('click', resizeCanvas);
+
+    canvas.addEventListener('pointerdown', (event) => {
+      drawing = true;
+      previous = point(event);
+      canvas.setPointerCapture(event.pointerId);
+      event.preventDefault();
+    });
+    canvas.addEventListener('pointermove', (event) => {
+      if (!drawing || !previous) return;
+      const next = point(event);
+      context.beginPath();
+      context.moveTo(previous.x, previous.y);
+      context.lineTo(next.x, next.y);
+      context.stroke();
+      previous = next;
+      hasStroke = true;
+      event.preventDefault();
+    });
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach((eventName) => {
+      canvas.addEventListener(eventName, () => { drawing = false; previous = null; });
+    });
+
+    submitButton.addEventListener('click', async () => {
+      if (!hasStroke) {
+        window.alert('Desenhe a sua assinatura antes de confirmar.');
+        return;
+      }
+      submitButton.disabled = true;
+      try {
+        const response = await fetch(`/api/colaborador/recibos/${encodeURIComponent(filename)}/assinar`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ signature_data: canvas.toDataURL('image/png') }),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !payload.ok) throw new Error(payload.error || 'Não foi possível guardar a assinatura.');
+        window.location.reload();
+      } catch (error) {
+        window.alert(error.message || 'Não foi possível guardar a assinatura.');
+      } finally {
+        submitButton.disabled = false;
+      }
+    });
+  })();
+</script>
+{% endblock %}
