@@ -26065,11 +26065,21 @@ def create_app():
     @app.route('/api/colaborador/recibos/<string:filename>/pdf')
     @login_required
     def api_colaborador_recibo_pdf(filename):
-        from services.colaborador_recibos_service import get_colaborador_recibo_path
+        from services.colaborador_recibos_service import (
+            get_colaborador_recibo_document,
+            get_colaborador_recibo_path,
+        )
 
+        metadata = get_colaborador_recibo_document(current_user, filename)
+        if not metadata:
+            abort(404)
         document = get_colaborador_recibo_path(current_user, filename)
         if not document:
-            abort(404)
+            return render_template(
+                'colaborador_recibo_indisponivel.html',
+                page_title='Documento indisponível',
+                document=metadata,
+            ), 404
         path, metadata = document
         return send_file(
             path,

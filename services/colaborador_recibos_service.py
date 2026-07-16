@@ -27,6 +27,7 @@ MONTH_NAMES = (
     "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
 )
 SIGNATURE_MAX_BYTES = 2 * 1024 * 1024
+DOCUMENTS_FROM_DATE = "20250101"
 
 
 def _documents_root() -> Path | None:
@@ -75,6 +76,18 @@ def _document_data(path: Path, peno: int) -> dict[str, Any] | None:
     }
 
 
+def _document_for_period(doc_type: str, peno: int, year: int, month: int) -> dict[str, Any]:
+    clean_type = str(doc_type or '').upper()
+    return {
+        "filename": f"{clean_type}_{int(peno):05d}_{int(year):04d}{int(month):02d}.pdf",
+        "type": clean_type,
+        "title": "Recibo de vencimento" if clean_type == "RV" else "Mapa de ajudas de custo",
+        "year": int(year),
+        "month": int(month),
+        "period_label": f"{MONTH_NAMES[int(month) - 1]} {int(year)}",
+    }
+
+
 def _period_key(year: int, month: int) -> tuple[int, int]:
     return (int(year), int(month))
 
@@ -103,8 +116,9 @@ def _load_ac_dossiers(colaborador: dict[str, Any]) -> dict[tuple[int, int], dict
             WHERE BO.NDOS = 62
               AND BO.NOPAT = ?
               AND BO.DATAOBRA IS NOT NULL
+              AND BO.DATAOBRA >= CONVERT(datetime, ?, 112)
             ORDER BY BO.DATAOBRA DESC, BO.BOSTAMP DESC
-        """, peno)
+        """, peno, DOCUMENTS_FROM_DATE)
         dossiers: dict[tuple[int, int], dict[str, Any]] = {}
         for row in cursor.fetchall():
             dataobra = row.DATAOBRA
@@ -123,6 +137,47 @@ def _load_ac_dossiers(colaborador: dict[str, Any]) -> dict[tuple[int, int], dict
         return dossiers
     except Exception:
         current_app.logger.exception("Erro ao consultar dossiers de ajudas de custo no PHC.")
+        return {}
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+
+def _load_salary_receipts(colaborador: dict[str, Any]) -> dict[tuple[int, int], dict[str, Any]]:
+    peno = int(colaborador.get("peno") or 0)
+    phc_db = str(colaborador.get("phc_db") or "").strip()
+    if not peno or not phc_db:
+        return {}
+
+    connection = None
+    cursor = None
+    try:
+        connection = pyodbc.connect(_phc_conn_str(phc_db), timeout=12)
+        cursor = connection.cursor()
+        cursor.execute("""
+            SELECT PR.PRSTAMP, PR.DATA, PR.RECIBO
+            FROM dbo.PR AS PR
+            WHERE PR.NO = ?
+              AND PR.DATA IS NOT NULL
+              AND PR.DATA >= CONVERT(datetime, ?, 112)
+            ORDER BY PR.DATA DESC, PR.RECIBO DESC, PR.PRSTAMP DESC
+        """, peno, DOCUMENTS_FROM_DATE)
+        receipts: dict[tuple[int, int], dict[str, Any]] = {}
+        for row in cursor.fetchall():
+            receipt_date = row.DATA
+            if not receipt_date:
+                continue
+            key = _period_key(receipt_date.year, receipt_date.month)
+            if key not in receipts:
+                receipts[key] = {
+                    "prstamp": str(row.PRSTAMP or "").strip(),
+                    "receipt_number": int(row.RECIBO or 0),
+                }
+        return receipts
+    except Exception:
+        current_app.logger.exception("Erro ao consultar recibos de vencimento no PHC.")
         return {}
     finally:
         if cursor:
@@ -235,44 +290,28 @@ def list_colaborador_recibos(user) -> dict[str, Any]:
         result["warning"] = "Ficha de colaborador incompleta."
         return result
 
-    directory = _company_documents_dir(colaborador)
-    if not directory:
-        result["warning"] = "Servidor de documentos indisponível para esta empresa."
-        return result
-
-    try:
-        documents = [
-            document
-            for path in directory.iterdir()
-            if path.is_file() and (document := _document_data(path, peno)) is not None
-        ]
-    except OSError:
-        current_app.logger.exception("Erro ao consultar os recibos do colaborador.")
-        result["warning"] = "Não foi possível consultar os documentos do colaborador."
-        return result
-
     ac_dossiers = _load_ac_dossiers(colaborador)
-    # Only a generated AC map can require a signature. Historical BO records
-    # without the corresponding AC PDF must not permanently block receipts.
-    available_ac_months = {
-        _period_key(document["year"], document["month"])
-        for document in documents
-        if document["type"] == "AC"
-    }
+    salary_receipts = _load_salary_receipts(colaborador)
+    documents: list[dict[str, Any]] = []
+    for (year, month), dossier in ac_dossiers.items():
+        document = _document_for_period("AC", peno, year, month)
+        document["signed"] = bool(dossier.get("signed"))
+        document["signable"] = not document["signed"]
+        documents.append(document)
+
+    for year, month in salary_receipts:
+        documents.append(_document_for_period("RV", peno, year, month))
+
     unsigned_months = sorted(
         key
         for key, dossier in ac_dossiers.items()
-        if key in available_ac_months and not dossier.get("signed")
+        if not dossier.get("signed")
     )
     block_rv_from = unsigned_months[0] if unsigned_months else None
     visible_documents: list[dict[str, Any]] = []
     for document in documents:
         period = _period_key(document["year"], document["month"])
         if document["type"] == "AC":
-            dossier = ac_dossiers.get(period)
-            document["signed"] = bool(dossier and dossier.get("signed"))
-            document["signable"] = bool(dossier and not dossier.get("signed"))
-            document["dossier_missing"] = not bool(dossier)
             visible_documents.append(document)
             continue
         if block_rv_from and period >= block_rv_from:
@@ -289,30 +328,37 @@ def list_colaborador_recibos(user) -> dict[str, Any]:
 
 
 def get_colaborador_recibo_path(user, filename: str) -> tuple[Path, dict[str, Any]] | None:
-    colaborador = get_colaborador_context(user)
-    peno = int(colaborador.get("peno") or 0)
-    clean_filename = Path(str(filename or "")).name
-    if not peno or clean_filename != filename:
+    document = get_colaborador_recibo_document(user, filename)
+    if not document:
         return None
+    colaborador = get_colaborador_context(user)
     directory = _company_documents_dir(colaborador)
     if not directory:
         return None
+    clean_filename = document["filename"]
     try:
         path = (directory / clean_filename).resolve()
         path.relative_to(directory)
     except (OSError, ValueError):
         return None
-    document = _document_data(path, peno)
-    if not document or not path.is_file():
+    if not path.is_file():
         return None
     return path, document
 
 
+def get_colaborador_recibo_document(user, filename: str) -> dict[str, Any] | None:
+    colaborador = get_colaborador_context(user)
+    peno = int(colaborador.get("peno") or 0)
+    clean_filename = Path(str(filename or "")).name
+    if not peno or clean_filename != filename:
+        return None
+    return _document_data(Path(clean_filename), peno)
+
+
 def sign_colaborador_ac_document(user: Any, filename: str, signature_data: Any) -> dict[str, Any]:
-    receipt = get_colaborador_recibo_path(user, filename)
-    if not receipt:
+    document = get_colaborador_recibo_document(user, filename)
+    if not document:
         raise ValueError("Documento não encontrado.")
-    _, document = receipt
     if document["type"] != "AC":
         raise ValueError("Apenas os mapas de ajudas de custo podem ser assinados.")
 
