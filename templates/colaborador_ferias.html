@@ -572,6 +572,12 @@
     color: var(--sz-color-text);
   }
 
+  .vacation-month-detail-day.is-cancel-unmark-request {
+    background: color-mix(in srgb, var(--sz-color-danger, #ef4444) 47%, var(--sz-color-surface));
+    border-color: color-mix(in srgb, var(--sz-color-danger, #ef4444) 75%, var(--sz-color-border));
+    color: var(--sz-color-text);
+  }
+
   .vacation-month-detail-day.is-unmark-request,
   .vacation-month-detail-day.is-unmark-requested {
     background: color-mix(in srgb, var(--sz-color-warning, #f59e0b) 48%, var(--sz-color-surface));
@@ -723,6 +729,7 @@
     let addedDays = new Set();
     let removedPendingDays = new Set();
     let requestedApprovedUnmarkDays = new Set();
+    let cancelledUnmarkRequestDays = new Set();
 
     const grid = document.getElementById('vacationCalendarGrid');
     const yearLabel = document.getElementById('vacationYearLabel');
@@ -751,13 +758,14 @@
     }
 
     function changeCount() {
-      return addedDays.size + removedPendingDays.size + requestedApprovedUnmarkDays.size;
+      return addedDays.size + removedPendingDays.size + requestedApprovedUnmarkDays.size + cancelledUnmarkRequestDays.size;
     }
 
     function clearPendingChanges() {
       addedDays = new Set();
       removedPendingDays = new Set();
       requestedApprovedUnmarkDays = new Set();
+      cancelledUnmarkRequestDays = new Set();
     }
 
     function monthHtml(year, monthIndex) {
@@ -781,7 +789,8 @@
         const isNew = addedDays.has(key) && !isWeekendOrHoliday(date, key);
         const isRemovePending = removedPendingDays.has(key) && !isWeekendOrHoliday(date, key);
         const isUnmarkRequest = requestedApprovedUnmarkDays.has(key) && !isWeekendOrHoliday(date, key);
-        const isUnmarkRequested = unmarkRequestDays.has(key) && !isWeekendOrHoliday(date, key);
+        const isUnmarkRequested = unmarkRequestDays.has(key) && !cancelledUnmarkRequestDays.has(key) && !isWeekendOrHoliday(date, key);
+        const isCancelUnmarkRequest = cancelledUnmarkRequestDays.has(key) && !isWeekendOrHoliday(date, key);
         if ((isVacation && !isUnmarkRequest) || (isPending && !isRemovePending) || isNew) vacationCount += 1;
         const classes = [
           'vacation-day',
@@ -793,6 +802,7 @@
           isRemovePending ? 'is-remove-pending' : '',
           isUnmarkRequest ? 'is-unmark-request' : '',
           isUnmarkRequested ? 'is-unmark-requested' : '',
+          isCancelUnmarkRequest ? 'is-cancel-unmark-request' : '',
         ].filter(Boolean).join(' ');
         cells.push(`<span class="${classes}" title="${escapeHtml(key)}"></span>`);
       }
@@ -837,8 +847,9 @@
         const isNew = addedDays.has(key) && !isWeekendOrHoliday(date, key);
         const isRemovePending = removedPendingDays.has(key) && !isWeekendOrHoliday(date, key);
         const isUnmarkRequest = requestedApprovedUnmarkDays.has(key) && !isWeekendOrHoliday(date, key);
-        const isUnmarkRequested = unmarkRequestDays.has(key) && !isWeekendOrHoliday(date, key);
-        const selectable = !isWeekendOrHoliday(date, key) && !isUnmarkRequested;
+        const isUnmarkRequested = unmarkRequestDays.has(key) && !cancelledUnmarkRequestDays.has(key) && !isWeekendOrHoliday(date, key);
+        const isCancelUnmarkRequest = cancelledUnmarkRequestDays.has(key) && !isWeekendOrHoliday(date, key);
+        const selectable = !isWeekendOrHoliday(date, key);
         const classes = [
           'vacation-month-detail-day',
           isWeekend ? 'is-weekend' : '',
@@ -849,9 +860,10 @@
           isRemovePending ? 'is-remove-pending' : '',
           isUnmarkRequest ? 'is-unmark-request' : '',
           isUnmarkRequested ? 'is-unmark-requested' : '',
+          isCancelUnmarkRequest ? 'is-cancel-unmark-request' : '',
           selectable ? 'is-selectable' : '',
         ].filter(Boolean).join(' ');
-        const status = isUnmarkRequested ? 'Pedido de desmarcação enviado' : key;
+        const status = isCancelUnmarkRequest ? 'Remover pedido de desmarcação' : (isUnmarkRequested ? 'Pedido de desmarcação enviado' : key);
         cells.push(`<button type="button" class="${classes}" data-vacation-day="${escapeHtml(key)}" title="${escapeHtml(status)}"${selectable ? '' : ' disabled'}>${day}</button>`);
       }
 
@@ -970,7 +982,10 @@
       const key = String(dayButton.dataset.vacationDay || '');
       const clickedDate = new Date(`${key}T12:00:00`);
       if (!key || Number.isNaN(clickedDate.getTime()) || isWeekendOrHoliday(clickedDate, key)) return;
-      if (vacationDays.has(key)) {
+      if (unmarkRequestDays.has(key)) {
+        if (cancelledUnmarkRequestDays.has(key)) cancelledUnmarkRequestDays.delete(key);
+        else cancelledUnmarkRequestDays.add(key);
+      } else if (vacationDays.has(key)) {
         if (requestedApprovedUnmarkDays.has(key)) requestedApprovedUnmarkDays.delete(key);
         else requestedApprovedUnmarkDays.add(key);
       } else if (pendingVacationDays.has(key)) {
@@ -1001,6 +1016,7 @@
             add_days: [...addedDays],
             remove_pending_days: [...removedPendingDays],
             request_approved_unmark_days: [...requestedApprovedUnmarkDays],
+            cancel_approved_unmark_request_days: [...cancelledUnmarkRequestDays],
           }),
         });
         const result = await response.json().catch(() => ({}));

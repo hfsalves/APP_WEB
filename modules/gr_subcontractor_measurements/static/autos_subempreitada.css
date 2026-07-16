@@ -187,14 +187,16 @@
 }
 
 .gr-submeasure-auto-date {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
   min-width: 0;
 }
 
 .gr-submeasure-auto-date .sz_label {
   margin: 0;
+  line-height: 1;
   white-space: nowrap;
 }
 
@@ -228,6 +230,7 @@
 .gr-submeasure-measure-actions {
   display: flex;
   flex-wrap: wrap;
+  align-items: flex-end;
   justify-content: flex-end;
   gap: 0.5rem;
 }

@@ -431,11 +431,17 @@ def apply_colaborador_ferias_changes(user, payload: dict[str, Any]) -> dict[str,
     add_days = _parse_days(payload.get('add_days'), year)
     remove_pending_days = _parse_days(payload.get('remove_pending_days'), year)
     request_approved_unmark_days = _parse_days(payload.get('request_approved_unmark_days'), year)
-    if not (add_days or remove_pending_days or request_approved_unmark_days):
+    cancel_approved_unmark_request_days = _parse_days(payload.get('cancel_approved_unmark_request_days'), year)
+    if not (add_days or remove_pending_days or request_approved_unmark_days or cancel_approved_unmark_request_days):
         raise ValueError('Não existem alterações para gravar.')
+    if request_approved_unmark_days & cancel_approved_unmark_request_days:
+        raise ValueError('O mesmo dia não pode ter um pedido criado e removido em simultâneo.')
 
     login = str(colaborador.get('login') or '').strip()
     userstamp = str(colaborador.get('userstamp') or '').strip()
+    existing_unmark_request_days = _pending_unmark_request_days(colaborador, year)
+    if cancel_approved_unmark_request_days - {date.fromisoformat(key) for key in existing_unmark_request_days}:
+        raise ValueError('Só pode remover pedidos de desmarcação que ainda estejam pendentes.')
     with pyodbc.connect(_phc_conn_str(phc_db, phc_server), timeout=15) as conn:
         cursor = conn.cursor()
         columns = _fp_columns(cursor)
@@ -518,6 +524,21 @@ def apply_colaborador_ferias_changes(user, payload: dict[str, Any]) -> dict[str,
             )
         conn.commit()
 
+    cancelled_requests = 0
+    for day in sorted(cancel_approved_unmark_request_days):
+        result = db.session.execute(text("""
+            DELETE FROM dbo.COLAB_FERIAS_PEDIDO_DESMARCAR
+            WHERE PENO = :peno
+              AND PHC_DB = :phc_db
+              AND DATA_FERIAS = :data_ferias
+              AND ESTADO = 'PENDENTE'
+        """), {
+            'peno': peno,
+            'phc_db': phc_db,
+            'data_ferias': day,
+        })
+        cancelled_requests += max(0, int(result.rowcount or 0))
+
     created_requests = 0
     for day in sorted(request_approved_unmark_days):
         fpstamp = approved_days.get(day, '')
@@ -563,4 +584,5 @@ def apply_colaborador_ferias_changes(user, payload: dict[str, Any]) -> dict[str,
         'added': len(add_days),
         'removed_pending': len(remove_pending_days),
         'requested_approved_unmark': created_requests,
+        'cancelled_approved_unmark_request': cancelled_requests,
     }
