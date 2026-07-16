@@ -28,6 +28,7 @@ MONTH_NAMES = (
 )
 SIGNATURE_MAX_BYTES = 2 * 1024 * 1024
 DOCUMENTS_FROM_DATE = "20250101"
+SIGNATURE_DESCRIPTION = "Assinatura do colaborador - mapa de ajudas de custo"
 
 
 def _documents_root() -> Path | None:
@@ -36,6 +37,10 @@ def _documents_root() -> Path | None:
         or os.environ.get("COLAB_RECIBOS_ROOT")
         or ""
     ).strip()
+    # The production service runs on Windows and reads directly from the
+    # domain document share. Local development still supplies its own root.
+    if not configured and os.name == "nt":
+        configured = "//10.0.1.13/docs"
     if not configured:
         return None
     try:
@@ -43,6 +48,22 @@ def _documents_root() -> Path | None:
     except OSError:
         return None
     return root if root.is_dir() else None
+
+
+def _signatures_root() -> Path | None:
+    configured = str(
+        current_app.config.get("COLAB_ASSINATURAS_ROOT")
+        or os.environ.get("COLAB_ASSINATURAS_ROOT")
+        or ""
+    ).strip()
+    if not configured and os.name == "nt":
+        configured = "//10.0.1.13/docs/assinaturas"
+    if not configured:
+        return None
+    try:
+        return Path(configured).expanduser().resolve()
+    except OSError:
+        return None
 
 
 def _company_documents_dir(colaborador: dict[str, Any]) -> Path | None:
@@ -208,7 +229,32 @@ def _user_login(user: Any) -> str:
     return "APP"
 
 
-def _insert_signature_attachment(cursor, bostamp: str, peno: int, year: int, month: int, image: bytes, user_login: str) -> None:
+def _store_signature_file(phc_db: str, bostamp: str, peno: int, year: int, month: int, image: bytes) -> dict[str, Any]:
+    root = _signatures_root()
+    if not root:
+        raise ValueError("A pasta partilhada para assinaturas não está disponível.")
+
+    db_folder = re.sub(r"[^A-Za-z0-9_-]", "_", str(phc_db or "").upper()) or "PHC"
+    stamp_suffix = re.sub(r"[^A-Za-z0-9]", "", str(bostamp or ""))[-12:] or _new_stamp()[-12:]
+    fname = f"assinatura_ac_{int(peno)}_{int(year):04d}{int(month):02d}_{stamp_suffix}.png"
+    directory = root / db_folder
+    try:
+        directory.mkdir(parents=True, exist_ok=True)
+        path = (directory / fname).resolve()
+        path.relative_to(root)
+        path.write_bytes(image)
+    except OSError as exc:
+        raise ValueError("Não foi possível guardar a assinatura na pasta partilhada.") from exc
+    return {
+        "path": path,
+        "fullname": str(path),
+        "fname": Path(fname).stem[:150],
+        "fext": "png",
+        "flen": len(image),
+    }
+
+
+def _insert_signature_attachment(cursor, bostamp: str, signature_file: dict[str, Any], user_login: str) -> None:
     now = datetime.now()
     hour = now.strftime("%H:%M:%S")
     _phc_insert(cursor, "ANEXOS", {
@@ -219,12 +265,12 @@ def _insert_signature_attachment(cursor, bostamp: str, peno: int, year: int, mon
         "grupo": "",
         "recstamp": bostamp,
         "uniqueid": "",
-        "descricao": "Assinatura do colaborador - mapa de ajudas de custo",
-        "bdados": pyodbc.Binary(image),
-        "fullname": "",
-        "fname": f"assinatura_ac_{peno}_{year:04d}{month:02d}.png"[:150],
-        "fext": "png",
-        "flen": len(image),
+        "descricao": SIGNATURE_DESCRIPTION,
+        "bdados": pyodbc.Binary(b""),
+        "fullname": str(signature_file["fullname"]),
+        "fname": str(signature_file["fname"]),
+        "fext": str(signature_file["fext"]),
+        "flen": int(signature_file["flen"]),
         "tipo": 2,
         "passw": "",
         "origem": "",
@@ -375,6 +421,7 @@ def sign_colaborador_ac_document(user: Any, filename: str, signature_data: Any) 
 
     connection = None
     cursor = None
+    signature_file: dict[str, Any] | None = None
     try:
         connection = pyodbc.connect(_phc_conn_str(phc_db), timeout=12)
         cursor = connection.cursor()
@@ -393,16 +440,76 @@ def sign_colaborador_ac_document(user: Any, filename: str, signature_data: Any) 
         row = cursor.fetchone()
         if not row:
             raise ValueError("O mapa já foi assinado ou deixou de estar disponível.")
-        _insert_signature_attachment(
-            cursor,
+        signature_file = _store_signature_file(
+            phc_db,
             str(row.BOSTAMP or "").strip(),
             peno,
             document["year"],
             document["month"],
             image,
+        )
+        _insert_signature_attachment(
+            cursor,
+            str(row.BOSTAMP or "").strip(),
+            signature_file,
             _user_login(user),
         )
         connection.commit()
+    except Exception:
+        if connection:
+            connection.rollback()
+        if signature_file:
+            try:
+                Path(signature_file["path"]).unlink(missing_ok=True)
+            except OSError:
+                pass
+        raise
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+    return {"ok": True, "message": "Mapa de ajudas de custo assinado."}
+
+
+def migrate_legacy_signature_attachments(phc_db: str) -> int:
+    """Moves signatures previously stored in BDADOS to the shared document server."""
+    connection = None
+    cursor = None
+    migrated = 0
+    try:
+        connection = pyodbc.connect(_phc_conn_str(phc_db), timeout=12)
+        cursor = connection.cursor()
+        cursor.execute("""
+            SELECT ANEXOSSTAMP, RECSTAMP, FNAME, FEXT, BDADOS
+            FROM dbo.ANEXOS
+            WHERE CONVERT(varchar(max), DESCRICAO) = ?
+              AND ASSINATURA = 1
+              AND (FULLNAME IS NULL OR LTRIM(RTRIM(CONVERT(varchar(max), FULLNAME))) = '')
+        """, SIGNATURE_DESCRIPTION)
+        for row in cursor.fetchall():
+            image = bytes(row.BDADOS or b"")
+            if not image.startswith(b"\x89PNG\r\n\x1a\n"):
+                continue
+            original = Path(str(row.FNAME or "assinatura")).stem
+            safe_name = re.sub(r"[^A-Za-z0-9_.-]", "_", original) or "assinatura"
+            root = _signatures_root()
+            if not root:
+                raise ValueError("A pasta partilhada para assinaturas não está disponível.")
+            folder = root / (re.sub(r"[^A-Za-z0-9_-]", "_", str(phc_db).upper()) or "PHC")
+            folder.mkdir(parents=True, exist_ok=True)
+            path = (folder / f"{safe_name}_{str(row.ANEXOSSTAMP or '').strip()[-8:]}.png").resolve()
+            path.relative_to(root)
+            path.write_bytes(image)
+            cursor.execute("""
+                UPDATE dbo.ANEXOS
+                SET FULLNAME = ?, FNAME = ?, FEXT = 'png', FLEN = ?, BDADOS = ?
+                WHERE ANEXOSSTAMP = ?
+            """, str(path), path.stem[:150], len(image), pyodbc.Binary(b""), row.ANEXOSSTAMP)
+            migrated += 1
+        connection.commit()
+        return migrated
     except Exception:
         if connection:
             connection.rollback()
@@ -412,5 +519,3 @@ def sign_colaborador_ac_document(user: Any, filename: str, signature_data: Any) 
             cursor.close()
         if connection:
             connection.close()
-
-    return {"ok": True, "message": "Mapa de ajudas de custo assinado."}
