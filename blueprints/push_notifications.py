@@ -8,6 +8,7 @@ from models import Acessos, db
 from services.push_service import (
     PushConfigurationError,
     deactivate_push_subscription,
+    ensure_push_schema,
     get_user_push_summary,
     get_vapid_public_key,
     save_push_subscription,
@@ -180,6 +181,7 @@ def _idempotency_already_processed(idempotency_key: str) -> bool:
     key = _text(idempotency_key)
     if not key:
         return False
+    ensure_push_schema()
     try:
         row = db.session.execute(text("""
             SELECT TOP 1 1
@@ -205,6 +207,7 @@ def api_push_public_key():
     except PushConfigurationError as exc:
         return jsonify({"error": str(exc)}), 400
     except Exception as exc:
+        current_app.logger.exception("Erro ao obter chave publica VAPID.")
         return jsonify({"error": str(exc)}), 500
 
 
@@ -223,6 +226,7 @@ def api_push_subscribe():
         )
         return jsonify({"ok": True, "device": data})
     except Exception as exc:
+        current_app.logger.exception("Erro ao gravar subscricao push.")
         return jsonify({"error": str(exc)}), 400
 
 
@@ -236,6 +240,7 @@ def api_push_unsubscribe():
         count = deactivate_push_subscription(endpoint=endpoint, pushdevstamp=pushdevstamp)
         return jsonify({"ok": True, "deactivated": count})
     except Exception as exc:
+        current_app.logger.exception("Erro ao desativar subscricao push.")
         return jsonify({"error": str(exc)}), 400
 
 
@@ -277,6 +282,7 @@ def api_integration_notification_event():
     denied = _require_integration_token()
     if denied:
         return denied
+    ensure_push_schema()
 
     payload = request.get_json(silent=True) or {}
     if not isinstance(payload, dict):
@@ -373,6 +379,7 @@ def api_integration_notification_send():
     denied = _require_integration_token()
     if denied:
         return denied
+    ensure_push_schema()
 
     payload = request.get_json(silent=True) or {}
     if not isinstance(payload, dict):
@@ -466,6 +473,7 @@ def api_push_test_self():
     except PushConfigurationError as exc:
         return jsonify({"error": str(exc)}), 400
     except Exception as exc:
+        current_app.logger.exception("Erro ao enviar notificacao push de teste.")
         return jsonify({"error": str(exc)}), 500
 
 
@@ -480,4 +488,5 @@ def api_push_user_summary(userstamp):
         data["is_self"] = str(current_user.USSTAMP or "").strip() == str(userstamp or "").strip()
         return jsonify(data)
     except Exception as exc:
+        current_app.logger.exception("Erro ao obter resumo de notificacoes push.")
         return jsonify({"error": str(exc)}), 500

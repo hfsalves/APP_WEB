@@ -14,7 +14,8 @@
 }
 
 .docai-inbox-page .sz_page_container_wide,
-.docai-sources-page .sz_page_container_wide {
+.docai-sources-page .sz_page_container_wide,
+.docai-extract-page .sz_page_container_wide {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
 }
@@ -288,7 +289,8 @@
 }
 
 .docai-pipeline-badge.method-direct_pdf_text,
-.docai-pipeline-badge.method-plain_text {
+.docai-pipeline-badge.method-plain_text,
+.docai-pipeline-badge.method-split_pdf {
   color: var(--sz-color-info);
   border-color: color-mix(in srgb, var(--sz-color-info) 34%, transparent);
   background: color-mix(in srgb, var(--sz-color-info) 10%, transparent);
@@ -321,9 +323,532 @@
   color: var(--sz-color-danger);
 }
 
+.docai-row-actions .docai-row-ai {
+  color: var(--sz-color-primary);
+  border-color: color-mix(in srgb, var(--sz-color-primary) 30%, var(--sz-color-border));
+  background: color-mix(in srgb, var(--sz-color-primary) 8%, transparent);
+}
+
+.docai-row-actions .docai-row-ai:hover {
+  border-color: var(--sz-color-primary);
+  background: color-mix(in srgb, var(--sz-color-primary) 15%, transparent);
+}
+
 .docai-row-actions .docai-row-delete:hover {
   border-color: color-mix(in srgb, var(--sz-color-danger) 42%, var(--sz-color-border));
   background: color-mix(in srgb, var(--sz-color-danger) 12%, transparent);
+}
+
+.docai-inbox-group-badge {
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+  padding: 0.18rem 0.45rem;
+  border: 1px solid color-mix(in srgb, var(--sz-color-primary) 32%, var(--sz-color-border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--sz-color-primary) 8%, var(--sz-color-surface));
+  color: var(--sz-color-primary);
+  font-size: var(--sz-font-size-xs);
+  white-space: nowrap;
+}
+
+.docai-extract-layout {
+  display: grid;
+  grid-template-columns: minmax(20rem, 0.72fr) minmax(42rem, 1.65fr);
+  gap: var(--sz-space-3);
+  height: 100%;
+  min-height: 0;
+}
+
+.docai-extract-source-panel,
+.docai-extract-result-panel {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.docai-extract-dropzone {
+  flex: 1 1 auto;
+  min-height: 22rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  padding: 2rem;
+  border: 2px dashed color-mix(in srgb, var(--sz-color-primary) 42%, var(--sz-color-border));
+  border-radius: var(--sz-radius-lg);
+  background: color-mix(in srgb, var(--sz-color-primary) 5%, var(--sz-color-surface));
+  color: var(--sz-color-text-secondary);
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease, transform 140ms ease;
+}
+
+.docai-extract-dropzone:hover,
+.docai-extract-dropzone:focus-visible,
+.docai-extract-dropzone.is-dragover {
+  border-color: var(--sz-color-primary);
+  background: color-mix(in srgb, var(--sz-color-primary) 11%, var(--sz-color-surface));
+  outline: none;
+}
+
+.docai-extract-dropzone.is-dragover {
+  transform: scale(1.01);
+}
+
+.docai-extract-dropzone > i {
+  font-size: 3rem;
+  color: var(--sz-color-primary);
+}
+
+.docai-extract-dropzone > strong {
+  color: var(--sz-color-text);
+  font-size: var(--sz-font-size-lg);
+}
+
+.docai-extract-dropzone .sz_button {
+  margin-top: 0.65rem;
+}
+
+.docai-extract-preview {
+  flex: 1 1 auto;
+  min-height: 25rem;
+  overflow: hidden;
+  border: 1px solid var(--sz-color-border);
+  border-radius: var(--sz-radius-md);
+  background: var(--sz-color-surface-alt);
+}
+
+.docai-extract-preview iframe {
+  width: 100%;
+  height: 100%;
+  min-height: 25rem;
+  border: 0;
+}
+
+.docai-extract-source-actions {
+  display: flex;
+  justify-content: stretch;
+  padding-top: var(--sz-space-3);
+}
+
+.docai-extract-source-actions .sz_button {
+  width: 100%;
+}
+
+.docai-extract-empty,
+.docai-extract-loading {
+  flex: 1 1 auto;
+  min-height: 22rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  padding: 2rem;
+  color: var(--sz-color-text-secondary);
+  text-align: center;
+}
+
+.docai-extract-empty > i,
+.docai-extract-loading > i {
+  font-size: 2.7rem;
+  color: var(--sz-color-primary);
+}
+
+.docai-extract-empty > strong,
+.docai-extract-loading > strong {
+  color: var(--sz-color-text);
+  font-size: var(--sz-font-size-lg);
+}
+
+.docai-extract-results {
+  min-height: 0;
+  overflow: auto;
+  padding-right: 0.2rem;
+}
+
+.docai-extract-group-nav {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sz-space-3);
+  margin-bottom: var(--sz-space-3);
+  padding: 0.65rem;
+  border: 1px solid color-mix(in srgb, var(--sz-color-primary) 35%, var(--sz-color-border));
+  border-radius: var(--sz-radius-md);
+  background: color-mix(in srgb, var(--sz-color-primary) 7%, var(--sz-color-surface-alt));
+}
+
+.docai-extract-group-current {
+  min-width: 0;
+  display: grid;
+  justify-items: center;
+  gap: 0.15rem;
+  text-align: center;
+}
+
+.docai-extract-group-current strong,
+.docai-extract-group-current span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.docai-extract-batch-alert {
+  margin-bottom: var(--sz-space-3);
+  padding: var(--sz-space-3);
+  border: 1px solid color-mix(in srgb, var(--sz-color-warning) 55%, var(--sz-color-border));
+  border-radius: var(--sz-radius-md);
+  background: color-mix(in srgb, var(--sz-color-warning) 10%, var(--sz-color-surface));
+}
+
+.docai-extract-batch-alert-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sz-space-3);
+}
+
+.docai-extract-batch-alert-head > i {
+  margin-top: 0.15rem;
+  color: var(--sz-color-warning);
+  font-size: 1.4rem;
+}
+
+.docai-extract-batch-alert h4,
+.docai-extract-batch-alert p {
+  margin: 0;
+}
+
+.docai-extract-batch-alert h4 {
+  color: var(--sz-color-text);
+}
+
+.docai-extract-batch-alert-head p,
+.docai-extract-batch-note {
+  margin-top: 0.3rem;
+  color: var(--sz-color-text-secondary);
+}
+
+.docai-extract-batch-documents {
+  display: grid;
+  gap: var(--sz-space-2);
+  margin-top: var(--sz-space-3);
+}
+
+.docai-extract-batch-document {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sz-space-2);
+  padding: 0.65rem 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--sz-color-warning) 30%, var(--sz-color-border));
+  border-radius: var(--sz-radius-md);
+  background: color-mix(in srgb, var(--sz-color-surface-alt) 88%, transparent);
+}
+
+.docai-extract-batch-index {
+  width: 1.8rem;
+  height: 1.8rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--sz-color-warning) 20%, var(--sz-color-surface));
+  color: var(--sz-color-text);
+  font-weight: var(--sz-font-weight-bold);
+}
+
+.docai-extract-batch-main {
+  min-width: 0;
+  display: grid;
+  gap: 0.15rem;
+}
+
+.docai-extract-batch-main strong,
+.docai-extract-batch-main span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.docai-extract-batch-main span,
+.docai-extract-batch-confidence {
+  color: var(--sz-color-text-secondary);
+  font-size: var(--sz-font-size-sm);
+}
+
+.docai-extract-batch-confidence {
+  white-space: nowrap;
+}
+
+.docai-extract-batch-note {
+  padding-top: var(--sz-space-2);
+  font-size: var(--sz-font-size-sm);
+}
+
+.docai-extract-batch-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: var(--sz-space-3);
+}
+
+.docai-extract-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sz-space-3);
+}
+
+.docai-extract-summary-grid .docai-info-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.docai-extract-summary-grid .docai-info-card strong,
+.docai-extract-summary-grid .docai-info-card span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.docai-extract-supplier-card {
+  position: relative;
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease, box-shadow 140ms ease;
+}
+
+.docai-extract-supplier-card:hover,
+.docai-extract-supplier-card:focus-visible {
+  border-color: var(--sz-color-primary);
+  background: color-mix(in srgb, var(--sz-color-primary) 9%, var(--sz-color-surface-alt));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sz-color-primary) 24%, transparent);
+  outline: none;
+}
+
+.docai-extract-supplier-card.is-unmatched {
+  border-color: color-mix(in srgb, var(--sz-color-warning) 48%, var(--sz-color-border));
+  background: color-mix(in srgb, var(--sz-color-warning) 8%, var(--sz-color-surface-alt));
+}
+
+.docai-extract-card-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: fit-content;
+  margin-top: auto;
+  padding-top: 0.35rem;
+  color: var(--sz-color-primary);
+  font-size: var(--sz-font-size-sm);
+  font-weight: var(--sz-font-weight-semibold);
+}
+
+.docai-extract-supplier-card.is-unmatched .docai-extract-card-hint {
+  color: var(--sz-color-warning);
+}
+
+.docai-extract-section {
+  margin-top: var(--sz-space-3);
+  padding: var(--sz-space-3);
+  border: 1px solid var(--sz-color-border);
+  border-radius: var(--sz-radius-md);
+  background: color-mix(in srgb, var(--sz-color-surface-alt) 78%, transparent);
+  min-width: 0;
+}
+
+.docai-extract-section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--sz-space-3);
+  margin-bottom: var(--sz-space-2);
+}
+
+.docai-extract-section h4,
+.docai-extract-notes h4 {
+  margin: 0;
+  color: var(--sz-color-text);
+}
+
+.docai-extract-result-panel .docai-extract-table-host {
+  flex: 0 1 auto;
+  height: auto;
+  min-height: 0;
+  max-height: 22rem;
+  overflow: auto;
+}
+
+.docai-extract-description {
+  min-width: 16rem;
+  white-space: normal;
+}
+
+.docai-extract-number {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.docai-extract-footer-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(18rem, 0.55fr);
+  gap: var(--sz-space-3);
+  align-items: stretch;
+  margin-top: var(--sz-space-3);
+  min-width: 0;
+}
+
+.docai-extract-footer-grid > .docai-extract-section,
+.docai-extract-footer-grid > .docai-extract-totals {
+  margin-top: 0;
+  min-width: 0;
+}
+
+.docai-extract-footer-grid > .docai-extract-section {
+  display: flex;
+  flex-direction: column;
+}
+
+.docai-extract-footer-grid .docai-extract-table-host {
+  flex: 0 1 auto;
+  height: auto;
+}
+
+.docai-extract-totals {
+  padding: var(--sz-space-3);
+  border: 1px solid var(--sz-color-border);
+  border-radius: var(--sz-radius-md);
+  background: color-mix(in srgb, var(--sz-color-surface-alt) 78%, transparent);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.2rem;
+}
+
+.docai-extract-totals > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--sz-space-3);
+  padding: 0.65rem 0;
+  border-bottom: 1px solid var(--sz-color-border);
+}
+
+.docai-extract-totals > div:last-child {
+  border-bottom: 0;
+}
+
+.docai-extract-totals .is-grand-total {
+  margin-top: 0.25rem;
+  color: var(--sz-color-primary);
+  font-size: var(--sz-font-size-lg);
+}
+
+.docai-extract-totals strong {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.docai-extract-notes {
+  margin-top: var(--sz-space-3);
+  padding: var(--sz-space-3);
+  border-radius: var(--sz-radius-md);
+  border: 1px solid color-mix(in srgb, var(--sz-color-warning) 36%, var(--sz-color-border));
+  background: color-mix(in srgb, var(--sz-color-warning) 9%, var(--sz-color-surface));
+}
+
+.docai-extract-notes ul {
+  margin: 0.7rem 0 0;
+  padding-left: 1.25rem;
+}
+
+.sz_modal > .docai-supplier-match-panel {
+  width: min(46rem, calc(100vw - 2rem));
+  max-height: min(42rem, calc(100vh - 2rem));
+  display: flex;
+  flex-direction: column;
+}
+
+.docai-supplier-match-modal .sz_modal_header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sz-space-3);
+}
+
+.docai-supplier-match-modal .sz_modal_header p {
+  margin: 0.25rem 0 0;
+}
+
+.docai-supplier-match-search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: var(--sz-space-2);
+}
+
+.docai-supplier-match-list {
+  min-height: 6rem;
+  max-height: min(25rem, 52vh);
+  overflow: auto;
+  display: grid;
+  align-content: start;
+  gap: var(--sz-space-2);
+  padding-right: 0.15rem;
+}
+
+.docai-supplier-match-option {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sz-space-3);
+  padding: 0.8rem 0.9rem;
+  border: 1px solid var(--sz-color-border);
+  border-radius: var(--sz-radius-md);
+  background: color-mix(in srgb, var(--sz-color-surface-alt) 82%, transparent);
+  color: var(--sz-color-text);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease, transform 120ms ease;
+}
+
+.docai-supplier-match-option:hover,
+.docai-supplier-match-option:focus-visible {
+  border-color: var(--sz-color-primary);
+  background: color-mix(in srgb, var(--sz-color-primary) 10%, var(--sz-color-surface-alt));
+  transform: translateY(-1px);
+  outline: none;
+}
+
+.docai-supplier-match-main {
+  min-width: 0;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.docai-supplier-match-main strong,
+.docai-supplier-match-main span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.docai-supplier-match-main span {
+  color: var(--sz-color-text-secondary);
+  font-size: var(--sz-font-size-sm);
+}
+
+.docai-supplier-match-score {
+  flex: 0 0 auto;
+  color: var(--sz-color-primary);
+  font-size: var(--sz-font-size-sm);
+  font-weight: var(--sz-font-weight-semibold);
+  white-space: nowrap;
 }
 
 .docai-review-layout {
@@ -1220,6 +1745,10 @@
     grid-template-columns: 1fr;
   }
 
+  .docai-extract-layout {
+    grid-template-columns: minmax(18rem, 0.72fr) minmax(34rem, 1.4fr);
+  }
+
 }
 
 @media (max-width: 900px) {
@@ -1262,5 +1791,44 @@
 
   .docai-source-runtime {
     grid-template-columns: 1fr;
+  }
+
+  .docai-extract-layout,
+  .docai-extract-summary-grid,
+  .docai-extract-footer-grid,
+  .docai-supplier-match-search {
+    grid-template-columns: 1fr;
+  }
+
+  .docai-supplier-match-search .sz_button {
+    width: 100%;
+  }
+
+  .docai-supplier-match-option {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .docai-extract-group-nav {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .docai-extract-group-current {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+
+  .docai-extract-batch-actions .sz_button {
+    width: 100%;
+  }
+
+  .docai-extract-layout {
+    height: auto;
+  }
+
+  .docai-extract-dropzone,
+  .docai-extract-empty,
+  .docai-extract-loading {
+    min-height: 16rem;
   }
 }

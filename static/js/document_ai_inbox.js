@@ -17,6 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
     closeFiltersTop: document.getElementById('docAiCloseFiltersTop'),
     closeFilters: document.getElementById('docAiCloseFilters'),
     uploadBtn: document.getElementById('docAiUploadBtn'),
+    extractBtn: document.getElementById('docAiExtractBtn'),
     uploadInput: document.getElementById('docAiUploadInput'),
     refreshBtn: document.getElementById('docAiRefreshBtn'),
     templatesBtn: document.getElementById('docAiTemplatesBtn'),
@@ -75,6 +76,7 @@ document.addEventListener('DOMContentLoaded', () => {
       ocr_image_fallback: 'OCR fallback',
       direct_image_ocr: 'OCR imagem',
       plain_text: 'Texto direto',
+      split_pdf: 'PDF separado',
       failed: 'Falhou',
     };
     return mapping[String(value || '').trim()] || (value || 'n/a');
@@ -152,6 +154,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <td>
           <div><strong>${escapeHtml(item.file_name)}</strong></div>
           <div class="sz_text_muted">${escapeHtml(item.file_ext || item.mime_type || '')}</div>
+          ${item.batch_id ? `<div class="docai-inbox-group-badge"><i class="fa-solid fa-link"></i> Grupo ${escapeHtml(item.batch_id.slice(0, 8))} · ${escapeHtml(item.batch_index || '?')}/${escapeHtml(item.batch_count || '?')}</div>` : ''}
         </td>
         <td>
           <div>${escapeHtml(item.entity_name || (item.feid ? `FE ${item.feid}` : 'n/a'))}</div>
@@ -177,6 +180,9 @@ document.addEventListener('DOMContentLoaded', () => {
             </button>
             <button type="button" class="sz_button sz_button_ghost" data-action="reprocess" data-id="${escapeHtml(item.id)}" title="Reprocessar">
               <i class="fa-solid fa-rotate"></i>
+            </button>
+            <button type="button" class="sz_button sz_button_ghost docai-row-ai" data-action="extract" data-id="${escapeHtml(item.id)}" title="Ler com IA" aria-label="Ler ${escapeHtml(item.file_name)} com IA">
+              <i class="fa-solid fa-wand-magic-sparkles"></i>
             </button>
             <button type="button" class="sz_button sz_button_ghost" data-action="template" data-id="${escapeHtml(item.id)}" title="Modelos">
               <i class="fa-solid fa-layer-group"></i>
@@ -305,6 +311,7 @@ document.addEventListener('DOMContentLoaded', () => {
   els.templatesBtn?.addEventListener('click', openTemplates);
   els.sourcesBtn?.addEventListener('click', openSources);
   els.uploadBtn?.addEventListener('click', () => els.uploadInput?.click());
+  els.extractBtn?.addEventListener('click', () => { window.location.href = '/document_ai/extract'; });
   els.uploadInput?.addEventListener('change', (event) => uploadDocument(event.target.files?.[0]));
   els.inboxBody?.addEventListener('click', (event) => {
     const button = event.target.closest('button[data-action]');
@@ -318,6 +325,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (action === 'reprocess') {
       reprocessDocument(id);
+      return;
+    }
+    if (action === 'extract') {
+      window.location.href = `/document_ai/extract?document_id=${encodeURIComponent(id)}`;
       return;
     }
     if (action === 'template') {

@@ -605,6 +605,11 @@
     overflow-y: auto;
   }
 
+  .expense-line-card:has(.expense-vehicle-lookup .sz_table_lookup_dropdown:not([hidden])),
+  .expense-line-card:has(.expense-vehicle-lookup .sz_table_lookup_dropdown:not([hidden])) .expense-line-content {
+    overflow: visible;
+  }
+
   .expense-payment-toggle {
     display: flex;
     align-items: center;
@@ -1124,6 +1129,8 @@
         const term = String(input.value || '').trim();
         close();
         if (!term) return;
+        menu.innerHTML = '<div class="sz_table_lookup_empty">A procurar...</div>';
+        menu.hidden = false;
         try {
           const response = await fetch(`/api/colaborador/despesas/viaturas?${new URLSearchParams({ q: term }).toString()}`, {
             credentials: 'same-origin',
@@ -1131,7 +1138,10 @@
           const result = await response.json().catch(() => ({}));
           const rows = Array.isArray(result.rows) ? result.rows : [];
           if (!response.ok || !result.ok) throw new Error(result.error || '');
-          if (!rows.length) return;
+          if (!rows.length) {
+            menu.innerHTML = '<div class="sz_table_lookup_empty">Sem viaturas encontradas.</div>';
+            return;
+          }
           menu.innerHTML = rows.map((row, index) => {
             const detail = [row.marca, row.modelo, row.nofrota].filter(Boolean).join(' · ');
             return `<button type="button" class="sz_table_lookup_item${index === 0 ? ' is-active' : ''}" data-vehicle-index="${index}">
@@ -1153,6 +1163,8 @@
           });
         } catch (error) {
           console.error('Erro ao pesquisar viaturas para despesas.', error);
+          menu.innerHTML = '<div class="sz_table_lookup_empty">Não foi possível pesquisar viaturas.</div>';
+          menu.hidden = false;
         }
       };
 

@@ -1,4 +1,5 @@
 import io
+import json
 
 from flask import Blueprint, current_app, jsonify, render_template, request, send_file
 from flask_login import current_user, login_required
@@ -10,6 +11,7 @@ from services.document_ai_service import (
     delete_document_source,
     document_ai_lookups,
     get_document_detail,
+    get_document_group,
     get_document_original_file,
     get_document_preview_page,
     get_document_source,
@@ -19,16 +21,19 @@ from services.document_ai_service import (
     list_documents,
     list_templates,
     reprocess_document,
+    reconcile_extracted_document,
     resolve_fe_entity,
     save_document_source,
     save_document_review,
     save_template,
     save_template_from_document,
     search_suppliers,
+    split_extracted_pdf_into_inbox,
     suggest_template,
     test_template,
     toggle_template_active,
 )
+from services.document_ai_llm_service import extract_document_full_visual
 
 
 bp = Blueprint('document_ai', __name__)
@@ -57,6 +62,14 @@ def document_ai_inbox_page():
     if not _document_ai_has_access('consultar'):
         return render_template('error.html', message='Sem permissão para consultar processamento documental.'), 403
     return render_template('document_ai_inbox.html', page_title='Processamento Documental')
+
+
+@bp.route('/document_ai/extract')
+@login_required
+def document_ai_extract_page():
+    if not _document_ai_has_access('consultar'):
+        return render_template('error.html', message='Sem permissão para extrair documentos.'), 403
+    return render_template('document_ai_extract.html', page_title='Leitura Inteligente de Documentos')
 
 
 @bp.route('/document_ai/review/<docinstamp>')
@@ -109,6 +122,85 @@ def api_document_ai_inbox():
         'date_to': request.args.get('date_to', ''),
     }
     return jsonify(list_documents(filters))
+
+
+@bp.route('/api/document_ai/extract', methods=['POST'])
+@login_required
+def api_document_ai_extract():
+    if not _document_ai_has_access('consultar'):
+        return jsonify({'error': 'Sem permissão para extrair documentos.'}), 403
+
+    uploaded_file = request.files.get('file')
+    if not uploaded_file or not str(uploaded_file.filename or '').strip():
+        return jsonify({'error': 'Seleciona um ficheiro PDF.'}), 400
+
+    file_name = str(uploaded_file.filename or '').strip()
+    if not file_name.lower().endswith('.pdf'):
+        return jsonify({'error': 'Este ecrã aceita apenas ficheiros PDF.'}), 400
+
+    max_file_size = 50 * 1024 * 1024
+    file_bytes = uploaded_file.stream.read(max_file_size + 1)
+    if not file_bytes:
+        return jsonify({'error': 'O ficheiro está vazio.'}), 400
+    if len(file_bytes) > max_file_size:
+        return jsonify({'error': 'O PDF excede o limite de 50 MB.'}), 413
+
+    try:
+        payload = extract_document_full_visual({
+            'file_name': file_name,
+            'mime_type': 'application/pdf',
+            'file_bytes': file_bytes,
+        })
+        if not payload.get('ok'):
+            status_code = 503 if not payload.get('available', True) else 502
+            return jsonify({'error': payload.get('message') or 'Não foi possível extrair o documento.'}), status_code
+        reconciled = reconcile_extracted_document(payload.get('document') or {})
+        payload['document'] = reconciled.get('document') or payload.get('document') or {}
+        payload['matching'] = reconciled.get('matching') or {}
+        return jsonify(payload)
+    except Exception as exc:
+        current_app.logger.exception('Erro na leitura integral de documento com LLM')
+        return jsonify({'error': str(exc)}), 500
+
+
+@bp.route('/api/document_ai/extract/split', methods=['POST'])
+@login_required
+def api_document_ai_extract_split():
+    if not _document_ai_has_access('inserir'):
+        return jsonify({'error': 'Sem permissão para criar documentos no inbox.'}), 403
+    uploaded_file = request.files.get('file')
+    if not uploaded_file or not str(uploaded_file.filename or '').strip():
+        return jsonify({'error': 'PDF em falta.'}), 400
+    if not str(uploaded_file.filename or '').lower().endswith('.pdf'):
+        return jsonify({'error': 'A separação aceita apenas ficheiros PDF.'}), 400
+    max_file_size = 50 * 1024 * 1024
+    file_bytes = uploaded_file.stream.read(max_file_size + 1)
+    if len(file_bytes) > max_file_size:
+        return jsonify({'error': 'O PDF excede o limite de 50 MB.'}), 413
+    try:
+        document_batch = json.loads(request.form.get('document_batch') or '{}')
+        document_data = json.loads(request.form.get('document_data') or '{}')
+    except Exception:
+        return jsonify({'error': 'Os dados de separação não são válidos.'}), 400
+    try:
+        payload = split_extracted_pdf_into_inbox(
+            file_bytes=file_bytes,
+            file_name=str(uploaded_file.filename or '').strip(),
+            document_batch=document_batch,
+            document_data=document_data,
+            created_by=_current_login(),
+            source_document_id=request.form.get('source_document_id', ''),
+        )
+        return jsonify(payload), 201
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception as exc:
+        current_app.logger.exception('Erro ao separar PDF e criar grupo no inbox')
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        return jsonify({'error': str(exc)}), 500
 
 
 @bp.route('/api/document_ai/sources', methods=['GET'])
@@ -219,6 +311,18 @@ def api_document_ai_document_detail(docinstamp: str):
         return jsonify(get_document_detail(docinstamp))
     except Exception as exc:
         current_app.logger.exception('Erro ao carregar detalhe documental')
+        return jsonify({'error': str(exc)}), 500
+
+
+@bp.route('/api/document_ai/documents/<docinstamp>/group', methods=['GET'])
+@login_required
+def api_document_ai_document_group(docinstamp: str):
+    if not _document_ai_has_access('consultar'):
+        return jsonify({'error': 'Sem permissão.'}), 403
+    try:
+        return jsonify(get_document_group(docinstamp))
+    except Exception as exc:
+        current_app.logger.exception('Erro ao carregar grupo documental')
         return jsonify({'error': str(exc)}), 500
 
 

@@ -1,0 +1,238 @@
+{% extends "base.html" %}
+
+{% block title %}Leitura Inteligente de Documentos{% endblock %}
+
+{% block extra_head %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/document_ai.css') }}?v={{ config.get('STATIC_VERSION', 1) }}">
+{% endblock %}
+
+{% block content %}
+<div class="sz_page docai-page docai-extract-page">
+  <div class="sz_page_container sz_page_container_wide">
+    <header class="sz_contextbar sz_page_contextbar docai-contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_page_title">Leitura inteligente</div>
+        <div class="sz_page_subtitle">Envia um PDF diretamente ao LLM e obtém todos os dados comerciais visíveis.</div>
+      </div>
+      <div class="sz_contextbar_right docai-contextbar-right">
+        <button id="docAiExtractBackBtn" type="button" class="sz_button sz_button_secondary">
+          <i class="fa-solid fa-arrow-left"></i>
+          <span>Voltar ao inbox</span>
+        </button>
+        <button id="docAiExtractResetBtn" type="button" class="sz_button sz_button_ghost" disabled>
+          <i class="fa-solid fa-file-circle-plus"></i>
+          <span>Novo documento</span>
+        </button>
+      </div>
+    </header>
+
+    <section class="sz_page_body">
+      <div class="docai-extract-layout">
+        <section class="sz_panel docai-extract-source-panel">
+          <div class="docai-panel-head">
+            <div>
+              <div class="sz_h4">Documento</div>
+              <div id="docAiExtractFileMeta" class="sz_text_muted">Seleciona um PDF até 50 MB.</div>
+            </div>
+          </div>
+
+          <div id="docAiExtractDropzone" class="docai-extract-dropzone" tabindex="0" role="button" aria-label="Selecionar documento PDF">
+            <i class="fa-solid fa-cloud-arrow-up"></i>
+            <strong>Arrasta o PDF para aqui</strong>
+            <span>ou escolhe um ficheiro no computador</span>
+            <button id="docAiExtractChooseBtn" type="button" class="sz_button sz_button_primary">Escolher PDF</button>
+          </div>
+
+          <div id="docAiExtractPreview" class="docai-extract-preview" hidden>
+            <iframe id="docAiExtractPreviewFrame" title="Pré-visualização do PDF"></iframe>
+          </div>
+
+          <div class="docai-extract-source-actions">
+            <button id="docAiExtractRunBtn" type="button" class="sz_button sz_button_primary" disabled>
+              <i class="fa-solid fa-wand-magic-sparkles"></i>
+              <span>Ler documento com LLM</span>
+            </button>
+          </div>
+          <input id="docAiExtractInput" type="file" accept="application/pdf,.pdf" hidden>
+        </section>
+
+        <section class="sz_panel docai-extract-result-panel">
+          <div class="docai-panel-head">
+            <div>
+              <div class="sz_h4">Dados extraídos</div>
+              <div id="docAiExtractResultMeta" class="sz_text_muted">Os resultados aparecem aqui depois da leitura.</div>
+            </div>
+            <div id="docAiExtractConfidence" class="docai-status-chip status-new" hidden></div>
+          </div>
+
+          <nav id="docAiExtractGroupNavigator" class="docai-extract-group-nav" aria-label="Navegação no grupo de documentos" hidden>
+            <button id="docAiExtractGroupPrevious" type="button" class="sz_button sz_button_secondary" aria-label="Documento anterior">
+              <i class="fa-solid fa-chevron-left"></i>
+              <span>Anterior</span>
+            </button>
+            <div class="docai-extract-group-current">
+              <strong id="docAiExtractGroupPosition">Documento 1 de 1</strong>
+              <span id="docAiExtractGroupFileName" class="sz_text_muted"></span>
+            </div>
+            <button id="docAiExtractGroupNext" type="button" class="sz_button sz_button_secondary" aria-label="Documento seguinte">
+              <span>Seguinte</span>
+              <i class="fa-solid fa-chevron-right"></i>
+            </button>
+          </nav>
+
+          <div id="docAiExtractEmpty" class="docai-extract-empty">
+            <i class="fa-solid fa-file-invoice"></i>
+            <strong>Nenhum documento analisado</strong>
+            <span>Carrega um PDF para identificar cliente, fornecedor, cabeçalho, linhas, IVA e totais.</span>
+          </div>
+
+          <div id="docAiExtractLoading" class="docai-extract-loading" hidden aria-live="polite">
+            <i class="fa-solid fa-circle-notch fa-spin"></i>
+            <strong>A ler todas as páginas do documento...</strong>
+            <span>A operação pode demorar alguns instantes.</span>
+          </div>
+
+          <div id="docAiExtractResults" class="docai-extract-results" hidden>
+            <section id="docAiExtractBatchAlert" class="docai-extract-batch-alert" hidden>
+              <div class="docai-extract-batch-alert-head">
+                <i class="fa-solid fa-layer-group"></i>
+                <div>
+                  <h4>Foram encontrados vários documentos</h4>
+                  <p id="docAiExtractBatchMessage"></p>
+                </div>
+              </div>
+              <div id="docAiExtractBatchDocuments" class="docai-extract-batch-documents"></div>
+              <p class="docai-extract-batch-note">O PDF ainda não foi dividido. Estas páginas ficam preparadas para a próxima fase de separação no inbox.</p>
+              <div class="docai-extract-batch-actions">
+                <button id="docAiExtractSplitBtn" type="button" class="sz_button sz_button_primary">
+                  <i class="fa-solid fa-scissors"></i>
+                  <span>Separar PDFs e enviar para o inbox</span>
+                </button>
+              </div>
+            </section>
+
+            <div class="docai-extract-summary-grid">
+              <article class="docai-info-card">
+                <h4>Empresa cliente</h4>
+                <strong id="docAiExtractCustomerName">--</strong>
+                <span id="docAiExtractCustomerTax" class="sz_text_muted">--</span>
+              </article>
+              <article id="docAiExtractSupplierCard" class="docai-info-card docai-extract-supplier-card" tabindex="0" role="button" aria-label="Escolher fornecedor">
+                <h4>Fornecedor</h4>
+                <strong id="docAiExtractSupplierName">--</strong>
+                <span id="docAiExtractSupplierTax" class="sz_text_muted">--</span>
+                <span id="docAiExtractSupplierNo" class="sz_text_muted">Nº fornecedor: --</span>
+                <span id="docAiExtractSupplierHint" class="docai-extract-card-hint"><i class="fa-solid fa-hand-pointer"></i> Escolher fornecedor</span>
+              </article>
+              <article class="docai-info-card">
+                <h4>Documento</h4>
+                <strong id="docAiExtractDocumentTitle">--</strong>
+                <span id="docAiExtractDocumentDate" class="sz_text_muted">--</span>
+              </article>
+            </div>
+
+            <section class="docai-extract-section">
+              <div class="docai-extract-section-head">
+                <h4>Linhas do documento</h4>
+                <span id="docAiExtractLineCount" class="sz_text_muted"></span>
+              </div>
+              <div class="sz_table_host docai-extract-table-host">
+                <div class="sz_table_wrap">
+                  <table class="sz_table sz_table_compact">
+                    <thead class="sz_table_head">
+                      <tr>
+                        <th>Ref.</th>
+                        <th>Descrição</th>
+                        <th>Qtd.</th>
+                        <th>Un.</th>
+                        <th>Preço unit.</th>
+                        <th>Desc.</th>
+                        <th>IVA</th>
+                        <th>Líquido</th>
+                        <th>Total</th>
+                      </tr>
+                    </thead>
+                    <tbody id="docAiExtractLinesBody"></tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+
+            <div class="docai-extract-footer-grid">
+              <section class="docai-extract-section">
+                <div class="docai-extract-section-head"><h4>Totais por taxa de IVA</h4></div>
+                <div class="sz_table_host docai-extract-table-host">
+                  <div class="sz_table_wrap">
+                    <table class="sz_table sz_table_compact">
+                      <thead class="sz_table_head">
+                        <tr><th>Taxa</th><th>Incidência</th><th>IVA</th><th>Total</th></tr>
+                      </thead>
+                      <tbody id="docAiExtractTaxesBody"></tbody>
+                    </table>
+                  </div>
+                </div>
+              </section>
+
+              <section class="docai-extract-totals">
+                <div><span>Total líquido</span><strong id="docAiExtractNetTotal">--</strong></div>
+                <div><span>Total IVA</span><strong id="docAiExtractTaxTotal">--</strong></div>
+                <div class="is-grand-total"><span>Total documento</span><strong id="docAiExtractGrossTotal">--</strong></div>
+              </section>
+            </div>
+
+            <section id="docAiExtractNotesSection" class="docai-extract-notes" hidden>
+              <h4>Observações da leitura</h4>
+              <ul id="docAiExtractNotes"></ul>
+            </section>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <footer class="sz_actionbar">
+      <div class="sz_actionbar_left">
+        <div id="docAiExtractStatus" class="sz_text_muted" aria-live="polite">Pronto.</div>
+      </div>
+      <div class="sz_actionbar_right">
+        <span class="sz_text_muted">O PDF é enviado ao LLM apenas para esta leitura e não é guardado no inbox.</span>
+      </div>
+    </footer>
+  </div>
+</div>
+
+<div id="docAiSupplierMatchModal" class="sz_modal docai-supplier-match-modal" aria-hidden="true" role="dialog" aria-labelledby="docAiSupplierMatchTitle">
+  <div class="sz_panel docai-supplier-match-panel">
+    <div class="sz_modal_header">
+      <div>
+        <h3 id="docAiSupplierMatchTitle" class="sz_h4 sz_modal_title">Escolher fornecedor</h3>
+        <p id="docAiSupplierMatchContext" class="sz_text_muted">Fornecedores da empresa cliente identificada.</p>
+      </div>
+      <button id="docAiSupplierMatchCloseTop" type="button" class="sz_button sz_button_ghost" aria-label="Fechar">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+    <div class="sz_modal_body docai-modal-body">
+      <div class="docai-supplier-match-search">
+        <div class="sz_field">
+          <label class="sz_label" for="docAiSupplierMatchSearch">Nome, NIF ou NCONT</label>
+          <input id="docAiSupplierMatchSearch" class="sz_input" type="search" placeholder="Pesquisar fornecedor semelhante">
+        </div>
+        <button id="docAiSupplierMatchSearchBtn" type="button" class="sz_button sz_button_secondary">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <span>Pesquisar</span>
+        </button>
+      </div>
+      <div id="docAiSupplierMatchList" class="docai-supplier-match-list"></div>
+    </div>
+    <div class="sz_modal_footer">
+      <button id="docAiSupplierMatchClose" type="button" class="sz_button sz_button_secondary">Fechar</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script src="{{ url_for('static', filename='js/document_ai_extract.js') }}?v={{ config.get('STATIC_VERSION', 1) }}"></script>
+{% endblock %}

@@ -73,6 +73,264 @@ def _table_exists(table_name: str) -> bool:
     return row is not None
 
 
+def _base64url_no_padding(value: bytes) -> str:
+    return base64.urlsafe_b64encode(value).decode("ascii").rstrip("=")
+
+
+def _generate_vapid_pair() -> dict[str, str]:
+    private_key = ec.generate_private_key(ec.SECP256R1())
+    private_value = private_key.private_numbers().private_value.to_bytes(32, byteorder="big")
+    public_numbers = private_key.public_key().public_numbers()
+    public_value = (
+        b"\x04"
+        + public_numbers.x.to_bytes(32, byteorder="big")
+        + public_numbers.y.to_bytes(32, byteorder="big")
+    )
+    return {
+        "public_key": _base64url_no_padding(public_value),
+        "private_key_b64": _base64url_no_padding(private_value),
+    }
+
+
+def _ensure_para_text_param(code: str, description: str, value: str = "", overwrite: bool = False) -> None:
+    if not _table_exists("PARA"):
+        return
+    param_code = _safe_text(code).upper()
+    if not param_code:
+        return
+    exists = db.session.execute(text("""
+        SELECT TOP 1 1
+        FROM dbo.PARA
+        WHERE UPPER(LTRIM(RTRIM(ISNULL(PARAMETRO, '')))) = :code
+    """), {"code": param_code}).first()
+    if exists:
+        if overwrite:
+            db.session.execute(text("""
+                UPDATE dbo.PARA
+                SET CVALOR = :value
+                WHERE UPPER(LTRIM(RTRIM(ISNULL(PARAMETRO, '')))) = :code
+            """), {"code": param_code, "value": _safe_text(value)})
+        return
+    db.session.execute(text("""
+        INSERT INTO dbo.PARA
+            (PARASTAMP, PARAMETRO, DESCRICAO, TIPO, CVALOR, DVALOR, NVALOR, LVALOR, GRUPO)
+        VALUES
+            (:stamp, :code, :description, 'C', :value, CAST(GETDATE() AS DATE), 0, 0, 'PUSH')
+    """), {
+        "stamp": _new_stamp(),
+        "code": param_code,
+        "description": _safe_text(description)[:100],
+        "value": _safe_text(value),
+    })
+
+
+def _db_param_text_value(code: str, default="") -> str:
+    if not _table_exists("PARA"):
+        return default
+    row = db.session.execute(text("""
+        SELECT TOP 1 ISNULL(CVALOR, '') AS CVALOR
+        FROM dbo.PARA
+        WHERE UPPER(LTRIM(RTRIM(ISNULL(PARAMETRO, '')))) = :code
+    """), {"code": _safe_text(code).upper()}).mappings().first()
+    value = _safe_text((row or {}).get("CVALOR"))
+    return value if value else default
+
+
+def _ensure_vapid_configuration() -> None:
+    if not _table_exists("PARA"):
+        return
+
+    if _table_exists("PARAG"):
+        db.session.execute(text("""
+            IF NOT EXISTS (
+                SELECT 1 FROM dbo.PARAG WHERE UPPER(LTRIM(RTRIM(ISNULL(GRUPO, '')))) = 'PUSH'
+            )
+            BEGIN
+                INSERT INTO dbo.PARAG (GRUPO) VALUES ('PUSH')
+            END
+        """))
+
+    _ensure_para_text_param("VAPID_PUBLIC_KEY", "Chave publica VAPID para notificacoes push web")
+    _ensure_para_text_param("VAPID_PRIVATE_KEY", "Chave privada VAPID para notificacoes push web")
+    _ensure_para_text_param("VAPID_PRIVATE_KEY_B64", "Chave privada VAPID em base64 compacto para notificacoes push web")
+    _ensure_para_text_param("VAPID_SUBJECT", "Subject VAPID no formato mailto: ou https://")
+
+    db_public_key = _db_param_text_value("VAPID_PUBLIC_KEY")
+    db_private_key = _db_param_text_value("VAPID_PRIVATE_KEY")
+    db_private_key_b64 = _db_param_text_value("VAPID_PRIVATE_KEY_B64")
+    db_subject = _db_param_text_value("VAPID_SUBJECT")
+
+    config_public_key = _safe_text(current_app.config.get("VAPID_PUBLIC_KEY"))
+    config_private_key = _safe_text(current_app.config.get("VAPID_PRIVATE_KEY"))
+    config_private_key_b64 = _safe_text(current_app.config.get("VAPID_PRIVATE_KEY_B64"))
+    config_subject = _safe_text(current_app.config.get("VAPID_SUBJECT"))
+
+    public_key = db_public_key or config_public_key
+    private_key = db_private_key or config_private_key
+    private_key_b64 = db_private_key_b64 or config_private_key_b64
+    subject = db_subject or config_subject
+    if public_key and (private_key or private_key_b64) and subject:
+        if not db_public_key and config_public_key:
+            _ensure_para_text_param(
+                "VAPID_PUBLIC_KEY",
+                "Chave publica VAPID para notificacoes push web",
+                config_public_key,
+                overwrite=True,
+            )
+        if not db_private_key_b64 and config_private_key_b64:
+            _ensure_para_text_param(
+                "VAPID_PRIVATE_KEY_B64",
+                "Chave privada VAPID em base64 compacto para notificacoes push web",
+                config_private_key_b64,
+                overwrite=True,
+            )
+        if not db_subject and config_subject:
+            _ensure_para_text_param(
+                "VAPID_SUBJECT",
+                "Subject VAPID no formato mailto: ou https://",
+                config_subject,
+                overwrite=True,
+            )
+        return
+
+    generated = _generate_vapid_pair()
+    subject_value = subject or "mailto:suporte@stationzero.pt"
+
+    if (not public_key) or (not private_key and not private_key_b64):
+        _ensure_para_text_param(
+            "VAPID_PUBLIC_KEY",
+            "Chave publica VAPID para notificacoes push web",
+            generated["public_key"],
+            overwrite=True,
+        )
+        _ensure_para_text_param(
+            "VAPID_PRIVATE_KEY_B64",
+            "Chave privada VAPID em base64 compacto para notificacoes push web",
+            generated["private_key_b64"],
+            overwrite=True,
+        )
+        current_app.config["VAPID_PUBLIC_KEY"] = generated["public_key"]
+        current_app.config["VAPID_PRIVATE_KEY_B64"] = generated["private_key_b64"]
+        current_app.logger.info("Configuracao VAPID push criada automaticamente.")
+
+    if not subject:
+        _ensure_para_text_param(
+            "VAPID_SUBJECT",
+            "Subject VAPID no formato mailto: ou https://",
+            subject_value,
+            overwrite=True,
+        )
+        current_app.config["VAPID_SUBJECT"] = subject_value
+
+
+def ensure_push_schema() -> None:
+    db.session.execute(text("""
+        IF OBJECT_ID('dbo.PUSH_DEVICE', 'U') IS NULL
+        BEGIN
+            CREATE TABLE dbo.PUSH_DEVICE
+            (
+                PUSHDEVSTAMP     VARCHAR(25) NOT NULL,
+                USERSTAMP        VARCHAR(25) NOT NULL,
+                ENDPOINT         NVARCHAR(MAX) NOT NULL,
+                ENDPOINT_HASH    VARCHAR(64) NOT NULL,
+                P256DH           NVARCHAR(MAX) NOT NULL,
+                AUTH             NVARCHAR(MAX) NOT NULL,
+                PLATFORM         VARCHAR(30) NULL,
+                USERAGENT        NVARCHAR(500) NULL,
+                DEVICE_LABEL     NVARCHAR(100) NULL,
+                IS_ACTIVE        BIT NOT NULL CONSTRAINT DF_PUSH_DEVICE_IS_ACTIVE DEFAULT (1),
+                LAST_SEEN        DATETIME NULL,
+                CREATED_AT       DATETIME NOT NULL CONSTRAINT DF_PUSH_DEVICE_CREATED_AT DEFAULT (GETDATE()),
+                UPDATED_AT       DATETIME NULL,
+                LAST_PUSH_AT     DATETIME NULL,
+                LAST_ERROR_AT    DATETIME NULL,
+                LAST_ERROR_MSG   NVARCHAR(1000) NULL,
+                CONSTRAINT PK_PUSH_DEVICE PRIMARY KEY CLUSTERED (PUSHDEVSTAMP)
+            );
+        END
+    """))
+    db.session.execute(text("""
+        IF OBJECT_ID('dbo.PUSH_LOG', 'U') IS NULL
+        BEGIN
+            CREATE TABLE dbo.PUSH_LOG
+            (
+                PUSHLOGSTAMP       VARCHAR(25) NOT NULL,
+                USERSTAMP          VARCHAR(25) NULL,
+                PUSHDEVSTAMP       VARCHAR(25) NULL,
+                SENT_BY_USERSTAMP  VARCHAR(25) NULL,
+                EVENT_TYPE         VARCHAR(50) NULL,
+                TITLE              NVARCHAR(200) NOT NULL,
+                BODY               NVARCHAR(1000) NOT NULL,
+                TARGET_URL         NVARCHAR(500) NULL,
+                PAYLOAD            NVARCHAR(MAX) NULL,
+                STATUS             VARCHAR(20) NOT NULL,
+                RESPONSE_INFO      NVARCHAR(2000) NULL,
+                CREATED_AT         DATETIME NOT NULL CONSTRAINT DF_PUSH_LOG_CREATED_AT DEFAULT (GETDATE()),
+                SENT_AT            DATETIME NULL,
+                CONSTRAINT PK_PUSH_LOG PRIMARY KEY CLUSTERED (PUSHLOGSTAMP)
+            );
+        END
+    """))
+    db.session.execute(text("""
+        IF OBJECT_ID('dbo.NOTIF_PREF', 'U') IS NULL
+        BEGIN
+            CREATE TABLE dbo.NOTIF_PREF
+            (
+                NOTIFPREFSTAMP  VARCHAR(25) NOT NULL,
+                USERSTAMP       VARCHAR(25) NOT NULL,
+                EVENT_TYPE      VARCHAR(50) NOT NULL,
+                PUSH_ENABLED    BIT NOT NULL CONSTRAINT DF_NOTIF_PREF_PUSH_ENABLED DEFAULT (1),
+                CREATED_AT      DATETIME NOT NULL CONSTRAINT DF_NOTIF_PREF_CREATED_AT DEFAULT (GETDATE()),
+                UPDATED_AT      DATETIME NULL,
+                CONSTRAINT PK_NOTIF_PREF PRIMARY KEY CLUSTERED (NOTIFPREFSTAMP)
+            );
+        END
+    """))
+    db.session.execute(text("""
+        IF OBJECT_ID('dbo.PUSH_DEVICE', 'U') IS NOT NULL
+        BEGIN
+            IF COL_LENGTH('dbo.PUSH_DEVICE', 'LAST_PUSH_AT') IS NULL ALTER TABLE dbo.PUSH_DEVICE ADD LAST_PUSH_AT DATETIME NULL;
+            IF COL_LENGTH('dbo.PUSH_DEVICE', 'LAST_ERROR_AT') IS NULL ALTER TABLE dbo.PUSH_DEVICE ADD LAST_ERROR_AT DATETIME NULL;
+            IF COL_LENGTH('dbo.PUSH_DEVICE', 'LAST_ERROR_MSG') IS NULL ALTER TABLE dbo.PUSH_DEVICE ADD LAST_ERROR_MSG NVARCHAR(1000) NULL;
+            IF COL_LENGTH('dbo.PUSH_DEVICE', 'DEVICE_LABEL') IS NULL ALTER TABLE dbo.PUSH_DEVICE ADD DEVICE_LABEL NVARCHAR(100) NULL;
+        END
+    """))
+    db.session.execute(text("""
+        IF NOT EXISTS (
+            SELECT 1 FROM sys.indexes
+            WHERE object_id = OBJECT_ID('dbo.PUSH_DEVICE') AND name = 'IX_PUSH_DEVICE_USERSTAMP'
+        )
+            CREATE INDEX IX_PUSH_DEVICE_USERSTAMP ON dbo.PUSH_DEVICE (USERSTAMP, IS_ACTIVE, LAST_SEEN DESC);
+        IF NOT EXISTS (
+            SELECT 1 FROM sys.indexes
+            WHERE object_id = OBJECT_ID('dbo.PUSH_DEVICE') AND name = 'IX_PUSH_DEVICE_IS_ACTIVE'
+        )
+            CREATE INDEX IX_PUSH_DEVICE_IS_ACTIVE ON dbo.PUSH_DEVICE (IS_ACTIVE, LAST_SEEN DESC);
+        IF NOT EXISTS (
+            SELECT 1 FROM sys.indexes
+            WHERE object_id = OBJECT_ID('dbo.PUSH_DEVICE') AND name = 'UX_PUSH_DEVICE_ENDPOINT_HASH'
+        )
+            CREATE UNIQUE INDEX UX_PUSH_DEVICE_ENDPOINT_HASH ON dbo.PUSH_DEVICE (ENDPOINT_HASH);
+        IF NOT EXISTS (
+            SELECT 1 FROM sys.indexes
+            WHERE object_id = OBJECT_ID('dbo.PUSH_LOG') AND name = 'IX_PUSH_LOG_USERSTAMP'
+        )
+            CREATE INDEX IX_PUSH_LOG_USERSTAMP ON dbo.PUSH_LOG (USERSTAMP, CREATED_AT DESC);
+        IF NOT EXISTS (
+            SELECT 1 FROM sys.indexes
+            WHERE object_id = OBJECT_ID('dbo.PUSH_LOG') AND name = 'IX_PUSH_LOG_EVENT_STATUS'
+        )
+            CREATE INDEX IX_PUSH_LOG_EVENT_STATUS ON dbo.PUSH_LOG (EVENT_TYPE, STATUS, CREATED_AT DESC);
+        IF NOT EXISTS (
+            SELECT 1 FROM sys.indexes
+            WHERE object_id = OBJECT_ID('dbo.NOTIF_PREF') AND name = 'UX_NOTIF_PREF_USER_EVENT'
+        )
+            CREATE UNIQUE INDEX UX_NOTIF_PREF_USER_EVENT ON dbo.NOTIF_PREF (USERSTAMP, EVENT_TYPE);
+    """))
+    _ensure_vapid_configuration()
+    db.session.commit()
+
+
 def _param_value(code: str, default=None):
     env_value = current_app.config.get(code)
     if env_value not in (None, ""):
@@ -85,6 +343,7 @@ def _param_value(code: str, default=None):
 
 
 def _get_vapid_config() -> dict:
+    ensure_push_schema()
     public_key = _safe_text(_param_value("VAPID_PUBLIC_KEY", ""))
     private_key = _load_vapid_private_key()
     subject = _safe_text(_param_value("VAPID_SUBJECT", ""))
@@ -243,6 +502,7 @@ def _load_users_by_team(team_name: str) -> list[dict]:
 
 
 def _ensure_user_default_preferences(userstamp: str):
+    ensure_push_schema()
     usstamp = _safe_text(userstamp)
     if not usstamp or not _table_exists("NOTIF_PREF"):
         return
@@ -289,6 +549,7 @@ def _preference_enabled(userstamp: str, event_type: str) -> bool:
 
 
 def _active_devices_for_user(userstamp: str) -> list[dict]:
+    ensure_push_schema()
     usstamp = _safe_text(userstamp)
     if not usstamp:
         return []
@@ -325,6 +586,7 @@ def _log_push(
     response_info: str | None = None,
     sent_at=None,
 ) -> str:
+    ensure_push_schema()
     stamp = _new_stamp()
     db.session.execute(text("""
         INSERT INTO dbo.PUSH_LOG
@@ -356,6 +618,7 @@ def _log_push(
 
 
 def save_push_subscription(userstamp: str, subscription: dict, platform=None, useragent=None, device_label=None) -> dict:
+    ensure_push_schema()
     usstamp = _safe_text(userstamp)
     endpoint = _safe_text((subscription or {}).get("endpoint"))
     keys = (subscription or {}).get("keys") or {}
@@ -443,6 +706,7 @@ def save_push_subscription(userstamp: str, subscription: dict, platform=None, us
 
 
 def deactivate_push_subscription(endpoint=None, pushdevstamp=None) -> int:
+    ensure_push_schema()
     endpoint_hash = _endpoint_hash(endpoint) if endpoint else None
     stamp = _safe_text(pushdevstamp)
     if not endpoint_hash and not stamp:
@@ -476,6 +740,7 @@ def _build_push_payload(title: str, body: str, url=None, event_type="MANUAL", ex
 
 
 def send_push_to_device(pushdevstamp: str, title: str, body: str, url=None, event_type="MANUAL", sent_by_userstamp=None, extra_payload=None) -> dict:
+    ensure_push_schema()
     stamp = _safe_text(pushdevstamp)
     if not stamp:
         raise ValueError("Dispositivo invalido.")
@@ -573,6 +838,7 @@ def send_push_to_device(pushdevstamp: str, title: str, body: str, url=None, even
 
 
 def send_push_to_user(userstamp: str, title: str, body: str, url=None, event_type="MANUAL", sent_by_userstamp=None, extra_payload=None) -> dict:
+    ensure_push_schema()
     usstamp = _safe_text(userstamp)
     if not usstamp:
         raise ValueError("Utilizador invalido.")
@@ -668,6 +934,7 @@ def send_push_to_team(team_name: str, event_type: str, context=None, sent_by_use
 
 
 def cleanup_invalid_subscriptions() -> int:
+    ensure_push_schema()
     res = db.session.execute(text("""
         UPDATE dbo.PUSH_DEVICE
         SET IS_ACTIVE = 0,
@@ -684,6 +951,7 @@ def cleanup_invalid_subscriptions() -> int:
 
 
 def get_user_push_summary(userstamp: str, limit_logs: int = 5) -> dict:
+    ensure_push_schema()
     usstamp = _safe_text(userstamp)
     if not usstamp:
         raise ValueError("Utilizador invalido.")

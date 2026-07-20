@@ -8,6 +8,7 @@ import os
 import re
 import shutil
 import threading
+import unicodedata
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
@@ -294,6 +295,59 @@ def _fl_feid_filter_sql(alias: str = 'FL') -> str:
         return ''
     prefix = f"{alias}." if alias else ''
     return f" AND ISNULL({prefix}FEID, 0) = :feid"
+
+
+def _fl_tax_id_column() -> str:
+    if _column_exists('FL', 'NIF'):
+        return 'NIF'
+    if _column_exists('FL', 'NCONT'):
+        return 'NCONT'
+    return ''
+
+
+def _first_existing_column(table_name: str, candidates: list[str]) -> str:
+    for candidate in candidates:
+        if _column_exists(table_name, candidate):
+            return candidate
+    return ''
+
+
+def _fe_supplier_source(feid: int | None) -> dict[str, Any]:
+    clean_feid = _safe_int(feid, 0)
+    if not clean_feid:
+        return {'kind': 'app', 'feid': None, 'tax_field': _fl_tax_id_column().lower() or 'unknown'}
+
+    database_column = _first_existing_column('FE', [
+        'PHC_DATABASE', 'PHC_DB', 'DBPHC', 'BDPHC',
+        'ERP_DATABASE', 'ERP_DB', 'DBERP', 'BDERP',
+        'DATABASE_NAME', 'DB_NAME', 'DBNAME',
+        'BASEDADOS', 'BASE_DADOS', 'BD', 'NOMEBD',
+    ])
+    if not database_column:
+        return {'kind': 'app', 'feid': clean_feid, 'tax_field': _fl_tax_id_column().lower() or 'unknown'}
+
+    server_column = _first_existing_column('FE', [
+        'PHC_SERVER', 'SERVER_PHC', 'ERP_SERVER', 'SERVER_ERP',
+        'SQLSERVER', 'SQL_SERVER', 'SERVIDOR', 'SERVER',
+    ])
+    server_select = f"LTRIM(RTRIM(ISNULL(FE.[{server_column}], '')))" if server_column else "CAST('' AS varchar(128))"
+    row = db.session.execute(text(f"""
+        SELECT TOP 1
+            LTRIM(RTRIM(ISNULL(FE.[{database_column}], ''))) AS PHC_DB,
+            {server_select} AS PHC_SERVER
+        FROM dbo.FE FE
+        WHERE FE.FEID = :feid
+    """), {'feid': clean_feid}).mappings().first() or {}
+    phc_db = str(row.get('PHC_DB') or '').strip()
+    if not phc_db:
+        return {'kind': 'app', 'feid': clean_feid, 'tax_field': _fl_tax_id_column().lower() or 'unknown'}
+    return {
+        'kind': 'phc',
+        'feid': clean_feid,
+        'tax_field': 'ncont',
+        'phc_db': phc_db,
+        'phc_server': str(row.get('PHC_SERVER') or '').strip(),
+    }
 
 
 def _safe_date_iso(value: Any) -> str:
@@ -790,20 +844,54 @@ def identify_fe_entity_from_text(text_value: str) -> dict[str, Any]:
 
 
 def _load_suppliers(feid: int | None = None) -> list[dict[str, Any]]:
+    source = _fe_supplier_source(feid)
+    if source.get('kind') == 'phc':
+        import pyodbc
+        from services.colaborador_despesas_service import _phc_conn_str
+
+        with pyodbc.connect(
+            _phc_conn_str(str(source.get('phc_db') or ''), str(source.get('phc_server') or '')),
+            timeout=8,
+        ) as connection:
+            cursor = connection.cursor()
+            rows = cursor.execute("""
+                SELECT
+                    CAST(ISNULL(FL.NO, 0) AS int) AS NO,
+                    LTRIM(RTRIM(ISNULL(FL.NOME, ''))) AS NOME,
+                    LTRIM(RTRIM(CAST(ISNULL(FL.NCONT, '') AS varchar(40)))) AS NIF
+                FROM dbo.FL FL
+                WHERE ISNULL(FL.NOME, '') <> ''
+                ORDER BY FL.NOME
+            """).fetchall()
+        return [{
+            'NO': _safe_int(row[0], 0),
+            'NOME': str(row[1] or '').strip(),
+            'NIF': str(row[2] or '').strip(),
+            'FEID': _safe_int(feid, 0),
+            'TAX_FIELD': 'ncont',
+            'SOURCE': 'phc',
+        } for row in rows]
+
     feid_filter = _fl_feid_filter_sql('FL') if feid else ''
     feid_select = "CAST(ISNULL(FL.FEID, 0) AS int)" if _column_exists('FL', 'FEID') else "CAST(0 AS int)"
+    tax_column = _fl_tax_id_column()
+    tax_select = f"LTRIM(RTRIM(CAST(ISNULL(FL.{tax_column}, '') AS varchar(40))))" if tax_column else "CAST('' AS varchar(40))"
     rows = db.session.execute(text("""
         SELECT
             CAST(FL.NO AS int) AS NO,
             LTRIM(RTRIM(ISNULL(FL.NOME, ''))) AS NOME,
-            LTRIM(RTRIM(ISNULL(FL.NIF, ''))) AS NIF,
+            {tax_select} AS NIF,
             {feid_select} AS FEID
         FROM dbo.FL FL
         WHERE ISNULL(FL.NOME, '') <> ''
         {feid_filter}
         ORDER BY FL.NOME
-    """.format(feid_filter=feid_filter, feid_select=feid_select)), {'feid': int(feid or 0)}).mappings().all()
-    return [dict(row) for row in rows]
+    """.format(feid_filter=feid_filter, feid_select=feid_select, tax_select=tax_select)), {'feid': int(feid or 0)}).mappings().all()
+    return [{
+        **dict(row),
+        'TAX_FIELD': str(source.get('tax_field') or 'unknown'),
+        'SOURCE': 'app',
+    } for row in rows]
 
 
 def search_suppliers(value: str, feid: int | None = None, limit: int = 8) -> list[dict[str, Any]]:
@@ -875,10 +963,126 @@ def search_suppliers(value: str, feid: int | None = None, limit: int = 8) -> lis
             'feid': supplier_feid or (int(feid or 0) or None),
             'score': round(min(score, 0.99), 4),
             'matched_by': matched_by or 'name',
+            'tax_field': str(supplier.get('TAX_FIELD') or 'unknown').lower(),
+            'source': str(supplier.get('SOURCE') or 'app').lower(),
         })
 
     results.sort(key=lambda item: (-float(item.get('score') or 0), str(item.get('name') or '')))
     return results[:max(1, min(int(limit or 8), 20))]
+
+
+def reconcile_extracted_document(document_data: dict[str, Any] | None) -> dict[str, Any]:
+    result = dict(document_data or {})
+    customer = dict(result.get('customer') or {})
+    supplier = dict(result.get('supplier') or {})
+
+    llm_customer_name = str(customer.get('name') or '').strip()
+    llm_customer_tax_id = _digits_only(customer.get('tax_id'))
+    customer_match = {}
+    if llm_customer_tax_id:
+        customer_match = resolve_fe_entity(llm_customer_tax_id, 'tax_id')
+    if not customer_match and llm_customer_name:
+        customer_match = resolve_fe_entity(llm_customer_name, 'name')
+    if (
+        customer_match
+        and customer_match.get('matched_by') != 'tax_id'
+        and float(customer_match.get('score') or 0) < 0.6
+    ):
+        customer_match = {}
+
+    if customer_match.get('feid'):
+        customer.update({
+            'feid': customer_match.get('feid'),
+            'name': customer_match.get('name') or llm_customer_name,
+            'tax_id': customer_match.get('tax_id') or llm_customer_tax_id,
+            'llm_name': llm_customer_name,
+            'llm_tax_id': llm_customer_tax_id,
+            'match_score': customer_match.get('score') or 0,
+            'matched_by': customer_match.get('matched_by') or '',
+        })
+    result['customer'] = customer
+
+    llm_supplier_name = str(supplier.get('name') or '').strip()
+    llm_supplier_tax_id = _digits_only(supplier.get('tax_id'))
+    feid = _safe_int(customer_match.get('feid'), 0)
+    candidates: list[dict[str, Any]] = []
+    seen: set[tuple[int, int]] = set()
+
+    def add_candidates(items: list[dict[str, Any]]):
+        for item in items:
+            key = (_safe_int(item.get('feid'), feid), _safe_int(item.get('no'), 0))
+            if not key[1] or key in seen:
+                continue
+            seen.add(key)
+            candidates.append(dict(item))
+
+    supplier_lookup_error = ''
+    try:
+        if feid and llm_supplier_tax_id:
+            add_candidates(search_suppliers(llm_supplier_tax_id, feid=feid, limit=12))
+        if feid and llm_supplier_name:
+            add_candidates(search_suppliers(llm_supplier_name, feid=feid, limit=12))
+    except Exception as exc:
+        current_app.logger.exception('Erro ao reconciliar fornecedor extraído na FL')
+        supplier_lookup_error = str(exc)
+    candidates.sort(key=lambda item: (-float(item.get('score') or 0), str(item.get('name') or '')))
+    candidates = candidates[:12]
+
+    selected = candidates[0] if candidates else {}
+    selected_score = float(selected.get('score') or 0)
+    next_score = float(candidates[1].get('score') or 0) if len(candidates) > 1 else 0
+    tax_match = bool(
+        selected
+        and selected.get('matched_by') == 'tax_id'
+        and selected_score >= 0.95
+    )
+    confident_name_match = bool(
+        selected
+        and (
+            selected_score >= 0.86
+            or (selected_score >= 0.72 and selected_score - next_score >= 0.12)
+        )
+    )
+    auto_matched = tax_match or confident_name_match
+
+    supplier.update({
+        'llm_name': llm_supplier_name,
+        'llm_tax_id': llm_supplier_tax_id,
+    })
+    if auto_matched:
+        supplier.update({
+            'supplier_no': selected.get('no'),
+            'name': selected.get('name') or llm_supplier_name,
+            'tax_id': selected.get('tax_id') or llm_supplier_tax_id,
+            'feid': selected.get('feid') or feid,
+            'match_score': selected_score,
+            'matched_by': selected.get('matched_by') or '',
+        })
+    else:
+        supplier['supplier_no'] = None
+        supplier['feid'] = feid or None
+        supplier['match_score'] = selected_score
+        supplier['matched_by'] = ''
+    result['supplier'] = supplier
+
+    return {
+        'document': result,
+        'matching': {
+            'customer_matched': bool(customer_match.get('feid')),
+            'customer': customer_match,
+            'supplier_matched': auto_matched,
+            'supplier_needs_selection': bool(feid and not auto_matched),
+            'supplier_candidates': candidates,
+            'supplier_lookup_error': supplier_lookup_error,
+            'supplier_query': {
+                'name': llm_supplier_name,
+                'tax_id': llm_supplier_tax_id,
+                'feid': feid or None,
+                'source': str(selected.get('source') or ''),
+                'tax_field': str(selected.get('tax_field') or ''),
+            },
+        },
+    }
 
 
 def identify_supplier_from_text(text_value: str, feid: int | None = None) -> dict[str, Any]:
@@ -894,15 +1098,18 @@ def identify_supplier_from_text(text_value: str, feid: int | None = None) -> dic
 
     for vat in vat_candidates:
         feid_filter = _fl_feid_filter_sql('FL') if feid else ''
+        tax_column = _fl_tax_id_column()
+        if not tax_column:
+            break
         row = db.session.execute(text("""
             SELECT TOP 1
                 CAST(FL.NO AS int) AS NO,
                 LTRIM(RTRIM(ISNULL(FL.NOME, ''))) AS NOME,
-                LTRIM(RTRIM(ISNULL(FL.NIF, ''))) AS NIF
+                LTRIM(RTRIM(CAST(ISNULL(FL.{tax_column}, '') AS varchar(40)))) AS NIF
             FROM dbo.FL FL
-            WHERE REPLACE(REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(ISNULL(FL.NIF, ''))), ' ', ''), '-', ''), '.', ''), '/', '') = :vat
+            WHERE REPLACE(REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(CAST(ISNULL(FL.{tax_column}, '') AS varchar(40)))), ' ', ''), '-', ''), '.', ''), '/', '') = :vat
             {feid_filter}
-        """.format(feid_filter=feid_filter)), {
+        """.format(feid_filter=feid_filter, tax_column=tax_column)), {
             'vat': vat,
             'feid': int(feid or 0),
         }).mappings().first()
@@ -2150,6 +2357,7 @@ def list_documents(filters: dict[str, Any] | None = None) -> dict[str, Any]:
     _ensure_document_ai_schema()
     query_filters = filters or {}
     where_sql, params = _doc_queryset_sql(query_filters)
+    supplier_entity_join = "AND ISNULL(F.FEID, 0) = ISNULL(D.FEID, 0)" if _column_exists('FL', 'FEID') else ''
     rows = db.session.execute(text(f"""
         SELECT
             D.DOCINSTAMP,
@@ -2169,6 +2377,9 @@ def list_documents(filters: dict[str, Any] | None = None) -> dict[str, Any]:
             ISNULL(T.NOME, '') AS TEMPLATE_NOME,
             D.CONFIDENCE_SCORE,
             D.PROCESSING_STATUS,
+            D.SOURCE_TABLE,
+            D.SOURCE_RECSTAMP,
+            D.PROCESSING_META_JSON,
             D.DTCRI,
             D.DTPROC
         FROM dbo.DOC_INBOX D
@@ -2176,6 +2387,7 @@ def list_documents(filters: dict[str, Any] | None = None) -> dict[str, Any]:
           ON CAST(FE.FEID AS int) = D.FEID
         LEFT JOIN dbo.FL F
           ON CAST(F.NO AS int) = D.FORNECEDOR_NO
+          {supplier_entity_join}
         LEFT JOIN dbo.DOC_TEMPLATE T
           ON T.DOCTEMPLATESTAMP = D.DOCTEMPLATESTAMP
         {where_sql}
@@ -2186,6 +2398,8 @@ def list_documents(filters: dict[str, Any] | None = None) -> dict[str, Any]:
     counts = {}
     for row in rows:
         status = str(row.get('PROCESSING_STATUS') or 'new').strip()
+        processing_meta = _json_loads(row.get('PROCESSING_META_JSON'), {})
+        batch_meta = dict(processing_meta.get('batch') or {})
         counts[status] = counts.get(status, 0) + 1
         items.append({
             'id': str(row.get('DOCINSTAMP') or '').strip(),
@@ -2205,6 +2419,9 @@ def list_documents(filters: dict[str, Any] | None = None) -> dict[str, Any]:
             'template_name': str(row.get('TEMPLATE_NOME') or '').strip(),
             'confidence': float(row.get('CONFIDENCE_SCORE') or 0),
             'status': status,
+            'batch_id': str(row.get('SOURCE_RECSTAMP') or '').strip() if str(row.get('SOURCE_TABLE') or '').strip() == 'DOC_AI_BATCH' else '',
+            'batch_index': _safe_int(batch_meta.get('index'), 0) or None,
+            'batch_count': _safe_int(batch_meta.get('count'), 0) or None,
             'created_at': row.get('DTCRI').isoformat() if row.get('DTCRI') else None,
             'processed_at': row.get('DTPROC').isoformat() if row.get('DTPROC') else None,
         })
@@ -3119,6 +3336,7 @@ def process_document(
     document = db.session.get(DocInbox, str(document_stamp or '').strip())
     if not document:
         raise ValueError('Documento não encontrado.')
+    preserved_processing_meta = _json_loads(document.processing_meta_json, {})
 
     logs_before = DocProcessLog.query.filter_by(docinstamp=document.docinstamp).all()
     for item in logs_before:
@@ -3167,7 +3385,8 @@ def process_document(
             document.json_resultado = _json_dumps(canonical_result_base('unknown'))
             document.warnings_json = _json_dumps(extraction.get('warnings') or [])
             document.errors_json = _json_dumps(['Não foi possível extrair texto utilizável do documento.'])
-            document.processing_meta_json = _json_dumps({
+            failure_meta = dict(preserved_processing_meta)
+            failure_meta.update({
                 'extraction': {
                     'method': document.extraction_method,
                     'quality_score': float(document.extraction_quality_score or 0),
@@ -3177,6 +3396,7 @@ def process_document(
                 },
                 'ocr_available': ocr_engine_available(),
             })
+            document.processing_meta_json = _json_dumps(failure_meta)
             document.processing_stage = 'failed'
             document.last_processing_error = 'text_extraction_failed'
             document.dtproc = _now()
@@ -3304,7 +3524,8 @@ def process_document(
         document.json_resultado = _json_dumps(result_payload)
         document.warnings_json = _json_dumps(validation.get('warnings') or [])
         document.errors_json = _json_dumps(validation.get('errors') or [])
-        document.processing_meta_json = _json_dumps({
+        completed_meta = dict(preserved_processing_meta)
+        completed_meta.update({
             'supplier_match': supplier_match,
             'customer_match': customer_match,
             'doc_type': doc_type_info,
@@ -3328,6 +3549,7 @@ def process_document(
             },
             'ocr_available': ocr_engine_available(),
         })
+        document.processing_meta_json = _json_dumps(completed_meta)
         document.processing_stage = 'completed'
         document.last_processing_error = ''
         document.dtproc = _now()
@@ -3367,6 +3589,311 @@ def ingest_uploaded_document(uploaded_file, created_by: str, source_table: str =
     _ensure_document_ai_schema()
     stored = _store_file(uploaded_file)
     return _create_inbox_document_from_stored_file(stored, created_by, source_table, source_recstamp)
+
+
+def _safe_split_file_part(value: Any, fallback: str, max_length: int = 100) -> str:
+    normalized = unicodedata.normalize('NFKD', str(value or '').strip())
+    ascii_value = normalized.encode('ascii', 'ignore').decode('ascii')
+    safe_value = re.sub(r'[^A-Za-z0-9]+', '_', ascii_value).strip('_')
+    return (safe_value or fallback)[:max(8, int(max_length or 100))].rstrip('_')
+
+
+def _split_document_prefix(document_type: str) -> str:
+    normalized = _normalize_text(document_type).replace(' ', '_')
+    if normalized in ('delivery_note', 'guia', 'bon_de_livraison') or 'delivery' in normalized:
+        return 'BL'
+    if normalized in ('invoice', 'proforma_invoice', 'fatura', 'facture') or 'invoice' in normalized:
+        return 'FAC'
+    return 'DOC'
+
+
+def _split_pdf_parts(file_bytes: bytes, document_batch: dict[str, Any] | None) -> list[dict[str, Any]]:
+    if not file_bytes:
+        raise ValueError('O PDF está vazio.')
+    from pypdf import PdfReader, PdfWriter
+
+    reader = PdfReader(io.BytesIO(file_bytes))
+    if reader.is_encrypted:
+        try:
+            reader.decrypt('')
+        except Exception as exc:
+            raise ValueError('Não é possível separar um PDF protegido por palavra-passe.') from exc
+    page_count = len(reader.pages)
+    if page_count < 2:
+        raise ValueError('O PDF tem apenas uma página.')
+
+    raw_documents = list((document_batch or {}).get('documents') or [])
+    boundaries = []
+    seen_starts = set()
+    for raw_item in raw_documents:
+        if not isinstance(raw_item, dict):
+            continue
+        start_page = _safe_int(raw_item.get('start_page'), 0)
+        if start_page < 1 or start_page > page_count or start_page in seen_starts:
+            continue
+        seen_starts.add(start_page)
+        boundaries.append({**raw_item, 'start_page': start_page})
+    boundaries.sort(key=lambda item: item['start_page'])
+    if len(boundaries) < 2 or boundaries[0]['start_page'] != 1:
+        raise ValueError('As fronteiras devolvidas pelo LLM não permitem separar o PDF com segurança.')
+
+    parts = []
+    for index, boundary in enumerate(boundaries):
+        start_page = boundary['start_page']
+        end_page = boundaries[index + 1]['start_page'] - 1 if index + 1 < len(boundaries) else page_count
+        if end_page < start_page:
+            raise ValueError('Foi encontrado um intervalo de páginas inválido.')
+        writer = PdfWriter()
+        for page_index in range(start_page - 1, end_page):
+            writer.add_page(reader.pages[page_index])
+        output = io.BytesIO()
+        writer.write(output)
+        part_bytes = output.getvalue()
+        if not part_bytes:
+            raise ValueError(f'Não foi possível criar o documento iniciado na página {start_page}.')
+        parts.append({
+            **boundary,
+            'start_page': start_page,
+            'end_page': end_page,
+            'pdf_bytes': part_bytes,
+        })
+    return parts
+
+
+def _store_split_pdf_bytes(pdf_bytes: bytes, original_name: str) -> dict[str, Any]:
+    stamp = _new_stamp()
+    safe_name = f'{stamp}.pdf'
+    relative_dir = os.path.join('static', 'images', 'document_ai')
+    absolute_dir = os.path.join(_document_storage_root(), relative_dir)
+    os.makedirs(absolute_dir, exist_ok=True)
+    absolute_path = os.path.join(absolute_dir, safe_name)
+    with open(absolute_path, 'wb') as handle:
+        handle.write(pdf_bytes)
+    return {
+        'original_name': original_name,
+        'file_name': safe_name,
+        'absolute_path': absolute_path,
+        'public_path': f'/{relative_dir.replace(os.sep, "/")}/{safe_name}',
+        'file_ext': '.pdf',
+        'mime_type': 'application/pdf',
+        'size': os.path.getsize(absolute_path),
+    }
+
+
+def _split_supplier_payload(boundary: dict[str, Any], document_data: dict[str, Any]) -> dict[str, Any]:
+    customer = dict(document_data.get('customer') or {})
+    root_supplier = dict(document_data.get('supplier') or {})
+    feid = _safe_int(customer.get('feid'), 0)
+    supplier_name = str(boundary.get('supplier_name') or root_supplier.get('name') or '').strip()
+    supplier_tax_id = _digits_only(boundary.get('supplier_tax_id') or root_supplier.get('tax_id'))
+    boundary_name = str(boundary.get('supplier_name') or '').strip()
+    boundary_tax_id = _digits_only(boundary.get('supplier_tax_id'))
+    same_as_root = bool(
+        (not boundary_name and not boundary_tax_id)
+        or (boundary_tax_id and boundary_tax_id == _digits_only(root_supplier.get('tax_id')))
+        or (boundary_name and _normalize_text(boundary_name) == _normalize_text(root_supplier.get('name')))
+    )
+    selected = {}
+    if feid:
+        try:
+            candidates = []
+            if supplier_tax_id:
+                candidates.extend(search_suppliers(supplier_tax_id, feid=feid, limit=5))
+            if supplier_name:
+                known = {(item.get('feid'), item.get('no')) for item in candidates}
+                candidates.extend(
+                    item for item in search_suppliers(supplier_name, feid=feid, limit=5)
+                    if (item.get('feid'), item.get('no')) not in known
+                )
+            candidates.sort(key=lambda item: -float(item.get('score') or 0))
+            if candidates and float(candidates[0].get('score') or 0) >= 0.72:
+                selected = candidates[0]
+        except Exception:
+            current_app.logger.exception('Erro ao identificar fornecedor de documento separado')
+    return {
+        'feid': feid or None,
+        'supplier_no': selected.get('no') or (root_supplier.get('supplier_no') if same_as_root else None) or None,
+        'name': str(selected.get('name') or supplier_name).strip(),
+        'tax_id': str(selected.get('tax_id') or supplier_tax_id).strip(),
+    }
+
+
+def _document_group_payload(batch_stamp: str, current_document_id: str = '') -> dict[str, Any]:
+    documents = DocInbox.query.filter_by(
+        source_table='DOC_AI_BATCH',
+        source_recstamp=str(batch_stamp or '').strip(),
+    ).all()
+    items = []
+    for document in documents:
+        meta = _json_loads(document.processing_meta_json, {})
+        batch = dict(meta.get('batch') or {})
+        items.append({
+            'id': document.docinstamp,
+            'file_name': document.file_name or '',
+            'index': _safe_int(batch.get('index'), 0),
+            'count': _safe_int(batch.get('count'), len(documents)),
+            'start_page': _safe_int(batch.get('start_page'), 0),
+            'end_page': _safe_int(batch.get('end_page'), 0),
+            'document_type': document.doc_type_detected or 'unknown',
+            'document_number': str((document.json_resultado and _json_loads(document.json_resultado, {}).get('document_number')) or ''),
+        })
+    items.sort(key=lambda item: (item.get('index') or 999999, item.get('file_name') or ''))
+    current_index = next((index for index, item in enumerate(items) if item.get('id') == current_document_id), 0)
+    return {
+        'grouped': len(items) > 0,
+        'batch_id': str(batch_stamp or '').strip(),
+        'count': len(items),
+        'current_index': current_index,
+        'documents': items,
+    }
+
+
+def get_document_group(document_stamp: str) -> dict[str, Any]:
+    _ensure_document_ai_schema()
+    document = db.session.get(DocInbox, str(document_stamp or '').strip())
+    if not document:
+        raise ValueError('Documento não encontrado.')
+    if document.source_table != 'DOC_AI_BATCH' or not document.source_recstamp:
+        return {'grouped': False, 'batch_id': '', 'count': 0, 'current_index': 0, 'documents': []}
+    return _document_group_payload(document.source_recstamp, document.docinstamp)
+
+
+def split_extracted_pdf_into_inbox(
+    file_bytes: bytes,
+    file_name: str,
+    document_batch: dict[str, Any] | None,
+    document_data: dict[str, Any] | None,
+    created_by: str,
+    source_document_id: str = '',
+) -> dict[str, Any]:
+    _ensure_document_ai_schema()
+    parts = _split_pdf_parts(file_bytes, document_batch)
+    batch_stamp = _new_stamp()
+    total = len(parts)
+    root_data = dict(document_data or {})
+    customer = dict(root_data.get('customer') or {})
+    source_document = db.session.get(DocInbox, str(source_document_id or '').strip()) if source_document_id else None
+    created_paths = []
+    created_documents = []
+    now = _now()
+    try:
+        for index, part in enumerate(parts, start=1):
+            document_type = str(part.get('document_type') or 'unknown').strip() or 'unknown'
+            document_number = str(part.get('document_number') or '').strip()
+            supplier = _split_supplier_payload(part, root_data)
+            prefix = _split_document_prefix(document_type)
+            supplier_part = _safe_split_file_part(supplier.get('name'), 'FORNECEDOR', 110)
+            number_part = _safe_split_file_part(document_number, f'SEM_NUMERO_{index}', 70)
+            output_name = f'{prefix}_{supplier_part}_{number_part}.pdf'[:260]
+            stored = _store_split_pdf_bytes(part.get('pdf_bytes') or b'', output_name)
+            created_paths.append(stored['absolute_path'])
+
+            result = canonical_result_base(document_type)
+            result['document_number'] = document_number
+            result['supplier'] = {
+                'supplier_no': supplier.get('supplier_no'),
+                'tax_id': supplier.get('tax_id') or '',
+                'name': supplier.get('name') or '',
+            }
+            result['customer'] = {
+                'tax_id': str(customer.get('tax_id') or ''),
+                'name': str(customer.get('name') or ''),
+                'feid': supplier.get('feid') or customer.get('feid'),
+            }
+            batch_meta = {
+                'id': batch_stamp,
+                'index': index,
+                'count': total,
+                'source_document_id': str(source_document_id or '').strip(),
+                'source_file_name': str(file_name or '').strip(),
+                'start_page': part.get('start_page'),
+                'end_page': part.get('end_page'),
+            }
+            content_hash = hashlib.sha256(part.get('pdf_bytes') or b'').hexdigest()
+            unique_hash = hashlib.sha256(f'{batch_stamp}:{index}:{content_hash}'.encode('utf-8')).hexdigest()
+            document = DocInbox(
+                docinstamp=_new_stamp(),
+                feid=supplier.get('feid') or customer.get('feid') or None,
+                source_table='DOC_AI_BATCH',
+                source_recstamp=batch_stamp,
+                file_name=output_name,
+                file_path=stored['public_path'],
+                file_ext='.pdf',
+                mime_type='application/pdf',
+                file_hash=unique_hash,
+                file_size=stored['size'],
+                extracted_text='',
+                extraction_method='split_pdf',
+                extraction_quality_score=1,
+                extraction_notes_json='{}',
+                preprocessed_image_path=None,
+                ocr_raw_json='{}',
+                text_blocks_json='[]',
+                processing_stage='split_ready',
+                last_processing_error='',
+                doc_type_detected=document_type,
+                fornecedor_no=supplier.get('supplier_no'),
+                fornecedor_nif_detetado=supplier.get('tax_id') or '',
+                fornecedor_nome_detetado=supplier.get('name') or '',
+                confidence_score=max(0, min(1, float(part.get('confidence') or 0))),
+                processing_status='new',
+                json_resultado=_json_dumps(result),
+                warnings_json='[]',
+                errors_json='[]',
+                processing_meta_json=_json_dumps({
+                    'batch': batch_meta,
+                    'content_hash': content_hash,
+                    'llm_boundary': {key: value for key, value in part.items() if key != 'pdf_bytes'},
+                }),
+                dtcri=now,
+                dtalt=now,
+                usercriacao=created_by or '',
+                useralteracao=created_by or '',
+            )
+            db.session.add(document)
+            db.session.flush()
+            anexo_stamp = _new_stamp()
+            db.session.execute(text("""
+                INSERT INTO dbo.ANEXOS
+                    (ANEXOSSTAMP, TABELA, RECSTAMP, DESCRICAO, FICHEIRO, CAMINHO, TIPO, DATA, UTILIZADOR)
+                VALUES
+                    (:stamp, 'DOC_INBOX', :recstamp, :descricao, :file_name, :caminho, 'pdf', :data, :utilizador)
+            """), {
+                'stamp': anexo_stamp,
+                'recstamp': document.docinstamp,
+                'descricao': f'Documento separado {index}/{total}',
+                'file_name': output_name,
+                'caminho': stored['public_path'],
+                'data': date.today(),
+                'utilizador': created_by or '',
+            })
+            document.anexosstamp = anexo_stamp
+            created_documents.append(document)
+
+        if source_document:
+            source_meta = _json_loads(source_document.processing_meta_json, {})
+            source_meta['split_output'] = {
+                'batch_id': batch_stamp,
+                'count': total,
+                'created_at': now.isoformat(),
+                'created_by': created_by or '',
+            }
+            source_document.processing_meta_json = _json_dumps(source_meta)
+            source_document.dtalt = now
+            source_document.useralteracao = created_by or source_document.useralteracao or ''
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        for path in created_paths:
+            try:
+                if os.path.isfile(path):
+                    os.remove(path)
+            except Exception:
+                current_app.logger.warning('Não foi possível remover PDF parcial após rollback: %s', path, exc_info=True)
+        raise
+
+    group = _document_group_payload(batch_stamp, created_documents[0].docinstamp if created_documents else '')
+    return {'ok': True, 'message': f'{total} documentos separados e adicionados ao inbox.', 'group': group}
 
 
 def _create_inbox_document_from_stored_file(

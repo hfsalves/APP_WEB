@@ -2,6 +2,7 @@ import json
 import os
 import socket
 import base64
+import io
 from typing import Any
 from urllib import error as urllib_error
 from urllib import request as urllib_request
@@ -282,6 +283,112 @@ def _document_classification_schema() -> dict[str, Any]:
     }
 
 
+def _document_full_extraction_schema() -> dict[str, Any]:
+    schema = _document_classification_schema()
+    schema['properties']['document_type'] = {'type': 'string'}
+    schema['properties']['document_batch'] = {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'page_count': {'type': 'integer'},
+            'contains_multiple_documents': {'type': 'boolean'},
+            'document_count': {'type': 'integer'},
+            'message': {'type': 'string'},
+            'documents': {
+                'type': 'array',
+                'items': {
+                    'type': 'object',
+                    'additionalProperties': False,
+                    'properties': {
+                        'start_page': {'type': 'integer'},
+                        'end_page': {'type': 'integer'},
+                        'document_type': {'type': 'string'},
+                        'document_number': {'type': 'string'},
+                        'supplier_name': {'type': 'string'},
+                        'supplier_tax_id': {'type': 'string'},
+                        'confidence': {'type': 'number'},
+                        'reason': {'type': 'string'},
+                    },
+                    'required': [
+                        'start_page', 'end_page', 'document_type',
+                        'document_number', 'supplier_name', 'supplier_tax_id',
+                        'confidence', 'reason',
+                    ],
+                },
+            },
+        },
+        'required': [
+            'page_count', 'contains_multiple_documents', 'document_count',
+            'message', 'documents',
+        ],
+    }
+    schema['required'].append('document_batch')
+    return schema
+
+
+def _pdf_page_count(file_bytes: bytes) -> int:
+    if not file_bytes:
+        return 0
+    try:
+        from pypdf import PdfReader
+        return len(PdfReader(io.BytesIO(file_bytes)).pages)
+    except Exception:
+        return 0
+
+
+def _normalize_document_batch(document: dict[str, Any], actual_page_count: int) -> dict[str, Any]:
+    raw_batch = dict(document.get('document_batch') or {})
+    page_count = max(1, int(actual_page_count or raw_batch.get('page_count') or 1))
+    documents = []
+    seen_starts = set()
+    for item in raw_batch.get('documents') or []:
+        start_page = max(1, min(page_count, int(item.get('start_page') or 1)))
+        if start_page in seen_starts:
+            continue
+        seen_starts.add(start_page)
+        documents.append({
+            'start_page': start_page,
+            'end_page': start_page,
+            'document_type': str(item.get('document_type') or 'unknown').strip() or 'unknown',
+            'document_number': str(item.get('document_number') or '').strip(),
+            'supplier_name': str(item.get('supplier_name') or '').strip(),
+            'supplier_tax_id': str(item.get('supplier_tax_id') or '').strip(),
+            'confidence': max(0.0, min(1.0, float(item.get('confidence') or 0))),
+            'reason': str(item.get('reason') or '').strip(),
+        })
+    documents.sort(key=lambda item: item['start_page'])
+    if not documents or documents[0]['start_page'] != 1:
+        documents.insert(0, {
+            'start_page': 1,
+            'end_page': page_count,
+            'document_type': str(document.get('document_type') or 'unknown'),
+            'document_number': str(document.get('document_number') or ''),
+            'supplier_name': str((document.get('supplier') or {}).get('name') or ''),
+            'supplier_tax_id': str((document.get('supplier') or {}).get('tax_id') or ''),
+            'confidence': max(0.0, min(1.0, float(document.get('confidence') or 0))),
+            'reason': 'Primeiro documento do PDF.',
+        })
+    for index, item in enumerate(documents):
+        item['end_page'] = documents[index + 1]['start_page'] - 1 if index + 1 < len(documents) else page_count
+
+    document_count = len(documents)
+    contains_multiple = document_count > 1
+    starts = ', '.join(str(item['start_page']) for item in documents)
+    message = (
+        f'Foram detetados {document_count} documentos no PDF. '
+        f'Começam nas páginas: {starts}.'
+        if contains_multiple else
+        f'O PDF contém um único documento com {page_count} página(s).'
+    )
+    return {
+        'page_count': page_count,
+        'contains_multiple_documents': contains_multiple,
+        'document_count': document_count,
+        'message': message,
+        'documents': documents,
+    }
+
+
 def _filtered_ocr_context_for_visual_classification(text_value: str) -> dict[str, Any]:
     ignored_prefixes = (
         'centrale',
@@ -493,6 +600,8 @@ def classify_document_visual(context: dict[str, Any]) -> dict[str, Any]:
     image_mime_type = str(source_context.get('image_mime_type') or 'image/png').strip() or 'image/png'
     extracted_text = str(source_context.get('extracted_text') or '')
     filtered_ocr = _filtered_ocr_context_for_visual_classification(extracted_text)
+    full_extraction = bool(source_context.get('full_extraction'))
+    page_count = int(source_context.get('page_count') or 0)
 
     if not file_bytes and not image_bytes:
         return {
@@ -503,8 +612,12 @@ def classify_document_visual(context: dict[str, Any]) -> dict[str, Any]:
         }
 
     base_prompt = {
-        'task': 'document_visual_classification',
-        'goal': 'Classify the visible business document and extract the accounting header values needed for purchase validation.',
+        'task': 'document_full_extraction' if full_extraction else 'document_visual_classification',
+        'goal': (
+            'Read the complete business document and extract every visible header, line, tax and total value.'
+            if full_extraction else
+            'Classify the visible business document and extract the accounting header values needed for purchase validation.'
+        ),
         'allowed_document_types': {
             'invoice': 'Invoice / Fatura / Facture',
             'credit_note': 'Credit note / Nota de crédito / Avoir',
@@ -540,10 +653,31 @@ def classify_document_visual(context: dict[str, Any]) -> dict[str, Any]:
             'Use unknown when the visible document type is uncertain.',
         ],
         'file_name': file_name,
+        'pdf_page_count': page_count,
         'known_supplier_candidates': source_context.get('supplier_candidates') or [],
         'ocr_text_sample_without_operational_lines': filtered_ocr.get('text', '')[:_document_ai_text_sample_limit()],
         'ocr_operational_lines_to_ignore_for_supplier': filtered_ocr.get('ignored_operational_lines') or [],
     }
+    if full_extraction:
+        base_prompt['rules'].extend([
+            'Read every page of the document before answering.',
+            'Before extracting values, determine whether the PDF contains one document or several distinct documents.',
+            'A document may span two, three or many pages. Do not treat continuation/detail pages as new documents.',
+            'Start a new document only when visual evidence indicates a new legal/business document, such as a new main document number, title/header, issuer/customer block or document date.',
+            'Return one document_batch.documents entry for every distinct document, in page order. The first entry must start on page 1.',
+            'For each detected document, return its own visible supplier_name and supplier_tax_id; do not assume that every document has the same supplier.',
+            'For every detected document return its inclusive start_page and end_page. Boundaries must cover every PDF page without gaps or overlaps.',
+            'When pdf_page_count is provided, document_batch.page_count must equal it and the last end_page must equal it.',
+            'Set document_batch.contains_multiple_documents=true only when there are at least two distinct documents, not merely several pages.',
+            'If several documents are detected, the remaining root extraction fields must describe only the first document and must never combine lines or totals from different documents.',
+            'For the document represented by the root extraction fields, extract every visible commercial line in its original order; do not summarize, merge or omit repeated lines.',
+            'Document types may also include proforma_invoice, receipt, debit_note or other when those labels are visibly more accurate.',
+            'For each line, preserve the visible reference and full description. Use empty strings and numeric zero only when a value is not visible.',
+            'Discount is the visible discount percentage, not the monetary discount amount.',
+            'Tax rows must reproduce the footer VAT/tax breakdown by rate. Derive gross_total per rate only when it is arithmetically unambiguous.',
+            'The document gross_total is the final amount payable including tax. Never replace it with a subtotal.',
+            'Put uncertainties, unreadable fields and relevant extraction caveats in notes.',
+        ])
 
     def call_openai(content: list[dict[str, Any]], mode: str) -> dict[str, Any]:
         body = {
@@ -569,11 +703,16 @@ def classify_document_visual(context: dict[str, Any]) -> dict[str, Any]:
             'text': {
                 'format': {
                     'type': 'json_schema',
-                    'name': 'document_ai_visual_classification',
-                    'schema': _document_classification_schema(),
+                    'name': 'document_ai_full_extraction' if full_extraction else 'document_ai_visual_classification',
+                    **({'strict': True} if full_extraction else {}),
+                    'schema': _document_full_extraction_schema() if full_extraction else _document_classification_schema(),
                 }
             },
-            'max_output_tokens': min(_document_ai_max_output_tokens(), 3000),
+            'max_output_tokens': (
+                min(max(_document_ai_max_output_tokens(), 10000), 16000)
+                if full_extraction else
+                min(_document_ai_max_output_tokens(), 3000)
+            ),
         }
         body_bytes = json.dumps(body).encode('utf-8')
         current_app.logger.info(
@@ -605,6 +744,7 @@ def classify_document_visual(context: dict[str, Any]) -> dict[str, Any]:
                     'type': 'input_file',
                     'filename': file_name if file_name.lower().endswith('.pdf') else f'{file_name}.pdf',
                     'file_data': f'data:{mime_type};base64,{base64.b64encode(file_bytes).decode("ascii")}',
+                    **({'detail': 'high'} if full_extraction else {}),
                 },
             ],
         ))
@@ -663,3 +803,21 @@ def classify_document_visual(context: dict[str, Any]) -> dict[str, Any]:
         'message': f'Falha na classificação visual: {last_message or "sem resposta utilizável"}',
         'classification': None,
     }
+
+
+def extract_document_full_visual(context: dict[str, Any]) -> dict[str, Any]:
+    source_context = dict(context or {})
+    source_context['full_extraction'] = True
+    source_context['page_count'] = _pdf_page_count(source_context.get('file_bytes') or b'')
+    result = classify_document_visual(source_context)
+    if result.get('ok'):
+        result['document'] = result.pop('classification', None)
+        if isinstance(result.get('document'), dict):
+            result['document']['document_batch'] = _normalize_document_batch(
+                result['document'],
+                int(source_context.get('page_count') or 0),
+            )
+        result['message'] = 'Documento extraído integralmente pelo LLM.'
+    else:
+        result['document'] = None
+    return result
