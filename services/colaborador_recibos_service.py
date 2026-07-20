@@ -5,6 +5,7 @@ import io
 import os
 import re
 import tempfile
+from decimal import Decimal, InvalidOperation
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -25,7 +26,7 @@ from services.colaborador_despesas_service import (
 
 
 DOCUMENT_RE = re.compile(
-    r"^(?P<tipo>AC|KMS|RV)_(?P<peno>\d+)_(?P<periodo>(?:19|20)\d{2}(?:0[1-9]|1[0-2]))\.pdf$",
+    r"^(?P<tipo>AC|KM|KMS|RV)_(?P<peno>\d+)_(?P<periodo>(?:19|20)\d{2}(?:0[1-9]|1[0-2]))\.pdf$",
     re.IGNORECASE,
 )
 MONTH_NAMES = (
@@ -43,6 +44,11 @@ def _document_title(doc_type: str) -> str:
         "RV": "Recibo de vencimento",
         "KMS": "Mapa de quilómetros",
     }.get(str(doc_type or "").upper(), "Mapa de ajudas de custo")
+
+
+def _normalise_document_type(doc_type: str) -> str:
+    clean_type = str(doc_type or "").upper()
+    return "KMS" if clean_type in {"KM", "KMS"} else clean_type
 
 
 def _signature_description(doc_type: str) -> str:
@@ -129,7 +135,7 @@ def _document_data(path: Path, peno: int) -> dict[str, Any] | None:
     period = match.group("periodo")
     year = int(period[:4])
     month = int(period[4:])
-    doc_type = match.group("tipo").upper()
+    doc_type = _normalise_document_type(match.group("tipo"))
     return {
         "filename": path.name,
         "type": doc_type,
@@ -140,10 +146,17 @@ def _document_data(path: Path, peno: int) -> dict[str, Any] | None:
     }
 
 
-def _document_for_period(doc_type: str, peno: int, year: int, month: int) -> dict[str, Any]:
-    clean_type = str(doc_type or '').upper()
+def _document_for_period(
+    doc_type: str,
+    peno: int,
+    year: int,
+    month: int,
+    filename: str | None = None,
+) -> dict[str, Any]:
+    clean_type = _normalise_document_type(doc_type)
+    file_prefix = "KM" if clean_type == "KMS" else clean_type
     return {
-        "filename": f"{clean_type}_{int(peno):05d}_{int(year):04d}{int(month):02d}.pdf",
+        "filename": filename or f"{file_prefix}_{int(peno):05d}_{int(year):04d}{int(month):02d}.pdf",
         "type": clean_type,
         "title": _document_title(clean_type),
         "year": int(year),
@@ -154,6 +167,52 @@ def _document_for_period(doc_type: str, peno: int, year: int, month: int) -> dic
 
 def _period_key(year: int, month: int) -> tuple[int, int]:
     return (int(year), int(month))
+
+
+def _extract_km_total(pdf_path: Path) -> Decimal | None:
+    """Extract the kilometre total printed by PHC on a monthly KM map."""
+    try:
+        reader = PdfReader(str(pdf_path))
+        text = "\n".join((page.extract_text() or "") for page in reader.pages)
+    except Exception:
+        current_app.logger.warning("Não foi possível ler os quilómetros de %s.", pdf_path.name)
+        return None
+
+    matches = re.findall(r"(\d{1,7}(?:[.,]\d{1,2})?)\s*Total\b", text, re.IGNORECASE)
+    if not matches:
+        return None
+    try:
+        raw_total = matches[-1]
+        if "," in raw_total:
+            raw_total = raw_total.replace(".", "").replace(",", ".")
+        return Decimal(raw_total)
+    except InvalidOperation:
+        return None
+
+
+def _km_documents_from_share(colaborador: dict[str, Any]) -> dict[tuple[int, int], dict[str, Any]]:
+    """Lists only this collaborator's legacy PHC KM PDFs from the document share."""
+    peno = int(colaborador.get("peno") or 0)
+    directory = _company_documents_dir(colaborador)
+    if not peno or not directory:
+        return {}
+
+    documents: dict[tuple[int, int], dict[str, Any]] = {}
+    try:
+        candidates = list(directory.iterdir())
+    except OSError:
+        current_app.logger.warning("Não foi possível consultar a pasta de mapas de quilómetros.")
+        return {}
+
+    for path in candidates:
+        if not path.is_file():
+            continue
+        document = _document_data(path, peno)
+        if not document or document["type"] != "KMS":
+            continue
+        document["kms_total"] = _extract_km_total(path)
+        documents[_period_key(document["year"], document["month"])] = document
+    return documents
 
 
 def _load_ac_dossiers(colaborador: dict[str, Any]) -> dict[tuple[int, int], dict[str, Any]]:
@@ -210,11 +269,19 @@ def _load_ac_dossiers(colaborador: dict[str, Any]) -> dict[tuple[int, int], dict
             connection.close()
 
 
-def _load_kms_dossiers(colaborador: dict[str, Any]) -> dict[tuple[int, int], dict[str, Any]]:
-    """Loads monthly kilometre dossiers without assuming their NDOS across PHC databases."""
-    peno = int(colaborador.get("peno") or 0)
+def _load_kms_dossiers(
+    colaborador: dict[str, Any],
+    km_documents: dict[tuple[int, int], dict[str, Any]] | None = None,
+) -> dict[tuple[int, int], dict[str, Any]]:
+    """Links legacy KM PDFs to their PHC dossier using month and kilometre total.
+
+    In the existing PHC dossiers, ``BO.NOPAT`` is always zero and the header is
+    assigned to the generic HSOLS entity. The employee number is only present in
+    the PDF filename, while the exact kilometre total is stored in ``BI.QTT``.
+    """
     phc_db = str(colaborador.get("phc_db") or "").strip()
-    if not peno or not phc_db:
+    km_documents = km_documents if km_documents is not None else _km_documents_from_share(colaborador)
+    if not km_documents or not phc_db:
         return {}
 
     connection = None
@@ -227,32 +294,51 @@ def _load_kms_dossiers(colaborador: dict[str, Any]) -> dict[tuple[int, int], dic
                 BO.BOSTAMP,
                 BO.NDOS,
                 BO.DATAOBRA,
+                BI.QTT AS KMS_TOTAL,
                 CASE WHEN EXISTS (
                     SELECT 1
                     FROM dbo.ANEXOS AS A
                     WHERE A.RECSTAMP = BO.BOSTAMP
                 ) THEN CAST(1 AS bit) ELSE CAST(0 AS bit) END AS ASSINADO
             FROM dbo.BO AS BO
-            WHERE BO.NOPAT = ?
-              AND BO.DATAOBRA IS NOT NULL
+            INNER JOIN dbo.BI AS BI ON BI.BOSTAMP = BO.BOSTAMP
+            WHERE BO.DATAOBRA IS NOT NULL
               AND BO.DATAOBRA >= CONVERT(datetime, ?, 112)
               AND UPPER(LTRIM(RTRIM(ISNULL(BO.NMDOS, '')))) LIKE '%QUIL%'
             ORDER BY BO.DATAOBRA DESC, BO.BOSTAMP DESC
-        """, peno, DOCUMENTS_FROM_DATE)
-        dossiers: dict[tuple[int, int], dict[str, Any]] = {}
+        """, DOCUMENTS_FROM_DATE)
+        candidates: dict[tuple[int, int], list[dict[str, Any]]] = {}
         for row in cursor.fetchall():
             dataobra = row.DATAOBRA
             if not dataobra:
                 continue
-            key = _period_key(dataobra.year, dataobra.month)
-            current = dossiers.get(key)
-            signed = bool(row.ASSINADO)
-            if not current or (signed and not current["signed"]):
-                dossiers[key] = {
-                    "bostamp": str(row.BOSTAMP or "").strip(),
-                    "signed": signed,
-                    "ndos": int(row.NDOS or 0),
-                }
+            try:
+                kms_total = Decimal(str(row.KMS_TOTAL or 0))
+            except InvalidOperation:
+                continue
+            candidates.setdefault(_period_key(dataobra.year, dataobra.month), []).append({
+                "bostamp": str(row.BOSTAMP or "").strip(),
+                "signed": bool(row.ASSINADO),
+                "ndos": int(row.NDOS or 0),
+                "kms_total": kms_total,
+            })
+
+        dossiers: dict[tuple[int, int], dict[str, Any]] = {}
+        for key, document in km_documents.items():
+            kms_total = document.get("kms_total")
+            if kms_total is None:
+                continue
+            matching = [
+                item for item in candidates.get(key, [])
+                if abs(item["kms_total"] - kms_total) < Decimal("0.01")
+            ]
+            if len(matching) == 1:
+                dossiers[key] = matching[0]
+            elif len(matching) > 1:
+                current_app.logger.warning(
+                    "Foram encontrados %s dossiers de quilómetros para %s/%s com %s km.",
+                    len(matching), key[1], key[0], kms_total,
+                )
         return dossiers
     except Exception:
         current_app.logger.exception("Erro ao consultar dossiers de quilómetros no PHC.")
@@ -372,6 +458,7 @@ def _create_signed_claim_pdf(
     bostamp: str,
     image: bytes,
     doc_type: str,
+    source_filename: str | None = None,
 ) -> dict[str, Any]:
     documents_root = _documents_root()
     signatures_root = _signatures_root()
@@ -379,7 +466,8 @@ def _create_signed_claim_pdf(
     clean_type = str(doc_type or "").upper()
     if clean_type not in SIGNABLE_DOCUMENT_TYPES:
         raise ValueError("Tipo de documento inválido para assinatura.")
-    source_name = f"{clean_type}_{int(peno):05d}_{int(year):04d}{int(month):02d}.pdf"
+    source_prefix = "KM" if clean_type == "KMS" else clean_type
+    source_name = source_filename or f"{source_prefix}_{int(peno):05d}_{int(year):04d}{int(month):02d}.pdf"
     if not documents_root or not signatures_root:
         raise ValueError("A pasta partilhada de documentos não está disponível.")
 
@@ -522,7 +610,8 @@ def list_colaborador_recibos(user) -> dict[str, Any]:
         return result
 
     ac_dossiers = _load_ac_dossiers(colaborador)
-    kms_dossiers = _load_kms_dossiers(colaborador)
+    km_documents = _km_documents_from_share(colaborador)
+    kms_dossiers = _load_kms_dossiers(colaborador, km_documents)
     salary_receipts = _load_salary_receipts(colaborador)
     documents: list[dict[str, Any]] = []
     for (year, month), dossier in ac_dossiers.items():
@@ -531,10 +620,12 @@ def list_colaborador_recibos(user) -> dict[str, Any]:
         document["signable"] = not document["signed"]
         documents.append(document)
 
-    for (year, month), dossier in kms_dossiers.items():
-        document = _document_for_period("KMS", peno, year, month)
-        document["signed"] = bool(dossier.get("signed"))
-        document["signable"] = not document["signed"]
+    for (year, month), document in km_documents.items():
+        dossier = kms_dossiers.get((year, month))
+        document["signed"] = bool(dossier and dossier.get("signed"))
+        # A KM document only becomes signable after we have identified the
+        # exact PHC dossier to receive the signed PDF attachment.
+        document["signable"] = bool(dossier) and not document["signed"]
         documents.append(document)
 
     for year, month in salary_receipts:
@@ -601,7 +692,8 @@ def sign_colaborador_ac_document(user: Any, filename: str, signature_data: Any) 
     peno = int(colaborador.get("peno") or 0)
     phc_db = str(colaborador.get("phc_db") or "").strip()
     period = _period_key(document["year"], document["month"])
-    dossiers = _load_ac_dossiers(colaborador) if document["type"] == "AC" else _load_kms_dossiers(colaborador)
+    km_documents = _km_documents_from_share(colaborador) if document["type"] == "KMS" else None
+    dossiers = _load_ac_dossiers(colaborador) if document["type"] == "AC" else _load_kms_dossiers(colaborador, km_documents)
     dossier = dossiers.get(period)
     if not peno or not phc_db or not dossier:
         raise ValueError("Não existe dossier para este mês.")
@@ -614,18 +706,25 @@ def sign_colaborador_ac_document(user: Any, filename: str, signature_data: Any) 
     try:
         connection = pyodbc.connect(_phc_conn_str(phc_db), timeout=12)
         cursor = connection.cursor()
-        cursor.execute("""
+        where_employee = "AND BO.NOPAT = ?" if document["type"] == "AC" else ""
+        parameters: list[Any] = [
+            str(dossier["bostamp"]), int(dossier.get("ndos") or 0),
+        ]
+        if document["type"] == "AC":
+            parameters.append(peno)
+        parameters.extend([document["year"], document["month"]])
+        cursor.execute(f"""
             SELECT TOP 1 BO.BOSTAMP
             FROM dbo.BO AS BO
             WHERE BO.BOSTAMP = ?
               AND BO.NDOS = ?
-              AND BO.NOPAT = ?
+              {where_employee}
               AND YEAR(BO.DATAOBRA) = ?
               AND MONTH(BO.DATAOBRA) = ?
               AND NOT EXISTS (
                   SELECT 1 FROM dbo.ANEXOS AS A WHERE A.RECSTAMP = BO.BOSTAMP
               )
-        """, str(dossier["bostamp"]), int(dossier.get("ndos") or 0), peno, document["year"], document["month"])
+        """, *parameters)
         row = cursor.fetchone()
         if not row:
             raise ValueError("O mapa já foi assinado ou deixou de estar disponível.")
@@ -637,6 +736,7 @@ def sign_colaborador_ac_document(user: Any, filename: str, signature_data: Any) 
             str(row.BOSTAMP or "").strip(),
             image,
             document["type"],
+            document["filename"],
         )
         _insert_signature_attachment(
             cursor,
