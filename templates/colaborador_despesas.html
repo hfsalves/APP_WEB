@@ -812,11 +812,17 @@
     }
 
     function formatAmount(value) {
-      const raw = String(value || '').replace(',', '.');
-      if (!raw) return translateExpense('colab_expenses.empty_amount');
-      const number = Number(raw);
+      const number = parseExpenseAmount(value);
       if (!Number.isFinite(number)) return translateExpense('colab_expenses.empty_amount');
       return `${number.toFixed(2).replace('.', ',')} €`;
+    }
+
+    function parseExpenseAmount(value) {
+      const raw = String(value || '')
+        .replace(/[\s\u00a0]/g, '')
+        .replace(',', '.')
+        .trim();
+      return raw ? Number(raw) : Number.NaN;
     }
 
     function refreshSummary(card) {
@@ -932,6 +938,7 @@
         card.classList.add('is-saved');
         window.setTimeout(() => card.classList.remove('is-saved'), 900);
         refreshSummary(card);
+        scheduleAutoCollapse(card);
         return result;
       } catch (error) {
         card.classList.remove('is-saving');
@@ -1071,8 +1078,7 @@
       const typeSelect = card.querySelector('[data-expense-type]');
       const selectedType = String(typeSelect?.value || '').trim().toUpperCase();
       const dateValue = String(card.querySelector('[data-expense-date]')?.value || '').trim();
-      const amountRaw = String(card.querySelector('[data-expense-value]')?.value || '').replace(',', '.').trim();
-      const amount = Number(amountRaw);
+      const amount = parseExpenseAmount(card.querySelector('[data-expense-value]')?.value);
       const hasBaseFields = !!dateValue && !!selectedType && Number.isFinite(amount) && amount > 0;
       const hasPhoto = !!String(card.dataset.fileName || '').trim();
       if (!hasBaseFields || !hasPhoto) return false;
@@ -1308,7 +1314,7 @@
               </label>
               <label class="sz_field">
                 <span class="sz_label">${escapeHtml(translateExpense('colab_expenses.value'))}</span>
-                <input class="sz_input_number" type="number" step="0.01" min="0" placeholder="0,00" value="${escapeHtml(savedValor)}" data-expense-value>
+                <input class="sz_input_number" type="text" inputmode="decimal" placeholder="0,00" value="${escapeHtml(savedValor)}" data-expense-value>
               </label>
               <label class="sz_field">
                 <span class="sz_label">${escapeHtml(translateExpense('colab_expenses.company'))}</span>
