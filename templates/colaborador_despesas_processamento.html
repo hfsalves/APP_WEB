@@ -74,6 +74,32 @@
     </section>
   </div>
 </div>
+
+<div id="expProcReturnModal" class="expense-processing-return-modal" hidden>
+  <div class="expense-processing-return-backdrop" data-return-modal-close></div>
+  <section class="expense-processing-return-dialog" role="dialog" aria-modal="true" aria-labelledby="expProcReturnTitle">
+    <header class="expense-processing-return-head">
+      <div>
+        <h2 id="expProcReturnTitle" class="sz_h4">Devolver ao colaborador</h2>
+        <p id="expProcReturnMeta" class="sz_text_muted"></p>
+      </div>
+      <button type="button" class="sz_button sz_button_ghost expense-processing-return-close" data-return-modal-close aria-label="Fechar">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </header>
+    <label class="sz_field expense-processing-return-field">
+      <span class="sz_label">Observação</span>
+      <textarea id="expProcReturnObservation" class="sz_textarea" rows="4" maxlength="500" placeholder="Indique ao colaborador o que deve corrigir."></textarea>
+    </label>
+    <footer class="expense-processing-return-actions">
+      <button type="button" class="sz_button sz_button_secondary" data-return-modal-close>Cancelar</button>
+      <button id="expProcReturnConfirm" type="button" class="sz_button sz_button_primary" disabled>
+        <i class="fa-solid fa-arrow-rotate-left"></i>
+        <span>Devolver</span>
+      </button>
+    </footer>
+  </section>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -303,6 +329,12 @@
     font-weight: var(--sz-font-weight-semibold);
   }
 
+  .expense-processing-card-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+  }
+
   .expense-processing-form-grid {
     display: grid;
     grid-template-columns: minmax(9rem, 1fr) minmax(7rem, .75fr) minmax(7rem, .7fr);
@@ -410,6 +442,110 @@
     color: var(--sz-color-danger, #ef4444);
   }
 
+  .expense-processing-delete {
+    width: 2.15rem;
+    min-width: 2.15rem;
+    height: 2.15rem;
+    padding: 0;
+    color: var(--sz-color-danger, #ef4444);
+  }
+
+  .expense-processing-delete:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--sz-color-danger, #ef4444) 12%, var(--sz-color-surface));
+  }
+
+  .expense-processing-return {
+    width: 2.15rem;
+    min-width: 2.15rem;
+    height: 2.15rem;
+    padding: 0;
+    color: var(--sz-color-warning, #f59e0b);
+  }
+
+  .expense-processing-return:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--sz-color-warning, #f59e0b) 12%, var(--sz-color-surface));
+  }
+
+  .expense-processing-return-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1100;
+    display: grid;
+    place-items: center;
+    padding: var(--sz-space-3);
+  }
+
+  .expense-processing-return-modal[hidden] {
+    display: none;
+  }
+
+  .expense-processing-return-backdrop {
+    position: absolute;
+    inset: 0;
+    background: color-mix(in srgb, #000 54%, transparent);
+  }
+
+  .expense-processing-return-dialog {
+    position: relative;
+    z-index: 1;
+    width: min(30rem, 100%);
+    padding: var(--sz-space-4);
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    color: var(--sz-color-text);
+    background: var(--sz-color-surface);
+    box-shadow: var(--sz-shadow-lg, 0 1.25rem 3rem rgba(0, 0, 0, .28));
+  }
+
+  .expense-processing-return-head,
+  .expense-processing-return-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sz-space-3);
+  }
+
+  .expense-processing-return-head {
+    margin-bottom: var(--sz-space-3);
+  }
+
+  .expense-processing-return-head h2,
+  .expense-processing-return-head p {
+    margin: 0;
+  }
+
+  .expense-processing-return-head p {
+    margin-top: .2rem;
+  }
+
+  .expense-processing-return-close {
+    width: 2.15rem;
+    min-width: 2.15rem;
+    height: 2.15rem;
+    padding: 0;
+  }
+
+  .expense-processing-return-field {
+    display: grid;
+    gap: .4rem;
+  }
+
+  .expense-processing-return-field textarea {
+    width: 100%;
+    resize: vertical;
+  }
+
+  .expense-processing-return-actions {
+    justify-content: flex-end;
+    margin-top: var(--sz-space-3);
+  }
+
+  .expense-processing-card.is-removing {
+    opacity: 0;
+    transform: translateX(.75rem);
+    transition: opacity .18s ease, transform .18s ease;
+  }
+
   .expense-processing-preview {
     min-height: 0;
     overflow: hidden;
@@ -495,6 +631,10 @@
       openFile: document.getElementById('expProcOpenFile'),
       launchPhc: document.getElementById('expProcLaunchPhc'),
       selection: document.getElementById('expProcSelection'),
+      returnModal: document.getElementById('expProcReturnModal'),
+      returnMeta: document.getElementById('expProcReturnMeta'),
+      returnObservation: document.getElementById('expProcReturnObservation'),
+      returnConfirm: document.getElementById('expProcReturnConfirm'),
     };
     let rows = [];
     let activeStamp = '';
@@ -503,6 +643,7 @@
     const companies = Array.isArray(window.EXPENSE_PROCESSING_COMPANIES) ? window.EXPENSE_PROCESSING_COMPANIES : [];
     const ccustos = Array.isArray(window.EXPENSE_PROCESSING_CCUSTOS) ? window.EXPENSE_PROCESSING_CCUSTOS : [];
     const vatCache = new Map();
+    let returnStamp = '';
 
     function escapeHtml(value) {
       return String(value || '').replace(/[&<>"']/g, (ch) => ({
@@ -625,11 +766,19 @@
               </div>
               ${row.obs ? `<div class="expense-processing-card-obs">${escapeHtml(row.obs)}</div>` : ''}
             </div>
-            <div class="expense-processing-card-form">
-              <div class="expense-processing-line-head">
-                <span></span>
-                <span class="expense-processing-save-state" data-save-state title="Estado de gravação"></span>
-              </div>
+              <div class="expense-processing-card-form">
+                <div class="expense-processing-line-head">
+                  <span></span>
+                <span class="expense-processing-card-actions">
+                  <span class="expense-processing-save-state" data-save-state title="Estado de gravação"></span>
+                  <button type="button" class="sz_button sz_button_ghost expense-processing-delete" data-delete-line title="Eliminar despesa" aria-label="Eliminar despesa">
+                    <i class="fa-solid fa-trash"></i>
+                  </button>
+                  <button type="button" class="sz_button sz_button_ghost expense-processing-return" data-return-line title="Devolver ao colaborador" aria-label="Devolver ao colaborador">
+                    <i class="fa-solid fa-arrow-rotate-left"></i>
+                  </button>
+                </span>
+                </div>
               <div class="expense-processing-form-grid">
                 <label>
                   <span class="sz_label">Empresa</span>
@@ -1035,13 +1184,120 @@
       }
     }
 
+    function removeProcessedRow(rowEl, stamp) {
+      rowEl.classList.add('is-removing');
+      window.setTimeout(() => {
+        rows = rows.filter((item) => item.stamp !== stamp);
+        selectedStamps.delete(stamp);
+        if (activeStamp === stamp) activeStamp = rows[0]?.stamp || '';
+        renderRows();
+      }, 180);
+    }
+
+    async function deleteExpense(rowEl) {
+      const stamp = rowEl?.dataset?.stamp || '';
+      const row = rowByStamp(stamp);
+      if (!stamp || !row) return;
+      const confirmed = window.confirm(`Eliminar a despesa de ${formatDate(row.data_despesa)} no valor de ${formatAmount(row.valor)}?`);
+      if (!confirmed) return;
+
+      const button = rowEl.querySelector('[data-delete-line]');
+      if (button) {
+        button.disabled = true;
+        button.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>';
+      }
+      try {
+        const response = await fetch(`/api/colaborador/despesas/processamento/${encodeURIComponent(stamp)}`, {
+          method: 'DELETE',
+          credentials: 'same-origin',
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.ok) throw new Error(result.error || 'Erro ao eliminar despesa.');
+        removeProcessedRow(rowEl, stamp);
+      } catch (error) {
+        console.error(error);
+        window.alert(error.message || 'Erro ao eliminar despesa.');
+        if (button) {
+          button.disabled = false;
+          button.innerHTML = '<i class="fa-solid fa-trash"></i>';
+        }
+      }
+    }
+
+    function closeReturnModal() {
+      returnStamp = '';
+      els.returnModal.hidden = true;
+      els.returnObservation.value = '';
+      els.returnConfirm.disabled = true;
+    }
+
+    function openReturnModal(row) {
+      if (!row) return;
+      returnStamp = row.stamp || '';
+      els.returnMeta.textContent = `${formatDate(row.data_despesa)} · ${formatAmount(row.valor)} · ${row.penome || row.login || ''}`;
+      els.returnObservation.value = '';
+      els.returnConfirm.disabled = true;
+      els.returnModal.hidden = false;
+      window.setTimeout(() => els.returnObservation.focus(), 0);
+    }
+
+    async function returnExpense() {
+      const stamp = returnStamp;
+      const observation = els.returnObservation.value.trim();
+      const row = rowByStamp(stamp);
+      const rowEl = els.body.querySelector(`.expense-processing-row[data-stamp="${CSS.escape(stamp)}"]`);
+      if (!stamp || !row || !rowEl || !observation) return;
+
+      els.returnConfirm.disabled = true;
+      els.returnConfirm.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i><span>A devolver...</span>';
+      try {
+        const response = await fetch(`/api/colaborador/despesas/processamento/${encodeURIComponent(stamp)}/devolver`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ observacao: observation }),
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.ok) throw new Error(result.error || 'Erro ao devolver despesa ao colaborador.');
+        closeReturnModal();
+        removeProcessedRow(rowEl, stamp);
+      } catch (error) {
+        console.error(error);
+        window.alert(error.message || 'Erro ao devolver despesa ao colaborador.');
+        els.returnConfirm.disabled = false;
+      } finally {
+        els.returnConfirm.innerHTML = '<i class="fa-solid fa-arrow-rotate-left"></i><span>Devolver</span>';
+      }
+    }
+
     els.body?.addEventListener('click', (event) => {
+      const deleteButton = event.target.closest('[data-delete-line]');
+      if (deleteButton) {
+        event.preventDefault();
+        event.stopPropagation();
+        deleteExpense(deleteButton.closest('.expense-processing-row'));
+        return;
+      }
+      const returnButton = event.target.closest('[data-return-line]');
+      if (returnButton) {
+        event.preventDefault();
+        event.stopPropagation();
+        openReturnModal(rowByStamp(returnButton.closest('.expense-processing-row')?.dataset?.stamp || ''));
+        return;
+      }
       if (event.target.closest('input, select, button')) return;
       const rowEl = event.target.closest('.expense-processing-row');
       if (!rowEl) return;
       activeStamp = rowEl.dataset.stamp || '';
       renderRows();
     });
+    document.querySelectorAll('[data-return-modal-close]').forEach((button) => {
+      button.addEventListener('click', closeReturnModal);
+    });
+    els.returnObservation?.addEventListener('input', () => {
+      els.returnConfirm.disabled = !els.returnObservation.value.trim();
+    });
+    els.returnConfirm?.addEventListener('click', returnExpense);
     els.body?.addEventListener('change', (event) => {
       if (!event.target.matches('[data-select-line]')) return;
       const stamp = event.target.value || '';

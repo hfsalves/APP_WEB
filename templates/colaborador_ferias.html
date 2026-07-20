@@ -276,8 +276,8 @@
   }
 
   .vacation-legend-dot.is-vacation {
-    background: var(--sz-color-primary);
-    border-color: var(--sz-color-primary);
+    background: var(--sz-color-success, #22c55e);
+    border-color: var(--sz-color-success, #22c55e);
   }
 
   .vacation-legend-dot.is-pending {
@@ -379,11 +379,23 @@
   }
 
   .vacation-day {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     aspect-ratio: 1;
     min-width: 0;
     border: 1px solid color-mix(in srgb, var(--sz-color-border) 76%, transparent);
     border-radius: .22rem;
     background: color-mix(in srgb, var(--sz-color-text-secondary) 10%, var(--sz-color-surface));
+  }
+
+  .vacation-day-number {
+    display: none;
+    color: var(--sz-color-text-secondary);
+    font-size: .54rem;
+    font-weight: var(--sz-font-weight-semibold);
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
   }
 
   .vacation-day.is-empty {
@@ -401,8 +413,8 @@
   }
 
   .vacation-day.is-vacation {
-    background: var(--sz-color-primary);
-    border-color: color-mix(in srgb, var(--sz-color-primary) 72%, white);
+    background: var(--sz-color-success, #22c55e);
+    border-color: color-mix(in srgb, var(--sz-color-success, #22c55e) 72%, white);
     box-shadow: inset 0 0 0 1px color-mix(in srgb, white 22%, transparent);
   }
 
@@ -412,11 +424,17 @@
     box-shadow: inset 0 0 0 1px color-mix(in srgb, white 14%, transparent);
   }
 
+  .vacation-day.is-unmark-requested {
+    background: color-mix(in srgb, var(--sz-color-warning, #f59e0b) 68%, var(--sz-color-surface));
+    border-color: color-mix(in srgb, var(--sz-color-warning, #f59e0b) 82%, var(--sz-color-border));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, white 12%, transparent);
+  }
+
   .vacation-day.is-weekend.is-vacation,
   .vacation-day.is-holiday.is-vacation,
   .vacation-day.is-weekend.is-pending,
   .vacation-day.is-holiday.is-pending {
-    background: color-mix(in srgb, var(--sz-color-primary) 80%, var(--sz-color-text-secondary));
+    background: color-mix(in srgb, var(--sz-color-success, #22c55e) 80%, var(--sz-color-text-secondary));
   }
 
   .vacation-month-modal[hidden] {
@@ -542,8 +560,8 @@
   }
 
   .vacation-month-detail-day.is-vacation {
-    background: var(--sz-color-primary);
-    border-color: color-mix(in srgb, var(--sz-color-primary) 72%, white);
+    background: var(--sz-color-success, #22c55e);
+    border-color: color-mix(in srgb, var(--sz-color-success, #22c55e) 72%, white);
     color: white;
   }
 
@@ -561,9 +579,9 @@
   }
 
   .vacation-month-detail-day.is-new {
-    background: color-mix(in srgb, var(--sz-color-success, #22c55e) 54%, var(--sz-color-surface));
-    border-color: color-mix(in srgb, var(--sz-color-success, #22c55e) 76%, var(--sz-color-border));
-    color: var(--sz-color-text);
+    background: var(--sz-color-primary);
+    border-color: color-mix(in srgb, var(--sz-color-primary) 72%, white);
+    color: white;
   }
 
   .vacation-month-detail-day.is-remove-pending {
@@ -591,6 +609,23 @@
     gap: var(--sz-space-2);
     padding: var(--sz-space-3) var(--sz-space-4) var(--sz-space-4);
     border-top: 1px solid var(--sz-color-border);
+  }
+
+  @media (min-width: 769px) {
+    .vacation-calendar-grid {
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: .55rem;
+    }
+
+    .vacation-day-number {
+      display: inline;
+    }
+
+    .vacation-day.is-vacation .vacation-day-number,
+    .vacation-day.is-pending .vacation-day-number,
+    .vacation-day.is-new .vacation-day-number {
+      color: white;
+    }
   }
 
   @media (max-width: 768px) {
@@ -843,7 +878,7 @@
           isUnmarkRequested ? 'is-unmark-requested' : '',
           isCancelUnmarkRequest ? 'is-cancel-unmark-request' : '',
         ].filter(Boolean).join(' ');
-        cells.push(`<span class="${classes}" title="${escapeHtml(key)}"></span>`);
+        cells.push(`<span class="${classes}" title="${escapeHtml(key)}"><span class="vacation-day-number">${day}</span></span>`);
       }
 
       while (cells.length % 7 !== 0) {

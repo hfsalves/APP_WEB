@@ -647,6 +647,9 @@ def create_app():
     from modules.gr_subcontractor_measurements.routes import bp as gr_subcontractor_measurements_bp
     app.register_blueprint(gr_subcontractor_measurements_bp)
 
+    from modules.gr_client_measurements.routes import bp as gr_client_measurements_bp
+    app.register_blueprint(gr_client_measurements_bp)
+
     register_pricing(app)
 
     @app.cli.command('process-email-queue')
@@ -26282,6 +26285,59 @@ def create_app():
             db.session.rollback()
             app.logger.exception('Erro ao gravar classificação da despesa.')
             return jsonify({'ok': False, 'error': 'Erro ao gravar classificação.'}), 500
+
+    @app.route('/api/colaborador/despesas/processamento/<string:line_stamp>', methods=['DELETE'])
+    @login_required
+    def api_colaborador_despesas_processamento_delete(line_stamp):
+        from services.colaborador_despesas_service import delete_expense_processing_line
+
+        try:
+            can_delete = bool(getattr(current_user, 'ADMIN', False)) or any(
+                bool(getattr(access, 'eliminar', False))
+                for access in Acessos.query.filter_by(
+                    utilizador=getattr(current_user, 'LOGIN', ''),
+                    tabela='DESPESAS',
+                ).all()
+            )
+            if not can_delete:
+                return jsonify({'ok': False, 'error': 'Sem permissão para eliminar despesas.'}), 403
+            return jsonify(delete_expense_processing_line(line_stamp, current_user))
+        except ValueError as exc:
+            db.session.rollback()
+            return jsonify({'ok': False, 'error': str(exc)}), 400
+        except Exception:
+            db.session.rollback()
+            app.logger.exception('Erro ao eliminar despesa do processamento.')
+            return jsonify({'ok': False, 'error': 'Erro ao eliminar despesa.'}), 500
+
+    @app.route('/api/colaborador/despesas/processamento/<string:line_stamp>/devolver', methods=['POST'])
+    @login_required
+    def api_colaborador_despesas_processamento_return(line_stamp):
+        from services.colaborador_despesas_service import return_expense_from_processing
+
+        try:
+            can_return = bool(getattr(current_user, 'ADMIN', False)) or any(
+                bool(getattr(access, 'eliminar', False))
+                for access in Acessos.query.filter_by(
+                    utilizador=getattr(current_user, 'LOGIN', ''),
+                    tabela='DESPESAS',
+                ).all()
+            )
+            if not can_return:
+                return jsonify({'ok': False, 'error': 'Sem permissão para devolver despesas.'}), 403
+            payload = request.get_json(silent=True) or {}
+            return jsonify(return_expense_from_processing(
+                line_stamp,
+                str(payload.get('observacao') or ''),
+                current_user,
+            ))
+        except ValueError as exc:
+            db.session.rollback()
+            return jsonify({'ok': False, 'error': str(exc)}), 400
+        except Exception:
+            db.session.rollback()
+            app.logger.exception('Erro ao devolver despesa ao colaborador.')
+            return jsonify({'ok': False, 'error': 'Erro ao devolver despesa ao colaborador.'}), 500
 
     @app.route('/api/colaborador/despesas/processamento/artigos')
     @login_required

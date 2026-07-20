@@ -1,4 +1,4 @@
-[2026-07-16 18:10:09,292] WARNING in app: Falhou ligação SQL Server via 192.168.1.50,1433 (DRIVER={ODBC Driver 18 for SQL Server};SERVER=192.168.1.50,1433;DATABASE=GESTAO;UID=sa;PWD=***;TrustServerCertificate=Yes;Application Name=SZERO): ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+[2026-07-20 13:12:50,179] WARNING in app: Falhou ligação SQL Server via 192.168.1.50,1433 (DRIVER={ODBC Driver 18 for SQL Server};SERVER=192.168.1.50,1433;DATABASE=GESTAO;UID=sa;PWD=***;TrustServerCertificate=Yes;Application Name=SZERO): ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
  * Serving Flask app 'app:app'
  * Debug mode: off
 WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
@@ -6,36 +6,561 @@ WARNING: This is a development server. Do not use it in a production deployment.
  * Running on http://127.0.0.1:8001
  * Running on http://10.0.1.114:8001
 Press CTRL+C to quit
-127.0.0.1 - - [16/Jul/2026 18:10:26] "GET /dashboard HTTP/1.1" 200 -
-127.0.0.1 - - [16/Jul/2026 18:10:26] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
-127.0.0.1 - - [16/Jul/2026 18:10:26] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
-127.0.0.1 - - [16/Jul/2026 18:10:26] "GET /static/css/style.css HTTP/1.1" 304 -
-127.0.0.1 - - [16/Jul/2026 18:10:26] "GET /static/manifest.json HTTP/1.1" 304 -
-127.0.0.1 - - [16/Jul/2026 18:10:26] "GET /static/js/dashboard.js?v=1784221807 HTTP/1.1" 200 -
-127.0.0.1 - - [16/Jul/2026 18:10:26] "GET /static/js/ui.js HTTP/1.1" 304 -
-127.0.0.1 - - [16/Jul/2026 18:10:26] "GET /static/js/push.js?v=1784221807 HTTP/1.1" 200 -
-127.0.0.1 - - [16/Jul/2026 18:10:27] "GET /static/images/favicon.ico HTTP/1.1" 304 -
-127.0.0.1 - - [16/Jul/2026 18:10:27] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
-127.0.0.1 - - [16/Jul/2026 18:10:27] "GET /api/dashboard HTTP/1.1" 200 -
-127.0.0.1 - - [16/Jul/2026 18:10:27] "POST /api/widgets/COMPLIANCE_DATAS_30D/run HTTP/1.1" 200 -
-127.0.0.1 - - [16/Jul/2026 18:10:28] "GET /service-worker.js HTTP/1.1" 304 -
-127.0.0.1 - - [16/Jul/2026 18:10:28] "POST /api/widgets/MAPA_GESTAO_GR_RESUMO/run HTTP/1.1" 200 -
-127.0.0.1 - - [16/Jul/2026 18:10:28] "POST /api/widgets/MAPA_GESTAO_GR_TOP_PREJUIZO/run HTTP/1.1" 200 -
-127.0.0.1 - - [16/Jul/2026 18:10:28] "POST /api/widgets/MAPA_GESTAO_GR_TOP_LUCRO/run HTTP/1.1" 200 -
-127.0.0.1 - - [16/Jul/2026 18:10:36] "POST /api/i18n/language HTTP/1.1" 200 -
-127.0.0.1 - - [16/Jul/2026 18:10:38] "GET /dashboard HTTP/1.1" 200 -
-127.0.0.1 - - [16/Jul/2026 18:10:38] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
-127.0.0.1 - - [16/Jul/2026 18:10:38] "GET /static/css/style.css HTTP/1.1" 304 -
-127.0.0.1 - - [16/Jul/2026 18:10:38] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
-127.0.0.1 - - [16/Jul/2026 18:10:38] "GET /static/js/dashboard.js?v=1784221807 HTTP/1.1" 304 -
-127.0.0.1 - - [16/Jul/2026 18:10:38] "GET /static/manifest.json HTTP/1.1" 304 -
-127.0.0.1 - - [16/Jul/2026 18:10:38] "GET /static/js/ui.js HTTP/1.1" 304 -
-127.0.0.1 - - [16/Jul/2026 18:10:38] "GET /static/js/push.js?v=1784221807 HTTP/1.1" 304 -
-127.0.0.1 - - [16/Jul/2026 18:10:38] "GET /static/images/favicon.ico HTTP/1.1" 304 -
-127.0.0.1 - - [16/Jul/2026 18:10:38] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
-127.0.0.1 - - [16/Jul/2026 18:10:38] "GET /api/dashboard HTTP/1.1" 200 -
-127.0.0.1 - - [16/Jul/2026 18:10:38] "POST /api/widgets/COMPLIANCE_DATAS_30D/run HTTP/1.1" 200 -
-127.0.0.1 - - [16/Jul/2026 18:10:39] "GET /service-worker.js HTTP/1.1" 304 -
-127.0.0.1 - - [16/Jul/2026 18:10:39] "POST /api/widgets/MAPA_GESTAO_GR_RESUMO/run HTTP/1.1" 200 -
-127.0.0.1 - - [16/Jul/2026 18:10:39] "POST /api/widgets/MAPA_GESTAO_GR_TOP_PREJUIZO/run HTTP/1.1" 200 -
-127.0.0.1 - - [16/Jul/2026 18:10:39] "POST /api/widgets/MAPA_GESTAO_GR_TOP_LUCRO/run HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 13:13:07] "OPTIONS /api/colaborador/despesas/processamento/TESTE HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 13:14:26] "GET /gr360_autos_clientes HTTP/1.1" 302 -
+127.0.0.1 - - [20/Jul/2026 13:14:27] "GET /login?next=/gr360_autos_clientes HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 13:14:27] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 13:14:27] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 13:14:27] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 13:14:27] "GET /static/js/push.js?v=1784549568 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 13:14:27] "GET /static/images/icon-512.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 13:16:23] "GET /api/colaborador/despesas/processamento?date_from=2026-07-01&date_to=2026-07-20 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 13:17:21] "GET /gr360_autos_subempreitada HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 13:17:21] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 13:17:21] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 13:17:21] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 13:17:21] "GET /gr_subcontractor_measurements/static/autos_subempreitada.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 13:17:21] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 13:17:21] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 13:17:21] "GET /static/js/push.js?v=1784549568 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 13:17:21] "GET /gr_subcontractor_measurements/static/autos_subempreitada.js?v=1784549568 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 13:17:22] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 13:17:22] "GET /api/gr_autos_subempreitada/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 13:17:22] "GET /api/gr_autos_subempreitada/contratos?feid=2&data_inicio=2026-01-01&data_fim=2026-07-20&only_open=1 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 13:17:23] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 13:17:32] "GET /api/gr_autos_subempreitada/contrato?feid=2&bostamp=APR26060560010,895000001 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 13:21:00] "GET /api/gr_autos_subempreitada/autos?feid=2&bostamp=APR26060559636,158000001 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 13:21:04] "GET /api/gr_autos_subempreitada/anexo?feid=2&anexosstamp=APR26060559987,025296557 HTTP/1.1" 404 -
+127.0.0.1 - - [20/Jul/2026 13:21:06] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 13:21:11] "GET /api/gr_autos_subempreitada/anexo?feid=2&anexosstamp=APR26060559987,025296557 HTTP/1.1" 404 -
+127.0.0.1 - - [20/Jul/2026 13:21:13] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 13:23:02] "GET / HTTP/1.1" 302 -
+127.0.0.1 - - [20/Jul/2026 13:23:04] "GET /dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 13:23:04] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 13:23:04] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 13:23:04] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 13:23:04] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 13:23:04] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 13:23:04] "GET /static/js/dashboard.js?v=1784549568 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 13:23:04] "GET /static/js/push.js?v=1784549568 HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 13:23:04] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 13:23:05] "GET /api/dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 13:23:05] "POST /api/widgets/COMPLIANCE_DATAS_30D/run HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 13:23:05] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 13:23:06] "POST /api/widgets/MAPA_GESTAO_GR_RESUMO/run HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 13:23:06] "POST /api/widgets/MAPA_GESTAO_GR_TOP_LUCRO/run HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 13:23:06] "POST /api/widgets/MAPA_GESTAO_GR_TOP_PREJUIZO/run HTTP/1.1" 200 -
+[2026-07-20 14:11:57,665] WARNING in app: Falhou ligação SQL Server via 192.168.1.50,1433 (DRIVER={ODBC Driver 18 for SQL Server};SERVER=192.168.1.50,1433;DATABASE=GESTAO;UID=sa;PWD=***;TrustServerCertificate=Yes;Application Name=SZERO): ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+ * Serving Flask app 'app:app'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://10.0.1.114:8001
+Press CTRL+C to quit
+127.0.0.1 - - [20/Jul/2026 14:13:00] "GET /ferias?ano=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:13:00] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:13:00] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:13:00] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:13:00] "GET /static/manifest.json HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:13:00] "GET /static/js/ui.js HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:13:00] "GET /static/js/push.js?v=1784553115 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:13:00] "GET /favicon.ico HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:13:02] "GET /ferias?ano=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:13:02] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:13:02] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:13:02] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:13:02] "GET /static/js/push.js?v=1784553115 HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:13:02] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:13:02] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:13:02] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:13:02] "GET /static/images/favicon.ico HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:13:08] "POST /api/colaborador/ferias/alteracoes HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:13:08] "GET /api/colaborador/ferias?ano=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:13:12] "POST /api/colaborador/ferias/alteracoes HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:13:13] "GET /api/colaborador/ferias?ano=2026 HTTP/1.1" 200 -
+[2026-07-20 14:13:39,811] WARNING in app: Falhou ligação SQL Server via 192.168.1.50,1433 (DRIVER={ODBC Driver 18 for SQL Server};SERVER=192.168.1.50,1433;DATABASE=GESTAO;UID=sa;PWD=***;TrustServerCertificate=Yes;Application Name=SZERO): ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+ * Serving Flask app 'app:app'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://10.0.1.114:8001
+Press CTRL+C to quit
+127.0.0.1 - - [20/Jul/2026 14:13:46] "GET /ferias?ano=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:13:46] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:13:46] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:13:46] "GET /static/manifest.json HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:13:46] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:13:46] "GET /static/js/push.js?v=1784553217 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:13:46] "GET /static/js/ui.js HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:13:46] "GET /favicon.ico HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:13:47] "GET /ferias?ano=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:13:47] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:13:47] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:13:47] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:13:48] "GET /static/js/push.js?v=1784553217 HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:13:48] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:13:48] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:13:48] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:13:48] "GET /static/images/favicon.ico HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:13:52] "POST /api/colaborador/ferias/alteracoes HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:13:52] "GET /api/colaborador/ferias?ano=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:13:58] "POST /api/colaborador/ferias/alteracoes HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:13:58] "GET /api/colaborador/ferias?ano=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:15:23] "GET /ferias?ano=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:15:24] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:15:24] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:15:24] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:15:24] "GET /static/manifest.json HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:15:24] "GET /static/js/ui.js HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:15:24] "GET /static/js/push.js?v=1784553217 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:15:24] "GET /favicon.ico HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:15:25] "GET /ferias?ano=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:15:25] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:15:25] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:15:25] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:15:25] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:15:25] "GET /static/js/push.js?v=1784553217 HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:15:25] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:15:25] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:15:25] "GET /static/images/favicon.ico HTTP/1.1" 200 -
+[2026-07-20 14:15:35,942] WARNING in app: Falhou ligação SQL Server via 192.168.1.50,1433 (DRIVER={ODBC Driver 18 for SQL Server};SERVER=192.168.1.50,1433;DATABASE=GESTAO;UID=sa;PWD=***;TrustServerCertificate=Yes;Application Name=SZERO): ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+ * Serving Flask app 'app:app'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://10.0.1.114:8001
+Press CTRL+C to quit
+127.0.0.1 - - [20/Jul/2026 14:16:17] "GET /logout HTTP/1.1" 302 -
+127.0.0.1 - - [20/Jul/2026 14:16:18] "GET /login HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:16:18] "GET /static/js/push.js?v=1784553333 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:16:18] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:16:18] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:16:18] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:16:18] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:16:18] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:16:18] "GET /static/images/icon-512.png HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:16:37] "GET /login HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:16:37] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:16:37] "GET /static/js/ui.js HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:16:37] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:16:37] "GET /static/js/push.js?v=1784553333 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:16:37] "GET /static/manifest.json HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:16:37] "GET /static/images/icon-512.png HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:16:37] "GET /favicon.ico HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:16:37] "GET /login HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:16:37] "GET /static/js/push.js?v=1784553333 HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:16:37] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:16:37] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:16:37] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:16:37] "GET /static/images/icon-512.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:16:37] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:16:37] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:16:37] "GET /static/images/favicon.ico HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:17:22] "GET /login HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:17:22] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:17:22] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:17:22] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:17:22] "GET /static/js/push.js?v=1784553333 HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:17:22] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:17:22] "GET /static/images/icon-512.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:17:22] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:17:22] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+Login falhado: utilizador inexistente
+127.0.0.1 - - [20/Jul/2026 14:17:28] "POST /login HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:17:28] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:17:28] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:17:28] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:17:28] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+Login falhado: utilizador inexistente
+127.0.0.1 - - [20/Jul/2026 14:17:36] "POST /login HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:17:36] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:17:36] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:17:44] "POST /login HTTP/1.1" 302 -
+127.0.0.1 - - [20/Jul/2026 14:17:44] "GET / HTTP/1.1" 302 -
+127.0.0.1 - - [20/Jul/2026 14:17:45] "GET /dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:17:47] "GET /dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:17:47] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:17:47] "GET /static/js/dashboard.js?v=1784553333 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:17:47] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:17:47] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:17:47] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:17:47] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:17:47] "GET /static/js/push.js?v=1784553333 HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:17:47] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:17:48] "GET /api/dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:17:48] "POST /api/widgets/COMPLIANCE_DATAS_30D/run HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:17:49] "POST /api/widgets/MAPA_GESTAO_GR_RESUMO/run HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:17:49] "POST /api/widgets/MAPA_GESTAO_GR_TOP_LUCRO/run HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:17:49] "POST /api/widgets/MAPA_GESTAO_GR_TOP_PREJUIZO/run HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:18:00] "GET /dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:18:00] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:18:00] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:18:00] "GET /static/js/dashboard.js?v=1784553333 HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:18:00] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:18:00] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:18:00] "GET /static/js/push.js?v=1784553333 HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:18:00] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:18:00] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:18:01] "GET /api/dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:18:01] "POST /api/widgets/COMPLIANCE_DATAS_30D/run HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:18:02] "POST /api/widgets/MAPA_GESTAO_GR_RESUMO/run HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:18:02] "POST /api/widgets/MAPA_GESTAO_GR_TOP_LUCRO/run HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:18:02] "POST /api/widgets/MAPA_GESTAO_GR_TOP_PREJUIZO/run HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:18:06] "GET /ferias HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:18:06] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:18:06] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:18:06] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:18:06] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:18:06] "GET /static/js/push.js?v=1784553333 HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:18:06] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:18:06] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:18:15] "POST /api/colaborador/ferias/alteracoes HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:18:15] "GET /api/colaborador/ferias?ano=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:18:23] "POST /api/colaborador/ferias/alteracoes HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:18:23] "GET /api/colaborador/ferias?ano=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:18:29] "POST /api/colaborador/ferias/alteracoes HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:18:29] "GET /api/colaborador/ferias?ano=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:18:35] "POST /api/colaborador/ferias/alteracoes HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:18:35] "GET /api/colaborador/ferias?ano=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:18:48] "POST /api/colaborador/ferias/alteracoes HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:18:48] "GET /api/colaborador/ferias?ano=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:19:34] "GET /ferias?ano=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:19:34] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:19:34] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:19:34] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:19:34] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:19:34] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:19:34] "GET /static/js/push.js?v=1784553333 HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:19:34] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:19:34] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:21:08] "GET / HTTP/1.1" 302 -
+127.0.0.1 - - [20/Jul/2026 14:21:09] "GET /dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:21:09] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:21:09] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:21:09] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:21:09] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:21:09] "GET /static/js/dashboard.js?v=1784553333 HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:21:09] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:21:09] "GET /static/js/push.js?v=1784553333 HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:21:09] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:21:10] "GET /api/dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:21:10] "POST /api/widgets/COMPLIANCE_DATAS_30D/run HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:21:11] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:21:11] "POST /api/widgets/MAPA_GESTAO_GR_RESUMO/run HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:21:11] "POST /api/widgets/MAPA_GESTAO_GR_TOP_PREJUIZO/run HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:21:11] "POST /api/widgets/MAPA_GESTAO_GR_TOP_LUCRO/run HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:21:13] "GET /recibos HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:21:13] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:21:13] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:21:13] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:21:13] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:21:13] "GET /static/js/push.js?v=1784553333 HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:21:13] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:21:13] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:21:15] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:21:33] "GET /ferias HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:21:33] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:21:33] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:21:33] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:21:33] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:21:33] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:21:33] "GET /static/js/push.js?v=1784553333 HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:21:33] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:21:35] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:22:13] "GET / HTTP/1.1" 302 -
+127.0.0.1 - - [20/Jul/2026 14:22:14] "GET /dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:22:14] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:22:14] "GET /static/js/dashboard.js?v=1784553333 HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:22:14] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:22:14] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:22:14] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:22:14] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:22:14] "GET /static/js/push.js?v=1784553333 HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:22:14] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:22:15] "GET /api/dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:22:15] "POST /api/widgets/COMPLIANCE_DATAS_30D/run HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:22:16] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:22:16] "POST /api/widgets/MAPA_GESTAO_GR_RESUMO/run HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:22:16] "POST /api/widgets/MAPA_GESTAO_GR_TOP_LUCRO/run HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:22:16] "POST /api/widgets/MAPA_GESTAO_GR_TOP_PREJUIZO/run HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:22:20] "GET /recibos HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:22:20] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:22:20] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:22:20] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:22:20] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:22:20] "GET /static/js/push.js?v=1784553333 HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:22:20] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:22:20] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:22:21] "GET /service-worker.js HTTP/1.1" 304 -
+[2026-07-20 14:22:48,062] WARNING in app: Falhou ligação SQL Server via 192.168.1.50,1433 (DRIVER={ODBC Driver 18 for SQL Server};SERVER=192.168.1.50,1433;DATABASE=GESTAO;UID=sa;PWD=***;TrustServerCertificate=Yes;Application Name=SZERO): ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+ * Serving Flask app 'app:app'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://10.0.1.114:8001
+Press CTRL+C to quit
+127.0.0.1 - - [20/Jul/2026 14:23:21] "GET /ferias HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:23:21] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:23:21] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:23:21] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:23:21] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:23:21] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:23:21] "GET /static/js/push.js?v=1784553765 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:23:22] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:23:23] "GET /service-worker.js HTTP/1.1" 304 -
+[2026-07-20 14:23:57,757] WARNING in app: Falhou ligação SQL Server via 192.168.1.50,1433 (DRIVER={ODBC Driver 18 for SQL Server};SERVER=192.168.1.50,1433;DATABASE=GESTAO;UID=sa;PWD=***;TrustServerCertificate=Yes;Application Name=SZERO): ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+ * Serving Flask app 'app:app'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://10.0.1.114:8001
+Press CTRL+C to quit
+127.0.0.1 - - [20/Jul/2026 14:24:12] "GET /ferias?ano=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:24:12] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:24:12] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:24:12] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:24:12] "GET /static/js/ui.js HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:24:12] "GET /static/js/push.js?v=1784553835 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:24:12] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:24:12] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:24:16] "GET /ferias?ano=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:24:16] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:24:16] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:24:16] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:24:16] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:24:16] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:24:16] "GET /static/js/push.js?v=1784553835 HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:24:16] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:24:16] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+[2026-07-20 14:25:23,130] WARNING in app: Falhou ligação SQL Server via 192.168.1.50,1433 (DRIVER={ODBC Driver 18 for SQL Server};SERVER=192.168.1.50,1433;DATABASE=GESTAO;UID=sa;PWD=***;TrustServerCertificate=Yes;Application Name=SZERO): ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+ * Serving Flask app 'app:app'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://10.0.1.114:8001
+Press CTRL+C to quit
+127.0.0.1 - - [20/Jul/2026 14:27:43] "GET /despesas/processamento HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:27:43] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:27:43] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:27:43] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:27:43] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:27:43] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:27:43] "GET /static/js/push.js?v=1784553920 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:27:43] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:27:43] "GET /api/colaborador/despesas/processamento?date_from=2026-07-01&date_to=2026-07-20 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:27:43] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:27:44] "GET /api/colaborador/despesas/processamento/taxasiva?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:27:44] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:27:44] "GET /api/colaborador/despesas/processamento/taxasiva?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:27:44] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:27:44] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:27:44] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:27:44] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:27:44] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:27:44] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:27:44] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:27:44] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:27:45] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:27:45] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:27:45] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:27:46] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:27:48] "DELETE /api/colaborador/despesas/processamento/8A510F62815244D8844174956 HTTP/1.1" 200 -
+[2026-07-20 14:30:36,471] WARNING in app: Falhou ligação SQL Server via 192.168.1.50,1433 (DRIVER={ODBC Driver 18 for SQL Server};SERVER=192.168.1.50,1433;DATABASE=GESTAO;UID=sa;PWD=***;TrustServerCertificate=Yes;Application Name=SZERO): ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+ * Serving Flask app 'app:app'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://10.0.1.114:8001
+Press CTRL+C to quit
+127.0.0.1 - - [20/Jul/2026 14:30:59] "OPTIONS /api/colaborador/despesas/processamento/TESTE HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:31:30] "GET /despesas/processamento HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:31:30] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:31:30] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:31:30] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:31:30] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:31:30] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:31:30] "GET /static/js/push.js?v=1784554234 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:31:30] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:31:30] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:31:30] "GET /api/colaborador/despesas/processamento?date_from=2026-07-01&date_to=2026-07-20 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:31:30] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:31:30] "GET /api/colaborador/despesas/processamento/taxasiva?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:31:30] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:31:30] "GET /api/colaborador/despesas/processamento/taxasiva?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:31:30] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:31:30] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:31:31] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:31:31] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:31:31] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:31:31] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:31:31] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:31:31] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:31:31] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:31:31] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:31:33] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:32:04] "GET /despesas/processamento HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:32:04] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:32:04] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:32:04] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:32:04] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:32:04] "GET /static/js/push.js?v=1784554234 HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:32:04] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:32:04] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:32:04] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:32:04] "GET /api/colaborador/despesas/processamento?date_from=2026-07-01&date_to=2026-07-20 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:32:04] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:32:04] "GET /api/colaborador/despesas/processamento/taxasiva?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:32:05] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:32:05] "GET /api/colaborador/despesas/processamento/taxasiva?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:32:05] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:32:05] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:32:05] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:32:05] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:32:05] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:32:05] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:32:05] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:32:05] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:32:05] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:32:06] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:32:06] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:32:07] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:32:08] "DELETE /api/colaborador/despesas/processamento/D56FA02C5F66496EAE11BBD84 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:33:05] "GET /ferias?ano=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:33:05] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:33:05] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:33:05] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:33:05] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:33:05] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:33:05] "GET /static/js/push.js?v=1784554234 HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:33:05] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:33:05] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:33:07] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:33:20] "POST /api/colaborador/ferias/alteracoes HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:33:20] "GET /api/colaborador/ferias?ano=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:33:24] "POST /api/colaborador/ferias/alteracoes HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:33:24] "GET /api/colaborador/ferias?ano=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:33:32] "POST /api/colaborador/ferias/alteracoes HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:33:32] "GET /api/colaborador/ferias?ano=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:33:36] "POST /api/colaborador/ferias/alteracoes HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:33:36] "GET /api/colaborador/ferias?ano=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:33:50] "POST /api/colaborador/ferias/alteracoes HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:33:50] "GET /api/colaborador/ferias?ano=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:34:02] "GET /logout HTTP/1.1" 302 -
+127.0.0.1 - - [20/Jul/2026 14:34:02] "GET /login HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:34:02] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:34:02] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:34:02] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:34:02] "GET /static/js/push.js?v=1784554234 HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:34:02] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:34:02] "GET /static/images/icon-512.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:34:02] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:34:03] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:34:12] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:39:48] "GET / HTTP/1.1" 302 -
+127.0.0.1 - - [20/Jul/2026 14:39:48] "GET /login?next=/ HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:39:48] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:39:48] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:39:48] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:39:48] "GET /static/js/push.js?v=1784554234 HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:39:49] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:39:49] "GET /static/images/icon-512.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:39:49] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:39:50] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:39:56] "POST /login?next=/ HTTP/1.1" 302 -
+127.0.0.1 - - [20/Jul/2026 14:39:56] "GET / HTTP/1.1" 302 -
+127.0.0.1 - - [20/Jul/2026 14:39:58] "GET /dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:39:59] "GET /dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:39:59] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:39:59] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:39:59] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:39:59] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:39:59] "GET /static/js/dashboard.js?v=1784554234 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:39:59] "GET /static/js/push.js?v=1784554234 HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:39:59] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:39:59] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:40:00] "GET /api/dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:40:00] "POST /api/widgets/COMPLIANCE_DATAS_30D/run HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:40:01] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:40:01] "POST /api/widgets/MAPA_GESTAO_GR_RESUMO/run HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:40:01] "POST /api/widgets/MAPA_GESTAO_GR_TOP_PREJUIZO/run HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:40:01] "POST /api/widgets/MAPA_GESTAO_GR_TOP_LUCRO/run HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:40:07] "GET /recibos HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:40:07] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:40:07] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:40:07] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:40:07] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:40:07] "GET /static/js/push.js?v=1784554234 HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:40:07] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:40:07] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:40:09] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:41:16] "GET /api/colaborador/recibos/AC_00153_202602.pdf/pdf HTTP/1.1" 404 -
+127.0.0.1 - - [20/Jul/2026 14:41:16] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:41:16] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:41:16] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:41:16] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:41:16] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:41:16] "GET /static/js/push.js?v=1784554234 HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:41:16] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:41:18] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:41:28] "GET /api/colaborador/recibos/AC_00153_202601.pdf/pdf HTTP/1.1" 404 -
+127.0.0.1 - - [20/Jul/2026 14:41:28] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:41:28] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:41:28] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:41:28] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:41:28] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:41:28] "GET /static/js/push.js?v=1784554234 HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:41:28] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:41:30] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:44:06] "POST /api/profile/viewmode HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:44:06] "POST /api/profile/viewmode HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:44:11] "POST /api/profile/viewmode HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:44:11] "POST /api/profile/viewmode HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:44:16] "POST /api/profile/viewmode HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:44:16] "POST /api/profile/viewmode HTTP/1.1" 200 -
+[2026-07-20 14:46:13,154] WARNING in app: Falhou ligação SQL Server via 192.168.1.50,1433 (DRIVER={ODBC Driver 18 for SQL Server};SERVER=192.168.1.50,1433;DATABASE=GESTAO;UID=sa;PWD=***;TrustServerCertificate=Yes;Application Name=SZERO): ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+ * Serving Flask app 'app:app'
+ * Debug mode: off
+Address already in use
+Port 8001 is in use by another program. Either identify and stop that program, or start the server with a different port.
+127.0.0.1 - - [20/Jul/2026 14:46:15] "GET / HTTP/1.1" 302 -
+127.0.0.1 - - [20/Jul/2026 14:46:17] "GET /dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:46:17] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:46:17] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:46:17] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:46:17] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:46:17] "GET /static/js/dashboard.js?v=1784554234 HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:46:17] "GET /static/js/push.js?v=1784554234 HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:46:17] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:46:17] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:46:17] "GET /api/dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:46:17] "POST /api/widgets/COMPLIANCE_DATAS_30D/run HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:46:18] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:46:18] "POST /api/widgets/MAPA_GESTAO_GR_TOP_LUCRO/run HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:46:19] "POST /api/widgets/MAPA_GESTAO_GR_RESUMO/run HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:46:19] "POST /api/widgets/MAPA_GESTAO_GR_TOP_PREJUIZO/run HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:46:24] "GET /despesas/processamento HTTP/1.1" 302 -
+127.0.0.1 - - [20/Jul/2026 14:46:34] "GET /despesas HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:46:34] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:46:34] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:46:34] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:46:34] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:46:34] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:46:34] "GET /static/js/push.js?v=1784554234 HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:46:34] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:46:36] "GET /service-worker.js HTTP/1.1" 304 -
+[2026-07-20 14:47:06,478] WARNING in app: Falhou ligação SQL Server via 192.168.1.50,1433 (DRIVER={ODBC Driver 18 for SQL Server};SERVER=192.168.1.50,1433;DATABASE=GESTAO;UID=sa;PWD=***;TrustServerCertificate=Yes;Application Name=SZERO): ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+ * Serving Flask app 'app:app'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://10.0.1.114:8001
+Press CTRL+C to quit
+127.0.0.1 - - [20/Jul/2026 14:47:18] "GET /despesas/processamento HTTP/1.1" 302 -

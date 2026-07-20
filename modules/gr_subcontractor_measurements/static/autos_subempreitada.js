@@ -15,6 +15,7 @@
 
   function initEls() {
     [
+      'grSubmeasurePage',
       'submeasureCompany',
       'submeasureDateStart',
       'submeasureDateEnd',
@@ -56,6 +57,22 @@
     ].forEach((id) => {
       els[id] = byId(id);
     });
+  }
+
+  function apiBase() {
+    return String(els.grSubmeasurePage?.dataset.apiBase || '/api/gr_autos_subempreitada').replace(/\/$/, '');
+  }
+
+  function sourceSingular() {
+    return String(els.grSubmeasurePage?.dataset.sourceSingular || 'Contrato');
+  }
+
+  function sourcePlural() {
+    return String(els.grSubmeasurePage?.dataset.sourcePlural || 'Contratos');
+  }
+
+  function writeEnabled() {
+    return String(els.grSubmeasurePage?.dataset.writeEnabled || '1') === '1';
   }
 
   function escapeHtml(value) {
@@ -175,11 +192,11 @@
     if (els.submeasureCostCenter.value.trim()) params.set('ccusto', els.submeasureCostCenter.value.trim());
     if (els.submeasureSupplier.value.trim()) params.set('fornecedor', els.submeasureSupplier.value.trim());
     params.set('only_open', els.submeasureOnlyOpen.checked ? '1' : '0');
-    return `/api/gr_autos_subempreitada/contratos?${params.toString()}`;
+    return `${apiBase()}/contratos?${params.toString()}`;
   }
 
   async function loadCompanies() {
-    const payload = await fetchJson('/api/gr_autos_subempreitada/empresas');
+    const payload = await fetchJson(`${apiBase()}/empresas`);
     state.companies = payload.rows || [];
     if (!state.companies.length) {
       els.submeasureCompany.innerHTML = '<option value="">Sem empresas PHC</option>';
@@ -206,7 +223,7 @@
   function renderContracts() {
     updateContractMetrics();
     if (!state.contracts.length) {
-      els.submeasureContractsBody.innerHTML = '<tr><td colspan="10" class="sz_table_cell sz_text_muted">Sem contratos para os filtros selecionados.</td></tr>';
+      els.submeasureContractsBody.innerHTML = `<tr><td colspan="10" class="sz_table_cell sz_text_muted">Sem ${escapeHtml(sourcePlural().toLowerCase())} para os filtros selecionados.</td></tr>`;
       return;
     }
     els.submeasureContractsBody.innerHTML = state.contracts.map((row) => {
@@ -215,7 +232,7 @@
         <tr data-bostamp="${escapeHtml(row.bostamp)}">
           <td>
             <div class="gr-submeasure-status">
-              <span class="gr-submeasure-doc">${escapeHtml(row.doc_name || 'Contrato')} nº ${escapeHtml(row.number)}</span>
+              <span class="gr-submeasure-doc">${escapeHtml(row.doc_name || sourceSingular())} nº ${escapeHtml(row.number)}</span>
               <span class="gr-submeasure-muted">${escapeHtml(row.year)}</span>
             </div>
           </td>
@@ -249,7 +266,7 @@
 
   async function loadContracts() {
     if (!selectedFeid()) return;
-    setLoading('A carregar contratos...', 10);
+    setLoading(`A carregar ${sourcePlural().toLowerCase()}...`, 10);
     try {
       const payload = await fetchJson(buildContractsUrl());
       state.contracts = payload.rows || [];
@@ -257,20 +274,20 @@
     } catch (error) {
       state.contracts = [];
       updateContractMetrics();
-      els.submeasureContractsBody.innerHTML = `<tr><td colspan="10" class="sz_table_cell sz_text_muted">${escapeHtml(error.message || 'Erro ao carregar contratos.')}</td></tr>`;
+      els.submeasureContractsBody.innerHTML = `<tr><td colspan="10" class="sz_table_cell sz_text_muted">${escapeHtml(error.message || `Erro ao carregar ${sourcePlural().toLowerCase()}.`)}</td></tr>`;
     }
   }
 
   function buildAutosUrl(bostamp) {
     const params = new URLSearchParams({ feid: selectedFeid(), bostamp });
-    return `/api/gr_autos_subempreitada/autos?${params.toString()}`;
+    return `${apiBase()}/autos?${params.toString()}`;
   }
 
   function buildAutoAttachmentUrl(attachment) {
     const stamp = String(attachment?.stamp || '').trim();
     if (!stamp) return '';
     const params = new URLSearchParams({ feid: selectedFeid(), anexosstamp: stamp });
-    return `/api/gr_autos_subempreitada/anexo?${params.toString()}`;
+    return `${apiBase()}/anexo?${params.toString()}`;
   }
 
   function renderAutosList(activeBostamp = '') {
@@ -282,11 +299,14 @@
     const active = activeBostamp || autos[0].bostamp;
     els.submeasureAutosList.innerHTML = autos.map((auto) => {
       const isActive = String(auto.bostamp || '') === String(active || '');
+      const sequence = Number(auto.contract_auto_number || 0) > 0
+        ? `Auto ${escapeHtml(sourceSingular().toLowerCase())} nº ${escapeHtml(auto.contract_auto_number)} · `
+        : '';
       return `
         <button type="button" class="gr-submeasure-auto-item${isActive ? ' is-active' : ''}" data-select-auto="${escapeHtml(auto.bostamp)}">
           <strong>${escapeHtml(auto.doc_name || 'Auto')} nº ${escapeHtml(auto.number)} / ${escapeHtml(auto.year)}</strong>
           <span>${escapeHtml(auto.date || '')} · ${escapeHtml(formatTotalMoney(auto.value, auto.currency))}</span>
-          <span>Auto contrato nº ${escapeHtml(auto.contract_auto_number || 0)} · ${escapeHtml(auto.closed ? 'Fechado' : 'Aberto')}${auto.attachment?.stamp ? ' · Anexo' : ''}</span>
+          <span>${sequence}${escapeHtml(auto.closed ? 'Fechado' : 'Aberto')}${auto.attachment?.stamp ? ' · Anexo' : ''}</span>
         </button>
       `;
     }).join('');
@@ -349,7 +369,7 @@
 
   async function openAutosModal(contractBostamp) {
     els.submeasureAutosModal.hidden = false;
-    els.submeasureAutosModalTitle.textContent = 'Autos do contrato';
+    els.submeasureAutosModalTitle.textContent = `Autos do ${sourceSingular().toLowerCase()}`;
     els.submeasureAutosModalMeta.textContent = 'A carregar...';
     els.submeasureAutosList.innerHTML = '<div class="gr-submeasure-empty">A carregar...</div>';
     renderAutoLines(null);
@@ -357,7 +377,7 @@
       const payload = await fetchJson(buildAutosUrl(contractBostamp));
       state.autosModal = payload;
       const contract = payload.contract || {};
-      els.submeasureAutosModalTitle.textContent = `${contract.doc_name || 'Contrato'} nº ${contract.number || ''} / ${contract.year || ''}`;
+      els.submeasureAutosModalTitle.textContent = `${contract.doc_name || sourceSingular()} nº ${contract.number || ''} / ${contract.year || ''}`;
       els.submeasureAutosModalMeta.textContent = `${contract.supplier_name || ''} · ${contract.cost_center || ''} · ${payload.company?.name || payload.company?.phc_db || ''}`;
       selectAuto((payload.autos || [])[0]?.bostamp || '');
     } catch (error) {
@@ -376,7 +396,7 @@
     if (!state.detail) return;
     const total = state.detail.lines.reduce((acc, line) => acc + lineDraftValue(line), 0);
     els.submeasureDetailDraft.textContent = formatTotalMoney(total);
-    els.submeasureDraftBtn.disabled = total <= 0;
+    els.submeasureDraftBtn.disabled = total <= 0 || !writeEnabled();
   }
 
   function resetLineDraft(line) {
@@ -491,12 +511,12 @@
 
   function renderLines() {
     if (!state.detail) {
-      els.submeasureLinesBody.innerHTML = '<tr><td colspan="11" class="sz_table_cell sz_text_muted">Escolhe um contrato.</td></tr>';
+      els.submeasureLinesBody.innerHTML = `<tr><td colspan="11" class="sz_table_cell sz_text_muted">Escolhe um ${escapeHtml(sourceSingular().toLowerCase())}.</td></tr>`;
       return;
     }
     const lines = state.detail.lines || [];
     if (!lines.length) {
-      els.submeasureLinesBody.innerHTML = '<tr><td colspan="11" class="sz_table_cell sz_text_muted">Contrato sem linhas.</td></tr>';
+      els.submeasureLinesBody.innerHTML = `<tr><td colspan="11" class="sz_table_cell sz_text_muted">${escapeHtml(sourceSingular())} sem linhas.</td></tr>`;
       return;
     }
     els.submeasureLinesBody.innerHTML = lines.map((line, index) => {
@@ -527,7 +547,7 @@
   function renderDetail() {
     const detail = state.detail;
     const contract = detail.contract;
-    els.submeasureSelectedTitle.textContent = `${contract.doc_name || 'Contrato'} nº ${contract.number} · ${contract.cost_center || ''}`;
+    els.submeasureSelectedTitle.textContent = `${contract.doc_name || sourceSingular()} nº ${contract.number} · ${contract.cost_center || ''}`;
     els.submeasureSelectedMeta.textContent = `${contract.supplier_name || ''} · ${contract.date || ''} · ${detail.company.name || detail.company.phc_db}`;
     els.submeasureDetailContracted.textContent = formatTotalMoney(contract.contract_value, contract.currency);
     els.submeasureDetailExecuted.textContent = formatTotalMoney(contract.executed_value, contract.currency);
@@ -544,7 +564,7 @@
     }
     const params = new URLSearchParams({ feid: selectedFeid(), bostamp });
     try {
-      const payload = await fetchJson(`/api/gr_autos_subempreitada/contrato?${params.toString()}`);
+      const payload = await fetchJson(`${apiBase()}/contrato?${params.toString()}`);
       state.detail = payload;
       state.detail.lines = (state.detail.lines || []).map((line) => ({
         ...line,
@@ -555,7 +575,7 @@
       renderDetail();
     } catch (error) {
       state.detail = null;
-      els.submeasureLinesBody.innerHTML = `<tr><td colspan="11" class="sz_table_cell sz_text_muted">${escapeHtml(error.message || 'Erro ao carregar contrato.')}</td></tr>`;
+      els.submeasureLinesBody.innerHTML = `<tr><td colspan="11" class="sz_table_cell sz_text_muted">${escapeHtml(error.message || `Erro ao carregar ${sourceSingular().toLowerCase()}.`)}</td></tr>`;
     }
   }
 
@@ -603,7 +623,7 @@
   }
 
   async function saveMeasurement() {
-    if (!state.detail || els.submeasureDraftBtn.disabled) return;
+    if (!state.detail || els.submeasureDraftBtn.disabled || !writeEnabled()) return;
     if (!els.submeasureAutoDate.value) {
       window.alert('Indique a data do auto.');
       els.submeasureAutoDate.focus();
@@ -622,7 +642,7 @@
     const label = els.submeasureDraftBtn.querySelector('span');
     if (label) label.textContent = 'A gravar...';
     try {
-      const payload = await postJson('/api/gr_autos_subempreitada/autos', {
+      const payload = await postJson(`${apiBase()}/autos`, {
         feid: selectedFeid(),
         bostamp: state.detail.contract.bostamp,
         data_auto: els.submeasureAutoDate.value,

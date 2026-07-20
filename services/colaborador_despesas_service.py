@@ -269,6 +269,8 @@ def ensure_colaborador_despesas_schema() -> None:
                     CONSTRAINT DF_COLAB_DESPESA_LINHA_VIATURA DEFAULT '',
                 OBS nvarchar(100) NOT NULL
                     CONSTRAINT DF_COLAB_DESPESA_LINHA_OBS DEFAULT N'',
+                DEVOLUCAO_OBS nvarchar(500) NOT NULL
+                    CONSTRAINT DF_COLAB_DESPESA_LINHA_DEVOLUCAO_OBS DEFAULT N'',
                 REF varchar(50) NOT NULL
                     CONSTRAINT DF_COLAB_DESPESA_LINHA_REF DEFAULT '',
                 DESIGN nvarchar(200) NOT NULL
@@ -402,6 +404,14 @@ def ensure_colaborador_despesas_schema() -> None:
             ALTER TABLE dbo.COLAB_DESPESA_LINHA
             ADD PAGO_CARTAO_CREDITO bit NOT NULL
                 CONSTRAINT DF_COLAB_DESPESA_LINHA_CARTAO DEFAULT 0;
+        END
+    """))
+    db.session.execute(text("""
+        IF COL_LENGTH('dbo.COLAB_DESPESA_LINHA', 'DEVOLUCAO_OBS') IS NULL
+        BEGIN
+            ALTER TABLE dbo.COLAB_DESPESA_LINHA
+            ADD DEVOLUCAO_OBS nvarchar(500) NOT NULL
+                CONSTRAINT DF_COLAB_DESPESA_LINHA_DEVOLUCAO_OBS DEFAULT N'';
         END
     """))
     db.session.execute(text("""
@@ -984,6 +994,7 @@ def serialize_line(row: dict[str, Any]) -> dict[str, Any]:
         'kms': float(row.get('KMS') or 0),
         'viatura': str(row.get('VIATURA') or '').strip(),
         'obs': str(row.get('OBS') or '').strip(),
+        'devolucao_obs': str(row.get('DEVOLUCAO_OBS') or '').strip(),
         'ref': str(row.get('REF') or '').strip(),
         'design': str(row.get('DESIGN') or '').strip(),
         'ccusto': str(row.get('CCUSTO') or '').strip(),
@@ -2145,6 +2156,62 @@ def delete_expense_line(user, line_stamp: str) -> dict[str, Any]:
     return {'ok': True, 'stamp': stamp}
 
 
+def delete_expense_processing_line(line_stamp: str, user) -> dict[str, Any]:
+    """Soft-delete an unposted expense from the administrative processing queue."""
+    ensure_colaborador_despesas_schema()
+    stamp = str(line_stamp or '').strip()
+    if not stamp:
+        raise ValueError('Despesa inválida.')
+
+    login = str(getattr(user, 'LOGIN', '') or getattr(user, 'login', '') or '').strip()
+    result = db.session.execute(text("""
+        UPDATE dbo.COLAB_DESPESA_LINHA
+        SET ANULADA = 1,
+            ESTADO = 'ANULADA',
+            DTALT = GETDATE(),
+            USERALTERACAO = :login
+        WHERE DESPLINHASTAMP = :stamp
+          AND ISNULL(ANULADA, 0) = 0
+          AND UPPER(LTRIM(RTRIM(ISNULL(ESTADO, '')))) = 'FECHADO'
+          AND LTRIM(RTRIM(ISNULL(PHC_BOSTAMP, ''))) = ''
+    """), {'stamp': stamp, 'login': login})
+    if result.rowcount == 0:
+        raise ValueError('A despesa não está disponível para eliminar.')
+    db.session.commit()
+    return {'ok': True, 'stamp': stamp, 'estado': 'ANULADA'}
+
+
+def return_expense_from_processing(line_stamp: str, observation: str, user) -> dict[str, Any]:
+    """Return an unposted expense to the collaborator for review and validation."""
+    ensure_colaborador_despesas_schema()
+    stamp = str(line_stamp or '').strip()
+    if not stamp:
+        raise ValueError('Despesa inválida.')
+    observation = str(observation or '').strip()
+    if not observation:
+        raise ValueError('Indique uma observação para devolver a despesa.')
+    if len(observation) > 500:
+        raise ValueError('A observação não pode ultrapassar 500 caracteres.')
+
+    login = str(getattr(user, 'LOGIN', '') or getattr(user, 'login', '') or '').strip()
+    result = db.session.execute(text("""
+        UPDATE dbo.COLAB_DESPESA_LINHA
+        SET ANULADA = 0,
+            ESTADO = 'RASCUNHO',
+            DEVOLUCAO_OBS = :observation,
+            DTALT = GETDATE(),
+            USERALTERACAO = :login
+        WHERE DESPLINHASTAMP = :stamp
+          AND ISNULL(ANULADA, 0) = 0
+          AND UPPER(LTRIM(RTRIM(ISNULL(ESTADO, '')))) = 'FECHADO'
+          AND LTRIM(RTRIM(ISNULL(PHC_BOSTAMP, ''))) = ''
+    """), {'stamp': stamp, 'login': login, 'observation': observation})
+    if result.rowcount == 0:
+        raise ValueError('A despesa não está disponível para devolver ao colaborador.')
+    db.session.commit()
+    return {'ok': True, 'stamp': stamp, 'estado': 'RASCUNHO'}
+
+
 def close_expense_line(user, line_stamp: str) -> dict[str, Any]:
     ensure_colaborador_despesas_schema()
     colaborador = get_colaborador_context(user)
@@ -2152,6 +2219,7 @@ def close_expense_line(user, line_stamp: str) -> dict[str, Any]:
     result = db.session.execute(text(f"""
         UPDATE L
         SET ESTADO = 'FECHADO',
+            DEVOLUCAO_OBS = N'',
             DTALT = GETDATE(),
             USERALTERACAO = :login
         FROM dbo.COLAB_DESPESA_LINHA L

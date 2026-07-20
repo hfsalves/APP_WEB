@@ -997,6 +997,8 @@ body:not(.authenticated) .main-content {
   box-shadow: none;
   padding: 0.35rem 0.2rem;
   font-size: 1rem;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 .input-with-icon .form-control:focus {
   outline: none;
@@ -1004,6 +1006,31 @@ body:not(.authenticated) .main-content {
 }
 .input-with-icon .login-password-mask {
   -webkit-text-security: disc;
+}
+.input-with-icon .login-password-mask.is-password-visible {
+  -webkit-text-security: none;
+}
+.login-password-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 2.1rem;
+  height: 2.1rem;
+  border: 0;
+  border-radius: 10px;
+  color: #475569;
+  background: transparent;
+  cursor: pointer;
+}
+.login-password-toggle:hover,
+.login-password-toggle:focus {
+  color: #0f172a;
+  background: rgba(148, 163, 184, 0.16);
+  outline: none;
+}
+.login-password-toggle i {
+  pointer-events: none;
 }
 .login-card .btn-primary {
   display: inline-flex;

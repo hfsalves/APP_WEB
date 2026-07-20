@@ -1,6 +1,16 @@
 {% extends "base.html" %}
+{% set ui_screen_title = screen_title|default('Autos de Subempreitada') %}
+{% set ui_breadcrumb = screen_breadcrumb|default('GR360 / SITUATIONS DE TRAVAUX FOURNISSEURS') %}
+{% set ui_source_plural = source_plural|default('Contratos') %}
+{% set ui_source_singular = source_singular|default('Contrato') %}
+{% set ui_source_total_label = source_total_label|default('Total contratado') %}
+{% set ui_source_value_label = source_value_label|default('Contratado') %}
+{% set ui_party_label = party_label|default('Fornecedor') %}
+{% set ui_party_placeholder = party_placeholder|default('Nome ou numero') %}
+{% set ui_api_base = api_base|default('/api/gr_autos_subempreitada') %}
+{% set ui_write_enabled = write_enabled|default(true) %}
 
-{% block title %}Autos de Subempreitada{% endblock %}
+{% block title %}{{ ui_screen_title }}{% endblock %}
 
 {% block extra_head %}
   {{ super() }}
@@ -8,12 +18,20 @@
 {% endblock %}
 
 {% block content %}
-<div class="sz_page gr-submeasure-page" id="grSubmeasurePage">
+<div
+  class="sz_page gr-submeasure-page"
+  id="grSubmeasurePage"
+  data-api-base="{{ ui_api_base }}"
+  data-source-singular="{{ ui_source_singular }}"
+  data-source-plural="{{ ui_source_plural }}"
+  data-party-label="{{ ui_party_label }}"
+  data-write-enabled="{{ '1' if ui_write_enabled else '0' }}"
+>
   <div class="sz_page_container gr-submeasure-shell">
     <header class="sz_contextbar sz_page_contextbar gr-submeasure-contextbar">
       <div class="sz_contextbar_left">
-        <div class="sz_page_title">Autos de Subempreitada</div>
-        <div class="sz_breadcrumbs">GR360 / SITUATIONS DE TRAVAUX FOURNISSEURS</div>
+        <div class="sz_page_title">{{ ui_screen_title }}</div>
+        <div class="sz_breadcrumbs">{{ ui_breadcrumb }}</div>
       </div>
       <div class="sz_contextbar_right">
         <div class="gr-submeasure-filters">
@@ -34,8 +52,8 @@
             <input id="submeasureCostCenter" class="sz_input" type="search" placeholder="Centro de custo">
           </div>
           <div class="sz_field gr-submeasure-filter-text">
-            <label class="sz_label" for="submeasureSupplier">Fornecedor</label>
-            <input id="submeasureSupplier" class="sz_input" type="search" placeholder="Nome ou numero">
+            <label class="sz_label" for="submeasureSupplier">{{ ui_party_label }}</label>
+            <input id="submeasureSupplier" class="sz_input" type="search" placeholder="{{ ui_party_placeholder }}">
           </div>
           <label class="gr-submeasure-check">
             <input id="submeasureOnlyOpen" type="checkbox" checked>
@@ -50,19 +68,19 @@
     </header>
 
     <section class="sz_page_body gr-submeasure-body">
-      <div class="gr-submeasure-tabs" role="tablist" aria-label="Autos de subempreitada">
-        <button id="submeasureContractsTab" class="gr-submeasure-tab is-active" type="button" data-view="contracts">Contratos</button>
+      <div class="gr-submeasure-tabs" role="tablist" aria-label="{{ ui_screen_title }}">
+        <button id="submeasureContractsTab" class="gr-submeasure-tab is-active" type="button" data-view="contracts">{{ ui_source_plural }}</button>
         <button id="submeasureMeasurementTab" class="gr-submeasure-tab" type="button" data-view="measurement" disabled>Medição</button>
       </div>
 
       <section id="submeasureContractsView" class="gr-submeasure-view is-active">
         <div class="gr-submeasure-summary">
           <div class="gr-submeasure-metric">
-            <span>Contratos</span>
+            <span>{{ ui_source_plural }}</span>
             <strong id="submeasureMetricContracts">0</strong>
           </div>
           <div class="gr-submeasure-metric">
-            <span>Total contratado</span>
+            <span>{{ ui_source_total_label }}</span>
             <strong id="submeasureMetricContracted">0,00 EUR</strong>
           </div>
           <div class="gr-submeasure-metric">
@@ -80,11 +98,11 @@
             <table class="sz_table gr-submeasure-contracts-table">
               <thead class="sz_table_head">
                 <tr>
-                  <th>Contrato</th>
+                  <th>{{ ui_source_singular }}</th>
                   <th>Data</th>
                   <th>Obra</th>
-                  <th>Fornecedor</th>
-                  <th class="sz_text_right">Contratado</th>
+                  <th>{{ ui_party_label }}</th>
+                  <th class="sz_text_right">{{ ui_source_value_label }}</th>
                   <th class="sz_text_right">Executado</th>
                   <th class="sz_text_right">Falta</th>
                   <th class="sz_text_right">%</th>
@@ -104,10 +122,10 @@
         <div class="gr-submeasure-measure-head">
           <button id="submeasureBackBtn" type="button" class="sz_button sz_button_secondary">
             <i class="fa-solid fa-arrow-left"></i>
-            <span>Contratos</span>
+            <span>{{ ui_source_plural }}</span>
           </button>
           <div class="gr-submeasure-selected">
-            <strong id="submeasureSelectedTitle">Contrato</strong>
+            <strong id="submeasureSelectedTitle">{{ ui_source_singular }}</strong>
             <span id="submeasureSelectedMeta"></span>
           </div>
           <div class="gr-submeasure-measure-actions">
@@ -136,7 +154,7 @@
 
         <div class="gr-submeasure-summary">
           <div class="gr-submeasure-metric">
-            <span>Contrato</span>
+            <span>{{ ui_source_singular }}</span>
             <strong id="submeasureDetailContracted">0,00 EUR</strong>
           </div>
           <div class="gr-submeasure-metric">
@@ -161,7 +179,7 @@
                   <th>Ref.</th>
                   <th>Descricao</th>
                   <th class="gr-submeasure-unit-col">Un.</th>
-                  <th class="sz_text_right">Qtd. contrato</th>
+                  <th class="sz_text_right">Qtd. {{ ui_source_singular|lower }}</th>
                   <th class="sz_text_right">Qtd. exec.</th>
                   <th class="sz_text_right">Qtd. falta</th>
                   <th class="sz_text_right">P. unit.</th>
@@ -172,7 +190,7 @@
                 </tr>
               </thead>
               <tbody id="submeasureLinesBody">
-                <tr><td colspan="11" class="sz_table_cell sz_text_muted">Escolhe um contrato.</td></tr>
+                <tr><td colspan="11" class="sz_table_cell sz_text_muted">Escolhe um {{ ui_source_singular|lower }}.</td></tr>
               </tbody>
             </table>
           </div>
@@ -186,7 +204,7 @@
     <section class="gr-submeasure-modal-panel" role="dialog" aria-modal="true" aria-labelledby="submeasureAutosModalTitle">
       <header class="gr-submeasure-modal-head">
         <div>
-          <strong id="submeasureAutosModalTitle">Autos do contrato</strong>
+          <strong id="submeasureAutosModalTitle">Autos do {{ ui_source_singular|lower }}</strong>
           <span id="submeasureAutosModalMeta"></span>
         </div>
         <button id="submeasureAutosModalClose" type="button" class="sz_button sz_button_secondary" aria-label="Fechar">

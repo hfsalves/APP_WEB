@@ -72,6 +72,15 @@
             autocorrect="off"
             spellcheck="false"
           >
+          <button
+            type="button"
+            class="login-password-toggle"
+            id="loginPasswordToggle"
+            aria-label="{{ _('login.show_password') }}"
+            title="{{ _('login.show_password') }}"
+          >
+            <i class="fa-solid fa-eye"></i>
+          </button>
         </div>
       </div>
       <button type="submit" class="btn btn-primary w-100">
@@ -109,8 +118,26 @@
   (function () {
     const form = document.querySelector('form.login-form');
     const maskedPassword = document.getElementById('loginPasswordMasked');
+    const passwordToggle = document.getElementById('loginPasswordToggle');
     const submitButton = form ? form.querySelector('button[type="submit"]') : null;
     if (!form || !maskedPassword || !window.fetch) return;
+
+    if (passwordToggle) {
+      const showLabel = {{ _('login.show_password')|tojson }};
+      const hideLabel = {{ _('login.hide_password')|tojson }};
+      passwordToggle.addEventListener('click', function () {
+        const isVisible = maskedPassword.classList.toggle('is-password-visible');
+        const label = isVisible ? hideLabel : showLabel;
+        passwordToggle.setAttribute('aria-label', label);
+        passwordToggle.setAttribute('title', label);
+        const icon = passwordToggle.querySelector('i');
+        if (icon) {
+          icon.classList.toggle('fa-eye', !isVisible);
+          icon.classList.toggle('fa-eye-slash', isVisible);
+        }
+        maskedPassword.focus();
+      });
+    }
 
     form.addEventListener('submit', async function (event) {
       event.preventDefault();

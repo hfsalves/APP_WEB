@@ -228,6 +228,28 @@
     will-change: transform;
   }
 
+  .expense-line-card.has-return-note .expense-line-content {
+    border-radius: var(--sz-radius-md) var(--sz-radius-md) 0 0;
+  }
+
+  .expense-line-return-note {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    padding: .52rem var(--sz-space-3);
+    color: #fff;
+    background: var(--sz-color-warning, #f59e0b);
+    font-size: var(--sz-font-size-sm);
+    font-weight: var(--sz-font-weight-semibold);
+    line-height: 1.35;
+  }
+
+  .expense-line-return-note i {
+    flex: 0 0 auto;
+  }
+
   .expense-line-content::after {
     content: '';
     position: absolute;
@@ -931,7 +953,8 @@
       clearAutoSave(card);
       card.dataset.estado = 'FECHADO';
       card.classList.add('is-closed');
-      card.classList.remove('is-delete-open', 'is-save-error', 'is-saving', 'is-saved');
+      card.classList.remove('is-delete-open', 'is-save-error', 'is-saving', 'is-saved', 'has-return-note');
+      card.querySelector('.expense-line-return-note')?.remove();
       card.querySelectorAll('input, select, textarea').forEach((field) => {
         field.disabled = true;
       });
@@ -1237,6 +1260,7 @@
       const savedType = saved.tipo || '';
       const savedCompany = String(saved.feid || defaultCompanyFeid || '');
       const savedObs = String(saved.obs || '').slice(0, 100);
+      const savedReturnObservation = String(saved.devolucao_obs || '').trim();
       const savedPaidWithCompanyCard = Boolean(saved.pago_cartao_credito);
       const savedVehicle = saved.viatura || '';
       const savedValor = Number(saved.valor || 0) > 0 ? String(saved.valor) : '';
@@ -1244,6 +1268,7 @@
       const savedFileName = saved.file_original || saved.file_name || '';
       const photoText = hasFile ? file.name : (savedFileName || (mode === 'photo' ? translateExpense('colab_expenses.photo_classify') : translateExpense('colab_expenses.missing_photo')));
       const hasSavedFile = !!savedFileName;
+      if (savedReturnObservation) card.classList.add('has-return-note');
       card.innerHTML = `
         <button type="button" class="expense-line-validate" data-expense-validate aria-label="${escapeHtml(translateExpense('colab_expenses.validate'))}">
           <i class="fa-solid fa-check"></i>
@@ -1316,6 +1341,12 @@
             </div>
           </div>
         </div>
+        ${savedReturnObservation ? `
+          <div class="expense-line-return-note" role="status">
+            <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
+            <span>${escapeHtml(savedReturnObservation)}</span>
+          </div>
+        ` : ''}
       `;
       linesHost.insertBefore(card, addCard || null);
       const photoZone = card.querySelector('.expense-line-photo');

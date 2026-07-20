@@ -79,7 +79,7 @@
   .vacation-approval-legend { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; margin-bottom: var(--sz-space-3); color: var(--sz-color-text-muted); font-size: .82rem; }
   .vacation-approval-legend span { display: inline-flex; align-items: center; gap: .35rem; }
   .legend-swatch { width: .75rem; height: .75rem; display: inline-block; border: 1px solid var(--sz-color-border); border-radius: 2px; }
-  .legend-swatch.is-approved { background: var(--sz-color-primary); border-color: var(--sz-color-primary); }
+  .legend-swatch.is-approved { background: var(--sz-color-success, #22c55e); border-color: var(--sz-color-success, #22c55e); }
   .legend-swatch.is-pending { background: color-mix(in srgb, var(--sz-color-primary) 42%, var(--sz-color-surface)); border-color: color-mix(in srgb, var(--sz-color-primary) 68%, var(--sz-color-border)); }
   .legend-swatch.is-weekend { background: color-mix(in srgb, var(--sz-color-text-muted) 28%, var(--sz-color-surface)); }
   .legend-swatch.is-holiday { background: color-mix(in srgb, var(--sz-color-danger) 36%, var(--sz-color-surface)); border-color: color-mix(in srgb, var(--sz-color-danger) 68%, var(--sz-color-border)); }
@@ -98,7 +98,7 @@
   .vacation-grid td { color: var(--sz-color-text); background: transparent; }
   .vacation-grid td.is-weekend, .vacation-grid th.is-weekend { background: color-mix(in srgb, var(--sz-color-text-muted) 23%, var(--sz-color-surface)); }
   .vacation-grid td.is-holiday { background: color-mix(in srgb, var(--sz-color-danger) 28%, var(--sz-color-surface)); }
-  .vacation-grid td.is-approved { background: var(--sz-color-primary); color: var(--sz-color-surface); }
+  .vacation-grid td.is-approved { background: var(--sz-color-success, #22c55e); color: var(--sz-color-surface); }
   .vacation-grid td.is-pending { background: color-mix(in srgb, var(--sz-color-primary) 43%, var(--sz-color-surface)); color: var(--sz-color-text); }
   .vacation-grid td.is-removal-pending { background: color-mix(in srgb, var(--sz-color-warning, #f59e0b) 38%, var(--sz-color-surface)); color: var(--sz-color-text); }
   .vacation-grid td.vacation-action-cell:not(.is-weekend):not(.is-holiday) { cursor: pointer; }
