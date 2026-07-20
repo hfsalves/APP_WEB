@@ -352,6 +352,13 @@
     display: none;
   }
 
+  .expense-line-card:not(.is-collapsed) .expense-line-validate,
+  .expense-line-card:not(.is-collapsed) .expense-line-delete,
+  .expense-line-card:not(.is-action-ready) .expense-line-validate,
+  .expense-line-card:not(.is-action-ready) .expense-line-delete {
+    display: none;
+  }
+
   .expense-line-card.is-closed .expense-line-photo,
   .expense-line-card.is-closed input,
   .expense-line-card.is-closed select,
@@ -378,6 +385,59 @@
 
   .expense-line-card.is-closed .expense-line-lock {
     display: inline-flex;
+  }
+
+  @media (min-width: 641px) {
+    .expense-line-card {
+      background: var(--sz-color-surface);
+    }
+
+    .expense-line-card.is-delete-open .expense-line-content {
+      transform: none;
+    }
+
+        .expense-line-card.is-collapsed .expense-line-content {
+            padding-right: 7.4rem;
+        }
+
+    .expense-line-validate,
+    .expense-line-delete {
+      z-index: 2;
+      inset-block: auto;
+      top: var(--sz-space-3);
+      width: 2.45rem;
+      height: 2.45rem;
+      border: 1px solid var(--sz-color-border);
+      border-radius: var(--sz-radius-sm);
+      flex-direction: row;
+      color: var(--sz-color-text);
+      background: var(--sz-color-surface-alt);
+    }
+
+    .expense-line-validate {
+      right: var(--sz-space-3);
+      color: var(--sz-color-success, #22c55e);
+      border-color: color-mix(in srgb, var(--sz-color-success, #22c55e) 52%, var(--sz-color-border));
+    }
+
+    .expense-line-delete {
+      right: calc(var(--sz-space-3) + 2.85rem);
+      color: var(--sz-color-danger, #ef4444);
+      border-color: color-mix(in srgb, var(--sz-color-danger, #ef4444) 52%, var(--sz-color-border));
+    }
+
+    .expense-line-validate:hover {
+      background: color-mix(in srgb, var(--sz-color-success, #22c55e) 12%, var(--sz-color-surface));
+    }
+
+    .expense-line-delete:hover {
+      background: color-mix(in srgb, var(--sz-color-danger, #ef4444) 12%, var(--sz-color-surface));
+    }
+
+    .expense-line-validate span,
+    .expense-line-delete span {
+      display: none;
+    }
   }
 
   @keyframes expenseAutoCollapse {
@@ -849,6 +909,10 @@
       if (isClosedCard(card)) metaParts.push(translateExpense('colab_expenses.locked'));
       if (meta) meta.textContent = metaParts.join(' · ');
       renderSummaryThumb(card);
+      card.classList.toggle(
+        'is-action-ready',
+        !isClosedCard(card) && !!card.dataset.lineStamp && isCardComplete(card)
+      );
     }
 
     function setPhotoZoneFile(photoZone, file) {
@@ -1207,7 +1271,7 @@
 
       content.addEventListener('pointerdown', (event) => {
         if (event.button !== 0) return;
-        if (isClosedCard(card)) return;
+        if (isClosedCard(card) || !card.classList.contains('is-collapsed')) return;
         if (event.target.closest('input, select, textarea, button, a, .expense-line-photo')) return;
         clearAutoCollapse(card);
         pointerId = event.pointerId;
@@ -1276,11 +1340,11 @@
       const hasSavedFile = !!savedFileName;
       if (savedReturnObservation) card.classList.add('has-return-note');
       card.innerHTML = `
-        <button type="button" class="expense-line-validate" data-expense-validate aria-label="${escapeHtml(translateExpense('colab_expenses.validate'))}">
+        <button type="button" class="expense-line-validate" data-expense-validate aria-label="${escapeHtml(translateExpense('colab_expenses.validate'))}" title="${escapeHtml(translateExpense('colab_expenses.validate'))}">
           <i class="fa-solid fa-check"></i>
           <span>${escapeHtml(translateExpense('colab_expenses.validate'))}</span>
         </button>
-        <button type="button" class="expense-line-delete" data-expense-delete aria-label="${escapeHtml(translateExpense('colab_expenses.delete'))}">
+        <button type="button" class="expense-line-delete" data-expense-delete aria-label="${escapeHtml(translateExpense('colab_expenses.delete'))}" title="${escapeHtml(translateExpense('colab_expenses.delete'))}">
           <i class="fa-solid fa-trash"></i>
           <span>${escapeHtml(translateExpense('colab_expenses.delete'))}</span>
         </button>
