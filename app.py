@@ -25945,22 +25945,6 @@ def create_app():
             {'value': 'VOITURES', 'label': 'VOITURES'},
         ]
         try:
-            from modules.gr_workshop.service import list_vehicles
-            expense_vehicles = list_vehicles(limit=100)
-            excluded_expense_plates = {'24-ZF-99'}
-            expense_vehicles = [
-                vehicle for vehicle in expense_vehicles
-                if str(
-                    vehicle.get('MATRICULA')
-                    or vehicle.get('value')
-                    or vehicle.get('matricula')
-                    or ''
-                ).strip().upper() not in excluded_expense_plates
-            ]
-        except Exception:
-            app.logger.exception('Erro ao carregar viaturas para despesas.')
-            expense_vehicles = []
-        try:
             expense_companies = list_expense_companies()
         except Exception:
             app.logger.exception('Erro ao carregar empresas para despesas.')
@@ -25971,7 +25955,6 @@ def create_app():
             page_title='Despesas',
             colaborador=colaborador,
             expense_types=expense_types,
-            expense_vehicles=expense_vehicles,
             expense_companies=expense_companies,
             expense_draft=expense_draft,
             today=date.today().isoformat(),
@@ -26384,6 +26367,19 @@ def create_app():
     @app.route('/api/colaborador/despesas/processamento/viaturas')
     @login_required
     def api_colaborador_despesas_processamento_viaturas():
+        from services.colaborador_despesas_service import search_expense_vehicles
+
+        try:
+            rows = search_expense_vehicles(request.args.get('q', ''))
+            return jsonify({'ok': True, 'rows': rows})
+        except Exception:
+            db.session.rollback()
+            app.logger.exception('Erro ao pesquisar viaturas para despesas.')
+            return jsonify({'ok': False, 'rows': [], 'error': 'Erro ao pesquisar viaturas.'}), 500
+
+    @app.route('/api/colaborador/despesas/viaturas')
+    @login_required
+    def api_colaborador_despesas_viaturas():
         from services.colaborador_despesas_service import search_expense_vehicles
 
         try:

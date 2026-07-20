@@ -595,6 +595,16 @@
     display: none;
   }
 
+  .expense-vehicle-lookup {
+    position: relative;
+  }
+
+  .expense-vehicle-lookup .sz_table_lookup_dropdown {
+    width: 100%;
+    max-height: 15rem;
+    overflow-y: auto;
+  }
+
   .expense-payment-toggle {
     display: flex;
     align-items: center;
@@ -741,7 +751,6 @@
 <script>
   window.COLLAB_EXPENSE_CONTEXT = {{ colaborador|tojson }};
   window.COLLAB_EXPENSE_TYPES = {{ expense_types|tojson }};
-  window.COLLAB_EXPENSE_VEHICLES = {{ expense_vehicles|tojson }};
   window.COLLAB_EXPENSE_COMPANIES = {{ expense_companies|tojson }};
   window.COLLAB_EXPENSE_DRAFT = {{ expense_draft|tojson }};
   window.COLLAB_EXPENSE_TODAY = {{ today|tojson }};
@@ -892,12 +901,12 @@
       const amountInput = card.querySelector('[data-expense-value]');
       const companySelect = card.querySelector('[data-expense-company]');
       const kmsInput = card.querySelector('[data-expense-kms]');
-      const vehicleSelect = card.querySelector('[data-expense-vehicle]');
+      const vehicleInput = card.querySelector('[data-expense-vehicle]');
       const title = card.querySelector('[data-summary-title]');
       const meta = card.querySelector('[data-summary-meta]');
       const typeLabel = typeSelect?.selectedOptions?.[0]?.textContent?.trim();
       const companyLabel = companySelect?.selectedOptions?.[0]?.textContent?.trim();
-      const vehicleLabel = vehicleSelect?.selectedOptions?.[0]?.textContent?.trim();
+      const vehicleLabel = vehicleInput?.value?.trim();
       if (title) title.textContent = typeSelect?.value ? typeLabel : translateExpense('colab_expenses.card_incomplete');
       const metaParts = [
         formatDate(dateInput?.value),
@@ -905,7 +914,7 @@
       ];
       if (companySelect?.value && companyLabel) metaParts.push(companyLabel);
       if (kmsInput?.value) metaParts.push(`${kmsInput.value} kms`);
-      if (vehicleSelect?.value && vehicleLabel) metaParts.push(vehicleLabel);
+      if (vehicleInput?.value && vehicleLabel) metaParts.push(vehicleLabel);
       if (isClosedCard(card)) metaParts.push(translateExpense('colab_expenses.locked'));
       if (meta) meta.textContent = metaParts.join(' · ');
       renderSummaryThumb(card);
@@ -1068,19 +1077,6 @@
       ].join('');
     }
 
-    function vehicleOptions(selectedValue = '') {
-      const rows = Array.isArray(window.COLLAB_EXPENSE_VEHICLES) ? window.COLLAB_EXPENSE_VEHICLES : [];
-      return [
-        `<option value=""${selectedValue ? '' : ' selected'}>${escapeHtml(translateExpense('colab_expenses.select_vehicle'))}</option>`,
-        ...rows.map((row) => {
-          const value = row.MATRICULA || row.value || '';
-          const label = row.LABEL || row.label || row.MATRICULA || row.value || '';
-          const selected = String(value) === String(selectedValue || '') ? ' selected' : '';
-          return `<option value="${escapeHtml(value)}"${selected}>${escapeHtml(label)}</option>`;
-        })
-      ].join('');
-    }
-
     function companyOptions(selectedValue = '') {
       const rows = Array.isArray(window.COLLAB_EXPENSE_COMPANIES) ? window.COLLAB_EXPENSE_COMPANIES : [];
       const current = String(selectedValue || defaultCompanyFeid || '');
@@ -1099,19 +1095,75 @@
       const typeSelect = card.querySelector('[data-expense-type]');
       const vehicleFields = card.querySelector('[data-vehicle-fields]');
       const kmsInput = card.querySelector('[data-expense-kms]');
-      const vehicleSelect = card.querySelector('[data-expense-vehicle]');
+      const vehicleInput = card.querySelector('[data-expense-vehicle]');
       const sync = () => {
         const selectedType = String(typeSelect?.value || '').trim().toUpperCase();
         const shouldShow = vehicleExpenseTypes.has(selectedType);
         if (vehicleFields) vehicleFields.hidden = !shouldShow;
         if (!shouldShow) {
           if (kmsInput) kmsInput.value = '';
-          if (vehicleSelect) vehicleSelect.value = '';
+          if (vehicleInput) vehicleInput.value = '';
         }
         refreshSummary(card);
       };
       typeSelect?.addEventListener('change', sync);
       sync();
+    }
+
+    function wireVehicleLookup(card) {
+      const input = card?.querySelector('[data-expense-vehicle]');
+      const lookup = input?.closest('.expense-vehicle-lookup');
+      const menu = lookup?.querySelector('.sz_table_lookup_dropdown');
+      if (!input || !menu) return;
+
+      const close = () => {
+        menu.hidden = true;
+        menu.replaceChildren();
+      };
+      const search = async () => {
+        const term = String(input.value || '').trim();
+        close();
+        if (!term) return;
+        try {
+          const response = await fetch(`/api/colaborador/despesas/viaturas?${new URLSearchParams({ q: term }).toString()}`, {
+            credentials: 'same-origin',
+          });
+          const result = await response.json().catch(() => ({}));
+          const rows = Array.isArray(result.rows) ? result.rows : [];
+          if (!response.ok || !result.ok) throw new Error(result.error || '');
+          if (!rows.length) return;
+          menu.innerHTML = rows.map((row, index) => {
+            const detail = [row.marca, row.modelo, row.nofrota].filter(Boolean).join(' · ');
+            return `<button type="button" class="sz_table_lookup_item${index === 0 ? ' is-active' : ''}" data-vehicle-index="${index}">
+              <span class="sz_table_lookup_item_label">${escapeHtml(row.matricula || '')}</span>
+              <span class="sz_table_lookup_item_value">${escapeHtml(detail)}</span>
+            </button>`;
+          }).join('');
+          menu.hidden = false;
+          menu.querySelectorAll('[data-vehicle-index]').forEach((button) => {
+            button.addEventListener('mousedown', (event) => {
+              event.preventDefault();
+              const row = rows[Number(button.dataset.vehicleIndex || 0)] || {};
+              input.value = row.matricula || '';
+              close();
+              refreshSummary(card);
+              scheduleAutoSave(card);
+              scheduleAutoCollapse(card);
+            });
+          });
+        } catch (error) {
+          console.error('Erro ao pesquisar viaturas para despesas.', error);
+        }
+      };
+
+      input.addEventListener('input', () => {
+        window.clearTimeout(input._vehicleSearchTimer);
+        input._vehicleSearchTimer = window.setTimeout(search, 220);
+      });
+      input.addEventListener('blur', () => window.setTimeout(close, 160));
+      document.addEventListener('pointerdown', (event) => {
+        if (!lookup.contains(event.target)) close();
+      });
     }
 
     function setActiveCard(card) {
@@ -1403,9 +1455,10 @@
                 </label>
                 <label class="sz_field">
                   <span class="sz_label">${escapeHtml(translateExpense('colab_expenses.vehicle'))}</span>
-                  <select class="sz_select" data-expense-vehicle>
-                    ${vehicleOptions(savedVehicle)}
-                  </select>
+                  <div class="expense-vehicle-lookup sz_table_lookup">
+                    <input class="sz_input" type="search" value="${escapeHtml(savedVehicle)}" placeholder="${escapeHtml(translateExpense('colab_expenses.select_vehicle'))}" autocomplete="off" data-expense-vehicle>
+                    <div class="sz_table_lookup_dropdown" hidden></div>
+                  </div>
                 </label>
               </div>
             </div>
@@ -1423,6 +1476,7 @@
       if (hasFile && photoZone) setPhotoZoneFile(photoZone, file);
       if (hasSavedFile && photoZone) applySavedFile(card, photoZone, saved);
       wireVehicleVisibility(card);
+      wireVehicleLookup(card);
       card.querySelectorAll('input, select, textarea').forEach((field) => {
         field.addEventListener('input', () => {
           refreshSummary(card);

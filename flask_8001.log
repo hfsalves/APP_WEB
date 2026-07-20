@@ -798,3 +798,11 @@ Press CTRL+C to quit
 127.0.0.1 - - [20/Jul/2026 16:02:02] "POST /api/colaborador/despesas/line HTTP/1.1" 200 -
 127.0.0.1 - - [20/Jul/2026 16:02:05] "POST /api/colaborador/despesas/line HTTP/1.1" 200 -
 127.0.0.1 - - [20/Jul/2026 16:02:21] "DELETE /api/colaborador/despesas/line/8EB85BB330C14C54A398FE457 HTTP/1.1" 200 -
+[2026-07-20 16:07:10,762] WARNING in app: Falhou ligação SQL Server via 192.168.1.50,1433 (DRIVER={ODBC Driver 18 for SQL Server};SERVER=192.168.1.50,1433;DATABASE=GESTAO;UID=sa;PWD=***;TrustServerCertificate=Yes;Application Name=SZERO): ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+ * Serving Flask app 'app:app'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://10.0.1.114:8001
+Press CTRL+C to quit
