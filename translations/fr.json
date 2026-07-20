@@ -129,6 +129,7 @@
   "colab_receipts.file_open": "Ouvrir {title} de {period}",
   "colab_receipts.incomplete_profile": "Fiche collaborateur incomplète",
   "colab_receipts.map_expenses": "Relevé de déplacement",
+  "colab_receipts.map_kms": "Relevé kilométrique",
   "colab_receipts.open_pdf": "Ouvrir le PDF",
   "colab_receipts.payroll_receipt": "Bulletin de paie",
   "colab_receipts.signature_draw": "Signez avant de confirmer.",

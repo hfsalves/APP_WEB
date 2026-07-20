@@ -17,7 +17,7 @@
   <section class="receipt-view-shell">
     <header class="receipt-view-head">
       <div>
-        <h1>{{ _('colab_receipts.payroll_receipt' if document.type == 'RV' else 'colab_receipts.map_expenses') }}</h1>
+        <h1>{{ _('colab_receipts.payroll_receipt' if document.type == 'RV' else ('colab_receipts.map_kms' if document.type == 'KMS' else 'colab_receipts.map_expenses')) }}</h1>
         <p>{{ document.period_label }}</p>
       </div>
       <div class="receipt-view-actions">

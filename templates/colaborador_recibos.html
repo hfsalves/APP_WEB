@@ -43,26 +43,26 @@
         {% if documents %}
           <div class="receipts-list">
             {% for document in documents %}
-              <article class="receipt-item {{ 'is-unsigned-ac' if document.type == 'AC' and document.signable else '' }}">
+              <article class="receipt-item {{ 'is-unsigned-ac' if document.type in ('AC', 'KMS') and document.signable else '' }}">
                 <a
-                  class="receipt-card {{ 'has-status' if document.type == 'AC' and document.signed else '' }}"
+                  class="receipt-card {{ 'has-status' if document.type in ('AC', 'KMS') and document.signed else '' }}"
                   href="{{ url_for('colaborador_recibo_view', filename=document.filename) }}"
                   target="_blank"
                   rel="noopener"
-                  aria-label="{{ _('colab_receipts.file_open', title=_('colab_receipts.payroll_receipt' if document.type == 'RV' else 'colab_receipts.map_expenses'), period=document.period_label) }}">
-                  <span class="receipt-card-icon {{ 'is-expense' if document.type == 'AC' else '' }}">
-                    <i class="fa-solid {{ 'fa-receipt' if document.type == 'AC' else 'fa-file-invoice-dollar' }}"></i>
+                  aria-label="{{ _('colab_receipts.file_open', title=_('colab_receipts.payroll_receipt' if document.type == 'RV' else ('colab_receipts.map_kms' if document.type == 'KMS' else 'colab_receipts.map_expenses')), period=document.period_label) }}">
+                  <span class="receipt-card-icon {{ 'is-expense' if document.type in ('AC', 'KMS') else '' }}">
+                    <i class="fa-solid {{ 'fa-file-invoice-dollar' if document.type == 'RV' else ('fa-road' if document.type == 'KMS' else 'fa-receipt') }}"></i>
                   </span>
                   <span class="receipt-card-main">
-                    <strong>{{ _('colab_receipts.payroll_receipt' if document.type == 'RV' else 'colab_receipts.map_expenses') }}</strong>
+                    <strong>{{ _('colab_receipts.payroll_receipt' if document.type == 'RV' else ('colab_receipts.map_kms' if document.type == 'KMS' else 'colab_receipts.map_expenses')) }}</strong>
                     <span>{{ document.period_label }}</span>
                   </span>
-                  {% if document.type == 'AC' and document.signed %}
+                  {% if document.type in ('AC', 'KMS') and document.signed %}
                     <span class="receipt-signed"><i class="fa-solid fa-check"></i> {{ _('colab_receipts.signed') }}</span>
                   {% endif %}
                 </a>
-                {% if document.type == 'AC' and document.signable %}
-                  <button class="receipt-sign-button" type="button" data-sign-ac="{{ document.filename }}" data-title="{{ document.period_label }}">
+                {% if document.type in ('AC', 'KMS') and document.signable %}
+                  <button class="receipt-sign-button" type="button" data-sign-document="{{ document.filename }}" data-title="{{ document.period_label }}">
                     <i class="fa-solid fa-signature"></i>
                     <span>{{ _('colab_receipts.sign') }}</span>
                   </button>
@@ -466,9 +466,9 @@
       drawing = false;
     }
 
-    document.querySelectorAll('[data-sign-ac]').forEach((button) => {
+    document.querySelectorAll('[data-sign-document]').forEach((button) => {
       button.addEventListener('click', () => {
-        filename = button.dataset.signAc || '';
+        filename = button.dataset.signDocument || '';
         period.textContent = button.dataset.title || '';
         modal.hidden = false;
         modal.setAttribute('aria-hidden', 'false');

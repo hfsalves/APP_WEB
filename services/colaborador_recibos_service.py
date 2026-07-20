@@ -25,7 +25,7 @@ from services.colaborador_despesas_service import (
 
 
 DOCUMENT_RE = re.compile(
-    r"^(?P<tipo>AC|RV)_(?P<peno>\d+)_(?P<periodo>(?:19|20)\d{2}(?:0[1-9]|1[0-2]))\.pdf$",
+    r"^(?P<tipo>AC|KMS|RV)_(?P<peno>\d+)_(?P<periodo>(?:19|20)\d{2}(?:0[1-9]|1[0-2]))\.pdf$",
     re.IGNORECASE,
 )
 MONTH_NAMES = (
@@ -35,6 +35,20 @@ MONTH_NAMES = (
 SIGNATURE_MAX_BYTES = 2 * 1024 * 1024
 DOCUMENTS_FROM_DATE = "20250101"
 SIGNATURE_DESCRIPTION = "Assinatura do colaborador - mapa de ajudas de custo"
+SIGNABLE_DOCUMENT_TYPES = {"AC", "KMS"}
+
+
+def _document_title(doc_type: str) -> str:
+    return {
+        "RV": "Recibo de vencimento",
+        "KMS": "Mapa de quilómetros",
+    }.get(str(doc_type or "").upper(), "Mapa de ajudas de custo")
+
+
+def _signature_description(doc_type: str) -> str:
+    if str(doc_type or "").upper() == "KMS":
+        return "Assinatura do colaborador - mapa de quilómetros"
+    return SIGNATURE_DESCRIPTION
 
 
 def _documents_root() -> Path | None:
@@ -85,6 +99,29 @@ def _company_documents_dir(colaborador: dict[str, Any]) -> Path | None:
     return directory if directory.is_dir() else None
 
 
+def _document_path_in_directory(directory: Path, filename: str) -> Path | None:
+    """Resolve a document name safely, including shares mounted on case-sensitive hosts."""
+    clean_filename = Path(str(filename or "")).name
+    if not clean_filename or clean_filename != filename:
+        return None
+    try:
+        direct_path = (directory / clean_filename).resolve()
+        direct_path.relative_to(directory)
+    except (OSError, ValueError):
+        return None
+    if direct_path.is_file():
+        return direct_path
+    try:
+        for candidate in directory.iterdir():
+            if candidate.is_file() and candidate.name.casefold() == clean_filename.casefold():
+                path = candidate.resolve()
+                path.relative_to(directory)
+                return path
+    except OSError:
+        return None
+    return None
+
+
 def _document_data(path: Path, peno: int) -> dict[str, Any] | None:
     match = DOCUMENT_RE.fullmatch(path.name)
     if not match or int(match.group("peno")) != peno:
@@ -96,7 +133,7 @@ def _document_data(path: Path, peno: int) -> dict[str, Any] | None:
     return {
         "filename": path.name,
         "type": doc_type,
-        "title": "Recibo de vencimento" if doc_type == "RV" else "Mapa de ajudas de custo",
+        "title": _document_title(doc_type),
         "year": year,
         "month": month,
         "period_label": f"{MONTH_NAMES[month - 1]} {year}",
@@ -108,7 +145,7 @@ def _document_for_period(doc_type: str, peno: int, year: int, month: int) -> dic
     return {
         "filename": f"{clean_type}_{int(peno):05d}_{int(year):04d}{int(month):02d}.pdf",
         "type": clean_type,
-        "title": "Recibo de vencimento" if clean_type == "RV" else "Mapa de ajudas de custo",
+        "title": _document_title(clean_type),
         "year": int(year),
         "month": int(month),
         "period_label": f"{MONTH_NAMES[int(month) - 1]} {int(year)}",
@@ -160,10 +197,65 @@ def _load_ac_dossiers(colaborador: dict[str, Any]) -> dict[tuple[int, int], dict
                 dossiers[key] = {
                     "bostamp": str(row.BOSTAMP or "").strip(),
                     "signed": signed,
+                    "ndos": 62,
                 }
         return dossiers
     except Exception:
         current_app.logger.exception("Erro ao consultar dossiers de ajudas de custo no PHC.")
+        return {}
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+
+def _load_kms_dossiers(colaborador: dict[str, Any]) -> dict[tuple[int, int], dict[str, Any]]:
+    """Loads monthly kilometre dossiers without assuming their NDOS across PHC databases."""
+    peno = int(colaborador.get("peno") or 0)
+    phc_db = str(colaborador.get("phc_db") or "").strip()
+    if not peno or not phc_db:
+        return {}
+
+    connection = None
+    cursor = None
+    try:
+        connection = pyodbc.connect(_phc_conn_str(phc_db), timeout=12)
+        cursor = connection.cursor()
+        cursor.execute("""
+            SELECT
+                BO.BOSTAMP,
+                BO.NDOS,
+                BO.DATAOBRA,
+                CASE WHEN EXISTS (
+                    SELECT 1
+                    FROM dbo.ANEXOS AS A
+                    WHERE A.RECSTAMP = BO.BOSTAMP
+                ) THEN CAST(1 AS bit) ELSE CAST(0 AS bit) END AS ASSINADO
+            FROM dbo.BO AS BO
+            WHERE BO.NOPAT = ?
+              AND BO.DATAOBRA IS NOT NULL
+              AND BO.DATAOBRA >= CONVERT(datetime, ?, 112)
+              AND UPPER(LTRIM(RTRIM(ISNULL(BO.NMDOS, '')))) LIKE '%QUIL%'
+            ORDER BY BO.DATAOBRA DESC, BO.BOSTAMP DESC
+        """, peno, DOCUMENTS_FROM_DATE)
+        dossiers: dict[tuple[int, int], dict[str, Any]] = {}
+        for row in cursor.fetchall():
+            dataobra = row.DATAOBRA
+            if not dataobra:
+                continue
+            key = _period_key(dataobra.year, dataobra.month)
+            current = dossiers.get(key)
+            signed = bool(row.ASSINADO)
+            if not current or (signed and not current["signed"]):
+                dossiers[key] = {
+                    "bostamp": str(row.BOSTAMP or "").strip(),
+                    "signed": signed,
+                    "ndos": int(row.NDOS or 0),
+                }
+        return dossiers
+    except Exception:
+        current_app.logger.exception("Erro ao consultar dossiers de quilómetros no PHC.")
         return {}
     finally:
         if cursor:
@@ -272,24 +364,36 @@ def _signature_overlay_pdf(page_width: float, page_height: float, image: bytes) 
     return overlay_buffer.getvalue()
 
 
-def _create_signed_ac_pdf(phc_db: str, peno: int, year: int, month: int, bostamp: str, image: bytes) -> dict[str, Any]:
+def _create_signed_claim_pdf(
+    phc_db: str,
+    peno: int,
+    year: int,
+    month: int,
+    bostamp: str,
+    image: bytes,
+    doc_type: str,
+) -> dict[str, Any]:
     documents_root = _documents_root()
     signatures_root = _signatures_root()
     clean_db = re.sub(r"[^A-Za-z0-9_-]", "_", str(phc_db or "").upper()) or "PHC"
-    source_name = f"AC_{int(peno):05d}_{int(year):04d}{int(month):02d}.pdf"
+    clean_type = str(doc_type or "").upper()
+    if clean_type not in SIGNABLE_DOCUMENT_TYPES:
+        raise ValueError("Tipo de documento inválido para assinatura.")
+    source_name = f"{clean_type}_{int(peno):05d}_{int(year):04d}{int(month):02d}.pdf"
     if not documents_root or not signatures_root:
         raise ValueError("A pasta partilhada de documentos não está disponível.")
 
     try:
-        source = (documents_root / clean_db / source_name).resolve()
-        source.relative_to(documents_root)
+        source_directory = (documents_root / clean_db).resolve()
+        source_directory.relative_to(documents_root)
     except (OSError, ValueError) as exc:
-        raise ValueError("Não foi possível localizar o mapa original de ajudas de custo.") from exc
-    if not source.is_file():
+        raise ValueError("Não foi possível localizar o mapa original.") from exc
+    source = _document_path_in_directory(source_directory, source_name)
+    if not source:
         raise ValueError("O PDF original deste mapa não está disponível. Contacte o departamento de RH.")
 
     stamp_suffix = re.sub(r"[^A-Za-z0-9]", "", str(bostamp or ""))[-12:] or _new_stamp()[-12:]
-    fname = f"mapa_ac_assinado_{int(peno):05d}_{int(year):04d}{int(month):02d}_{stamp_suffix}.pdf"
+    fname = f"mapa_{clean_type.lower()}_assinado_{int(peno):05d}_{int(year):04d}{int(month):02d}_{stamp_suffix}.pdf"
     target_dir = signatures_root / clean_db
     temporary_path = None
     try:
@@ -328,7 +432,14 @@ def _create_signed_ac_pdf(phc_db: str, peno: int, year: int, month: int, bostamp
     }
 
 
-def _insert_signature_attachment(cursor, bostamp: str, signature_file: dict[str, Any], user_login: str) -> None:
+def _insert_signature_attachment(
+    cursor,
+    bostamp: str,
+    signature_file: dict[str, Any],
+    user_login: str,
+    ndos: int,
+    doc_type: str,
+) -> None:
     now = datetime.now()
     hour = now.strftime("%H:%M:%S")
     _phc_insert(cursor, "ANEXOS", {
@@ -339,7 +450,7 @@ def _insert_signature_attachment(cursor, bostamp: str, signature_file: dict[str,
         "grupo": "",
         "recstamp": bostamp,
         "uniqueid": "",
-        "descricao": SIGNATURE_DESCRIPTION,
+        "descricao": _signature_description(doc_type),
         "bdados": pyodbc.Binary(b""),
         "fullname": str(signature_file["fullname"]),
         "fname": str(signature_file["fname"]),
@@ -349,7 +460,7 @@ def _insert_signature_attachment(cursor, bostamp: str, signature_file: dict[str,
         "passw": "",
         "origem": "",
         "keylook": "",
-        "tpdos": 62,
+        "tpdos": int(ndos or 0),
         "tpdoc": 0,
         "ausrinis": user_login,
         "ausrdata": now,
@@ -411,10 +522,17 @@ def list_colaborador_recibos(user) -> dict[str, Any]:
         return result
 
     ac_dossiers = _load_ac_dossiers(colaborador)
+    kms_dossiers = _load_kms_dossiers(colaborador)
     salary_receipts = _load_salary_receipts(colaborador)
     documents: list[dict[str, Any]] = []
     for (year, month), dossier in ac_dossiers.items():
         document = _document_for_period("AC", peno, year, month)
+        document["signed"] = bool(dossier.get("signed"))
+        document["signable"] = not document["signed"]
+        documents.append(document)
+
+    for (year, month), dossier in kms_dossiers.items():
+        document = _document_for_period("KMS", peno, year, month)
         document["signed"] = bool(dossier.get("signed"))
         document["signable"] = not document["signed"]
         documents.append(document)
@@ -424,14 +542,15 @@ def list_colaborador_recibos(user) -> dict[str, Any]:
 
     unsigned_months = sorted(
         key
-        for key, dossier in ac_dossiers.items()
+        for dossiers in (ac_dossiers, kms_dossiers)
+        for key, dossier in dossiers.items()
         if not dossier.get("signed")
     )
     block_rv_from = unsigned_months[0] if unsigned_months else None
     visible_documents: list[dict[str, Any]] = []
     for document in documents:
         period = _period_key(document["year"], document["month"])
-        if document["type"] == "AC":
+        if document["type"] in SIGNABLE_DOCUMENT_TYPES:
             visible_documents.append(document)
             continue
         if block_rv_from and period >= block_rv_from:
@@ -455,13 +574,8 @@ def get_colaborador_recibo_path(user, filename: str) -> tuple[Path, dict[str, An
     directory = _company_documents_dir(colaborador)
     if not directory:
         return None
-    clean_filename = document["filename"]
-    try:
-        path = (directory / clean_filename).resolve()
-        path.relative_to(directory)
-    except (OSError, ValueError):
-        return None
-    if not path.is_file():
+    path = _document_path_in_directory(directory, document["filename"])
+    if not path:
         return None
     return path, document
 
@@ -479,17 +593,18 @@ def sign_colaborador_ac_document(user: Any, filename: str, signature_data: Any) 
     document = get_colaborador_recibo_document(user, filename)
     if not document:
         raise ValueError("Documento não encontrado.")
-    if document["type"] != "AC":
-        raise ValueError("Apenas os mapas de ajudas de custo podem ser assinados.")
+    if document["type"] not in SIGNABLE_DOCUMENT_TYPES:
+        raise ValueError("Apenas os mapas de ajudas de custo e quilómetros podem ser assinados.")
 
     image = _decode_signature(signature_data)
     colaborador = get_colaborador_context(user)
     peno = int(colaborador.get("peno") or 0)
     phc_db = str(colaborador.get("phc_db") or "").strip()
     period = _period_key(document["year"], document["month"])
-    dossier = _load_ac_dossiers(colaborador).get(period)
+    dossiers = _load_ac_dossiers(colaborador) if document["type"] == "AC" else _load_kms_dossiers(colaborador)
+    dossier = dossiers.get(period)
     if not peno or not phc_db or not dossier:
-        raise ValueError("Não existe dossier de ajudas de custo para este mês.")
+        raise ValueError("Não existe dossier para este mês.")
     if dossier.get("signed"):
         raise ValueError("Este mapa de ajudas de custo já se encontra assinado.")
 
@@ -503,30 +618,33 @@ def sign_colaborador_ac_document(user: Any, filename: str, signature_data: Any) 
             SELECT TOP 1 BO.BOSTAMP
             FROM dbo.BO AS BO
             WHERE BO.BOSTAMP = ?
-              AND BO.NDOS = 62
+              AND BO.NDOS = ?
               AND BO.NOPAT = ?
               AND YEAR(BO.DATAOBRA) = ?
               AND MONTH(BO.DATAOBRA) = ?
               AND NOT EXISTS (
                   SELECT 1 FROM dbo.ANEXOS AS A WHERE A.RECSTAMP = BO.BOSTAMP
               )
-        """, str(dossier["bostamp"]), peno, document["year"], document["month"])
+        """, str(dossier["bostamp"]), int(dossier.get("ndos") or 0), peno, document["year"], document["month"])
         row = cursor.fetchone()
         if not row:
             raise ValueError("O mapa já foi assinado ou deixou de estar disponível.")
-        signature_file = _create_signed_ac_pdf(
+        signature_file = _create_signed_claim_pdf(
             phc_db,
             peno,
             document["year"],
             document["month"],
             str(row.BOSTAMP or "").strip(),
             image,
+            document["type"],
         )
         _insert_signature_attachment(
             cursor,
             str(row.BOSTAMP or "").strip(),
             signature_file,
             _user_login(user),
+            int(dossier.get("ndos") or 0),
+            document["type"],
         )
         connection.commit()
     except Exception:
@@ -544,7 +662,7 @@ def sign_colaborador_ac_document(user: Any, filename: str, signature_data: Any) 
         if connection:
             connection.close()
 
-    return {"ok": True, "message": "Mapa de ajudas de custo assinado."}
+    return {"ok": True, "message": f"{_document_title(document['type'])} assinado."}
 
 
 def migrate_legacy_signature_attachments(phc_db: str) -> int:
@@ -577,8 +695,8 @@ def migrate_legacy_signature_attachments(phc_db: str) -> int:
                 continue
             peno = int(match.group(1))
             period = match.group(2)
-            signed_pdf = _create_signed_ac_pdf(
-                phc_db, peno, int(period[:4]), int(period[4:]), str(row.RECSTAMP or ""), image,
+            signed_pdf = _create_signed_claim_pdf(
+                phc_db, peno, int(period[:4]), int(period[4:]), str(row.RECSTAMP or ""), image, "AC",
             )
             cursor.execute("""
                 UPDATE dbo.ANEXOS
