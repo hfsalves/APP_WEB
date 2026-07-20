@@ -638,3 +638,37 @@ WARNING: This is a development server. Do not use it in a production deployment.
  * Running on http://10.0.1.114:8001
 Press CTRL+C to quit
 127.0.0.1 - - [20/Jul/2026 14:57:44] "GET / HTTP/1.1" 302 -
+127.0.0.1 - - [20/Jul/2026 14:59:09] "GET /despesas/processamento HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:59:09] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:59:09] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:59:09] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:59:09] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:59:09] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:59:09] "GET /static/js/push.js?v=1784555850 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:59:09] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:59:09] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:59:10] "GET /api/colaborador/despesas/processamento?date_from=2026-07-01&date_to=2026-07-20 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:59:10] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:59:10] "GET /api/colaborador/despesas/processamento/taxasiva?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:59:10] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:59:10] "GET /api/colaborador/despesas/processamento/taxasiva?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:59:10] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:59:10] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:59:10] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:59:10] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:59:10] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:59:10] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:59:10] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:59:11] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:59:11] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:59:11] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:59:12] "GET /service-worker.js HTTP/1.1" 304 -
+[2026-07-20 15:05:19,452] WARNING in app: Falhou ligação SQL Server via 192.168.1.50,1433 (DRIVER={ODBC Driver 18 for SQL Server};SERVER=192.168.1.50,1433;DATABASE=GESTAO;UID=sa;PWD=***;TrustServerCertificate=Yes;Application Name=SZERO): ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+ * Serving Flask app 'app:app'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://10.0.1.114:8001
+Press CTRL+C to quit
+127.0.0.1 - - [20/Jul/2026 15:05:48] "GET / HTTP/1.1" 302 -

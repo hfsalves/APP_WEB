@@ -25,16 +25,12 @@
           <i class="fa-solid fa-arrow-up-right-from-square"></i>
           <span>{{ _('colab_receipts.open_pdf') }}</span>
         </a>
-        <a class="sz_button sz_button_primary" href="{{ download_url }}" download="{{ document.filename }}">
+        <button id="receiptDownload" class="sz_button sz_button_primary" type="button" data-download-url="{{ download_url }}" data-download-name="{{ document.filename }}">
           <i class="fa-solid fa-download"></i>
           <span>{{ _('colab_receipts.download') }}</span>
-        </a>
+        </button>
       </div>
     </header>
-    <div class="receipt-view-mobile-note">
-      <i class="fa-solid fa-file-pdf"></i>
-      <span>{{ _('colab_receipts.mobile_download_hint') }}</span>
-    </div>
     <iframe class="receipt-view-frame" src="{{ pdf_url }}" title="{{ document.title }}"></iframe>
   </section>
 </main>
@@ -88,23 +84,65 @@
     background: var(--sz-color-surface-alt);
   }
 
-  .receipt-view-mobile-note { display: none; }
-
   @media (max-width: 700px) {
     .receipt-view-page { padding: var(--sz-space-2); }
-    .receipt-view-shell { min-height: 0; }
+    .receipt-view-shell { min-height: calc(100dvh - 7rem); }
     .receipt-view-head { align-items: stretch; flex-direction: column; }
     .receipt-view-actions { display: grid; grid-template-columns: 1fr 1fr; }
     .receipt-view-actions .sz_button { justify-content: center; }
-    .receipt-view-mobile-note {
-      display: flex;
-      align-items: center;
-      gap: var(--sz-space-2);
-      padding: var(--sz-space-4) var(--sz-space-3);
-      color: var(--sz-color-text-secondary);
-      text-align: center;
-    }
-    .receipt-view-frame { display: none; }
+    .receipt-view-frame { min-height: 34rem; }
   }
 </style>
+<script>
+  (() => {
+    const button = document.getElementById('receiptDownload');
+    if (!button) return;
+    const initialHtml = button.innerHTML;
+
+    function fallbackDownload(blob, filename, url) {
+      if (!blob) {
+        window.location.assign(url);
+        return;
+      }
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = filename;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+    }
+
+    button.addEventListener('click', async () => {
+      const url = button.dataset.downloadUrl || '';
+      const filename = button.dataset.downloadName || 'documento.pdf';
+      if (!url) return;
+      button.disabled = true;
+      button.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i><span>{{ _('colab_receipts.download') }}</span>';
+      try {
+        const response = await fetch(url, { credentials: 'same-origin' });
+        if (!response.ok) throw new Error('download_failed');
+        const blob = await response.blob();
+        const file = new File([blob], filename, { type: 'application/pdf' });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          try {
+            await navigator.share({ files: [file], title: filename });
+            return;
+          } catch (error) {
+            if (error?.name === 'AbortError') return;
+          }
+        }
+        fallbackDownload(blob, filename, url);
+      } catch (error) {
+        console.error(error);
+        window.alert({{ _('colab_receipts.download_error')|tojson }});
+      } finally {
+        button.disabled = false;
+        button.innerHTML = initialHtml;
+      }
+    });
+  })();
+</script>
 {% endblock %}
