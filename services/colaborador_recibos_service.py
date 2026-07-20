@@ -16,6 +16,9 @@ from PIL import Image
 from pypdf import PdfReader, PdfWriter
 from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
+from sqlalchemy import text
+
+from models import db
 
 from services.colaborador_despesas_service import (
     _new_stamp,
@@ -37,6 +40,7 @@ SIGNATURE_MAX_BYTES = 2 * 1024 * 1024
 DOCUMENTS_FROM_DATE = "20250101"
 SIGNATURE_DESCRIPTION = "Assinatura do colaborador - mapa de ajudas de custo"
 SIGNABLE_DOCUMENT_TYPES = {"AC", "KMS"}
+KMS_MAP_TABLE = "COLAB_KMS_DOSSIER_MAP"
 
 
 def _document_title(doc_type: str) -> str:
@@ -169,6 +173,90 @@ def _period_key(year: int, month: int) -> tuple[int, int]:
     return (int(year), int(month))
 
 
+def _ensure_kms_dossier_map_schema() -> None:
+    """Keeps the legacy PDF-to-PHC kilometre mapping out of the page request."""
+    db.session.execute(text(f"""
+        IF OBJECT_ID('dbo.{KMS_MAP_TABLE}', 'U') IS NULL
+        BEGIN
+            CREATE TABLE dbo.{KMS_MAP_TABLE} (
+                PHC_DB VARCHAR(128) NOT NULL,
+                BOSTAMP VARCHAR(50) NOT NULL,
+                PENO INT NOT NULL,
+                ANO SMALLINT NOT NULL,
+                MES TINYINT NOT NULL,
+                FILENAME VARCHAR(255) NOT NULL CONSTRAINT DF_{KMS_MAP_TABLE}_FILENAME DEFAULT '',
+                KMS_TOTAL DECIMAL(12,2) NOT NULL CONSTRAINT DF_{KMS_MAP_TABLE}_KMS_TOTAL DEFAULT 0,
+                CREATED_AT DATETIME2 NOT NULL CONSTRAINT DF_{KMS_MAP_TABLE}_CREATED_AT DEFAULT SYSDATETIME(),
+                UPDATED_AT DATETIME2 NOT NULL CONSTRAINT DF_{KMS_MAP_TABLE}_UPDATED_AT DEFAULT SYSDATETIME(),
+                CONSTRAINT PK_{KMS_MAP_TABLE} PRIMARY KEY CLUSTERED (PHC_DB, BOSTAMP)
+            );
+            CREATE INDEX IX_{KMS_MAP_TABLE}_COLABORADOR
+                ON dbo.{KMS_MAP_TABLE} (PHC_DB, PENO, ANO, MES);
+        END
+    """))
+    db.session.commit()
+
+
+def _load_cached_kms_dossiers(colaborador: dict[str, Any]) -> dict[tuple[int, int], dict[str, Any]]:
+    peno = int(colaborador.get("peno") or 0)
+    phc_db = str(colaborador.get("phc_db") or "").strip().upper()
+    if not peno or not phc_db:
+        return {}
+    try:
+        _ensure_kms_dossier_map_schema()
+        rows = db.session.execute(text(f"""
+            SELECT PHC_DB, BOSTAMP, ANO, MES, FILENAME, KMS_TOTAL
+            FROM dbo.{KMS_MAP_TABLE}
+            WHERE PHC_DB = :phc_db
+              AND PENO = :peno
+              AND (ANO > 2025 OR (ANO = 2025 AND MES >= 1))
+        """), {"phc_db": phc_db, "peno": peno}).mappings().all()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception("Erro ao consultar a cache de mapas de quilómetros.")
+        return {}
+    return {
+        _period_key(row["ANO"], row["MES"]): {
+            "bostamp": str(row["BOSTAMP"] or "").strip(),
+            "filename": str(row["FILENAME"] or "").strip(),
+            "kms_total": Decimal(str(row["KMS_TOTAL"] or 0)),
+        }
+        for row in rows
+    }
+
+
+def _store_kms_dossier_mappings(colaborador: dict[str, Any], dossiers: dict[tuple[int, int], dict[str, Any]]) -> None:
+    peno = int(colaborador.get("peno") or 0)
+    phc_db = str(colaborador.get("phc_db") or "").strip().upper()
+    if not peno or not phc_db or not dossiers:
+        return
+    try:
+        _ensure_kms_dossier_map_schema()
+        for (year, month), dossier in dossiers.items():
+            db.session.execute(text(f"""
+                MERGE dbo.{KMS_MAP_TABLE} AS target
+                USING (SELECT :phc_db AS PHC_DB, :bostamp AS BOSTAMP) AS source
+                ON target.PHC_DB = source.PHC_DB AND target.BOSTAMP = source.BOSTAMP
+                WHEN MATCHED THEN UPDATE SET
+                    PENO = :peno, ANO = :year, MES = :month, FILENAME = :filename,
+                    KMS_TOTAL = :kms_total, UPDATED_AT = SYSDATETIME()
+                WHEN NOT MATCHED THEN INSERT (PHC_DB, BOSTAMP, PENO, ANO, MES, FILENAME, KMS_TOTAL)
+                    VALUES (:phc_db, :bostamp, :peno, :year, :month, :filename, :kms_total);
+            """), {
+                "phc_db": phc_db,
+                "bostamp": dossier["bostamp"],
+                "peno": peno,
+                "year": year,
+                "month": month,
+                "filename": dossier.get("filename") or "",
+                "kms_total": dossier.get("kms_total") or Decimal("0"),
+            })
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception("Erro ao guardar a cache de mapas de quilómetros.")
+
+
 def _extract_km_total(pdf_path: Path) -> Decimal | None:
     """Extract the kilometre total printed by PHC on a monthly KM map."""
     try:
@@ -269,7 +357,7 @@ def _load_ac_dossiers(colaborador: dict[str, Any]) -> dict[tuple[int, int], dict
             connection.close()
 
 
-def _load_kms_dossiers(
+def _discover_kms_dossiers_from_share(
     colaborador: dict[str, Any],
     km_documents: dict[tuple[int, int], dict[str, Any]] | None = None,
 ) -> dict[tuple[int, int], dict[str, Any]]:
@@ -333,7 +421,7 @@ def _load_kms_dossiers(
                 if abs(item["kms_total"] - kms_total) < Decimal("0.01")
             ]
             if len(matching) == 1:
-                dossiers[key] = matching[0]
+                dossiers[key] = {**matching[0], "filename": document["filename"]}
             elif len(matching) > 1:
                 current_app.logger.warning(
                     "Foram encontrados %s dossiers de quilómetros para %s/%s com %s km.",
@@ -342,6 +430,54 @@ def _load_kms_dossiers(
         return dossiers
     except Exception:
         current_app.logger.exception("Erro ao consultar dossiers de quilómetros no PHC.")
+        return {}
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+
+def _load_kms_dossiers(colaborador: dict[str, Any]) -> dict[tuple[int, int], dict[str, Any]]:
+    """Loads mapped KM dossiers from SQL; PDF inspection is only a one-off fallback."""
+    cached = _load_cached_kms_dossiers(colaborador)
+    if not cached:
+        discovered = _discover_kms_dossiers_from_share(colaborador)
+        _store_kms_dossier_mappings(colaborador, discovered)
+        return discovered
+
+    phc_db = str(colaborador.get("phc_db") or "").strip()
+    stamps = [item["bostamp"] for item in cached.values() if item.get("bostamp")]
+    if not phc_db or not stamps:
+        return {}
+    connection = None
+    cursor = None
+    try:
+        connection = pyodbc.connect(_phc_conn_str(phc_db), timeout=12)
+        cursor = connection.cursor()
+        placeholders = ", ".join("?" for _ in stamps)
+        cursor.execute(f"""
+            SELECT BO.BOSTAMP, BO.NDOS,
+                CASE WHEN EXISTS (
+                    SELECT 1 FROM dbo.ANEXOS AS A WHERE A.RECSTAMP = BO.BOSTAMP
+                ) THEN CAST(1 AS bit) ELSE CAST(0 AS bit) END AS ASSINADO
+            FROM dbo.BO AS BO
+            WHERE BO.BOSTAMP IN ({placeholders})
+        """, *stamps)
+        state = {
+            str(row.BOSTAMP or "").strip(): {
+                "ndos": int(row.NDOS or 0),
+                "signed": bool(row.ASSINADO),
+            }
+            for row in cursor.fetchall()
+        }
+        return {
+            key: {**item, **state.get(item["bostamp"], {})}
+            for key, item in cached.items()
+            if item["bostamp"] in state
+        }
+    except Exception:
+        current_app.logger.exception("Erro ao consultar os dossiers de quilómetros no PHC.")
         return {}
     finally:
         if cursor:
@@ -610,8 +746,7 @@ def list_colaborador_recibos(user) -> dict[str, Any]:
         return result
 
     ac_dossiers = _load_ac_dossiers(colaborador)
-    km_documents = _km_documents_from_share(colaborador)
-    kms_dossiers = _load_kms_dossiers(colaborador, km_documents)
+    kms_dossiers = _load_kms_dossiers(colaborador)
     salary_receipts = _load_salary_receipts(colaborador)
     documents: list[dict[str, Any]] = []
     for (year, month), dossier in ac_dossiers.items():
@@ -620,12 +755,10 @@ def list_colaborador_recibos(user) -> dict[str, Any]:
         document["signable"] = not document["signed"]
         documents.append(document)
 
-    for (year, month), document in km_documents.items():
-        dossier = kms_dossiers.get((year, month))
-        document["signed"] = bool(dossier and dossier.get("signed"))
-        # A KM document only becomes signable after we have identified the
-        # exact PHC dossier to receive the signed PDF attachment.
-        document["signable"] = bool(dossier) and not document["signed"]
+    for (year, month), dossier in kms_dossiers.items():
+        document = _document_for_period("KMS", peno, year, month, dossier.get("filename") or None)
+        document["signed"] = bool(dossier.get("signed"))
+        document["signable"] = not document["signed"]
         documents.append(document)
 
     for year, month in salary_receipts:
@@ -692,8 +825,7 @@ def sign_colaborador_ac_document(user: Any, filename: str, signature_data: Any) 
     peno = int(colaborador.get("peno") or 0)
     phc_db = str(colaborador.get("phc_db") or "").strip()
     period = _period_key(document["year"], document["month"])
-    km_documents = _km_documents_from_share(colaborador) if document["type"] == "KMS" else None
-    dossiers = _load_ac_dossiers(colaborador) if document["type"] == "AC" else _load_kms_dossiers(colaborador, km_documents)
+    dossiers = _load_ac_dossiers(colaborador) if document["type"] == "AC" else _load_kms_dossiers(colaborador)
     dossier = dossiers.get(period)
     if not peno or not phc_db or not dossier:
         raise ValueError("Não existe dossier para este mês.")
