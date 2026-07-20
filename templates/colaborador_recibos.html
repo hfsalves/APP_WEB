@@ -46,7 +46,7 @@
               <article class="receipt-item {{ 'is-unsigned-ac' if document.type == 'AC' and document.signable else '' }}">
                 <a
                   class="receipt-card {{ 'has-status' if document.type == 'AC' and document.signed else '' }}"
-                  href="{{ url_for('api_colaborador_recibo_pdf', filename=document.filename) }}"
+                  href="{{ url_for('colaborador_recibo_view', filename=document.filename) }}"
                   target="_blank"
                   rel="noopener"
                   aria-label="{{ _('colab_receipts.file_open', title=_('colab_receipts.payroll_receipt' if document.type == 'RV' else 'colab_receipts.map_expenses'), period=document.period_label) }}">

@@ -26161,10 +26161,36 @@ def create_app():
         return send_file(
             path,
             mimetype='application/pdf',
-            as_attachment=False,
+            as_attachment=request.args.get('download') == '1',
             download_name=metadata['filename'],
             max_age=0,
             conditional=True,
+        )
+
+    @app.route('/recibos/<string:filename>')
+    @app.route('/colaborador/recibos/<string:filename>')
+    @login_required
+    def colaborador_recibo_view(filename):
+        from services.colaborador_recibos_service import (
+            get_colaborador_recibo_document,
+            get_colaborador_recibo_path,
+        )
+
+        metadata = get_colaborador_recibo_document(current_user, filename)
+        if not metadata:
+            abort(404)
+        if not get_colaborador_recibo_path(current_user, filename):
+            return render_template(
+                'colaborador_recibo_indisponivel.html',
+                page_title='Documento indisponível',
+                document=metadata,
+            ), 404
+        pdf_url = url_for('api_colaborador_recibo_pdf', filename=metadata['filename'])
+        return render_template(
+            'colaborador_recibo_view.html',
+            document=metadata,
+            pdf_url=pdf_url,
+            download_url=f'{pdf_url}?download=1',
         )
 
     @app.route('/api/colaborador/recibos/<string:filename>/assinar', methods=['POST'])

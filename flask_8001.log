@@ -564,3 +564,77 @@ WARNING: This is a development server. Do not use it in a production deployment.
  * Running on http://10.0.1.114:8001
 Press CTRL+C to quit
 127.0.0.1 - - [20/Jul/2026 14:47:18] "GET /despesas/processamento HTTP/1.1" 302 -
+[2026-07-20 14:49:07,823] WARNING in app: Falhou ligação SQL Server via 192.168.1.50,1433 (DRIVER={ODBC Driver 18 for SQL Server};SERVER=192.168.1.50,1433;DATABASE=GESTAO;UID=sa;PWD=***;TrustServerCertificate=Yes;Application Name=SZERO): ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+ * Serving Flask app 'app:app'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://10.0.1.114:8001
+Press CTRL+C to quit
+127.0.0.1 - - [20/Jul/2026 14:49:19] "GET / HTTP/1.1" 302 -
+[2026-07-20 14:51:07,466] WARNING in app: Falhou ligação SQL Server via 192.168.1.50,1433 (DRIVER={ODBC Driver 18 for SQL Server};SERVER=192.168.1.50,1433;DATABASE=GESTAO;UID=sa;PWD=***;TrustServerCertificate=Yes;Application Name=SZERO): ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+ * Serving Flask app 'app:app'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://10.0.1.114:8001
+Press CTRL+C to quit
+127.0.0.1 - - [20/Jul/2026 14:51:12] "GET / HTTP/1.1" 302 -
+127.0.0.1 - - [20/Jul/2026 14:51:13] "GET /dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:51:13] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:51:13] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:51:13] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:51:13] "GET /static/js/dashboard.js?v=1784555465 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:51:13] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:51:13] "GET /static/js/push.js?v=1784555465 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:51:13] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:51:13] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:51:13] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:51:14] "GET /api/dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:51:14] "POST /api/widgets/COMPLIANCE_DATAS_30D/run HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:51:15] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:51:15] "POST /api/widgets/MAPA_GESTAO_GR_RESUMO/run HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:51:15] "POST /api/widgets/MAPA_GESTAO_GR_TOP_LUCRO/run HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:51:15] "POST /api/widgets/MAPA_GESTAO_GR_TOP_PREJUIZO/run HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:51:18] "GET /despesas/processamento HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:51:18] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:51:18] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:51:18] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:51:18] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:51:18] "GET /static/js/push.js?v=1784555465 HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:51:18] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:51:18] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [20/Jul/2026 14:51:18] "GET /api/colaborador/despesas/processamento?date_from=2026-07-01&date_to=2026-07-20 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:51:18] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:51:18] "GET /api/colaborador/despesas/processamento/taxasiva?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:51:18] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:51:18] "GET /api/colaborador/despesas/processamento/taxasiva?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:51:18] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:51:19] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:51:19] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:51:19] "GET / HTTP/1.1" 302 -
+127.0.0.1 - - [20/Jul/2026 14:51:19] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:51:19] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:51:19] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:51:19] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:51:19] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:51:19] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:51:19] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:51:20] "GET /api/colaborador/despesas/processamento/taxasiva?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Jul/2026 14:51:21] "GET /service-worker.js HTTP/1.1" 304 -
+[2026-07-20 14:57:04,054] WARNING in app: Falhou ligação SQL Server via 192.168.1.50,1433 (DRIVER={ODBC Driver 18 for SQL Server};SERVER=192.168.1.50,1433;DATABASE=GESTAO;UID=sa;PWD=***;TrustServerCertificate=Yes;Application Name=SZERO): ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+ * Serving Flask app 'app:app'
+ * Debug mode: off
+Address already in use
+Port 8001 is in use by another program. Either identify and stop that program, or start the server with a different port.
+[2026-07-20 14:57:32,538] WARNING in app: Falhou ligação SQL Server via 192.168.1.50,1433 (DRIVER={ODBC Driver 18 for SQL Server};SERVER=192.168.1.50,1433;DATABASE=GESTAO;UID=sa;PWD=***;TrustServerCertificate=Yes;Application Name=SZERO): ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+ * Serving Flask app 'app:app'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://10.0.1.114:8001
+Press CTRL+C to quit
+127.0.0.1 - - [20/Jul/2026 14:57:44] "GET / HTTP/1.1" 302 -

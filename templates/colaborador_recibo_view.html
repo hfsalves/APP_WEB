@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+
+{% block title %}{{ _('colab_receipts.title') }}{% endblock %}
+
+{% block extra_head %}
+  {{ super() }}
+  <script>
+    (() => {
+      const viewport = document.querySelector('meta[name="viewport"]');
+      if (viewport) viewport.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover');
+    })();
+  </script>
+{% endblock %}
+
+{% block content %}
+<main class="receipt-view-page">
+  <section class="receipt-view-shell">
+    <header class="receipt-view-head">
+      <div>
+        <h1>{{ _('colab_receipts.payroll_receipt' if document.type == 'RV' else 'colab_receipts.map_expenses') }}</h1>
+        <p>{{ document.period_label }}</p>
+      </div>
+      <div class="receipt-view-actions">
+        <a class="sz_button sz_button_secondary" href="{{ pdf_url }}" target="_blank" rel="noopener">
+          <i class="fa-solid fa-arrow-up-right-from-square"></i>
+          <span>{{ _('colab_receipts.open_pdf') }}</span>
+        </a>
+        <a class="sz_button sz_button_primary" href="{{ download_url }}" download="{{ document.filename }}">
+          <i class="fa-solid fa-download"></i>
+          <span>{{ _('colab_receipts.download') }}</span>
+        </a>
+      </div>
+    </header>
+    <div class="receipt-view-mobile-note">
+      <i class="fa-solid fa-file-pdf"></i>
+      <span>{{ _('colab_receipts.mobile_download_hint') }}</span>
+    </div>
+    <iframe class="receipt-view-frame" src="{{ pdf_url }}" title="{{ document.title }}"></iframe>
+  </section>
+</main>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<style>
+  .receipt-view-page {
+    min-height: 100%;
+    padding: var(--sz-space-3);
+  }
+
+  .receipt-view-shell {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    min-height: calc(100dvh - 9rem);
+    overflow: hidden;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    background: var(--sz-color-surface);
+  }
+
+  .receipt-view-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sz-space-3);
+    padding: var(--sz-space-3);
+    border-bottom: 1px solid var(--sz-color-border);
+  }
+
+  .receipt-view-head h1,
+  .receipt-view-head p { margin: 0; }
+  .receipt-view-head h1 { font-size: var(--sz-font-size-lg); }
+  .receipt-view-head p { margin-top: .2rem; color: var(--sz-color-text-secondary); }
+
+  .receipt-view-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: var(--sz-space-2);
+  }
+
+  .receipt-view-frame {
+    display: block;
+    width: 100%;
+    height: 100%;
+    min-height: 36rem;
+    border: 0;
+    background: var(--sz-color-surface-alt);
+  }
+
+  .receipt-view-mobile-note { display: none; }
+
+  @media (max-width: 700px) {
+    .receipt-view-page { padding: var(--sz-space-2); }
+    .receipt-view-shell { min-height: 0; }
+    .receipt-view-head { align-items: stretch; flex-direction: column; }
+    .receipt-view-actions { display: grid; grid-template-columns: 1fr 1fr; }
+    .receipt-view-actions .sz_button { justify-content: center; }
+    .receipt-view-mobile-note {
+      display: flex;
+      align-items: center;
+      gap: var(--sz-space-2);
+      padding: var(--sz-space-4) var(--sz-space-3);
+      color: var(--sz-color-text-secondary);
+      text-align: center;
+    }
+    .receipt-view-frame { display: none; }
+  }
+</style>
+{% endblock %}
