@@ -7,27 +7,44 @@ from flask_login import current_user, login_required
 from models import Acessos, db
 from services.document_ai_service import (
     classify_document_with_llm,
+    clear_document_phc_origin,
     delete_document_from_inbox,
     delete_document_source,
     document_ai_lookups,
     get_document_detail,
     get_document_group,
+    get_document_phc_origins,
+    get_next_phc_correspondence_reference,
+    get_cached_llm_extraction,
     get_document_original_file,
     get_document_preview_page,
     get_document_source,
     get_template_detail,
     ingest_uploaded_document,
+    ensure_llm_inbox_document,
+    find_llm_inbox_document,
     list_document_sources,
+    list_document_integration_access_users,
     list_documents,
     list_templates,
     reprocess_document,
     reconcile_extracted_document,
+    reset_llm_extraction,
     resolve_fe_entity,
     save_document_source,
+    save_document_integration_access,
     save_document_review,
+    save_document_phc_origin,
+    save_document_adjusted_lines,
+    save_llm_extraction,
     save_template,
     save_template_from_document,
     search_suppliers,
+    search_fe_entities,
+    search_customers,
+    search_external_parties,
+    search_phc_document_origins,
+    search_phc_projects,
     split_extracted_pdf_into_inbox,
     suggest_template,
     test_template,
@@ -54,6 +71,10 @@ def _document_ai_has_access(action: str = 'consultar') -> bool:
 
 def _current_login() -> str:
     return str(getattr(current_user, 'LOGIN', '') or '').strip()
+
+
+def _document_ai_is_admin() -> bool:
+    return bool(getattr(current_user, 'ADMIN', False))
 
 
 @bp.route('/document_ai/inbox')
@@ -108,6 +129,44 @@ def api_document_ai_lookups():
     return jsonify(document_ai_lookups())
 
 
+@bp.route('/api/document_ai/integration-access/users', methods=['GET'])
+@login_required
+def api_document_ai_integration_access_users():
+    if not _document_ai_is_admin():
+        return jsonify({'error': 'Apenas administradores podem gerir estes acessos.'}), 403
+    try:
+        return jsonify(list_document_integration_access_users(
+            str(request.args.get('q') or ''),
+            int(request.args.get('limit') or 30),
+        ))
+    except Exception as exc:
+        current_app.logger.exception('Erro ao listar acessos de integração documental')
+        return jsonify({'error': str(exc)}), 500
+
+
+@bp.route('/api/document_ai/integration-access', methods=['PUT'])
+@login_required
+def api_document_ai_integration_access_save():
+    if not _document_ai_is_admin():
+        return jsonify({'error': 'Apenas administradores podem gerir estes acessos.'}), 403
+    body = request.get_json(silent=True) or {}
+    try:
+        return jsonify(save_document_integration_access(
+            str(body.get('login') or ''),
+            body.get('permissions') or {},
+            _current_login(),
+        ))
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception as exc:
+        current_app.logger.exception('Erro ao guardar acessos de integração documental')
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        return jsonify({'error': str(exc)}), 500
+
+
 @bp.route('/api/document_ai/inbox', methods=['GET'])
 @login_required
 def api_document_ai_inbox():
@@ -146,6 +205,27 @@ def api_document_ai_extract():
         return jsonify({'error': 'O PDF excede o limite de 50 MB.'}), 413
 
     try:
+        requested_document_id = str(request.form.get('document_id') or '').strip()
+        existing_document_id = requested_document_id or find_llm_inbox_document(file_bytes)
+        document_id = existing_document_id
+        inbox = {
+            'id': document_id,
+            'created': False,
+            'duplicate': bool(document_id and not requested_document_id),
+        }
+        force_read = str(request.form.get('force') or '').strip().lower() in {'1', 'true', 'yes'}
+        if force_read and document_id:
+            reset_llm_extraction(document_id, _current_login())
+        cached = None if force_read or not document_id else get_cached_llm_extraction(document_id)
+        if cached:
+            is_mail = str((cached.get('document') or {}).get('document_type') or '').strip().lower() == 'mail'
+            if is_mail and not requested_document_id:
+                cached['document_id'] = ''
+                cached['not_saved_to_inbox'] = True
+            cached['inbox_created'] = bool(inbox.get('created'))
+            cached['duplicate'] = bool(inbox.get('duplicate'))
+            return jsonify(cached)
+
         payload = extract_document_full_visual({
             'file_name': file_name,
             'mime_type': 'application/pdf',
@@ -157,6 +237,25 @@ def api_document_ai_extract():
         reconciled = reconcile_extracted_document(payload.get('document') or {})
         payload['document'] = reconciled.get('document') or payload.get('document') or {}
         payload['matching'] = reconciled.get('matching') or {}
+        is_mail = str(payload['document'].get('document_type') or '').strip().lower() == 'mail'
+        if is_mail and not requested_document_id:
+            payload['document_id'] = ''
+            payload['cached'] = False
+            payload['inbox_created'] = False
+            payload['duplicate'] = bool(inbox.get('duplicate'))
+            payload['not_saved_to_inbox'] = True
+            return jsonify(payload)
+
+        if not document_id:
+            if not _document_ai_has_access('inserir'):
+                return jsonify({'error': 'Sem permissão para adicionar o documento ao inbox.'}), 403
+            inbox = ensure_llm_inbox_document(file_name, file_bytes, _current_login())
+            document_id = str(inbox.get('id') or '').strip()
+        save_llm_extraction(document_id, payload, _current_login())
+        payload['document_id'] = document_id
+        payload['cached'] = False
+        payload['inbox_created'] = bool(inbox.get('created'))
+        payload['duplicate'] = bool(inbox.get('duplicate'))
         return jsonify(payload)
     except Exception as exc:
         current_app.logger.exception('Erro na leitura integral de documento com LLM')
@@ -201,6 +300,62 @@ def api_document_ai_extract_split():
         except Exception:
             pass
         return jsonify({'error': str(exc)}), 500
+
+
+@bp.route('/api/document_ai/origins/search', methods=['POST'])
+@login_required
+def api_document_ai_origins_search():
+    if not _document_ai_has_access('consultar'):
+        return jsonify({'error': 'Sem permissão.'}), 403
+    body = request.get_json(silent=True) or {}
+    try:
+        payload = search_phc_document_origins(body.get('document') or {})
+        document_id = str(body.get('document_id') or '').strip()
+        payload['selected_origins'] = get_document_phc_origins(document_id) if document_id else []
+        payload['selected_origin'] = payload['selected_origins'][0] if payload['selected_origins'] else None
+        return jsonify(payload)
+    except ValueError as exc:
+        return jsonify({'available': False, 'message': str(exc), 'stages': []}), 200
+    except Exception as exc:
+        current_app.logger.exception('Erro ao pesquisar origens PHC do documento')
+        return jsonify({'available': False, 'error': str(exc), 'stages': []}), 500
+
+
+@bp.route('/api/document_ai/projects/search', methods=['POST'])
+@login_required
+def api_document_ai_projects_search():
+    if not _document_ai_has_access('consultar'):
+        return jsonify({'error': 'Sem permissão.'}), 403
+    body = request.get_json(silent=True) or {}
+    try:
+        return jsonify(search_phc_projects(
+            body.get('customer') or {},
+            str(body.get('query') or ''),
+            int(body.get('limit') or 20),
+        ))
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception as exc:
+        current_app.logger.exception('Erro ao pesquisar obras PHC')
+        return jsonify({'error': str(exc)}), 500
+
+
+@bp.route('/api/document_ai/correspondence/next-reference', methods=['POST'])
+@login_required
+def api_document_ai_correspondence_next_reference():
+    if not _document_ai_has_access('consultar'):
+        return jsonify({'error': 'Sem permissão.'}), 403
+    body = request.get_json(silent=True) or {}
+    try:
+        return jsonify(get_next_phc_correspondence_reference(
+            body.get('customer') or {},
+            body.get('year'),
+        ))
+    except ValueError as exc:
+        return jsonify({'available': False, 'error': str(exc)}), 400
+    except Exception as exc:
+        current_app.logger.exception('Erro ao consultar a próxima referência de correspondência no PHC')
+        return jsonify({'available': False, 'error': str(exc)}), 500
 
 
 @bp.route('/api/document_ai/sources', methods=['GET'])
@@ -323,6 +478,76 @@ def api_document_ai_document_group(docinstamp: str):
         return jsonify(get_document_group(docinstamp))
     except Exception as exc:
         current_app.logger.exception('Erro ao carregar grupo documental')
+        return jsonify({'error': str(exc)}), 500
+
+
+@bp.route('/api/document_ai/documents/<docinstamp>/origin', methods=['POST'])
+@login_required
+def api_document_ai_document_origin_link(docinstamp: str):
+    if not _document_ai_has_access('editar'):
+        return jsonify({'error': 'Sem permissão para ligar a origem.'}), 403
+    body = request.get_json(silent=True) or {}
+    try:
+        return jsonify(save_document_phc_origin(
+            docinstamp,
+            body.get('origin') or {},
+            body.get('document') or {},
+            _current_login(),
+        ))
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception as exc:
+        current_app.logger.exception('Erro ao ligar origem PHC ao documento')
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        return jsonify({'error': str(exc)}), 500
+
+
+@bp.route('/api/document_ai/documents/<docinstamp>/origin', methods=['DELETE'])
+@login_required
+def api_document_ai_document_origin_unlink(docinstamp: str):
+    if not _document_ai_has_access('editar'):
+        return jsonify({'error': 'Sem permissão para desmarcar a origem.'}), 403
+    body = request.get_json(silent=True) or {}
+    try:
+        return jsonify(clear_document_phc_origin(
+            docinstamp,
+            _current_login(),
+            str(body.get('stamp') or ''),
+        ))
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception as exc:
+        current_app.logger.exception('Erro ao desmarcar origem PHC do documento')
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        return jsonify({'error': str(exc)}), 500
+
+
+@bp.route('/api/document_ai/documents/<docinstamp>/lines', methods=['PATCH'])
+@login_required
+def api_document_ai_document_lines_update(docinstamp: str):
+    if not _document_ai_has_access('editar'):
+        return jsonify({'error': 'Sem permissão para ajustar as linhas.'}), 403
+    body = request.get_json(silent=True) or {}
+    try:
+        return jsonify(save_document_adjusted_lines(
+            docinstamp,
+            body.get('lines') or [],
+            _current_login(),
+        ))
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception as exc:
+        current_app.logger.exception('Erro ao guardar repartição das linhas do documento')
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
         return jsonify({'error': str(exc)}), 500
 
 
@@ -588,4 +813,52 @@ def api_document_ai_entities_resolve():
         return jsonify(resolve_fe_entity(term, mode))
     except Exception as exc:
         current_app.logger.exception('Erro ao resolver entidade FE documental')
+        return jsonify({'error': str(exc)}), 500
+
+
+@bp.route('/api/document_ai/entities/search', methods=['GET'])
+@login_required
+def api_document_ai_entities_search():
+    if not _document_ai_has_access('consultar'):
+        return jsonify({'error': 'Sem permissão.'}), 403
+    term = str(request.args.get('q', '') or '').strip()
+    limit = min(max(int(request.args.get('limit', 20) or 20), 1), 50)
+    try:
+        return jsonify(search_fe_entities(term, limit=limit))
+    except Exception as exc:
+        current_app.logger.exception('Erro ao pesquisar entidades FE documentais')
+        return jsonify({'error': str(exc)}), 500
+
+
+@bp.route('/api/document_ai/customers/search', methods=['GET'])
+@login_required
+def api_document_ai_customers_search():
+    if not _document_ai_has_access('consultar'):
+        return jsonify({'error': 'Sem permissão.'}), 403
+    term = str(request.args.get('q', '') or '').strip()
+    feid = int(request.args.get('feid', 0) or 0)
+    limit = min(max(int(request.args.get('limit', 12) or 12), 1), 20)
+    if len(term) < 2 or not feid:
+        return jsonify([])
+    try:
+        return jsonify(search_customers(term, feid=feid, limit=limit))
+    except Exception as exc:
+        current_app.logger.exception('Erro ao pesquisar clientes Document AI')
+        return jsonify({'error': str(exc)}), 500
+
+
+@bp.route('/api/document_ai/external-parties/search', methods=['GET'])
+@login_required
+def api_document_ai_external_parties_search():
+    if not _document_ai_has_access('consultar'):
+        return jsonify({'error': 'Sem permissão.'}), 403
+    term = str(request.args.get('q', '') or '').strip()
+    feid = int(request.args.get('feid', 0) or 0)
+    limit = min(max(int(request.args.get('limit', 12) or 12), 1), 20)
+    if len(term) < 2 or not feid:
+        return jsonify([])
+    try:
+        return jsonify(search_external_parties(term, feid=feid, limit=limit))
+    except Exception as exc:
+        current_app.logger.exception('Erro ao pesquisar clientes e fornecedores Document AI')
         return jsonify({'error': str(exc)}), 500

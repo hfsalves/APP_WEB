@@ -152,15 +152,16 @@ def _document_data(path: Path, peno: int) -> dict[str, Any] | None:
 
 def _document_for_period(
     doc_type: str,
-    peno: int,
+    employee_number: int | str,
     year: int,
     month: int,
     filename: str | None = None,
 ) -> dict[str, Any]:
     clean_type = _normalise_document_type(doc_type)
     file_prefix = "KM" if clean_type == "KMS" else clean_type
+    clean_employee_number = int(str(employee_number or "0").strip() or 0)
     return {
-        "filename": filename or f"{file_prefix}_{int(peno):05d}_{int(year):04d}{int(month):02d}.pdf",
+        "filename": filename or f"{file_prefix}_{clean_employee_number:05d}_{int(year):04d}{int(month):02d}.pdf",
         "type": clean_type,
         "title": _document_title(clean_type),
         "year": int(year),
@@ -171,6 +172,44 @@ def _document_for_period(
 
 def _period_key(year: int, month: int) -> tuple[int, int]:
     return (int(year), int(month))
+
+
+def _salary_pdf_employee_number(colaborador: dict[str, Any]) -> int:
+    """Gets the employee number used by the payroll PDF filename.
+
+    HSOLS_FR publishes salary receipts using PE2.U_NUMIMP, while the PHC PR
+    records and the remaining companies use PE.NO.
+    """
+    peno = int(colaborador.get("peno") or 0)
+    phc_db = str(colaborador.get("phc_db") or "").strip().upper()
+    if not peno or phc_db != "HSOLS_FR":
+        return peno
+
+    connection = None
+    cursor = None
+    try:
+        connection = pyodbc.connect(
+            _phc_conn_str(phc_db, str(colaborador.get("phc_server") or "").strip()),
+            timeout=12,
+        )
+        cursor = connection.cursor()
+        row = cursor.execute("""
+            SELECT TOP 1 LTRIM(RTRIM(ISNULL(PE2.U_NUMIMP, ''))) AS U_NUMIMP
+            FROM dbo.PE AS PE
+            INNER JOIN dbo.PE2 AS PE2
+              ON PE2.PE2STAMP = PE.PESTAMP
+            WHERE PE.NO = ?
+        """, peno).fetchone()
+        value = str(row.U_NUMIMP or "").strip() if row else ""
+        return int(value) if re.fullmatch(r"\d+", value) else peno
+    except Exception:
+        current_app.logger.exception("Erro ao obter PE2.U_NUMIMP para recibos HSOLS_FR.")
+        return peno
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
 
 
 def _ensure_kms_dossier_map_schema() -> None:
@@ -735,6 +774,7 @@ def _insert_signature_attachment(
 def list_colaborador_recibos(user) -> dict[str, Any]:
     colaborador = get_colaborador_context(user)
     peno = int(colaborador.get("peno") or 0)
+    salary_pdf_number = _salary_pdf_employee_number(colaborador)
     result: dict[str, Any] = {
         "ok": True,
         "colaborador": colaborador,
@@ -762,7 +802,7 @@ def list_colaborador_recibos(user) -> dict[str, Any]:
         documents.append(document)
 
     for year, month in salary_receipts:
-        documents.append(_document_for_period("RV", peno, year, month))
+        documents.append(_document_for_period("RV", salary_pdf_number, year, month))
 
     unsigned_months = sorted(
         key
@@ -810,7 +850,12 @@ def get_colaborador_recibo_document(user, filename: str) -> dict[str, Any] | Non
     clean_filename = Path(str(filename or "")).name
     if not peno or clean_filename != filename:
         return None
-    return _document_data(Path(clean_filename), peno)
+    match = DOCUMENT_RE.fullmatch(clean_filename)
+    if not match:
+        return None
+    document_type = _normalise_document_type(match.group("tipo"))
+    expected_number = _salary_pdf_employee_number(colaborador) if document_type == "RV" else peno
+    return _document_data(Path(clean_filename), expected_number)
 
 
 def sign_colaborador_ac_document(user: Any, filename: str, signature_data: Any) -> dict[str, Any]:

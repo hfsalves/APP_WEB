@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import socket
 import base64
 import io
@@ -191,8 +192,17 @@ def _document_classification_schema() -> dict[str, Any]:
         'properties': {
             'document_type': {
                 'type': 'string',
-                'enum': ['invoice', 'credit_note', 'purchase_order', 'delivery_note', 'unknown'],
+                'enum': ['invoice', 'credit_note', 'purchase_order', 'delivery_note', 'mail', 'unknown'],
             },
+            'external_party_role': {
+                'type': 'string',
+                'enum': ['supplier', 'customer', 'unknown'],
+            },
+            'mail_category': {
+                'type': 'string',
+                'enum': ['legal', 'general', 'unknown'],
+            },
+            'mail_title': {'type': 'string', 'maxLength': 25},
             'confidence': {'type': 'number'},
             'reason': {'type': 'string'},
             'document_number': {'type': 'string'},
@@ -266,6 +276,9 @@ def _document_classification_schema() -> dict[str, Any]:
         },
         'required': [
             'document_type',
+            'external_party_role',
+            'mail_category',
+            'mail_title',
             'confidence',
             'reason',
             'document_number',
@@ -286,6 +299,23 @@ def _document_classification_schema() -> dict[str, Any]:
 def _document_full_extraction_schema() -> dict[str, Any]:
     schema = _document_classification_schema()
     schema['properties']['document_type'] = {'type': 'string'}
+    line_schema = schema['properties']['lines']['items']
+    line_schema['properties']['origin_delivery_note_number'] = {'type': 'string'}
+    line_schema['required'].append('origin_delivery_note_number')
+    schema['properties']['origin_references'] = {
+        'type': 'array',
+        'items': {
+            'type': 'object',
+            'additionalProperties': False,
+            'properties': {
+                'document_type': {'type': 'string'},
+                'document_number': {'type': 'string'},
+                'visible_text': {'type': 'string'},
+                'page': {'type': 'integer'},
+            },
+            'required': ['document_type', 'document_number', 'visible_text', 'page'],
+        },
+    }
     schema['properties']['document_batch'] = {
         'type': 'object',
         'additionalProperties': False,
@@ -322,7 +352,7 @@ def _document_full_extraction_schema() -> dict[str, Any]:
             'message', 'documents',
         ],
     }
-    schema['required'].append('document_batch')
+    schema['required'].extend(['origin_references', 'document_batch'])
     return schema
 
 
@@ -387,6 +417,48 @@ def _normalize_document_batch(document: dict[str, Any], actual_page_count: int) 
         'message': message,
         'documents': documents,
     }
+
+
+def _normalize_full_extraction_line_origins(document: dict[str, Any]) -> dict[str, Any]:
+    delivery_numbers = {
+        re.sub(r'[^a-z0-9]', '', str(item.get('document_number') or '').lower())
+        for item in document.get('origin_references') or []
+        if isinstance(item, dict) and str(item.get('document_type') or '').strip() == 'delivery_note'
+    }
+    delivery_numbers.discard('')
+    normalized_lines = []
+    for raw_line in document.get('lines') or []:
+        if not isinstance(raw_line, dict):
+            continue
+        line = dict(raw_line)
+        reference = str(line.get('ref') or '').strip()
+        delivery_note = str(line.get('origin_delivery_note_number') or '').strip()
+        reference_key = re.sub(r'[^a-z0-9]', '', reference.lower())
+        delivery_key = re.sub(r'[^a-z0-9]', '', delivery_note.lower())
+        if reference_key and (
+            (delivery_key and reference_key == delivery_key)
+            or reference_key in delivery_numbers
+        ):
+            line['origin_delivery_note_number'] = delivery_note or reference
+            line['ref'] = ''
+        normalized_lines.append(line)
+    document['lines'] = normalized_lines
+    document['mail_title'] = _normalize_mail_title(
+        document.get('mail_title') if str(document.get('document_type') or '').strip().lower() == 'mail' else ''
+    )
+    return document
+
+
+def _normalize_mail_title(value: Any) -> str:
+    title = re.sub(r'\s+', ' ', str(value or '')).strip(' ._-')
+    if len(title) <= 25:
+        return title
+    shortened = title[:25].rstrip(' ._-')
+    if len(title) > 25 and ' ' in shortened:
+        whole_words = shortened.rsplit(' ', 1)[0].rstrip(' ._-')
+        if whole_words:
+            shortened = whole_words
+    return shortened
 
 
 def _filtered_ocr_context_for_visual_classification(text_value: str) -> dict[str, Any]:
@@ -623,6 +695,7 @@ def classify_document_visual(context: dict[str, Any]) -> dict[str, Any]:
             'credit_note': 'Credit note / Nota de crédito / Avoir',
             'purchase_order': 'Purchase order / Nota de encomenda / Bon de commande',
             'delivery_note': 'Delivery note / Guia / Bon de livraison / Bon d’enlèvement',
+            'mail': 'Incoming correspondence that is not a commercial invoice, credit note, purchase order or delivery note.',
             'unknown': 'Use this when the document is not one of the above.',
         },
         'rules': [
@@ -641,6 +714,13 @@ def classify_document_visual(context: dict[str, Any]) -> dict[str, Any]:
             'Never use values labelled CENTRALE, CHANTIER, CLIENT, RECEPTIONNAIRE, CHAUFFEUR, ADRESSE LIVRAISON or ADRESSE CLIENT as supplier.',
             'In concrete delivery notes, CENTRALE usually means the batching plant; it is not the supplier.',
             'Extract customer name and tax/VAT id from the buyer/delivery/customer section.',
+            'Use document_type mail for correspondence, notices, declarations, requests, statements, certificates, legal or administrative letters and other incoming mail that is not a commercial document type listed above.',
+            'For mail, customer must contain the internal recipient company for which the correspondence is intended. Supplier must contain the external sender or external entity concerned, even when that external entity is actually a customer.',
+            'For mail, customer must be one of the recipient’s own group companies. Never put a court, public authority, lawyer, expert, sender or other external correspondent in customer. If the internal group recipient is not visible, leave customer name and tax_id empty.',
+            'Set external_party_role to customer when the external sender/entity is a customer, debtor or buyer of the internal company; supplier when it is a vendor, provider or creditor; otherwise unknown. For ordinary commercial purchase documents set it to supplier.',
+            'Set mail_category to legal when incoming mail concerns courts, lawyers, legal proceedings, litigation, summons, judicial or administrative claims, expert appointments ordered in a dispute, contracts requiring legal review, debt recovery or formal legal notices. Set it to general for clearly non-legal correspondence and unknown when uncertain. For non-mail commercial documents use unknown.',
+            'For mail, set mail_title to a concise title describing the actual content, in the document language, with at most 25 characters. Prefer a useful subject such as "Mise en demeure"; do not use the sender name, recipient name, date, document type or generic words like correspondence. For non-mail documents return an empty string.',
+            'For mail, return lines=[] and taxes=[], set all totals to 0, and do not manufacture commercial values.',
             'Extract document_number from the main title/header number, for example "Bon de livraison N°712806" -> "712806".',
             'For invoices/credit notes use the number after Facture/Invoice/Avoir/Credit note when visible.',
             'Extract document date, due date if visible, currency, net total without VAT, VAT total and gross total with VAT.',
@@ -650,7 +730,7 @@ def classify_document_visual(context: dict[str, Any]) -> dict[str, Any]:
             'For concrete delivery notes, product/material tables often have columns like Code béton, Appellation commerciale, Quantité, Unité. Extract those as lines.',
             'If prices are not visible on delivery notes, keep unit_price, discount, tax_rate, net_amount and gross_amount as 0.',
             'Do not create lines from addresses, legal notes, hazard text, signatures, timings or vehicle/driver details.',
-            'Use unknown when the visible document type is uncertain.',
+            'Use unknown only when neither a commercial type nor incoming mail can be established.',
         ],
         'file_name': file_name,
         'pdf_page_count': page_count,
@@ -671,6 +751,16 @@ def classify_document_visual(context: dict[str, Any]) -> dict[str, Any]:
             'Set document_batch.contains_multiple_documents=true only when there are at least two distinct documents, not merely several pages.',
             'If several documents are detected, the remaining root extraction fields must describe only the first document and must never combine lines or totals from different documents.',
             'For the document represented by the root extraction fields, extract every visible commercial line in its original order; do not summarize, merge or omit repeated lines.',
+            'Search the complete document for explicit references to earlier workflow documents: purchase orders / Bon de Commande / BC / Votre commande, delivery notes / Bon de Livraison / BL, and contracts / Contrat / Contract.',
+            'Return every explicit earlier-document reference in origin_references with document_type purchase_order, delivery_note or contract, its exact visible document_number, the supporting visible_text and page number.',
+            'Do not confuse the current invoice number, customer number, contract number or line reference with an origin document number. Never invent an origin reference.',
+            'Invoices may group commercial lines below a delivery-note heading or mention a Bon de Livraison number on each line. Put that BL number in origin_delivery_note_number for every affected commercial line.',
+            'When a BL heading applies to several following lines, repeat the same origin_delivery_note_number on those lines until another BL heading begins. Use an empty string when no BL association is visible.',
+            'Respect the visual table columns strictly. A value under a column labelled N° BL, Nº BL, Bon de Livraison or Delivery Note is never an article ref: put it only in origin_delivery_note_number and keep ref empty unless a separate article-reference column is visible.',
+            'For tables such as Date Livr. | N° BL | Désignation article | Quantité | Unité | P.U. | Montant, map Date Livr. to neither ref nor description, map N° BL to origin_delivery_note_number, and map Désignation article to description. This table has no article reference column, so ref must be empty.',
+            'Text such as Réf. Client, Votre référence, customer reference or order reference inside the designation is not an article ref unless the document explicitly labels a separate product/article reference column.',
+            'However, a supplier may use Réf. Client / Référence client on delivery lines for the customer purchase-order number. When the same value is repeated across related delivery lines, return it in origin_references as document_type purchase_order, preserving the exact visible_text. Keep it as a candidate even when another Votre référence commande value is also visible; the PHC lookup will validate which reference is correct.',
+            'Do not copy the same BL number into both ref and origin_delivery_note_number.',
             'Document types may also include proforma_invoice, receipt, debit_note or other when those labels are visibly more accurate.',
             'For each line, preserve the visible reference and full description. Use empty strings and numeric zero only when a value is not visible.',
             'Discount is the visible discount percentage, not the monetary discount amount.',
@@ -813,6 +903,7 @@ def extract_document_full_visual(context: dict[str, Any]) -> dict[str, Any]:
     if result.get('ok'):
         result['document'] = result.pop('classification', None)
         if isinstance(result.get('document'), dict):
+            result['document'] = _normalize_full_extraction_line_origins(result['document'])
             result['document']['document_batch'] = _normalize_document_batch(
                 result['document'],
                 int(source_context.get('page_count') or 0),

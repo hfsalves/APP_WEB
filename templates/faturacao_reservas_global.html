@@ -75,6 +75,7 @@
           <tr>
             <th class="fatglob-check-col"><input type="checkbox" id="fatglobCheckAll"></th>
             <th>Estado</th>
+            <th>Validação</th>
             <th>PDF</th>
             <th>Tipo</th>
             <th>Reserva</th>
@@ -89,7 +90,7 @@
           </tr>
         </thead>
         <tbody id="fatglobBody">
-          <tr><td colspan="13" class="sz_table_cell fatglob-empty">A carregar...</td></tr>
+          <tr><td colspan="14" class="sz_table_cell fatglob-empty">A carregar...</td></tr>
         </tbody>
       </table>
     </div>
@@ -322,6 +323,40 @@
 
   .fatglob-badge.warn {
     color: var(--sz-color-warning);
+  }
+
+  .fatglob-badge.validation-ok {
+    color: var(--sz-color-success);
+    border-color: color-mix(in srgb, var(--sz-color-success) 42%, var(--sz-color-border));
+    background: color-mix(in srgb, var(--sz-color-success) 8%, var(--sz-color-surface));
+  }
+
+  .fatglob-badge.validation-pending {
+    color: var(--sz-color-text-muted);
+  }
+
+  .fatglob-validation-cell {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    max-width: 100%;
+  }
+
+  .fatglob-airbnb-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.65rem;
+    height: 1.45rem;
+    border: 1px solid color-mix(in srgb, var(--sz-color-primary) 42%, var(--sz-color-border));
+    border-radius: var(--sz-radius-xs);
+    color: var(--sz-color-primary);
+    background: color-mix(in srgb, var(--sz-color-primary) 8%, var(--sz-color-surface));
+    text-decoration: none;
+  }
+
+  .fatglob-airbnb-link:hover {
+    background: color-mix(in srgb, var(--sz-color-primary) 14%, var(--sz-color-surface));
   }
 
   .fatglob-owner-cell {

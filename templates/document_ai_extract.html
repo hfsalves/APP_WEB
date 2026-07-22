@@ -13,9 +13,15 @@
     <header class="sz_contextbar sz_page_contextbar docai-contextbar">
       <div class="sz_contextbar_left">
         <div class="sz_page_title">Leitura inteligente</div>
-        <div class="sz_page_subtitle">Envia um PDF diretamente ao LLM e obtém todos os dados comerciais visíveis.</div>
+        <div class="sz_page_subtitle">Identifica documentos comerciais e correio; apenas os documentos comerciais ficam guardados no inbox.</div>
       </div>
       <div class="sz_contextbar_right docai-contextbar-right">
+        {% if current_user.ADMIN %}
+        <button id="docAiIntegrationAccessBtn" type="button" class="sz_button sz_button_secondary">
+          <i class="fa-solid fa-user-shield"></i>
+          <span>Acessos</span>
+        </button>
+        {% endif %}
         <button id="docAiExtractBackBtn" type="button" class="sz_button sz_button_secondary">
           <i class="fa-solid fa-arrow-left"></i>
           <span>Voltar ao inbox</span>
@@ -49,6 +55,10 @@
           </div>
 
           <div class="docai-extract-source-actions">
+            <button id="docAiExtractOpenPdfBtn" type="button" class="sz_button sz_button_secondary" disabled>
+              <i class="fa-solid fa-arrow-up-right-from-square"></i>
+              <span>Abrir PDF noutro separador</span>
+            </button>
             <button id="docAiExtractRunBtn" type="button" class="sz_button sz_button_primary" disabled>
               <i class="fa-solid fa-wand-magic-sparkles"></i>
               <span>Ler documento com LLM</span>
@@ -113,13 +123,14 @@
             </section>
 
             <div class="docai-extract-summary-grid">
-              <article class="docai-info-card">
-                <h4>Empresa cliente</h4>
+              <article id="docAiExtractCustomerCard" class="docai-info-card docai-extract-supplier-card" tabindex="0" role="button" aria-label="Escolher entidade">
+                <h4 id="docAiExtractCustomerLabel">Empresa cliente</h4>
                 <strong id="docAiExtractCustomerName">--</strong>
                 <span id="docAiExtractCustomerTax" class="sz_text_muted">--</span>
+                <span id="docAiExtractCustomerHint" class="docai-extract-card-hint" hidden><i class="fa-solid fa-hand-pointer"></i> Escolher empresa do grupo</span>
               </article>
               <article id="docAiExtractSupplierCard" class="docai-info-card docai-extract-supplier-card" tabindex="0" role="button" aria-label="Escolher fornecedor">
-                <h4>Fornecedor</h4>
+                <h4 id="docAiExtractPartyLabel">Fornecedor</h4>
                 <strong id="docAiExtractSupplierName">--</strong>
                 <span id="docAiExtractSupplierTax" class="sz_text_muted">--</span>
                 <span id="docAiExtractSupplierNo" class="sz_text_muted">Nº fornecedor: --</span>
@@ -129,20 +140,79 @@
                 <h4>Documento</h4>
                 <strong id="docAiExtractDocumentTitle">--</strong>
                 <span id="docAiExtractDocumentDate" class="sz_text_muted">--</span>
+                <span id="docAiExtractCorrespondenceReference" class="docai-extract-correspondence-reference">Correspondência: --</span>
+                <span id="docAiExtractCorrespondenceSource" class="sz_text_muted" hidden></span>
+                <span id="docAiExtractLegalBadge" class="docai-extract-legal-badge" hidden><i class="fa-solid fa-scale-balanced"></i> Jurídico</span>
+              </article>
+              <article id="docAiExtractProjectCard" class="docai-info-card docai-extract-project-card" tabindex="0" role="button" aria-label="Escolher obra">
+                <h4>Obra</h4>
+                <strong id="docAiExtractProjectName">Todas as obras</strong>
+                <span id="docAiExtractProjectMeta" class="sz_text_muted">Sem filtro de obra</span>
+                <span id="docAiExtractProjectHint" class="docai-extract-card-hint"><i class="fa-solid fa-magnifying-glass"></i> Pesquisar obra</span>
+                <button id="docAiExtractProjectClear" type="button" class="docai-extract-project-clear" hidden aria-label="Remover filtro de obra">
+                  <i class="fa-solid fa-xmark"></i>
+                </button>
               </article>
             </div>
 
-            <section class="docai-extract-section">
+            <section id="docAiExtractGedDestination" class="docai-extract-ged-destination">
+              <div class="docai-extract-ged-head">
+                <div>
+                  <h4>Destino GED</h4>
+                  <span id="docAiExtractGedStatus" class="sz_text_muted">Localização calculada com os dados identificados.</span>
+                </div>
+                <i class="fa-solid fa-folder-tree"></i>
+              </div>
+              <div class="docai-extract-ged-fields">
+                <div>
+                  <span>Nome do documento</span>
+                  <strong id="docAiExtractGedFileName">--</strong>
+                </div>
+                <div>
+                  <span>Ficheiros e localizações previstas</span>
+                  <div id="docAiExtractGedPath" class="docai-extract-ged-paths">--</div>
+                </div>
+              </div>
+            </section>
+
+            <section id="docAiExtractOriginSection" class="docai-extract-section docai-extract-origin">
+              <div class="docai-extract-section-head docai-extract-origin-head">
+                <div>
+                  <h4>Origem do documento</h4>
+                  <span id="docAiExtractOriginMeta" class="sz_text_muted">A procurar documentos anteriores no PHC...</span>
+                </div>
+                <span id="docAiExtractOriginSource" class="docai-extract-origin-source" hidden></span>
+              </div>
+              <div id="docAiExtractOriginLoading" class="docai-extract-origin-loading">
+                <i class="fa-solid fa-circle-notch fa-spin"></i>
+                <span>A procurar BC, BL e pré-faturas do fornecedor...</span>
+              </div>
+              <div id="docAiExtractOriginFlow" class="docai-extract-origin-flow" hidden></div>
+            </section>
+
+            <section id="docAiExtractLinesSection" class="docai-extract-section">
               <div class="docai-extract-section-head">
                 <h4>Linhas do documento</h4>
-                <span id="docAiExtractLineCount" class="sz_text_muted"></span>
+                <div class="docai-extract-line-head-actions">
+                  <span id="docAiExtractLineCount" class="sz_text_muted"></span>
+                  <button id="docAiExtractSuggestBlsBtn" type="button" class="docai-extract-suggest-bl-btn" hidden>
+                    <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    <span>Sugerir criação de BLs</span>
+                  </button>
+                  <button id="docAiExtractSplitLineBtn" type="button" class="docai-extract-split-line-btn" hidden disabled>
+                    <i class="fa-solid fa-code-branch"></i>
+                    <span>Repartir linha pelos BLs</span>
+                  </button>
+                </div>
               </div>
               <div class="sz_table_host docai-extract-table-host">
                 <div class="sz_table_wrap">
                   <table class="sz_table sz_table_compact">
                     <thead class="sz_table_head">
                       <tr>
+                        <th class="docai-extract-line-picker-head" aria-label="Selecionar linha"></th>
                         <th>Ref.</th>
+                        <th class="docai-extract-bc-ref-head">Ref. BC</th>
                         <th>Descrição</th>
                         <th>Qtd.</th>
                         <th>Un.</th>
@@ -159,7 +229,7 @@
               </div>
             </section>
 
-            <div class="docai-extract-footer-grid">
+            <div id="docAiExtractTotalsSection" class="docai-extract-footer-grid">
               <section class="docai-extract-section">
                 <div class="docai-extract-section-head"><h4>Totais por taxa de IVA</h4></div>
                 <div class="sz_table_host docai-extract-table-host">
@@ -195,9 +265,32 @@
         <div id="docAiExtractStatus" class="sz_text_muted" aria-live="polite">Pronto.</div>
       </div>
       <div class="sz_actionbar_right">
-        <span class="sz_text_muted">O PDF é enviado ao LLM apenas para esta leitura e não é guardado no inbox.</span>
+        <span id="docAiExtractPersistenceNote" class="sz_text_muted">O PDF e a leitura ficam guardados no inbox para evitar novas chamadas ao LLM.</span>
       </div>
     </footer>
+  </div>
+</div>
+
+<div id="docAiEntityModal" class="sz_modal docai-supplier-match-modal" aria-hidden="true" role="dialog" aria-labelledby="docAiEntityTitle">
+  <div class="sz_panel docai-supplier-match-panel">
+    <div class="sz_modal_header">
+      <div>
+        <h3 id="docAiEntityTitle" class="sz_h4 sz_modal_title">Escolher entidade</h3>
+        <p class="sz_text_muted">Seleciona uma empresa do grupo existente na tabela FE.</p>
+      </div>
+      <button id="docAiEntityCloseTop" type="button" class="sz_button sz_button_ghost" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="sz_modal_body docai-modal-body">
+      <div class="docai-supplier-match-search">
+        <div class="sz_field">
+          <label class="sz_label" for="docAiEntitySearch">Nome ou NIF</label>
+          <input id="docAiEntitySearch" class="sz_input" type="search" placeholder="Pesquisar empresa do grupo">
+        </div>
+        <button id="docAiEntitySearchBtn" type="button" class="sz_button sz_button_secondary"><i class="fa-solid fa-magnifying-glass"></i><span>Pesquisar</span></button>
+      </div>
+      <div id="docAiEntityList" class="docai-supplier-match-list"></div>
+    </div>
+    <div class="sz_modal_footer"><button id="docAiEntityClose" type="button" class="sz_button sz_button_secondary">Fechar</button></div>
   </div>
 </div>
 
@@ -222,11 +315,108 @@
           <i class="fa-solid fa-magnifying-glass"></i>
           <span>Pesquisar</span>
         </button>
+        <button id="docAiSupplierManualBtn" type="button" class="sz_button sz_button_ghost" hidden>
+          <i class="fa-solid fa-pen-to-square"></i>
+          <span>Usar nome escrito</span>
+        </button>
       </div>
       <div id="docAiSupplierMatchList" class="docai-supplier-match-list"></div>
     </div>
     <div class="sz_modal_footer">
       <button id="docAiSupplierMatchClose" type="button" class="sz_button sz_button_secondary">Fechar</button>
+    </div>
+  </div>
+</div>
+
+{% if current_user.ADMIN %}
+<div id="docAiIntegrationAccessModal" class="sz_modal docai-access-modal" aria-hidden="true" role="dialog" aria-labelledby="docAiIntegrationAccessTitle">
+  <div class="sz_panel docai-access-panel">
+    <div class="sz_modal_header">
+      <div>
+        <h3 id="docAiIntegrationAccessTitle" class="sz_h4 sz_modal_title">Acessos de integração PHC</h3>
+        <p class="sz_text_muted">Define o que cada utilizador pode lançar no PHC.</p>
+      </div>
+      <button id="docAiIntegrationAccessCloseTop" type="button" class="sz_button sz_button_ghost docai-access-close" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="sz_modal_body docai-access-body">
+      <section class="docai-access-step docai-access-users">
+        <div class="docai-access-step-heading">
+          <span class="docai-access-step-number">1</span>
+          <div>
+            <strong>Escolher utilizador</strong>
+            <small>Pesquisa pelo nome, login ou email.</small>
+          </div>
+        </div>
+        <div class="docai-access-search-row">
+          <input id="docAiIntegrationAccessSearch" class="sz_input" type="search" placeholder="Começa a escrever para pesquisar..." aria-label="Pesquisar utilizador">
+          <button id="docAiIntegrationAccessSearchBtn" type="button" class="sz_button sz_button_secondary" aria-label="Pesquisar"><i class="fa-solid fa-magnifying-glass"></i></button>
+        </div>
+        <div id="docAiIntegrationAccessUsers" class="docai-access-user-list"></div>
+      </section>
+      <section id="docAiIntegrationAccessPermissions" class="docai-access-step docai-access-permissions is-disabled">
+        <div class="docai-access-step-heading">
+          <span class="docai-access-step-number">2</span>
+          <div>
+            <strong>Documentos autorizados</strong>
+            <small id="docAiIntegrationAccessHelp">Seleciona primeiro um utilizador.</small>
+          </div>
+        </div>
+        <div class="docai-access-selected-user">
+          <i class="fa-solid fa-user-check"></i>
+          <span>Utilizador selecionado:</span>
+          <strong id="docAiIntegrationAccessSelected">Nenhum utilizador selecionado</strong>
+        </div>
+        <div class="docai-access-permission-list">
+          {% for key, label in [
+            ('purchase_order', 'Bon de Commande'),
+            ('delivery_note', 'Bon de Livraison'),
+            ('proforma_invoice', 'Pré-Facture'),
+            ('provisional_invoice', 'Facture Provisoire'),
+            ('invoice', 'Facture'),
+            ('correspondence', 'Correspondence')
+          ] %}
+          <label class="docai-access-permission-option">
+            <input type="checkbox" data-integration-access-type="{{ key }}" disabled>
+            <span><i class="fa-solid fa-check"></i>{{ label }}</span>
+          </label>
+          {% endfor %}
+        </div>
+      </section>
+    </div>
+    <div class="sz_modal_footer">
+      <button id="docAiIntegrationAccessClose" type="button" class="sz_button sz_button_secondary">Fechar</button>
+      <button id="docAiIntegrationAccessSave" type="button" class="sz_button sz_button_primary" disabled><i class="fa-solid fa-floppy-disk"></i><span>Guardar acessos</span></button>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div id="docAiProjectModal" class="sz_modal docai-supplier-match-modal" aria-hidden="true" role="dialog" aria-labelledby="docAiProjectTitle">
+  <div class="sz_panel docai-supplier-match-panel">
+    <div class="sz_modal_header">
+      <div>
+        <h3 id="docAiProjectTitle" class="sz_h4 sz_modal_title">Escolher obra</h3>
+        <p id="docAiProjectContext" class="sz_text_muted">Pesquisa obras na empresa cliente identificada.</p>
+      </div>
+      <button id="docAiProjectCloseTop" type="button" class="sz_button sz_button_ghost" aria-label="Fechar">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+    <div class="sz_modal_body docai-modal-body">
+      <div class="docai-supplier-match-search">
+        <div class="sz_field">
+          <label class="sz_label" for="docAiProjectSearch">Código, nome ou local da obra</label>
+          <input id="docAiProjectSearch" class="sz_input" type="search" placeholder="Ex.: IS1986, INTERSOL-LORRAINE ou HELLIMER">
+        </div>
+        <button id="docAiProjectSearchBtn" type="button" class="sz_button sz_button_secondary">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <span>Pesquisar</span>
+        </button>
+      </div>
+      <div id="docAiProjectList" class="docai-supplier-match-list"></div>
+    </div>
+    <div class="sz_modal_footer">
+      <button id="docAiProjectClose" type="button" class="sz_button sz_button_secondary">Fechar</button>
     </div>
   </div>
 </div>

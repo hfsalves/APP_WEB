@@ -107,6 +107,51 @@ class ReconcileExtractedDocumentTests(unittest.TestCase):
         self.assertEqual(result[0]['tax_field'], 'ncont')
         self.assertEqual(result[0]['source'], 'phc')
 
+    def test_mail_rejects_external_recipient_as_group_entity(self):
+        document = {
+            'document_type': 'mail',
+            'external_party_role': 'supplier',
+            'customer': {'name': "Tribunal d'Arrondissement de Luxembourg"},
+            'supplier': {'name': 'RIGO & PARTNERS'},
+        }
+        with patch.object(document_ai_service, 'resolve_fe_entity', return_value={}):
+            result = document_ai_service.reconcile_extracted_document(document)
+
+        self.assertEqual(result['document']['customer']['name'], '')
+        self.assertEqual(
+            result['document']['customer']['llm_name'],
+            "Tribunal d'Arrondissement de Luxembourg",
+        )
+        self.assertFalse(result['matching']['customer_matched'])
+
+    def test_mail_customer_is_looked_up_in_cl_after_fe_match(self):
+        document = {
+            'document_type': 'mail',
+            'external_party_role': 'customer',
+            'customer': {'name': 'HSOLS FRANCE'},
+            'supplier': {'name': 'CLIENT EXTERNE', 'tax_id': 'FR123'},
+        }
+        fe_match = {'feid': 7, 'name': 'HSOLS FRANCE SAS', 'tax_id': '999', 'score': 0.9, 'matched_by': 'name'}
+        client_match = {'no': 31, 'name': 'CLIENT EXTERNE SAS', 'tax_id': '123', 'feid': 7, 'score': 0.98, 'matched_by': 'name', 'party_role': 'customer'}
+        with patch.object(document_ai_service, 'resolve_fe_entity', return_value=fe_match), patch.object(
+            document_ai_service, 'search_external_parties', return_value=[client_match]
+        ) as search:
+            result = document_ai_service.reconcile_extracted_document(document)
+
+        self.assertEqual(result['document']['supplier']['customer_no'], 31)
+        self.assertTrue(result['matching']['supplier_matched'])
+        self.assertTrue(all(call.kwargs['feid'] == 7 for call in search.call_args_list))
+
+    def test_mail_search_combines_fl_and_cl_candidates(self):
+        supplier = {'no': 8, 'name': 'RIGO SUPPLIER', 'score': 0.91}
+        customer = {'no': 9, 'name': 'RIGO CUSTOMER', 'score': 0.95}
+        with patch.object(document_ai_service, 'search_suppliers', return_value=[supplier]), patch.object(
+            document_ai_service, 'search_customers', return_value=[customer]
+        ):
+            results = document_ai_service.search_external_parties('RIGO', feid=7)
+
+        self.assertEqual([item['party_role'] for item in results], ['customer', 'supplier'])
+
 
 if __name__ == '__main__':
     unittest.main()

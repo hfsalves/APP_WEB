@@ -10,7 +10,7 @@ import shutil
 import threading
 import unicodedata
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from difflib import SequenceMatcher
 from typing import Any
@@ -301,6 +301,14 @@ def _fl_tax_id_column() -> str:
     if _column_exists('FL', 'NIF'):
         return 'NIF'
     if _column_exists('FL', 'NCONT'):
+        return 'NCONT'
+    return ''
+
+
+def _cl_tax_id_column() -> str:
+    if _column_exists('CL', 'NIF'):
+        return 'NIF'
+    if _column_exists('CL', 'NCONT'):
         return 'NCONT'
     return ''
 
@@ -810,6 +818,33 @@ def resolve_fe_entity(value: str, match_mode: str = 'auto') -> dict[str, Any]:
     return {}
 
 
+def search_fe_entities(value: str = '', limit: int = 20) -> list[dict[str, Any]]:
+    raw = str(value or '').strip()
+    normalized_raw = _normalize_text(raw)
+    digits = _digits_only(raw)
+    results = []
+    for entity in _load_fe_entities():
+        serialized = _serialize_fe_row(entity)
+        name = str(serialized.get('name') or '')
+        tax_id = str(serialized.get('tax_id') or '')
+        if not raw:
+            score = 1.0
+        else:
+            normalized_name = _normalize_text(name)
+            if digits and digits in tax_id:
+                score = 1.0 if digits == tax_id else 0.92
+            elif normalized_raw in normalized_name:
+                score = 0.95
+            else:
+                score = SequenceMatcher(None, normalized_name, normalized_raw).ratio()
+            if score < 0.3:
+                continue
+        serialized['score'] = round(score, 4)
+        results.append(serialized)
+    results.sort(key=lambda item: (-float(item.get('score') or 0), str(item.get('name') or '')))
+    return results[:max(1, min(int(limit or 20), 50))]
+
+
 def identify_fe_entity_from_text(text_value: str) -> dict[str, Any]:
     normalized_text = _normalize_text(text_value)
     for vat in _supplier_candidates_from_text(text_value):
@@ -971,8 +1006,119 @@ def search_suppliers(value: str, feid: int | None = None, limit: int = 8) -> lis
     return results[:max(1, min(int(limit or 8), 20))]
 
 
+def _load_customers(feid: int) -> list[dict[str, Any]]:
+    source = _fe_supplier_source(feid)
+    if source.get('kind') == 'phc':
+        import pyodbc
+        from services.colaborador_despesas_service import _phc_conn_str
+
+        with pyodbc.connect(
+            _phc_conn_str(str(source.get('phc_db') or ''), str(source.get('phc_server') or '')),
+            timeout=8,
+        ) as connection:
+            rows = connection.cursor().execute("""
+                SELECT CAST(ISNULL(CL.NO, 0) AS int),
+                       LTRIM(RTRIM(ISNULL(CL.NOME, ''))),
+                       LTRIM(RTRIM(CAST(ISNULL(CL.NCONT, '') AS varchar(40))))
+                FROM dbo.CL CL
+                WHERE ISNULL(CL.NOME, '') <> ''
+                ORDER BY CL.NOME
+            """).fetchall()
+        return [{
+            'NO': _safe_int(row[0], 0), 'NOME': str(row[1] or '').strip(),
+            'NIF': str(row[2] or '').strip(), 'FEID': feid,
+            'TAX_FIELD': 'ncont', 'SOURCE': 'phc',
+        } for row in rows]
+
+    feid_select = "CAST(ISNULL(CL.FEID, 0) AS int)" if _column_exists('CL', 'FEID') else "CAST(0 AS int)"
+    feid_filter = "AND ISNULL(CL.FEID, 0) = :feid" if _column_exists('CL', 'FEID') else ''
+    tax_column = _cl_tax_id_column()
+    tax_select = f"LTRIM(RTRIM(CAST(ISNULL(CL.{tax_column}, '') AS varchar(40))))" if tax_column else "CAST('' AS varchar(40))"
+    rows = db.session.execute(text(f"""
+        SELECT CAST(ISNULL(CL.NO, 0) AS int) AS NO,
+               LTRIM(RTRIM(ISNULL(CL.NOME, ''))) AS NOME,
+               {tax_select} AS NIF,
+               {feid_select} AS FEID
+        FROM dbo.CL CL
+        WHERE ISNULL(CL.NOME, '') <> '' {feid_filter}
+        ORDER BY CL.NOME
+    """), {'feid': feid}).mappings().all()
+    return [{**dict(row), 'TAX_FIELD': tax_column.lower() or 'unknown', 'SOURCE': 'app'} for row in rows]
+
+
+def search_customers(value: str, feid: int | None = None, limit: int = 8) -> list[dict[str, Any]]:
+    clean_feid = _safe_int(feid, 0)
+    if not clean_feid:
+        raise ValueError('Identifica primeiro a Entidade FE.')
+    raw = str(value or '').strip()
+    normalized_raw = _normalize_text(raw)
+    digits = _digits_only(raw)
+    if len(normalized_raw) < 2 and len(digits) < 2:
+        return []
+    results = []
+    seen = set()
+    for customer in _load_customers(clean_feid):
+        customer_no = _safe_int(customer.get('NO'), 0)
+        key = (_safe_int(customer.get('FEID'), clean_feid), customer_no)
+        if not customer_no or key in seen:
+            continue
+        seen.add(key)
+        name = str(customer.get('NOME') or '').strip()
+        tax_id = _digits_only(customer.get('NIF'))
+        normalized_name = _normalize_text(name)
+        score = 0.0
+        matched_by = ''
+        if digits and tax_id:
+            if digits == tax_id:
+                score, matched_by = 0.99, 'tax_id'
+            elif digits in tax_id or tax_id in digits:
+                score, matched_by = 0.88, 'tax_id'
+        if normalized_raw and normalized_name:
+            ratio = SequenceMatcher(None, normalized_name, normalized_raw).ratio()
+            if normalized_raw == normalized_name:
+                score, matched_by = max(score, 0.98), matched_by or 'name'
+            elif normalized_raw in normalized_name or normalized_name in normalized_raw:
+                score, matched_by = max(score, 0.9), matched_by or 'name'
+            elif ratio >= 0.35:
+                score, matched_by = max(score, ratio * 0.82), matched_by or 'name'
+        if score < 0.32:
+            continue
+        results.append({
+            'no': customer_no, 'name': name, 'tax_id': tax_id, 'feid': key[0],
+            'score': round(min(score, 0.99), 4), 'matched_by': matched_by or 'name',
+            'tax_field': str(customer.get('TAX_FIELD') or 'unknown').lower(),
+            'source': str(customer.get('SOURCE') or 'app').lower(),
+        })
+    results.sort(key=lambda item: (-float(item.get('score') or 0), str(item.get('name') or '')))
+    return results[:max(1, min(int(limit or 8), 20))]
+
+
+def search_external_parties(value: str, feid: int | None = None, limit: int = 12) -> list[dict[str, Any]]:
+    clean_limit = max(1, min(int(limit or 12), 20))
+    suppliers = []
+    customers = []
+    try:
+        suppliers = [
+            {**item, 'party_role': 'supplier', 'party_label': 'Fornecedor'}
+            for item in search_suppliers(value, feid=feid, limit=clean_limit)
+        ]
+    except Exception:
+        current_app.logger.exception('Não foi possível pesquisar a FL durante a pesquisa de correio')
+    try:
+        customers = [
+            {**item, 'party_role': 'customer', 'party_label': 'Cliente'}
+            for item in search_customers(value, feid=feid, limit=clean_limit)
+        ]
+    except Exception:
+        current_app.logger.exception('Não foi possível pesquisar a CL durante a pesquisa de correio')
+    results = suppliers + customers
+    results.sort(key=lambda item: (-float(item.get('score') or 0), str(item.get('name') or ''), str(item.get('party_role') or '')))
+    return results[:clean_limit]
+
+
 def reconcile_extracted_document(document_data: dict[str, Any] | None) -> dict[str, Any]:
     result = dict(document_data or {})
+    is_mail = str(result.get('document_type') or '').strip().lower() == 'mail'
     customer = dict(result.get('customer') or {})
     supplier = dict(result.get('supplier') or {})
 
@@ -1000,28 +1146,44 @@ def reconcile_extracted_document(document_data: dict[str, Any] | None) -> dict[s
             'match_score': customer_match.get('score') or 0,
             'matched_by': customer_match.get('matched_by') or '',
         })
+    elif is_mail:
+        customer.update({
+            'name': '',
+            'tax_id': '',
+            'llm_name': llm_customer_name,
+            'llm_tax_id': llm_customer_tax_id,
+            'match_score': 0,
+            'matched_by': '',
+        })
     result['customer'] = customer
 
     llm_supplier_name = str(supplier.get('name') or '').strip()
     llm_supplier_tax_id = _digits_only(supplier.get('tax_id'))
     feid = _safe_int(customer_match.get('feid'), 0)
     candidates: list[dict[str, Any]] = []
-    seen: set[tuple[int, int]] = set()
+    seen: set[tuple[str, int, int]] = set()
 
-    def add_candidates(items: list[dict[str, Any]]):
+    def add_candidates(items: list[dict[str, Any]], party_role: str = 'supplier'):
         for item in items:
-            key = (_safe_int(item.get('feid'), feid), _safe_int(item.get('no'), 0))
-            if not key[1] or key in seen:
+            role = str(item.get('party_role') or party_role or 'supplier')
+            key = (role, _safe_int(item.get('feid'), feid), _safe_int(item.get('no'), 0))
+            if not key[2] or key in seen:
                 continue
             seen.add(key)
-            candidates.append(dict(item))
+            candidates.append({**dict(item), 'party_role': role, 'party_label': 'Cliente' if role == 'customer' else 'Fornecedor'})
 
     supplier_lookup_error = ''
     try:
         if feid and llm_supplier_tax_id:
-            add_candidates(search_suppliers(llm_supplier_tax_id, feid=feid, limit=12))
+            if is_mail:
+                add_candidates(search_external_parties(llm_supplier_tax_id, feid=feid, limit=12))
+            else:
+                add_candidates(search_suppliers(llm_supplier_tax_id, feid=feid, limit=12))
         if feid and llm_supplier_name:
-            add_candidates(search_suppliers(llm_supplier_name, feid=feid, limit=12))
+            if is_mail:
+                add_candidates(search_external_parties(llm_supplier_name, feid=feid, limit=12))
+            else:
+                add_candidates(search_suppliers(llm_supplier_name, feid=feid, limit=12))
     except Exception as exc:
         current_app.logger.exception('Erro ao reconciliar fornecedor extraído na FL')
         supplier_lookup_error = str(exc)
@@ -1049,7 +1211,24 @@ def reconcile_extracted_document(document_data: dict[str, Any] | None) -> dict[s
         'llm_name': llm_supplier_name,
         'llm_tax_id': llm_supplier_tax_id,
     })
-    if auto_matched:
+    if is_mail:
+        selected_role = str(selected.get('party_role') or result.get('external_party_role') or 'unknown')
+        supplier['supplier_no'] = None
+        supplier['customer_no'] = None
+        supplier['feid'] = feid or None
+        if auto_matched:
+            result['external_party_role'] = selected_role
+            supplier.update({
+                ('customer_no' if selected_role == 'customer' else 'supplier_no'): selected.get('no'),
+                'name': selected.get('name') or llm_supplier_name,
+                'tax_id': selected.get('tax_id') or llm_supplier_tax_id,
+                'match_score': selected_score,
+                'matched_by': selected.get('matched_by') or '',
+            })
+        else:
+            supplier['match_score'] = selected_score
+            supplier['matched_by'] = ''
+    elif auto_matched:
         supplier.update({
             'supplier_no': selected.get('no'),
             'name': selected.get('name') or llm_supplier_name,
@@ -1083,6 +1262,1040 @@ def reconcile_extracted_document(document_data: dict[str, Any] | None) -> dict[s
             },
         },
     }
+
+
+DOC_AI_PHC_PURCHASE_FLOW = [
+    {'key': 'purchase_order', 'label': 'Bon de Commande Fournisseur', 'ndos': 102, 'order': 1},
+    {'key': 'delivery_note', 'label': 'Bon de Livraison Fournisseur', 'ndos': 130, 'order': 2},
+    {'key': 'proforma_invoice', 'label': 'Pré-Facture', 'ndos': 218, 'order': 3},
+    {'key': 'invoice', 'label': 'Facture', 'table': 'FO', 'order': 4},
+]
+
+DOC_AI_INTEGRATION_ACCESS_TYPES = [
+    ('purchase_order', 'Bon de Commande', 'PURCHASE_ORDER'),
+    ('delivery_note', 'Bon de Livraison', 'DELIVERY_NOTE'),
+    ('proforma_invoice', 'Pré-Facture', 'PROFORMA_INVOICE'),
+    ('provisional_invoice', 'Facture Provisoire', 'PROVISIONAL_INVOICE'),
+    ('invoice', 'Facture', 'INVOICE'),
+    ('correspondence', 'Correspondence', 'CORRESPONDENCE'),
+]
+
+
+def _normalize_document_integration_access(payload: dict[str, Any] | None) -> dict[str, bool]:
+    source = dict(payload or {})
+    return {
+        key: str(source.get(key, '')).strip().lower() in {'1', 'true', 'yes', 'on'}
+        if not isinstance(source.get(key), bool) else source[key]
+        for key, _label, _column in DOC_AI_INTEGRATION_ACCESS_TYPES
+    }
+
+
+def list_document_integration_access_users(query: str = '', limit: int = 30) -> list[dict[str, Any]]:
+    _ensure_document_ai_schema()
+    clean_query = str(query or '').strip()
+    safe_limit = max(1, min(_safe_int(limit, 30), 60))
+    like_query = f'%{clean_query}%'
+    permission_columns = ', '.join(
+        f'ISNULL(A.{column}, 0) AS {column}'
+        for _key, _label, column in DOC_AI_INTEGRATION_ACCESS_TYPES
+    )
+    rows = db.session.execute(text(f"""
+        SELECT TOP ({safe_limit})
+            LTRIM(RTRIM(ISNULL(U.LOGIN, ''))) AS LOGIN,
+            LTRIM(RTRIM(ISNULL(U.NOME, ''))) AS NOME,
+            LTRIM(RTRIM(ISNULL(U.EMAIL, ''))) AS EMAIL,
+            {permission_columns}
+        FROM dbo.US U
+        LEFT JOIN dbo.DOC_AI_INTEGRATION_ACCESS A
+          ON A.LOGIN = U.LOGIN
+        WHERE LTRIM(RTRIM(ISNULL(U.LOGIN, ''))) <> ''
+          AND (
+              :query = ''
+              OR U.LOGIN LIKE :like_query
+              OR U.NOME LIKE :like_query
+              OR U.EMAIL LIKE :like_query
+          )
+        ORDER BY U.NOME, U.LOGIN
+    """), {'query': clean_query, 'like_query': like_query}).mappings().all()
+    results = []
+    for row in rows:
+        item = dict(row)
+        results.append({
+            'login': str(item.get('LOGIN') or '').strip(),
+            'name': str(item.get('NOME') or '').strip(),
+            'email': str(item.get('EMAIL') or '').strip(),
+            'permissions': {
+                key: bool(item.get(column))
+                for key, _label, column in DOC_AI_INTEGRATION_ACCESS_TYPES
+            },
+        })
+    return results
+
+
+def save_document_integration_access(
+    login: str,
+    permissions: dict[str, Any] | None,
+    requested_by: str,
+) -> dict[str, Any]:
+    _ensure_document_ai_schema()
+    clean_login = str(login or '').strip()
+    if not clean_login:
+        raise ValueError('Seleciona um utilizador.')
+    user = db.session.execute(text("""
+        SELECT TOP 1 LTRIM(RTRIM(ISNULL(LOGIN, ''))) LOGIN,
+            LTRIM(RTRIM(ISNULL(NOME, ''))) NOME
+        FROM dbo.US WHERE LOGIN = :login
+    """), {'login': clean_login}).mappings().first()
+    if not user:
+        raise ValueError('O utilizador selecionado já não existe.')
+    normalized = _normalize_document_integration_access(permissions)
+    columns = {column: 1 if normalized[key] else 0 for key, _label, column in DOC_AI_INTEGRATION_ACCESS_TYPES}
+    assignments = ', '.join(f'{column} = :{column}' for column in columns)
+    insert_columns = ', '.join(columns)
+    insert_values = ', '.join(f':{column}' for column in columns)
+    params = {
+        'stamp': _new_stamp(), 'login': clean_login, 'requested_by': requested_by or '',
+        **columns,
+    }
+    db.session.execute(text(f"""
+        IF EXISTS (SELECT 1 FROM dbo.DOC_AI_INTEGRATION_ACCESS WHERE LOGIN = :login)
+        BEGIN
+            UPDATE dbo.DOC_AI_INTEGRATION_ACCESS
+               SET {assignments}, DTALT = GETDATE(), USERALTERACAO = :requested_by
+             WHERE LOGIN = :login;
+        END
+        ELSE
+        BEGIN
+            INSERT INTO dbo.DOC_AI_INTEGRATION_ACCESS (
+                DOCACCESSSTAMP, LOGIN, {insert_columns}, DTCRI, USERCRIACAO, USERALTERACAO
+            ) VALUES (
+                :stamp, :login, {insert_values}, GETDATE(), :requested_by, :requested_by
+            );
+        END
+    """), params)
+    db.session.commit()
+    return {
+        'ok': True,
+        'message': 'Acessos de integração atualizados.',
+        'user': {'login': clean_login, 'name': str(user.get('NOME') or '').strip()},
+        'permissions': normalized,
+    }
+
+
+def _phc_contract_flow_stages(cursor) -> list[dict[str, Any]]:
+    rows = cursor.execute("""
+        SELECT CAST(ISNULL(NDOS, 0) AS int), LTRIM(RTRIM(ISNULL(NMDOS, '')))
+        FROM dbo.TS WITH (NOLOCK)
+        WHERE LOWER(LTRIM(RTRIM(ISNULL(NMDOS, '')))) LIKE '%contrat%'
+        ORDER BY ISNULL(NDOS, 0)
+    """).fetchall()
+    stages = []
+    seen = set()
+    for row in rows:
+        ndos = _safe_int(row[0], 0)
+        label = str(row[1] or '').strip()
+        if not ndos or ndos in seen or not label:
+            continue
+        seen.add(ndos)
+        stages.append({
+            'key': f'contract_{ndos}',
+            'document_type': 'contract',
+            'label': label,
+            'ndos': ndos,
+            'order': 0,
+        })
+    return stages
+
+
+def _document_date_value(value: Any) -> datetime:
+    raw = str(value or '').strip()
+    try:
+        return datetime.fromisoformat(raw[:10])
+    except Exception:
+        return datetime.now()
+
+
+def _configured_phc_sources() -> list[dict[str, Any]]:
+    import pyodbc
+
+    conn_map = current_app.config.get('DB_CONN_STRS') or {}
+    conn_str = str(conn_map.get('client') or '').strip()
+    if not conn_str:
+        return []
+    try:
+        with pyodbc.connect(conn_str, timeout=10) as connection:
+            cursor = connection.cursor()
+            cursor.execute("""
+                SELECT
+                    ISNULL(FEID, 0) AS FEID,
+                    LTRIM(RTRIM(ISNULL(NOME, ''))) AS NOME,
+                    LTRIM(RTRIM(ISNULL(NOMEFISCAL, ''))) AS NOMEFISCAL,
+                    LTRIM(RTRIM(CONVERT(varchar(40), ISNULL(NIF, 0)))) AS NIF,
+                    LTRIM(RTRIM(ISNULL(PHC_DB, ''))) AS PHC_DB,
+                    LTRIM(RTRIM(ISNULL(PHC_SERVER, ''))) AS PHC_SERVER
+                FROM dbo.FE
+                WHERE LTRIM(RTRIM(ISNULL(PHC_DB, ''))) <> ''
+                  AND ISNULL(ATIVA, 1) = 1
+                ORDER BY ISNULL(FEID, 0)
+            """)
+            columns = [str(item[0]).upper() for item in cursor.description or []]
+            return [dict(zip(columns, row)) for row in cursor.fetchall()]
+    except Exception:
+        current_app.logger.exception('Erro ao carregar empresas com PHC configurado para origens documentais')
+        return []
+
+
+def _phc_origin_source(customer: dict[str, Any]) -> dict[str, Any]:
+    feid = _safe_int(customer.get('feid'), 0)
+    if feid:
+        try:
+            current_source = _fe_supplier_source(feid)
+            if current_source.get('kind') == 'phc':
+                return current_source
+        except Exception:
+            current_app.logger.info('Configuração PHC não disponível na FE atual.', exc_info=True)
+
+    customer_tax = _digits_only(customer.get('tax_id'))
+    customer_name = _normalize_text(customer.get('name'))
+    best = {}
+    best_score = 0.0
+    for source in _configured_phc_sources():
+        source_tax = _digits_only(source.get('NIF'))
+        source_names = [
+            _normalize_text(source.get('NOMEFISCAL')),
+            _normalize_text(source.get('NOME')),
+        ]
+        score = 0.0
+        if customer_tax and source_tax and customer_tax == source_tax:
+            score = 1.0
+        if customer_name:
+            for source_name in source_names:
+                if not source_name:
+                    continue
+                ratio = SequenceMatcher(None, customer_name, source_name).ratio()
+                if customer_name in source_name or source_name in customer_name:
+                    ratio = max(ratio, 0.94)
+                score = max(score, ratio)
+        if feid and _safe_int(source.get('FEID'), 0) == feid:
+            score = max(score, 1.0)
+        if score > best_score:
+            best_score = score
+            best = source
+    if not best or best_score < 0.62:
+        return {}
+    return {
+        'kind': 'phc',
+        'feid': _safe_int(best.get('FEID'), 0) or feid or None,
+        'tax_field': 'ncont',
+        'phc_db': str(best.get('PHC_DB') or '').strip(),
+        'phc_server': str(best.get('PHC_SERVER') or '').strip(),
+        'company_name': str(best.get('NOMEFISCAL') or best.get('NOME') or '').strip(),
+        'match_score': round(best_score, 4),
+    }
+
+
+def get_next_phc_correspondence_reference(
+    customer_data: dict[str, Any] | None,
+    year: int | str | None = None,
+) -> dict[str, Any]:
+    """Return the next annual incoming-correspondence reference for one PHC company.
+
+    CR.REF is shared by every received document type in a company database and CR.ANO
+    is the annual partition. This only previews the next value; the definitive value
+    must be rechecked in the transaction that eventually creates the CR row.
+    """
+    import pyodbc
+    from services.phc_user_import_service import _phc_conn_str
+
+    customer = dict(customer_data or {})
+    target_year = _safe_int(year, datetime.now().year)
+    if target_year < 2000 or target_year > 2100:
+        target_year = datetime.now().year
+
+    source = _phc_origin_source(customer)
+    database_name = str(source.get('phc_db') or '').strip()
+    if source.get('kind') != 'phc' or not database_name:
+        raise ValueError('A entidade selecionada não tem uma base PHC configurada para consultar a correspondência.')
+
+    with pyodbc.connect(
+        _phc_conn_str(database_name, str(source.get('phc_server') or '').strip()),
+        timeout=10,
+    ) as connection:
+        row = connection.cursor().execute("""
+            SELECT ISNULL(MAX(CAST(ISNULL(REF, 0) AS bigint)), 0)
+            FROM dbo.CR WITH (NOLOCK)
+            WHERE CAST(ISNULL(ANO, 0) AS int) = ?
+              AND ISNULL(ENVIADA, 0) = 0
+        """, target_year).fetchone()
+
+    last_reference = _safe_int(row[0] if row else 0, 0)
+    return {
+        'available': True,
+        'reference': last_reference + 1,
+        'last_reference': last_reference,
+        'year': target_year,
+        'feid': source.get('feid') or customer.get('feid'),
+        'phc_database': database_name,
+        'company_name': str(source.get('company_name') or customer.get('name') or '').strip(),
+        'provisional': True,
+    }
+
+
+def _phc_origin_supplier(cursor, supplier: dict[str, Any]) -> dict[str, Any]:
+    supplier_no = _safe_int(supplier.get('supplier_no') or supplier.get('no'), 0)
+    supplier_tax = _digits_only(supplier.get('tax_id'))
+    supplier_name = str(supplier.get('name') or supplier.get('llm_name') or '').strip()
+    if supplier_no:
+        row = cursor.execute("""
+            SELECT TOP 1 NO, LTRIM(RTRIM(ISNULL(NOME, ''))) NOME,
+                LTRIM(RTRIM(CONVERT(varchar(40), ISNULL(NCONT, '')))) NCONT
+            FROM dbo.FL WHERE NO = ?
+        """, supplier_no).fetchone()
+        if row:
+            return {'no': _safe_int(row[0], 0), 'name': str(row[1] or '').strip(), 'tax_id': _digits_only(row[2]), 'matched_by': 'number'}
+    if supplier_tax:
+        row = cursor.execute("""
+            SELECT TOP 1 NO, LTRIM(RTRIM(ISNULL(NOME, ''))) NOME,
+                LTRIM(RTRIM(CONVERT(varchar(40), ISNULL(NCONT, '')))) NCONT
+            FROM dbo.FL
+            WHERE REPLACE(REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(CONVERT(varchar(40), ISNULL(NCONT, '')))), ' ', ''), '-', ''), '.', ''), '/', '') = ?
+        """, supplier_tax).fetchone()
+        if row:
+            return {'no': _safe_int(row[0], 0), 'name': str(row[1] or '').strip(), 'tax_id': _digits_only(row[2]), 'matched_by': 'ncont'}
+    normalized_name = _normalize_text(supplier_name)
+    if not normalized_name:
+        return {}
+    rows = cursor.execute("""
+        SELECT NO, LTRIM(RTRIM(ISNULL(NOME, ''))) NOME,
+            LTRIM(RTRIM(CONVERT(varchar(40), ISNULL(NCONT, '')))) NCONT
+        FROM dbo.FL WHERE ISNULL(NOME, '') <> ''
+    """).fetchall()
+    best_row = None
+    best_score = 0.0
+    for row in rows:
+        candidate_name = _normalize_text(row[1])
+        score = SequenceMatcher(None, normalized_name, candidate_name).ratio()
+        if normalized_name in candidate_name or candidate_name in normalized_name:
+            score = max(score, 0.92)
+        if score > best_score:
+            best_score = score
+            best_row = row
+    if best_row and best_score >= 0.65:
+        return {
+            'no': _safe_int(best_row[0], 0),
+            'name': str(best_row[1] or '').strip(),
+            'tax_id': _digits_only(best_row[2]),
+            'matched_by': 'name',
+            'score': round(best_score, 4),
+        }
+    return {}
+
+
+def search_phc_projects(customer_data: dict[str, Any] | None, query: str = '', limit: int = 20) -> dict[str, Any]:
+    import pyodbc
+    from services.phc_user_import_service import _phc_conn_str
+
+    customer = dict(customer_data or {})
+    source = _phc_origin_source(customer)
+    if not source.get('phc_db'):
+        raise ValueError('A empresa identificada não tem uma base PHC configurada.')
+    clean_query = str(query or '').strip()
+    like_query = f'%{clean_query}%'
+    safe_limit = max(1, min(int(limit or 20), 50))
+    with pyodbc.connect(_phc_conn_str(source['phc_db'], source.get('phc_server') or ''), timeout=12) as connection:
+        cursor = connection.cursor()
+        rows = cursor.execute("""
+            SELECT TOP (?)
+                LTRIM(RTRIM(ISNULL(BO.CCUSTO, ''))) CCUSTO,
+                MAX(LTRIM(RTRIM(ISNULL(BO.MAQUINA, '')))) MAQUINA,
+                MAX(LTRIM(RTRIM(ISNULL(BO.LOCAL, '')))) LOCAL,
+                MAX(BO.DATAOBRA) ULTIMA_DATA,
+                COUNT(DISTINCT BO.BOSTAMP) DOCUMENTOS
+            FROM dbo.BO BO WITH (NOLOCK)
+            WHERE LTRIM(RTRIM(ISNULL(BO.CCUSTO, ''))) <> ''
+              AND (
+                    ? = ''
+                    OR BO.CCUSTO LIKE ?
+                    OR BO.MAQUINA LIKE ?
+                    OR BO.LOCAL LIKE ?
+                    OR BO.OBRANOME LIKE ?
+              )
+            GROUP BY LTRIM(RTRIM(ISNULL(BO.CCUSTO, '')))
+            ORDER BY MAX(BO.DATAOBRA) DESC, LTRIM(RTRIM(ISNULL(BO.CCUSTO, '')))
+        """, safe_limit, clean_query, like_query, like_query, like_query, like_query).fetchall()
+    return {
+        'items': [{
+            'ccusto': str(row[0] or '').strip(),
+            'machine': str(row[1] or '').strip(),
+            'location': str(row[2] or '').strip(),
+            'last_date': row[3].date().isoformat() if isinstance(row[3], datetime) else str(row[3] or '')[:10],
+            'document_count': _safe_int(row[4], 0),
+        } for row in rows],
+        'phc_database': str(source.get('phc_db') or ''),
+    }
+
+
+def _origin_line_tokens(lines: list[dict[str, Any]]) -> tuple[set[str], set[str]]:
+    refs = set()
+    tokens = set()
+    for line in lines or []:
+        ref = _normalize_text(line.get('ref'))
+        if ref:
+            refs.add(ref.replace(' ', ''))
+        description = _normalize_text(line.get('description') or line.get('design'))
+        tokens.update(token for token in description.split(' ') if len(token) >= 4)
+    return refs, tokens
+
+
+def _explicit_document_origins(document_data: dict[str, Any]) -> list[dict[str, Any]]:
+    origins = []
+    seen = set()
+    for raw in document_data.get('origin_references') or []:
+        if not isinstance(raw, dict):
+            continue
+        document_type = str(raw.get('document_type') or '').strip()
+        document_number = str(raw.get('document_number') or '').strip()
+        key = (_normalize_text(document_type), _normalize_text(document_number).replace(' ', ''))
+        if not document_number or key in seen:
+            continue
+        seen.add(key)
+        origins.append({
+            'document_type': document_type,
+            'document_number': document_number,
+            'visible_text': str(raw.get('visible_text') or '').strip(),
+            'page': _safe_int(raw.get('page'), 0) or None,
+        })
+    for line in document_data.get('lines') or []:
+        if not isinstance(line, dict):
+            continue
+        description = str(line.get('description') or line.get('design') or '').strip()
+        normalized_description = _normalize_text(description)
+        for match in re.finditer(
+            r'\bref(?:erence)?\.?\s+client\s*[:#nº°.\-]*\s*([a-z0-9][a-z0-9./_-]*)',
+            normalized_description,
+        ):
+            customer_reference = str(match.group(1) or '').strip()
+            reference_key = ('purchase_order', _origin_number_key(customer_reference))
+            if not customer_reference or reference_key in seen:
+                continue
+            seen.add(reference_key)
+            origins.append({
+                'document_type': 'purchase_order',
+                'document_number': customer_reference,
+                'visible_text': f'Réf. Client: {customer_reference}',
+                'page': None,
+            })
+        document_number = str(line.get('origin_delivery_note_number') or '').strip()
+        key = ('delivery_note', _normalize_text(document_number).replace(' ', ''))
+        if not document_number or key in seen:
+            continue
+        seen.add(key)
+        origins.append({
+            'document_type': 'delivery_note',
+            'document_number': document_number,
+            'visible_text': 'Referência BL associada às linhas da fatura',
+            'page': None,
+        })
+    return origins
+
+
+def _origin_number_key(value: Any) -> str:
+    normalized = _normalize_text(value)
+    return re.sub(r'[^a-z0-9]', '', normalized)
+
+
+def _document_origin_quantity(lines: list[dict[str, Any]]) -> float:
+    commercial_lines = [
+        line for line in lines or []
+        if isinstance(line, dict)
+        and not bool(line.get('_virtual_split_allocation'))
+        and str(line.get('origin_delivery_note_number') or '').strip()
+        and abs(float(line.get('qty') or line.get('quantity') or 0)) > 0
+    ]
+    quantity_lines = commercial_lines or [
+        line for line in lines or []
+        if isinstance(line, dict)
+        and not bool(line.get('_virtual_split_allocation'))
+        and abs(float(line.get('qty') or line.get('quantity') or 0)) > 0
+    ]
+    return round(sum(abs(float(line.get('qty') or line.get('quantity') or 0)) for line in quantity_lines), 4)
+
+
+def _line_mapping_similarity(current_line: dict[str, Any], origin_line: dict[str, Any]) -> tuple[float, list[str]]:
+    score = 0.0
+    reasons = []
+    current_ref = _origin_number_key(current_line.get('ref'))
+    origin_ref = _origin_number_key(origin_line.get('ref'))
+    if current_ref and origin_ref and current_ref == origin_ref:
+        score += 0.45
+        reasons.append('Referência coincidente')
+
+    current_qty = abs(float(current_line.get('qty') or current_line.get('quantity') or 0))
+    origin_qty = abs(float(origin_line.get('pending_qty') or origin_line.get('qty') or 0))
+    if current_qty > 0 and origin_qty > 0:
+        qty_difference = abs(current_qty - origin_qty) / max(current_qty, origin_qty)
+        if qty_difference <= 0.02:
+            score += 0.4
+            reasons.append('Quantidade coincidente')
+        elif qty_difference <= 0.15:
+            score += 0.32
+            reasons.append('Quantidade próxima')
+        elif qty_difference <= 0.35:
+            score += 0.16
+
+    current_description = _normalize_text(current_line.get('description') or current_line.get('design'))
+    origin_description = _normalize_text(origin_line.get('description') or origin_line.get('design'))
+    if current_description and origin_description:
+        sequence_score = SequenceMatcher(None, current_description, origin_description).ratio()
+        current_tokens = {token for token in current_description.split() if len(token) >= 4}
+        origin_tokens = {token for token in origin_description.split() if len(token) >= 4}
+        token_score = len(current_tokens & origin_tokens) / max(1, min(len(current_tokens), len(origin_tokens)))
+        description_score = max(sequence_score, token_score)
+        score += min(description_score, 1.0) * 0.48
+        if description_score >= 0.45:
+            reasons.append('Descrição semelhante')
+    return round(min(score, 0.99), 4), reasons
+
+
+def _match_document_lines_to_origin(
+    document_lines: list[dict[str, Any]],
+    origin_lines: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    indexed_current = [
+        (index, line) for index, line in enumerate(document_lines or [])
+        if isinstance(line, dict)
+        and not bool(line.get('_virtual_split_allocation'))
+        and abs(float(line.get('qty') or line.get('quantity') or 0)) > 0
+    ]
+    delivery_current = [item for item in indexed_current if str(item[1].get('origin_delivery_note_number') or '').strip()]
+    if delivery_current:
+        indexed_current = delivery_current
+    usable_origins = [
+        (index, line) for index, line in enumerate(origin_lines or [])
+        if isinstance(line, dict) and str(line.get('ref') or '').strip()
+    ]
+    if not indexed_current or not usable_origins:
+        return []
+
+    positive_origins = [item for item in usable_origins if abs(float(item[1].get('pending_qty') or item[1].get('qty') or 0)) > 0]
+    current_total = round(sum(abs(float(line.get('qty') or line.get('quantity') or 0)) for _, line in indexed_current), 4)
+    if len(positive_origins) == 1 and current_total > 0:
+        origin_index, origin_line = positive_origins[0]
+        origin_quantity = abs(float(origin_line.get('pending_qty') or origin_line.get('qty') or 0))
+        quantity_difference = abs(current_total - origin_quantity) / max(current_total, origin_quantity)
+        if quantity_difference <= 0.1:
+            return [{
+                'document_line_index': current_index,
+                'origin_line_index': origin_index,
+                'origin_ref': str(origin_line.get('ref') or '').strip(),
+                'origin_description': str(origin_line.get('description') or origin_line.get('design') or '').strip(),
+                'origin_quantity': origin_quantity,
+                'score': round(min(0.99, 0.86 + ((1.0 - quantity_difference) * 0.13)), 4),
+                'reasons': ['Quantidade agregada coincide', 'Única linha quantitativa do BC'],
+            } for current_index, _ in indexed_current]
+
+    ranked_pairs = []
+    for current_index, current_line in indexed_current:
+        for origin_index, origin_line in usable_origins:
+            score, reasons = _line_mapping_similarity(current_line, origin_line)
+            if score >= 0.42:
+                ranked_pairs.append((score, current_index, origin_index, current_line, origin_line, reasons))
+    ranked_pairs.sort(key=lambda item: item[0], reverse=True)
+    used_current = set()
+    used_origin = set()
+    matches = []
+    for score, current_index, origin_index, _current_line, origin_line, reasons in ranked_pairs:
+        if current_index in used_current or origin_index in used_origin:
+            continue
+        used_current.add(current_index)
+        used_origin.add(origin_index)
+        matches.append({
+            'document_line_index': current_index,
+            'origin_line_index': origin_index,
+            'origin_ref': str(origin_line.get('ref') or '').strip(),
+            'origin_description': str(origin_line.get('description') or origin_line.get('design') or '').strip(),
+            'origin_quantity': abs(float(origin_line.get('pending_qty') or origin_line.get('qty') or 0)),
+            'score': score,
+            'reasons': reasons,
+        })
+    matches.sort(key=lambda item: int(item.get('document_line_index') or 0))
+    return matches
+
+
+def _score_phc_origin_candidate(
+    candidate: dict[str, Any],
+    document_data: dict[str, Any],
+    candidate_lines: list[dict[str, Any]],
+) -> tuple[float, list[str]]:
+    current_date = _document_date_value(document_data.get('document_date'))
+    candidate_date = candidate.get('date') or current_date
+    if not isinstance(candidate_date, datetime):
+        candidate_date = _document_date_value(candidate_date)
+    day_distance = abs((current_date.date() - candidate_date.date()).days)
+    stage_weights = {218: 0.34, 130: 0.29, 102: 0.24}
+    score = 0.22 if str(candidate.get('document_type') or '').strip() == 'contract' else stage_weights.get(_safe_int(candidate.get('ndos'), 0), 0.2)
+    reasons = ['Mesmo fornecedor']
+    candidate_type = str(candidate.get('document_type') or '').strip()
+    candidate_number = _origin_number_key(candidate.get('number'))
+    for explicit_origin in _explicit_document_origins(document_data):
+        explicit_number = _origin_number_key(explicit_origin.get('document_number'))
+        explicit_type = str(explicit_origin.get('document_type') or '').strip()
+        if explicit_number and candidate_number and explicit_number == candidate_number:
+            score += 0.48 if not explicit_type or explicit_type == candidate_type else 0.38
+            reasons.insert(0, f'Referência explícita no PDF: {explicit_origin.get("document_number")}')
+            break
+    date_score = max(0.0, 1.0 - (day_distance / 365.0))
+    score += date_score * 0.22
+    if day_distance <= 45:
+        reasons.append(f'Data próxima ({day_distance} dias)')
+
+    current_refs, current_tokens = _origin_line_tokens(document_data.get('lines') or [])
+    candidate_refs, candidate_tokens = _origin_line_tokens(candidate_lines)
+    if current_refs and candidate_refs:
+        overlap = len(current_refs & candidate_refs) / max(1, min(len(current_refs), len(candidate_refs)))
+        score += overlap * 0.25
+        if overlap:
+            reasons.append(f'{round(overlap * 100)}% das referências coincidem')
+    if current_tokens and candidate_tokens:
+        token_overlap = len(current_tokens & candidate_tokens) / max(1, min(len(current_tokens), len(candidate_tokens)))
+        score += min(token_overlap, 1.0) * 0.12
+        if token_overlap >= 0.2:
+            reasons.append('Descrições semelhantes')
+
+    current_quantity = _document_origin_quantity(document_data.get('lines') or [])
+    candidate_quantity = round(sum(
+        abs(float(line.get('pending_qty') or 0))
+        for line in candidate_lines or []
+        if isinstance(line, dict)
+    ), 4)
+    if current_quantity > 0 and candidate_quantity > 0:
+        quantity_difference = abs(current_quantity - candidate_quantity) / max(current_quantity, candidate_quantity)
+        if quantity_difference <= 0.1:
+            score += (1.0 - quantity_difference) * 0.24
+            reasons.append(f'Quantidade pendente coincide ({candidate_quantity:g})')
+
+    gross_total = float((document_data.get('totals') or {}).get('gross_total') or 0)
+    candidate_total = float(candidate.get('total') or 0)
+    if gross_total > 0 and candidate_total > 0:
+        relative_difference = abs(gross_total - candidate_total) / max(gross_total, candidate_total)
+        if relative_difference <= 0.1:
+            score += (1.0 - relative_difference) * 0.12
+            reasons.append('Valor total próximo')
+    return round(min(score, 0.99), 4), reasons
+
+
+def search_phc_document_origins(document_data: dict[str, Any] | None, limit_per_stage: int = 6) -> dict[str, Any]:
+    import pyodbc
+    from services.phc_user_import_service import _phc_conn_str
+
+    document = dict(document_data or {})
+    customer = dict(document.get('customer') or {})
+    supplier = dict(document.get('supplier') or {})
+    selected_project = dict(document.get('origin_project') or {})
+    project_ccusto = str(selected_project.get('ccusto') or '').strip()
+    explicit_origins = _explicit_document_origins(document)
+    source = _phc_origin_source(customer)
+    if not source.get('phc_db'):
+        raise ValueError('A empresa identificada não tem uma base PHC configurada.')
+
+    current_type = str(document.get('document_type') or 'unknown').strip()
+    allowed_by_type = {
+        'delivery_note': [102],
+        'proforma_invoice': [102, 130],
+        'invoice': [102, 130, 218],
+        'credit_note': [102, 130, 218],
+        'debit_note': [102, 130, 218],
+    }
+    allowed_ndos = list(allowed_by_type.get(current_type, [102, 130, 218]))
+    current_date = _document_date_value(document.get('document_date'))
+    date_from = current_date - timedelta(days=730)
+    date_to = current_date + timedelta(days=31)
+
+    with pyodbc.connect(_phc_conn_str(source['phc_db'], source.get('phc_server') or ''), timeout=12) as connection:
+        cursor = connection.cursor()
+        phc_supplier = _phc_origin_supplier(cursor, supplier)
+        if not phc_supplier.get('no'):
+            raise ValueError('O fornecedor não foi encontrado na FL da empresa PHC.')
+        contract_stages = _phc_contract_flow_stages(cursor) if current_type in {
+            'proforma_invoice', 'invoice', 'credit_note', 'debit_note',
+        } else []
+        allowed_ndos.extend(
+            stage['ndos'] for stage in contract_stages
+            if stage.get('ndos') not in allowed_ndos
+        )
+        ndos_placeholders = ','.join('?' for _ in allowed_ndos)
+        project_filter_sql = " AND LTRIM(RTRIM(ISNULL(BO.CCUSTO, ''))) = ?" if project_ccusto else ''
+        header_params = [phc_supplier['no'], *allowed_ndos, date_from, date_to]
+        if project_ccusto:
+            header_params.append(project_ccusto)
+        header_rows = cursor.execute(f"""
+            SELECT TOP 160
+                BO.BOSTAMP, BO.NDOS, LTRIM(RTRIM(ISNULL(BO.NMDOS, ''))) NMDOS,
+                BO.OBRANO, BO.BOANO, BO.DATAOBRA, BO.NO,
+                LTRIM(RTRIM(ISNULL(BO.NOME, ''))) NOME,
+                LTRIM(RTRIM(ISNULL(BO.CCUSTO, ''))) CCUSTO,
+                LTRIM(RTRIM(ISNULL(BO.MAQUINA, ''))) MAQUINA,
+                LTRIM(RTRIM(ISNULL(BO.LOCAL, ''))) LOCAL,
+                ISNULL(BO.ETOTAL, 0) ETOTAL,
+                ISNULL(BO.FECHADA, 0) FECHADA
+            FROM dbo.BO BO WITH (NOLOCK)
+            LEFT JOIN dbo.BO2 BO2 WITH (NOLOCK) ON BO2.BO2STAMP = BO.BOSTAMP
+            WHERE BO.NO = ?
+              AND BO.NDOS IN ({ndos_placeholders})
+              AND ISNULL(BO2.ANULADO, 0) = 0
+              AND ISNULL(BO.FECHADA, 0) = 0
+              AND BO.DATAOBRA >= ?
+              AND BO.DATAOBRA <= ?
+              {project_filter_sql}
+            ORDER BY BO.DATAOBRA DESC, BO.BOANO DESC, BO.OBRANO DESC
+        """, *header_params).fetchall()
+        columns = [str(item[0]).upper() for item in cursor.description or []]
+        headers = [dict(zip(columns, row)) for row in header_rows]
+        stamps = [str(item.get('BOSTAMP') or '').strip() for item in headers if str(item.get('BOSTAMP') or '').strip()]
+        lines_by_stamp: dict[str, list[dict[str, Any]]] = {stamp: [] for stamp in stamps}
+        predecessors_by_stamp: dict[str, set[str]] = {stamp: set() for stamp in stamps}
+        if stamps:
+            for offset in range(0, len(stamps), 80):
+                stamp_chunk = stamps[offset:offset + 80]
+                placeholders = ','.join('?' for _ in stamp_chunk)
+                line_rows = cursor.execute(f"""
+                    SELECT
+                        BI.BOSTAMP, BI.BISTAMP,
+                        LTRIM(RTRIM(ISNULL(BI.REF, ''))) REF,
+                        LTRIM(RTRIM(ISNULL(BI.DESIGN, ''))) DESIGN,
+                        ISNULL(BI.QTT, 0) QTT,
+                        ISNULL(BI.FECHADA, 0) LINE_FECHADA,
+                        LTRIM(RTRIM(ISNULL(BI.OBISTAMP, ''))) OBISTAMP,
+                        LTRIM(RTRIM(ISNULL(BI.OOBISTAMP, ''))) OOBISTAMP,
+                        LTRIM(RTRIM(ISNULL(BI2.ORIGBISTAMP, ''))) ORIGBISTAMP
+                    FROM dbo.BI BI WITH (NOLOCK)
+                    LEFT JOIN dbo.BI2 BI2 WITH (NOLOCK) ON BI2.BI2STAMP = BI.BISTAMP
+                    WHERE BI.BOSTAMP IN ({placeholders})
+                    ORDER BY BI.BOSTAMP, BI.LORDEM
+                """, *stamp_chunk).fetchall()
+                line_columns = [str(item[0]).upper() for item in cursor.description or []]
+                parent_line_stamps = set()
+                parsed_lines = []
+                for row in line_rows:
+                    item = dict(zip(line_columns, row))
+                    parsed_lines.append(item)
+                    for key in ('OBISTAMP', 'OOBISTAMP', 'ORIGBISTAMP'):
+                        parent_stamp = str(item.get(key) or '').strip()
+                        if parent_stamp:
+                            parent_line_stamps.add(parent_stamp)
+                for item in parsed_lines:
+                    original_qty = abs(float(item.get('QTT') or 0))
+                    pending_qty = 0.0 if bool(item.get('LINE_FECHADA') or 0) else original_qty
+                    lines_by_stamp.setdefault(str(item.get('BOSTAMP') or '').strip(), []).append({
+                        'ref': str(item.get('REF') or '').strip(),
+                        'description': str(item.get('DESIGN') or '').strip(),
+                        'qty': float(item.get('QTT') or 0),
+                        'pending_qty': pending_qty,
+                    })
+                if parent_line_stamps:
+                    parent_list = list(parent_line_stamps)
+                    for parent_offset in range(0, len(parent_list), 80):
+                        parent_chunk = parent_list[parent_offset:parent_offset + 80]
+                        parent_placeholders = ','.join('?' for _ in parent_chunk)
+                        parent_rows = cursor.execute(f"""
+                            SELECT BISTAMP, BOSTAMP FROM dbo.BI WITH (NOLOCK)
+                            WHERE BISTAMP IN ({parent_placeholders})
+                        """, *parent_chunk).fetchall()
+                        parent_map = {str(row[0] or '').strip(): str(row[1] or '').strip() for row in parent_rows}
+                        for item in parsed_lines:
+                            child_header = str(item.get('BOSTAMP') or '').strip()
+                            for key in ('OBISTAMP', 'OOBISTAMP', 'ORIGBISTAMP'):
+                                parent_header = parent_map.get(str(item.get(key) or '').strip(), '')
+                                if parent_header and parent_header != child_header:
+                                    predecessors_by_stamp.setdefault(child_header, set()).add(parent_header)
+
+    flow_stages = [*DOC_AI_PHC_PURCHASE_FLOW, *contract_stages]
+    flow_lookup = {int(item.get('ndos') or 0): item for item in flow_stages if item.get('ndos')}
+    candidates = []
+    for header in headers:
+        stamp = str(header.get('BOSTAMP') or '').strip()
+        pending_quantity = round(sum(float(line.get('pending_qty') or 0) for line in lines_by_stamp.get(stamp) or []), 4)
+        if pending_quantity <= 0:
+            continue
+        candidate = {
+            'origin_key': f'BO:{stamp}',
+            'table': 'BO',
+            'stamp': stamp,
+            'ndos': _safe_int(header.get('NDOS'), 0),
+            'document_type': (flow_lookup.get(_safe_int(header.get('NDOS'), 0)) or {}).get('document_type') or (flow_lookup.get(_safe_int(header.get('NDOS'), 0)) or {}).get('key') or 'unknown',
+            'stage_label': (flow_lookup.get(_safe_int(header.get('NDOS'), 0)) or {}).get('label') or str(header.get('NMDOS') or '').strip(),
+            'number': str(_safe_int(header.get('OBRANO'), 0) or ''),
+            'year': _safe_int(header.get('BOANO'), 0) or None,
+            'date': header.get('DATAOBRA'),
+            'total': float(header.get('ETOTAL') or 0),
+            'closed': bool(header.get('FECHADA') or 0),
+            'supplier_no': phc_supplier.get('no'),
+            'supplier_name': phc_supplier.get('name') or '',
+            'ccusto': str(header.get('CCUSTO') or '').strip(),
+            'project_machine': str(header.get('MAQUINA') or '').strip(),
+            'project_location': str(header.get('LOCAL') or '').strip(),
+            'line_count': len(lines_by_stamp.get(stamp) or []),
+            'pending_quantity': pending_quantity,
+            'predecessor_stamps': sorted(predecessors_by_stamp.get(stamp) or []),
+        }
+        score, reasons = _score_phc_origin_candidate(candidate, document, lines_by_stamp.get(stamp) or [])
+        candidate['score'] = score
+        candidate['reasons'] = reasons
+        candidate['line_matches'] = _match_document_lines_to_origin(
+            document.get('lines') or [],
+            lines_by_stamp.get(stamp) or [],
+        ) if candidate['document_type'] == 'purchase_order' else []
+        candidate['date'] = candidate['date'].date().isoformat() if isinstance(candidate['date'], datetime) else str(candidate['date'] or '')[:10]
+        candidates.append(candidate)
+    candidates.sort(key=lambda item: (float(item.get('score') or 0), str(item.get('date') or '')), reverse=True)
+
+    stages = []
+    eligible_stages = [
+        stage for stage in sorted(flow_stages, key=lambda item: int(item.get('order') or 0), reverse=True)
+        if stage.get('ndos') in allowed_ndos
+    ]
+    for display_order, stage in enumerate(eligible_stages, start=1):
+        ndos = stage.get('ndos')
+        stage_candidates = [item for item in candidates if item.get('ndos') == ndos]
+        stage_candidates.sort(key=lambda item: (float(item.get('score') or 0), str(item.get('date') or '')), reverse=True)
+        if not stage_candidates:
+            continue
+        stages.append({
+            'key': stage['key'],
+            'label': stage['label'],
+            'order': stage['order'],
+            'display_order': display_order,
+            'candidates': stage_candidates[:max(1, min(int(limit_per_stage or 6), 12))],
+        })
+    return {
+        'available': True,
+        'phc_database': source.get('phc_db') or '',
+        'company_name': source.get('company_name') or customer.get('name') or '',
+        'supplier': phc_supplier,
+        'current_document_type': current_type,
+        'current_document_number': str(document.get('document_number') or ''),
+        'detected_origins': explicit_origins,
+        'selected_project': selected_project if project_ccusto else None,
+        'suggested_origin': candidates[0] if candidates else None,
+        'stages': stages,
+        'candidate_count': sum(len(stage.get('candidates') or []) for stage in stages),
+    }
+
+
+def save_document_phc_origin(
+    document_stamp: str,
+    origin: dict[str, Any] | None,
+    document_data: dict[str, Any] | None,
+    requested_by: str,
+) -> dict[str, Any]:
+    document = db.session.get(DocInbox, str(document_stamp or '').strip())
+    if not document:
+        raise ValueError('Documento do inbox não encontrado.')
+    candidate = dict(origin or {})
+    if candidate.get('table') != 'BO' or not str(candidate.get('stamp') or '').strip():
+        raise ValueError('Seleciona uma origem PHC válida.')
+    search_payload = search_phc_document_origins(document_data or {}, limit_per_stage=12)
+    valid_candidates = {
+        str(item.get('stamp') or '').strip(): item
+        for stage in search_payload.get('stages') or []
+        for item in stage.get('candidates') or []
+    }
+    selected = valid_candidates.get(str(candidate.get('stamp') or '').strip())
+    if not selected:
+        raise ValueError('A origem selecionada já não está disponível entre os candidatos deste fornecedor.')
+    meta = _json_loads(document.processing_meta_json, {})
+    selected_origin = {
+        **selected,
+        'phc_database': search_payload.get('phc_database') or '',
+        'linked_at': _now().isoformat(),
+        'linked_by': requested_by or '',
+    }
+    origins = get_phc_origins_from_meta(meta)
+    origins = [item for item in origins if str(item.get('stamp') or '').strip() != str(selected_origin.get('stamp') or '').strip()]
+    origins.append(selected_origin)
+    meta['phc_origins'] = origins
+    meta.pop('phc_origin', None)
+    document.processing_meta_json = _json_dumps(meta)
+    document.dtalt = _now()
+    document.useralteracao = requested_by or document.useralteracao or ''
+    db.session.commit()
+    return {
+        'ok': True,
+        'message': 'Origem PHC adicionada ao documento.',
+        'origin': selected_origin,
+        'origins': origins,
+    }
+
+
+def get_phc_origins_from_meta(meta: dict[str, Any] | None) -> list[dict[str, Any]]:
+    payload = dict(meta or {})
+    origins = payload.get('phc_origins')
+    if isinstance(origins, list):
+        return [dict(item) for item in origins if isinstance(item, dict) and str(item.get('stamp') or '').strip()]
+    legacy = payload.get('phc_origin')
+    return [dict(legacy)] if isinstance(legacy, dict) and str(legacy.get('stamp') or '').strip() else []
+
+
+def get_document_phc_origins(document_stamp: str) -> list[dict[str, Any]]:
+    document = db.session.get(DocInbox, str(document_stamp or '').strip())
+    if not document:
+        return []
+    return get_phc_origins_from_meta(_json_loads(document.processing_meta_json, {}))
+
+
+def get_document_phc_origin(document_stamp: str) -> dict[str, Any] | None:
+    origins = get_document_phc_origins(document_stamp)
+    return origins[0] if origins else None
+
+
+def clear_document_phc_origin(document_stamp: str, requested_by: str, origin_stamp: str = '') -> dict[str, Any]:
+    document = db.session.get(DocInbox, str(document_stamp or '').strip())
+    if not document:
+        raise ValueError('Documento do inbox não encontrado.')
+    meta = _json_loads(document.processing_meta_json, {})
+    origins = get_phc_origins_from_meta(meta)
+    clean_stamp = str(origin_stamp or '').strip()
+    if clean_stamp:
+        remaining = [item for item in origins if str(item.get('stamp') or '').strip() != clean_stamp]
+        removed_count = len(origins) - len(remaining)
+    else:
+        remaining = []
+        removed_count = len(origins)
+    if remaining:
+        meta['phc_origins'] = remaining
+    else:
+        meta.pop('phc_origins', None)
+    meta.pop('phc_origin', None)
+    document.processing_meta_json = _json_dumps(meta)
+    document.dtalt = _now()
+    document.useralteracao = requested_by or document.useralteracao or ''
+    db.session.commit()
+    return {
+        'ok': True,
+        'removed': bool(removed_count),
+        'message': 'Origem PHC desmarcada.' if clean_stamp else 'Origens PHC desmarcadas.',
+        'origins': remaining,
+    }
+
+
+def save_document_adjusted_lines(
+    document_stamp: str,
+    lines: list[dict[str, Any]],
+    requested_by: str,
+) -> dict[str, Any]:
+    document = db.session.get(DocInbox, str(document_stamp or '').strip())
+    if not document:
+        raise ValueError('Documento do inbox não encontrado.')
+    if not isinstance(lines, list) or len(lines) > 2000 or any(not isinstance(line, dict) for line in lines):
+        raise ValueError('As linhas ajustadas não são válidas.')
+    meta = _json_loads(document.processing_meta_json, {})
+    cached = meta.get('llm_full_extraction')
+    if not isinstance(cached, dict) or not isinstance(cached.get('document'), dict):
+        raise ValueError('O documento ainda não tem uma leitura guardada para ajustar.')
+    cached_document = dict(cached.get('document') or {})
+    cached_document['lines'] = [dict(line) for line in lines]
+    cached['document'] = cached_document
+    cached['adjusted_at'] = _now().isoformat()
+    cached['adjusted_by'] = requested_by or ''
+    meta['llm_full_extraction'] = cached
+    document.processing_meta_json = _json_dumps(meta)
+    document.json_resultado = _json_dumps(cached_document)
+    document.dtalt = _now()
+    document.useralteracao = requested_by or document.useralteracao or ''
+    db.session.commit()
+    return {
+        'ok': True,
+        'message': 'Repartição das linhas guardada no inbox.',
+        'line_count': len(lines),
+    }
+
+
+def get_cached_llm_extraction(document_stamp: str) -> dict[str, Any] | None:
+    document = db.session.get(DocInbox, str(document_stamp or '').strip())
+    if not document:
+        return None
+    cached = _json_loads(document.processing_meta_json, {}).get('llm_full_extraction')
+    if (
+        not isinstance(cached, dict)
+        or _safe_int(cached.get('version'), 0) < 4
+        or not isinstance(cached.get('document'), dict)
+    ):
+        return None
+    return {
+        'ok': True,
+        'available': True,
+        'cached': True,
+        'document_id': document.docinstamp,
+        'model': str(cached.get('model') or 'LLM'),
+        'document': dict(cached.get('document') or {}),
+        'matching': dict(cached.get('matching') or {}),
+        'saved_at': str(cached.get('saved_at') or ''),
+    }
+
+
+def reset_llm_extraction(document_stamp: str, requested_by: str) -> None:
+    document = db.session.get(DocInbox, str(document_stamp or '').strip())
+    if not document:
+        raise ValueError('Documento do inbox não encontrado.')
+    meta = _json_loads(document.processing_meta_json, {})
+    meta.pop('llm_full_extraction', None)
+    meta.pop('phc_origin', None)
+    meta.pop('phc_origins', None)
+    document.processing_meta_json = _json_dumps(meta)
+    document.json_resultado = _json_dumps(canonical_result_base('unknown'))
+    document.fornecedor_no = None
+    document.fornecedor_nome_detetado = ''
+    document.fornecedor_nif_detetado = ''
+    document.doc_type_detected = 'unknown'
+    document.confidence_score = 0
+    document.extraction_method = 'failed'
+    document.extraction_quality_score = 0
+    document.processing_stage = 'new'
+    document.processing_status = 'new'
+    document.last_processing_error = ''
+    document.dtproc = None
+    document.dtalt = _now()
+    document.useralteracao = requested_by or document.useralteracao or ''
+    db.session.commit()
+
+
+def save_llm_extraction(document_stamp: str, payload: dict[str, Any], requested_by: str) -> dict[str, Any]:
+    document = db.session.get(DocInbox, str(document_stamp or '').strip())
+    if not document:
+        raise ValueError('Documento do inbox não encontrado.')
+    document_data = dict(payload.get('document') or {})
+    matching = dict(payload.get('matching') or {})
+    customer = dict(document_data.get('customer') or {})
+    supplier = dict(document_data.get('supplier') or {})
+    confidence = max(0.0, min(1.0, float(document_data.get('confidence') or 0)))
+    now = _now()
+    meta = _json_loads(document.processing_meta_json, {})
+    meta['llm_full_extraction'] = {
+        'version': 4,
+        'model': str(payload.get('model') or 'LLM'),
+        'document': document_data,
+        'matching': matching,
+        'saved_at': now.isoformat(),
+        'saved_by': requested_by or '',
+    }
+    document.processing_meta_json = _json_dumps(meta)
+    document.json_resultado = _json_dumps(document_data)
+    document.feid = _safe_int(customer.get('feid'), 0) or document.feid
+    document.fornecedor_no = _safe_int(supplier.get('supplier_no') or supplier.get('no'), 0) or None
+    document.fornecedor_nome_detetado = str(supplier.get('name') or supplier.get('llm_name') or '')[:120]
+    document.fornecedor_nif_detetado = str(supplier.get('tax_id') or '')[:40]
+    document.doc_type_detected = str(document_data.get('document_type') or 'unknown')[:30]
+    document.confidence_score = confidence
+    document.extraction_method = 'llm_visual'
+    document.extraction_quality_score = confidence
+    document.processing_stage = 'llm_extracted'
+    document.processing_status = 'parsed_ok' if confidence >= 0.75 else 'review_required'
+    document.last_processing_error = ''
+    document.dtproc = now
+    document.dtalt = now
+    document.useralteracao = requested_by or document.useralteracao or ''
+    db.session.commit()
+    return get_cached_llm_extraction(document.docinstamp) or {}
 
 
 def identify_supplier_from_text(text_value: str, feid: int | None = None) -> dict[str, Any]:
@@ -3591,6 +4804,50 @@ def ingest_uploaded_document(uploaded_file, created_by: str, source_table: str =
     return _create_inbox_document_from_stored_file(stored, created_by, source_table, source_recstamp)
 
 
+def ensure_llm_inbox_document(
+    file_name: str,
+    file_bytes: bytes,
+    created_by: str,
+    document_stamp: str = '',
+) -> dict[str, Any]:
+    from werkzeug.datastructures import FileStorage
+
+    _ensure_document_ai_schema()
+    requested_stamp = str(document_stamp or '').strip()
+    if requested_stamp:
+        requested = db.session.get(DocInbox, requested_stamp)
+        if not requested:
+            raise ValueError('Documento do inbox não encontrado.')
+        return {'id': requested.docinstamp, 'created': False, 'duplicate': False}
+
+    content_hash = hashlib.sha256(file_bytes or b'').hexdigest()
+    existing = DocInbox.query.filter_by(file_hash=content_hash).order_by(DocInbox.dtcri.desc()).first()
+    if existing:
+        return {'id': existing.docinstamp, 'created': False, 'duplicate': True}
+
+    uploaded = FileStorage(
+        stream=io.BytesIO(file_bytes or b''),
+        filename=str(file_name or 'documento.pdf'),
+        content_type='application/pdf',
+    )
+    stored = _store_file(uploaded)
+    detail = _create_inbox_document_from_stored_file(
+        stored,
+        created_by,
+        source_table='DOC_AI_LLM',
+        process_after_create=False,
+    )
+    return {'id': str(detail.get('id') or ''), 'created': True, 'duplicate': False}
+
+
+def find_llm_inbox_document(file_bytes: bytes) -> str:
+    """Return an existing inbox stamp for this PDF without creating a record."""
+    _ensure_document_ai_schema()
+    content_hash = hashlib.sha256(file_bytes or b'').hexdigest()
+    existing = DocInbox.query.filter_by(file_hash=content_hash).order_by(DocInbox.dtcri.desc()).first()
+    return str(existing.docinstamp or '') if existing else ''
+
+
 def _safe_split_file_part(value: Any, fallback: str, max_length: int = 100) -> str:
     normalized = unicodedata.normalize('NFKD', str(value or '').strip())
     ascii_value = normalized.encode('ascii', 'ignore').decode('ascii')
@@ -3901,6 +5158,7 @@ def _create_inbox_document_from_stored_file(
     created_by: str,
     source_table: str = '',
     source_recstamp: str = '',
+    process_after_create: bool = True,
 ) -> dict[str, Any]:
     try:
         feid = get_current_feid(db.session)
@@ -3961,6 +5219,8 @@ def _create_inbox_document_from_stored_file(
     })
     document.anexosstamp = anexo_stamp
     db.session.commit()
+    if not process_after_create:
+        return get_document_detail(document.docinstamp)
     return process_document(document.docinstamp, requested_by=created_by or '')
 
 

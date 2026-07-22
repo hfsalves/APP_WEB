@@ -87,7 +87,7 @@
   }
 
   function emptyRow(message) {
-    return '<tr><td colspan="13" class="sz_table_cell fatglob-empty">' + escapeHtml(message) + "</td></tr>";
+    return '<tr><td colspan="14" class="sz_table_cell fatglob-empty">' + escapeHtml(message) + "</td></tr>";
   }
 
   function tipoLabel(tipo) {
@@ -106,6 +106,37 @@
       return '<span class="fatglob-badge warn" title="' + escapeHtml(warnings.join("; ")) + '"><i class="fa-solid fa-triangle-exclamation"></i><span>' + escapeHtml(label) + "</span></span>";
     }
     return '<span class="fatglob-badge"><i class="fa-regular fa-clock"></i><span>Por faturar</span></span>';
+  }
+
+  function validationBadge(row) {
+    const validated = Number(row.VALIDADO_FATURAR || 0) === 1;
+    if (!validated) {
+      return '<span class="fatglob-badge validation-pending"><i class="fa-regular fa-circle"></i><span>Por validar</span></span>';
+    }
+    const parts = [];
+    const user = String(row.VALIDADO_FATURAR_POR || "").trim();
+    const date = String(row.DTVALIDADO_FATURAR || "").trim();
+    if (user) parts.push("Por: " + user);
+    if (date) parts.push("Em: " + date);
+    const title = parts.join(" - ");
+    return '<span class="fatglob-badge validation-ok" title="' + escapeHtml(title || "Reserva validada para faturar") + '"><i class="fa-solid fa-check"></i><span>Validada</span></span>';
+  }
+
+  function airbnbReservationUrl(row) {
+    const code = String(row.RESERVA || "").trim();
+    if (!code) return "";
+    const origem = String(row.ORIGEM || "").trim().toUpperCase();
+    const looksAirbnb = origem.indexOf("AIRBNB") >= 0 || /^HM[A-Z0-9]{6,}$/i.test(code);
+    if (!looksAirbnb) return "";
+    return "https://www.airbnb.pt/hosting/stay/" + encodeURIComponent(code);
+  }
+
+  function validationCell(row) {
+    const url = airbnbReservationUrl(row);
+    const airbnbLink = url
+      ? '<a class="fatglob-airbnb-link" href="' + escapeHtml(url) + '" target="_blank" rel="noopener" title="Abrir reserva no Airbnb" aria-label="Abrir reserva no Airbnb"><i class="fa-solid fa-up-right-from-square"></i></a>'
+      : "";
+    return '<span class="fatglob-validation-cell">' + validationBadge(row) + airbnbLink + "</span>";
   }
 
   function render() {
@@ -139,6 +170,7 @@
         '<tr class="sz_table_row' + (checked ? " fatglob-row-selected" : "") + (!selectable ? " fatglob-row-blocked" : "") + '" data-id="' + escapeHtml(id) + '">' +
         '<td class="sz_table_cell fatglob-check-cell"><input type="checkbox" class="fatglob-check" ' + (checked ? "checked" : "") + (!selectable ? ' disabled title="' + escapeHtml(warningTitle || "Reserva bloqueada") + '"' : "") + "></td>" +
         '<td class="sz_table_cell">' + statusBadge(row) + "</td>" +
+        '<td class="sz_table_cell">' + validationCell(row) + "</td>" +
         '<td class="sz_table_cell fatglob-pdf-cell">' + pdfCell + "</td>" +
         '<td class="sz_table_cell">' + escapeHtml(tipoLabel(row.TIPO)) + "</td>" +
         '<td class="sz_table_cell">' + escapeHtml(row.RESERVA || id) + "</td>" +
@@ -158,7 +190,7 @@
       const id = tr.getAttribute("data-id") || "";
       const checkbox = tr.querySelector(".fatglob-check");
       tr.addEventListener("click", (event) => {
-        if (event.target && event.target.matches && event.target.matches("input")) return;
+        if (event.target && event.target.closest && event.target.closest("input, a, button")) return;
         if (checkbox && checkbox.disabled) return;
         if (state.selected.has(id)) state.selected.delete(id);
         else state.selected.add(id);

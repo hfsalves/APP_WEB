@@ -9,7 +9,21 @@ class DocumentAiLlmServiceTests(unittest.TestCase):
         schema = llm_service._document_full_extraction_schema()
 
         self.assertEqual(schema['properties']['document_type'], {'type': 'string'})
+        self.assertIn('external_party_role', schema['required'])
+        self.assertIn('mail_category', schema['required'])
+        self.assertIn('mail_title', schema['required'])
+        self.assertEqual(schema['properties']['mail_title']['maxLength'], 25)
+        self.assertEqual(
+            schema['properties']['external_party_role']['enum'],
+            ['supplier', 'customer', 'unknown'],
+        )
+        self.assertEqual(schema['properties']['mail_category']['enum'], ['legal', 'general', 'unknown'])
         self.assertFalse(schema['properties']['lines']['items']['additionalProperties'])
+        self.assertIn('origin_references', schema['required'])
+        self.assertIn(
+            'origin_delivery_note_number',
+            schema['properties']['lines']['items']['required'],
+        )
         self.assertEqual(
             schema['properties']['taxes']['items']['required'],
             ['tax_rate', 'taxable_base', 'tax_amount', 'gross_total'],
@@ -21,6 +35,18 @@ class DocumentAiLlmServiceTests(unittest.TestCase):
         self.assertIn('end_page', batch['properties']['documents']['items']['required'])
         self.assertIn('supplier_name', batch['properties']['documents']['items']['required'])
         self.assertIn('supplier_tax_id', batch['properties']['documents']['items']['required'])
+
+    def test_mail_title_is_normalized_to_25_characters(self):
+        document = {
+            'document_type': 'mail',
+            'mail_title': '  Mise   en demeure avec pénalités supplémentaires  ',
+            'lines': [],
+        }
+
+        normalized = llm_service._normalize_full_extraction_line_origins(document)
+
+        self.assertEqual(normalized['mail_title'], 'Mise en demeure avec')
+        self.assertLessEqual(len(normalized['mail_title']), 25)
 
     def test_full_visual_extraction_enables_full_mode(self):
         captured = {}
@@ -79,6 +105,69 @@ class DocumentAiLlmServiceTests(unittest.TestCase):
             [(1, 2), (3, 5), (6, 8)],
         )
         self.assertIn('1, 3, 6', batch['message'])
+
+    def test_delivery_note_is_removed_from_article_reference(self):
+        document = {
+            'origin_references': [{
+                'document_type': 'delivery_note',
+                'document_number': '516006108',
+            }],
+            'lines': [{
+                'ref': '516006108',
+                'origin_delivery_note_number': '516006108',
+                'description': 'Ciment CEM II',
+            }],
+        }
+
+        normalized = llm_service._normalize_full_extraction_line_origins(document)
+
+        self.assertEqual(normalized['lines'][0]['ref'], '')
+        self.assertEqual(
+            normalized['lines'][0]['origin_delivery_note_number'],
+            '516006108',
+        )
+
+    def test_delivery_note_from_origins_is_moved_out_of_reference(self):
+        document = {
+            'origin_references': [{
+                'document_type': 'delivery_note',
+                'document_number': 'BL-516006110',
+            }],
+            'lines': [{
+                'ref': 'BL 516006110',
+                'origin_delivery_note_number': '',
+                'description': 'Transport',
+            }],
+        }
+
+        normalized = llm_service._normalize_full_extraction_line_origins(document)
+
+        self.assertEqual(normalized['lines'][0]['ref'], '')
+        self.assertEqual(
+            normalized['lines'][0]['origin_delivery_note_number'],
+            'BL 516006110',
+        )
+
+    def test_genuine_article_reference_is_preserved(self):
+        document = {
+            'origin_references': [{
+                'document_type': 'delivery_note',
+                'document_number': '516006108',
+            }],
+            'lines': [{
+                'ref': 'ART-CEM-II',
+                'origin_delivery_note_number': '516006108',
+                'description': 'Ciment CEM II',
+            }],
+        }
+
+        normalized = llm_service._normalize_full_extraction_line_origins(document)
+
+        self.assertEqual(normalized['lines'][0]['ref'], 'ART-CEM-II')
+        self.assertEqual(
+            normalized['lines'][0]['origin_delivery_note_number'],
+            '516006108',
+        )
 
     def test_full_visual_extraction_preserves_error(self):
         failed_result = {

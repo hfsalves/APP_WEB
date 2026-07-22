@@ -20984,6 +20984,7 @@ def create_app():
         al_cols = _faturacao_proprietarios_table_cols('AL')
         cl_cols = _faturacao_proprietarios_table_cols('CL')
         rs_reserva_expr = "LTRIM(RTRIM(ISNULL(RS.RESERVA,'')))" if 'RESERVA' in rs_cols else "''"
+        rs_origem_expr = "LTRIM(RTRIM(ISNULL(RS.ORIGEM,'')))" if 'ORIGEM' in rs_cols else "''"
         rs_nome_expr = "LTRIM(RTRIM(ISNULL(RS.NOME,'')))" if 'NOME' in rs_cols else "''"
         rs_noites_expr = "ISNULL(RS.NOITES,0)" if 'NOITES' in rs_cols else "DATEDIFF(day, CAST(RS.DATAIN AS date), CAST(RS.DATAOUT AS date))"
         rs_estadia_expr = "ISNULL(RS.ESTADIA,0)" if 'ESTADIA' in rs_cols else "0"
@@ -20997,9 +20998,46 @@ def create_app():
         )
         rs_faturado_expr = "ISNULL(RS.FATURADO,0)" if 'FATURADO' in rs_cols else "0"
         rs_ftstamp_expr = "LTRIM(RTRIM(ISNULL(RS.FTSTAMP,'')))" if 'FTSTAMP' in rs_cols else "''"
+        rs_validado_faturar_expr = "ISNULL(RS.VALIDADO_FATURAR,0)" if 'VALIDADO_FATURAR' in rs_cols else "0"
+        rs_dtvalidado_faturar_expr = "RS.DTVALIDADO_FATURAR" if 'DTVALIDADO_FATURAR' in rs_cols else "CAST(NULL AS datetime)"
+        rs_validado_faturar_por_expr = "LTRIM(RTRIM(ISNULL(RS.VALIDADO_FATURAR_POR,'')))" if 'VALIDADO_FATURAR_POR' in rs_cols else "''"
         al_alstamp_expr = "LTRIM(RTRIM(ISNULL(AL.ALSTAMP,'')))" if 'ALSTAMP' in al_cols else "''"
         cl_nome_expr = "LTRIM(RTRIM(ISNULL(CL.NOME, AL.CLIENTE)))" if 'NOME' in cl_cols else "LTRIM(RTRIM(ISNULL(AL.CLIENTE,'')))"
         cl_bdphc_expr = "LTRIM(RTRIM(ISNULL(CL.BDPHC,'')))" if 'BDPHC' in cl_cols else "''"
+        cl_bdphc_order_expr = "CASE WHEN LTRIM(RTRIM(ISNULL(CLX.BDPHC,''))) <> '' THEN 0 ELSE 1 END" if 'BDPHC' in cl_cols else "0"
+        if 'ID' in cl_cols and 'CLIENTID' in al_cols:
+            cl_join_sql = """
+            OUTER APPLY (
+              SELECT TOP 1 CLX.*
+              FROM dbo.CL CLX
+              WHERE (
+                    ISNULL(AL.CLIENTID, 0) <> 0
+                AND ISNULL(CLX.ID, 0) = ISNULL(AL.CLIENTID, 0)
+              )
+              OR (
+                    ISNULL(AL.CLIENTID, 0) = 0
+                AND LTRIM(RTRIM(ISNULL(CLX.NOME,''))) = LTRIM(RTRIM(ISNULL(AL.CLIENTE,'')))
+              )
+              ORDER BY
+                CASE
+                  WHEN ISNULL(AL.CLIENTID, 0) <> 0 AND ISNULL(CLX.ID, 0) = ISNULL(AL.CLIENTID, 0) THEN 0
+                  ELSE 1
+                END,
+                {cl_bdphc_order_expr},
+                CLX.ID
+            ) CL
+            """.format(cl_bdphc_order_expr=cl_bdphc_order_expr)
+        else:
+            cl_join_sql = """
+            OUTER APPLY (
+              SELECT TOP 1 CLX.*
+              FROM dbo.CL CLX
+              WHERE LTRIM(RTRIM(ISNULL(CLX.NOME,''))) = LTRIM(RTRIM(ISNULL(AL.CLIENTE,'')))
+              ORDER BY
+                {cl_bdphc_order_expr},
+                CLX.NOME
+            ) CL
+            """.format(cl_bdphc_order_expr=cl_bdphc_order_expr)
         faturado_expr = f"CASE WHEN {rs_faturado_expr}=1 THEN 1 ELSE 0 END"
         phc_doc_expr = "''"
         phc_numero_expr = "''"
@@ -21044,6 +21082,7 @@ def create_app():
             SELECT
               RS.RSSTAMP,
               {rs_reserva_expr} AS RESERVA,
+              {rs_origem_expr} AS ORIGEM,
               {al_alstamp_expr} AS ALSTAMP,
               LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, AL.NOME))) AS ALOJAMENTO,
               UPPER(LTRIM(RTRIM(ISNULL(AL.TIPO,'')))) AS TIPO,
@@ -21064,14 +21103,16 @@ def create_app():
               ({rs_estadia_expr} + {rs_limpeza_expr}) AS VALOR_TOTAL,
               {faturado_expr} AS FATURADO,
               {rs_ftstamp_expr} AS RS_FTSTAMP,
+              {rs_validado_faturar_expr} AS VALIDADO_FATURAR,
+              {rs_dtvalidado_faturar_expr} AS DTVALIDADO_FATURAR,
+              {rs_validado_faturar_por_expr} AS VALIDADO_FATURAR_POR,
               {phc_doc_expr} AS PHC_DOC,
               {phc_numero_expr} AS PHC_NUMERO,
               {phc_bdphc_expr} AS PHC_BDPHC
             FROM dbo.RS RS
             INNER JOIN dbo.AL AL
               ON LTRIM(RTRIM(ISNULL(AL.NOME,''))) = LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO,'')))
-            LEFT JOIN dbo.CL CL
-              ON LTRIM(RTRIM(ISNULL(CL.NOME,''))) = LTRIM(RTRIM(ISNULL(AL.CLIENTE,'')))
+            {cl_join_sql}
             {extra_where_sql}
         """
 
@@ -21427,6 +21468,7 @@ def create_app():
                 out.append({
                     'RSSTAMP': str(row.get('RSSTAMP') or '').strip(),
                     'RESERVA': str(row.get('RESERVA') or '').strip(),
+                    'ORIGEM': str(row.get('ORIGEM') or '').strip(),
                     'ALSTAMP': str(row.get('ALSTAMP') or '').strip(),
                     'ALOJAMENTO': str(row.get('ALOJAMENTO') or '').strip(),
                     'TIPO': tipo,
@@ -21447,6 +21489,9 @@ def create_app():
                     'VALOR_TOTAL': valor_total,
                     'FATURADO': int(row.get('FATURADO') or 0),
                     'RS_FTSTAMP': str(row.get('RS_FTSTAMP') or '').strip(),
+                    'VALIDADO_FATURAR': int(row.get('VALIDADO_FATURAR') or 0),
+                    'DTVALIDADO_FATURAR': row.get('DTVALIDADO_FATURAR').isoformat(sep=' ') if row.get('DTVALIDADO_FATURAR') else '',
+                    'VALIDADO_FATURAR_POR': str(row.get('VALIDADO_FATURAR_POR') or '').strip(),
                     'PHC_DOC': str(row.get('PHC_DOC') or '').strip(),
                     'PHC_NUMERO': str(row.get('PHC_NUMERO') or '').strip(),
                     'PHC_BDPHC': phc_bdphc,
