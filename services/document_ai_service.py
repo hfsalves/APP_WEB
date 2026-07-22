@@ -4,9 +4,14 @@ import importlib.util
 import io
 import json
 import mimetypes
+import ntpath
 import os
 import re
 import shutil
+import subprocess
+import sys
+import tempfile
+import textwrap
 import threading
 import unicodedata
 import uuid
@@ -45,6 +50,8 @@ DOC_AI_DOC_TYPES = [
     {'value': 'delivery_note', 'label': 'Guia'},
     {'value': 'unknown', 'label': 'Desconhecido'},
 ]
+
+DOC_AI_PURCHASE_INVOICE_CORRESPONDENCE_TYPE = 'FAC'
 
 DOC_AI_DOC_TYPE_TERMS = {
     'invoice': {
@@ -332,6 +339,15 @@ def _fe_supplier_source(feid: int | None) -> dict[str, Any]:
         'BASEDADOS', 'BASE_DADOS', 'BD', 'NOMEBD',
     ])
     if not database_column:
+        for configured in _configured_phc_sources():
+            if _safe_int(configured.get('FEID'), 0) == clean_feid:
+                return {
+                    'kind': 'phc',
+                    'feid': clean_feid,
+                    'tax_field': 'ncont',
+                    'phc_db': str(configured.get('PHC_DB') or '').strip(),
+                    'phc_server': str(configured.get('PHC_SERVER') or '').strip(),
+                }
         return {'kind': 'app', 'feid': clean_feid, 'tax_field': _fl_tax_id_column().lower() or 'unknown'}
 
     server_column = _first_existing_column('FE', [
@@ -348,6 +364,15 @@ def _fe_supplier_source(feid: int | None) -> dict[str, Any]:
     """), {'feid': clean_feid}).mappings().first() or {}
     phc_db = str(row.get('PHC_DB') or '').strip()
     if not phc_db:
+        for configured in _configured_phc_sources():
+            if _safe_int(configured.get('FEID'), 0) == clean_feid:
+                return {
+                    'kind': 'phc',
+                    'feid': clean_feid,
+                    'tax_field': 'ncont',
+                    'phc_db': str(configured.get('PHC_DB') or '').strip(),
+                    'phc_server': str(configured.get('PHC_SERVER') or '').strip(),
+                }
         return {'kind': 'app', 'feid': clean_feid, 'tax_field': _fl_tax_id_column().lower() or 'unknown'}
     return {
         'kind': 'phc',
@@ -755,6 +780,16 @@ def _serialize_fe_row(row: dict[str, Any] | None, score: float = 0, matched_by: 
 
 
 def _load_fe_entities() -> list[dict[str, Any]]:
+    configured = _configured_phc_sources()
+    if configured:
+        return [{
+            'FEID': _safe_int(row.get('FEID'), 0),
+            'NOME': str(row.get('NOME') or '').strip(),
+            'NOMEFISCAL': str(row.get('NOMEFISCAL') or '').strip(),
+            'NIF': str(row.get('NIF') or '').strip(),
+            'PHC_DB': str(row.get('PHC_DB') or '').strip(),
+            'PHC_SERVER': str(row.get('PHC_SERVER') or '').strip(),
+        } for row in configured]
     rows = db.session.execute(text("""
         SELECT
             CAST(ISNULL(FEID, 0) AS int) AS FEID,
@@ -775,18 +810,9 @@ def resolve_fe_entity(value: str, match_mode: str = 'auto') -> dict[str, Any]:
 
     digits = _digits_only(raw)
     if len(digits) >= 6 and match_mode in ('auto', 'tax_id'):
-        row = db.session.execute(text("""
-            SELECT TOP 1
-                CAST(ISNULL(FEID, 0) AS int) AS FEID,
-                LTRIM(RTRIM(ISNULL(NOME, ''))) AS NOME,
-                LTRIM(RTRIM(ISNULL(NOMEFISCAL, ''))) AS NOMEFISCAL,
-                LTRIM(RTRIM(CAST(ISNULL(NIF, 0) AS varchar(40)))) AS NIF
-            FROM dbo.FE
-            WHERE REPLACE(REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(CAST(ISNULL(NIF, 0) AS varchar(40)))), ' ', ''), '-', ''), '.', ''), '/', '') = :digits
-            ORDER BY ISNULL(NOMEFISCAL, ISNULL(NOME, ''))
-        """), {'digits': digits}).mappings().first()
-        if row:
-            return _serialize_fe_row(dict(row), 0.99, 'tax_id')
+        for entity in _load_fe_entities():
+            if _digits_only(entity.get('NIF')) == digits:
+                return _serialize_fe_row(entity, 0.99, 'tax_id')
 
     normalized_raw = _normalize_text(raw)
     if len(normalized_raw) < 3:
@@ -959,7 +985,7 @@ def search_suppliers(value: str, feid: int | None = None, limit: int = 8) -> lis
             if tax_id and digits == tax_id:
                 score = 0.99
                 matched_by = 'tax_id'
-            elif tax_id and (digits in tax_id or tax_id in digits):
+            elif len(tax_id) >= 6 and len(digits) >= 6 and (digits in tax_id or tax_id in digits):
                 score = max(score, 0.88)
                 matched_by = matched_by or 'tax_id'
             elif no_text and digits == no_text:
@@ -1071,7 +1097,7 @@ def search_customers(value: str, feid: int | None = None, limit: int = 8) -> lis
         if digits and tax_id:
             if digits == tax_id:
                 score, matched_by = 0.99, 'tax_id'
-            elif digits in tax_id or tax_id in digits:
+            elif len(tax_id) >= 6 and len(digits) >= 6 and (digits in tax_id or tax_id in digits):
                 score, matched_by = 0.88, 'tax_id'
         if normalized_raw and normalized_name:
             ratio = SequenceMatcher(None, normalized_name, normalized_raw).ratio()
@@ -1382,6 +1408,33 @@ def save_document_integration_access(
     }
 
 
+def get_document_integration_access(login: str) -> dict[str, bool]:
+    _ensure_document_ai_schema()
+    clean_login = str(login or '').strip()
+    if not clean_login:
+        return _normalize_document_integration_access({})
+    columns = ', '.join(
+        f'ISNULL({column}, 0) AS {column}'
+        for _key, _label, column in DOC_AI_INTEGRATION_ACCESS_TYPES
+    )
+    row = db.session.execute(text(f"""
+        SELECT TOP 1 {columns}
+        FROM dbo.DOC_AI_INTEGRATION_ACCESS
+        WHERE LOGIN = :login
+    """), {'login': clean_login}).mappings().first() or {}
+    return {
+        key: bool(row.get(column))
+        for key, _label, column in DOC_AI_INTEGRATION_ACCESS_TYPES
+    }
+
+
+def document_integration_access_enabled(login: str, document_type: str) -> bool:
+    clean_type = str(document_type or '').strip().lower()
+    if clean_type not in {key for key, _label, _column in DOC_AI_INTEGRATION_ACCESS_TYPES}:
+        return False
+    return bool(get_document_integration_access(login).get(clean_type))
+
+
 def _phc_contract_flow_stages(cursor) -> list[dict[str, Any]]:
     rows = cursor.execute("""
         SELECT CAST(ISNULL(NDOS, 0) AS int), LTRIM(RTRIM(ISNULL(NMDOS, '')))
@@ -1539,6 +1592,968 @@ def get_next_phc_correspondence_reference(
         'company_name': str(source.get('company_name') or customer.get('name') or '').strip(),
         'provisional': True,
     }
+
+
+def _correspondence_safe_part(value: Any, fallback: str = '') -> str:
+    cleaned = unicodedata.normalize('NFKC', str(value or ''))
+    cleaned = re.sub(r'[<>:"/\\|?*\x00-\x1f]+', '_', cleaned)
+    cleaned = re.sub(r'\s+', ' ', cleaned).strip(' ._-').upper()
+    return cleaned or fallback
+
+
+def _correspondence_company_folder(customer: dict[str, Any], source: dict[str, Any]) -> str:
+    explicit = _correspondence_safe_part(customer.get('ged_folder'), '')
+    if explicit:
+        return explicit
+    name = _correspondence_safe_part(customer.get('name'), '')
+    mappings = [
+        (r'INTERSOL.*LOR', 'HSOLS_INTERSOL_LOR'),
+        (r'INTERSOL.*CH', 'HSOLS_INTERSOL_CH'),
+        (r'INTERSOL.*(ALSACE|[_ ]AL\b)', 'HSOLS_INTERSOL_AL'),
+        (r'INTERSOL', 'HSOLS_INTERSOL_AL'),
+        (r'GR.?360', 'HSOLS_GR360_PT'),
+        (r'HSOLS.*FRANCE|HSOLS_FR', 'HSOLS_FR'),
+        (r'HSOLS.*DE|HSOLS_DE', 'HSOLS_DE'),
+        (r'HSOLS.*ES|HSOLS_ES', 'HSOLS_ES'),
+        (r'HSOLS.*MA|HSOLS_MA', 'HSOLS_MA'),
+        (r'HSOLS.*PT|HSOLS_PT|BET[ÃA]OCONCEPT', 'HSOLS_PT'),
+    ]
+    for pattern, folder in mappings:
+        if re.search(pattern, name, flags=re.IGNORECASE):
+            return folder
+    database_folders = {
+        'HSOLS_FR': 'HSOLS_FR',
+        'HSOLS_PT': 'HSOLS_PT',
+        'GR360': 'HSOLS_GR360_PT',
+        'HSOLS_DE': 'HSOLS_DE',
+        'HSOLS_ES': 'HSOLS_ES',
+        'HSOLS_MA': 'HSOLS_MA',
+        'INTERSOL': 'HSOLS_INTERSOL_AL',
+    }
+    return database_folders.get(str(source.get('phc_db') or '').strip().upper(), '')
+
+
+def _correspondence_month_folder(moment: datetime) -> str:
+    months = ('JANV', 'FEV', 'MARS', 'AVR', 'MAI', 'JUIN', 'JUIL', 'AOUT', 'SEPT', 'OCT', 'NOV', 'DEC')
+    return f'{moment.month} {months[moment.month - 1]} {str(moment.year)[-2:]}'
+
+
+def _correspondence_file_name(
+    document_data: dict[str, Any],
+    reference: int,
+    party: dict[str, Any],
+) -> str:
+    legal = str(document_data.get('mail_category') or '').strip().lower() == 'legal'
+    role = str(document_data.get('external_party_role') or '').strip().lower()
+    party_number = _safe_int(
+        party.get('customer_no') if role == 'customer' else party.get('supplier_no') or party.get('no'),
+        0,
+    )
+    party_name = _correspondence_safe_part(party.get('name') or party.get('llm_name'), 'REMETENTE')
+    party_name = re.sub(r'\b(SARL|EURL|LDA|LIMITADA|SA|SAS|SPA|SL|SRL)\b[\s.,]*$', '', party_name, flags=re.IGNORECASE).strip() or 'REMETENTE'
+    party_name = party_name[:60]
+    title = _correspondence_safe_part(document_data.get('mail_title'), '')[:25]
+    document_date = _safe_date_iso(document_data.get('document_date')) or date.today().isoformat()
+    parts = ['JUR' if legal else 'COR', str(reference).zfill(3)]
+    if role in {'customer', 'supplier'} and party_number:
+        parts.append(str(party_number))
+    parts.append(party_name)
+    if title:
+        parts.append(title)
+    parts.append(document_date)
+    return f"{'-'.join(filter(None, parts))}.pdf"
+
+
+def _correspondence_ged_paths(
+    document_data: dict[str, Any],
+    source: dict[str, Any],
+    reference: int,
+    party: dict[str, Any],
+    received_at: datetime,
+) -> dict[str, str]:
+    company_folder = _correspondence_company_folder(document_data.get('customer') or {}, source)
+    if not company_folder:
+        raise ValueError('Não foi possível determinar a pasta GED da entidade.')
+    category = 'JURIDIQUE' if str(document_data.get('mail_category') or '').strip().lower() == 'legal' else 'COURRIER_INTERNE_EXTERIEUR'
+    file_name = _correspondence_file_name(document_data, reference, party)
+    unc_root = str(
+        current_app.config.get('PHC_GED_UNC_ROOT')
+        or os.environ.get('PHC_GED_UNC_ROOT')
+        or r'\\10.0.1.11\ged'
+    ).strip().rstrip('\\/')
+    relative_parts = (company_folder, category, str(received_at.year), _correspondence_month_folder(received_at), file_name)
+    unc_path = '\\'.join((unc_root, *relative_parts))
+    write_root = str(
+        current_app.config.get('PHC_GED_WRITE_ROOT')
+        or os.environ.get('PHC_GED_WRITE_ROOT')
+        or ''
+    ).strip()
+    storage = 'local' if write_root or os.name == 'nt' else 'smb'
+    write_path = os.path.join(write_root, *relative_parts) if write_root else unc_path
+    return {
+        'company_folder': company_folder,
+        'category': category,
+        'file_name': file_name,
+        'unc_path': unc_path,
+        'write_path': write_path,
+        'storage': storage,
+    }
+
+
+def _phc_table_columns(cursor, table_name: str) -> set[str]:
+    rows = cursor.execute("""
+        SELECT LOWER(COLUMN_NAME)
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = ?
+    """, str(table_name or '').strip()).fetchall()
+    return {str(row[0] or '').strip().lower() for row in rows}
+
+
+def _phc_insert_values(cursor, table_name: str, values: dict[str, Any]) -> None:
+    columns = _phc_table_columns(cursor, table_name)
+    filtered = {key: value for key, value in values.items() if key.lower() in columns}
+    if not filtered:
+        raise RuntimeError(f'Não existem colunas válidas para inserir em {table_name}.')
+    cursor.execute(
+        f"INSERT INTO dbo.{table_name} ({', '.join(filtered)}) VALUES ({', '.join('?' for _ in filtered)})",
+        list(filtered.values()),
+    )
+
+
+def _phc_correspondence_user(cursor, login: str) -> dict[str, Any]:
+    clean_login = str(login or '').strip()
+    row = cursor.execute("""
+        SELECT TOP 1
+            CAST(ISNULL(USERNO, 0) AS int),
+            LTRIM(RTRIM(ISNULL(USERNAME, ''))),
+            LTRIM(RTRIM(ISNULL(INICIAIS, ''))),
+            LTRIM(RTRIM(ISNULL(USERCODE, '')))
+        FROM dbo.US WITH (NOLOCK)
+        WHERE LOWER(LTRIM(RTRIM(ISNULL(USERCODE, '')))) = LOWER(?)
+           OR LOWER(LTRIM(RTRIM(ISNULL(EMAIL, '')))) = LOWER(?)
+        ORDER BY CASE WHEN LOWER(LTRIM(RTRIM(ISNULL(USERCODE, '')))) = LOWER(?) THEN 0 ELSE 1 END
+    """, clean_login, clean_login, clean_login).fetchone()
+    if not row:
+        return {'no': 0, 'name': clean_login, 'initials': clean_login[:3].upper(), 'code': clean_login}
+    return {
+        'no': _safe_int(row[0], 0),
+        'name': str(row[1] or clean_login).strip(),
+        'initials': str(row[2] or row[3] or clean_login).strip()[:3],
+        'code': str(row[3] or clean_login).strip(),
+    }
+
+
+def _phc_correspondence_party(cursor, document_data: dict[str, Any]) -> dict[str, Any]:
+    supplied = dict(document_data.get('supplier') or {})
+    role = str(document_data.get('external_party_role') or '').strip().lower()
+    table_name = 'CL' if role == 'customer' else ('FL' if role == 'supplier' else '')
+    number = _safe_int(supplied.get('customer_no') if role == 'customer' else supplied.get('supplier_no') or supplied.get('no'), 0)
+    if table_name and number:
+        row = cursor.execute(
+            f"SELECT TOP 1 CAST(ISNULL(NO, 0) AS int), LTRIM(RTRIM(ISNULL(NOME, ''))) FROM dbo.{table_name} WITH (NOLOCK) WHERE NO = ? ORDER BY ISNULL(ESTAB, 0)",
+            number,
+        ).fetchone()
+        if not row:
+            raise ValueError(f'O {"cliente" if table_name == "CL" else "fornecedor"} nº {number} já não existe no PHC.')
+        return {'name': str(row[1] or '').strip()[:80], 'no': _safe_int(row[0], 0), 'estab': 0, 'origin': table_name, 'role': role}
+    name = str(supplied.get('name') or supplied.get('llm_name') or '').strip()
+    if not name:
+        raise ValueError('Identifica ou escreve o nome do remetente antes de submeter.')
+    return {'name': name[:80], 'no': 0, 'estab': 0, 'origin': 'CR', 'role': 'unknown'}
+
+
+def submit_correspondence_to_phc(
+    document_data: dict[str, Any] | None,
+    file_bytes: bytes,
+    original_file_name: str,
+    requested_by: str,
+) -> dict[str, Any]:
+    import pyodbc
+    from services.phc_user_import_service import _phc_conn_str
+
+    document = dict(document_data or {})
+    if str(document.get('document_type') or '').strip().lower() != 'mail':
+        raise ValueError('Este circuito de submissão aceita apenas correspondência.')
+    if not file_bytes or not str(original_file_name or '').lower().endswith('.pdf'):
+        raise ValueError('O PDF original é obrigatório para submeter a correspondência.')
+    customer = dict(document.get('customer') or {})
+    if not _safe_int(customer.get('feid'), 0):
+        raise ValueError('Escolhe a entidade antes de submeter.')
+    source = _phc_origin_source(customer)
+    database_name = str(source.get('phc_db') or '').strip()
+    if source.get('kind') != 'phc' or not database_name:
+        raise ValueError('A entidade selecionada não tem uma base PHC configurada.')
+
+    received_at = datetime.now()
+    target_year = received_at.year
+    content_hash = hashlib.sha256(file_bytes).hexdigest()
+    unique_id = f'DOC_AI:{content_hash}'
+    created_file = False
+    write_path = ''
+    connection = pyodbc.connect(
+        _phc_conn_str(database_name, str(source.get('phc_server') or '').strip()),
+        timeout=15,
+        autocommit=False,
+    )
+    try:
+        cursor = connection.cursor()
+        cursor.execute('SET TRANSACTION ISOLATION LEVEL SERIALIZABLE')
+        lock_result = cursor.execute("""
+            DECLARE @result int;
+            EXEC @result = sp_getapplock @Resource=?, @LockMode='Exclusive', @LockOwner='Transaction', @LockTimeout=15000;
+            SELECT @result;
+        """, f'DOC_AI_CR_{database_name}_{target_year}').fetchone()
+        if not lock_result or _safe_int(lock_result[0], -999) < 0:
+            raise RuntimeError('Não foi possível reservar a numeração da correspondência. Tenta novamente.')
+
+        duplicate = cursor.execute("""
+            SELECT TOP 1 C.CRSTAMP, C.REF, C.ANO, A.FULLNAME
+            FROM dbo.ANEXOS A WITH (UPDLOCK, HOLDLOCK)
+            INNER JOIN dbo.CR C ON C.CRSTAMP = A.RECSTAMP
+            WHERE A.ORITABLE = 'CR' AND A.UNIQUEID = ?
+            ORDER BY C.ANO DESC, C.REF DESC
+        """, unique_id).fetchone()
+        if duplicate:
+            connection.rollback()
+            return {
+                'ok': True,
+                'duplicate': True,
+                'message': f'Este PDF já foi submetido como correspondência nº {_safe_int(duplicate[1], 0)}.',
+                'crstamp': str(duplicate[0] or '').strip(),
+                'reference': _safe_int(duplicate[1], 0),
+                'year': _safe_int(duplicate[2], target_year),
+                'phc_database': database_name,
+                'ged_path': str(duplicate[3] or '').strip(),
+            }
+
+        row = cursor.execute("""
+            SELECT ISNULL(MAX(CAST(ISNULL(REF, 0) AS bigint)), 0)
+            FROM dbo.CR WITH (UPDLOCK, HOLDLOCK)
+            WHERE CAST(ISNULL(ANO, 0) AS int) = ? AND ISNULL(ENVIADA, 0) = 0
+        """, target_year).fetchone()
+        reference = _safe_int(row[0] if row else 0, 0) + 1
+        party = _phc_correspondence_party(cursor, document)
+        user = _phc_correspondence_user(cursor, requested_by)
+        ged = _correspondence_ged_paths(document, source, reference, {**(document.get('supplier') or {}), **party}, received_at)
+        write_path = ged['write_path']
+        created_file = _write_document_ai_pdf(ged, file_bytes)
+
+        now_time = received_at.strftime('%H:%M:%S')
+        document_date = _document_date_value(document.get('document_date'))
+        title = str(document.get('mail_title') or '').strip()[:80]
+        subject = os.path.splitext(ged['file_name'])[0][:80]
+        legal = str(document.get('mail_category') or '').strip().lower() == 'legal'
+        crstamp = _new_stamp()
+        anexosstamp = _new_stamp()
+        _phc_insert_values(cursor, 'CR', {
+            'crstamp': crstamp,
+            'data': document_date,
+            'empresa': party['name'],
+            'assunto': subject,
+            'ref': reference,
+            'obs': '',
+            'refemp': title,
+            'rdata': received_at,
+            'entrada': received_at,
+            'ano': target_year,
+            'tipo': 'L',
+            'enviada': 0,
+            'iniciais': '',
+            'nenviada': 0,
+            'no': party['no'],
+            'estab': party['estab'],
+            'origem': party['origin'],
+            'ousrinis': user['initials'],
+            'ousrdata': received_at,
+            'ousrhora': now_time,
+            'usrinis': user['initials'],
+            'usrdata': received_at,
+            'usrhora': now_time,
+            'marcada': 0,
+            'pasta': 'JURIDICO' if legal else 'LETTRE',
+            'wtwd': '',
+            'wtwstamp': '',
+            'intid': '',
+            'u_origem': 'DOCUMENT_AI',
+        })
+        attachment_origin = (
+            f'Correspondência\rData da correspondência: {document_date.strftime("%d.%m.%Y %H:%M:%S")}\r'
+            f'Empresa: {party["name"]}\rAssunto: {subject}\rReferência: {reference:10d}\r'
+            f'Observações: \rPasta: {"JURIDICO" if legal else "LETTRE"}\r'
+        )
+        _phc_insert_values(cursor, 'ANEXOS', {
+            'anexosstamp': anexosstamp,
+            'oritable': 'CR',
+            'tabnm': 'Correspondência',
+            'resumo': 'L',
+            'grupo': '',
+            'recstamp': crstamp,
+            'uniqueid': unique_id,
+            'descricao': title,
+            'bdados': pyodbc.Binary(b''),
+            'fullname': ged['unc_path'],
+            'fname': os.path.splitext(ged['file_name'])[0][:150],
+            'fext': 'pdf',
+            'flen': 0,
+            'tipo': 2,
+            'passw': '',
+            'origem': attachment_origin,
+            'keylook': '',
+            'tpdos': 0,
+            'tpdoc': 0,
+            'ausrinis': user['initials'],
+            'ausrdata': received_at,
+            'ausrhora': now_time,
+            'usnoopen': user['no'],
+            'usnaopen': user['name'][:55],
+            'u_enviado': 1,
+            'ousrinis': user['initials'],
+            'ousrdata': received_at,
+            'ousrhora': now_time,
+            'usrinis': user['initials'],
+            'usrdata': received_at,
+            'usrhora': now_time,
+        })
+        connection.commit()
+        return {
+            'ok': True,
+            'duplicate': False,
+            'message': f'Correspondência nº {reference} criada no PHC.',
+            'crstamp': crstamp,
+            'anexosstamp': anexosstamp,
+            'reference': reference,
+            'year': target_year,
+            'phc_database': database_name,
+            'file_name': ged['file_name'],
+            'ged_path': ged['unc_path'],
+            'party': party,
+        }
+    except Exception:
+        try:
+            connection.rollback()
+        finally:
+            if created_file and write_path:
+                try:
+                    _remove_document_ai_pdf(ged)
+                except Exception:
+                    current_app.logger.warning('Não foi possível remover o PDF do GED após rollback: %s', write_path, exc_info=True)
+        raise
+    finally:
+        connection.close()
+
+
+DOC_AI_PROVISIONAL_ARTICLE_REF = 'Z.00.00.000.0000'
+DOC_AI_PURCHASE_INVOICE_DOCCODE = 55
+
+
+def _is_provisional_purchase_source_type(value: Any) -> bool:
+    return str(value or '').strip().lower() in {'invoice', 'provisional_invoice'}
+
+
+def _phc_money(value: Any) -> Decimal:
+    parsed = _safe_decimal(value)
+    return Decimal(str(parsed if parsed is not None else 0)).quantize(Decimal('0.01'))
+
+
+def _split_phc_line_design(value: Any, width: int = 60) -> list[str]:
+    clean_value = re.sub(r'\s+', ' ', str(value or '')).strip()
+    if not clean_value:
+        return ['']
+    return textwrap.wrap(
+        clean_value,
+        width=max(1, int(width or 60)),
+        break_long_words=True,
+        break_on_hyphens=False,
+        replace_whitespace=True,
+        drop_whitespace=True,
+    ) or ['']
+
+
+def _expand_phc_invoice_lines(lines: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    expanded = []
+    line_order = 0
+    for line in lines:
+        chunks = _split_phc_line_design(line.get('description'), 60)
+        for chunk_index, chunk in enumerate(chunks):
+            line_order += 1000
+            expanded.append({
+                **line,
+                'description': chunk,
+                'continuation': chunk_index > 0,
+                'lordem': line_order,
+            })
+    return expanded
+
+
+def _phc_provisional_supplier(cursor, supplier_data: dict[str, Any]) -> dict[str, Any]:
+    matched = _phc_origin_supplier(cursor, supplier_data)
+    supplier_no = _safe_int(matched.get('no'), 0)
+    if not supplier_no:
+        raise ValueError('Escolhe um fornecedor existente no PHC antes de submeter a Facture Provisoire.')
+    row = cursor.execute("""
+        SELECT TOP 1
+            CAST(ISNULL(NO, 0) AS int), CAST(ISNULL(ESTAB, 0) AS int),
+            LTRIM(RTRIM(ISNULL(NOME, ''))), LTRIM(RTRIM(ISNULL(NOME2, ''))),
+            LTRIM(RTRIM(ISNULL(MORADA, ''))), LTRIM(RTRIM(ISNULL(LOCAL, ''))),
+            LTRIM(RTRIM(ISNULL(CODPOST, ''))), LTRIM(RTRIM(CONVERT(varchar(40), ISNULL(NCONT, '')))),
+            LTRIM(RTRIM(ISNULL(MOEDA, ''))), LTRIM(RTRIM(ISNULL(PAIS, ''))),
+            LTRIM(RTRIM(ISNULL(TPSTAMP, ''))), LTRIM(RTRIM(ISNULL(TPDESC, ''))),
+            LTRIM(RTRIM(ISNULL(LANG, ''))), LTRIM(RTRIM(ISNULL(CCUSTO, ''))),
+            LTRIM(RTRIM(ISNULL(NCUSTO, '')))
+        FROM dbo.FL WITH (UPDLOCK, HOLDLOCK)
+        WHERE NO = ?
+        ORDER BY CASE WHEN ESTAB = 0 THEN 0 ELSE 1 END, ESTAB
+    """, supplier_no).fetchone()
+    if not row:
+        raise ValueError(f'O fornecedor nº {supplier_no} já não existe no PHC.')
+    keys = ('no', 'estab', 'name', 'name2', 'address', 'city', 'postal_code', 'tax_id',
+            'currency', 'country', 'tpstamp', 'tpdesc', 'lang', 'ccusto', 'ncusto')
+    return dict(zip(keys, row))
+
+
+def _phc_tax_configuration(cursor) -> tuple[dict[int, Decimal], dict[Decimal, int]]:
+    rows = cursor.execute("""
+        SELECT CAST(ISNULL(CODIGO, 0) AS int), CAST(ISNULL(TAXA, 0) AS decimal(10, 4))
+        FROM dbo.TAXASIVA WITH (NOLOCK)
+        WHERE CAST(ISNULL(CODIGO, 0) AS int) BETWEEN 1 AND 9
+        ORDER BY CAST(ISNULL(CODIGO, 0) AS int)
+    """).fetchall()
+    by_code = {int(row[0]): Decimal(str(row[1])).quantize(Decimal('0.01')) for row in rows}
+    # Algumas bases conservam tabelas antigas com a mesma percentagem. O PHC
+    # usa a primeira tabela configurada (por exemplo, tabela 2 para IVA a 20%)
+    # e não a última ocorrência da taxa.
+    by_rate: dict[Decimal, int] = {}
+    for code, rate in by_code.items():
+        by_rate.setdefault(rate, code)
+    return by_code, by_rate
+
+
+def _phc_tax_code(rate: Decimal, by_rate: dict[Decimal, int]) -> int:
+    normalized = rate.quantize(Decimal('0.01'))
+    if normalized in by_rate:
+        return by_rate[normalized]
+    if normalized == 0 and Decimal('0.00') in by_rate:
+        return by_rate[Decimal('0.00')]
+    raise ValueError(f'A taxa de IVA {normalized}% não está configurada na base PHC selecionada.')
+
+
+def _phc_base_currency_per_euro(cursor) -> Decimal:
+    """Obtém o fator moeda-base/EUR usado pela própria base PHC.
+
+    As bases existentes guardam em paralelo os valores na moeda-base histórica
+    e em euros. Usar documentos já calculados pelo PHC evita assumir que todas
+    as empresas têm a mesma moeda-base.
+    """
+    rows = cursor.execute("""
+        SELECT TOP 25
+            CAST(ABS(TOTAL / NULLIF(ETOTAL, 0)) AS decimal(19, 6))
+        FROM dbo.FO WITH (NOLOCK)
+        WHERE ABS(ISNULL(ETOTAL, 0)) > 0.01
+          AND ABS(ISNULL(TOTAL, 0)) > 0.01
+          AND UPPER(LTRIM(RTRIM(ISNULL(MOEDA, '')))) IN ('EUR', 'EURO')
+          AND ABS(TOTAL / NULLIF(ETOTAL, 0)) BETWEEN 0.01 AND 10000
+        ORDER BY DATA DESC, OUSRDATA DESC
+    """).fetchall()
+    factors = sorted(Decimal(str(row[0])) for row in rows if row and row[0] is not None)
+    if not factors:
+        return Decimal('1.000000')
+    middle = len(factors) // 2
+    if len(factors) % 2:
+        return factors[middle]
+    return ((factors[middle - 1] + factors[middle]) / Decimal('2')).quantize(Decimal('0.000001'))
+
+
+def _phc_local_amount(value: Decimal, factor: Decimal, *, whole: bool = False) -> Decimal:
+    quantum = Decimal('1') if whole else Decimal('0.00001')
+    return (value * factor).quantize(quantum)
+
+
+def _ensure_phc_provisional_article(cursor, requested_by: str, moment: datetime) -> dict[str, Any]:
+    row = cursor.execute("""
+        SELECT TOP 1 STSTAMP, LTRIM(RTRIM(ISNULL(REF, ''))), LTRIM(RTRIM(ISNULL(DESIGN, '')))
+        FROM dbo.ST WITH (UPDLOCK, HOLDLOCK)
+        WHERE LTRIM(RTRIM(REF)) = ?
+    """, DOC_AI_PROVISIONAL_ARTICLE_REF).fetchone()
+    if row:
+        return {'stamp': str(row[0] or '').strip(), 'ref': str(row[1] or '').strip(), 'design': str(row[2] or '').strip()}
+    initials = str(requested_by or 'DOC')[:3].upper()
+    stamp = _new_stamp()
+    _phc_insert_values(cursor, 'ST', {
+        'ststamp': stamp,
+        'ref': DOC_AI_PROVISIONAL_ARTICLE_REF,
+        'design': 'ARTIGO GENÉRICO - DOCUMENT AI',
+        'familia': '',
+        'stock': 0,
+        'unidade': 'UN',
+        'tabiva': 5,
+        'usaid': 1,
+        'stns': 1,
+        'sujinv': 0,
+        'inactivo': 0,
+        'ousrinis': initials,
+        'ousrdata': moment,
+        'ousrhora': moment.strftime('%H:%M:%S'),
+        'usrinis': initials,
+        'usrdata': moment,
+        'usrhora': moment.strftime('%H:%M:%S'),
+        'marcada': 0,
+    })
+    return {'stamp': stamp, 'ref': DOC_AI_PROVISIONAL_ARTICLE_REF, 'design': 'ARTIGO GENÉRICO - DOCUMENT AI'}
+
+
+def _provisional_invoice_ged_paths(
+    document: dict[str, Any],
+    source: dict[str, Any],
+    supplier: dict[str, Any],
+    reference: int,
+    received_at: datetime,
+) -> list[dict[str, str]]:
+    company_folder = _correspondence_company_folder(document.get('customer') or {}, source)
+    if not company_folder:
+        raise ValueError('Não foi possível determinar a pasta GED da entidade.')
+    supplier_name = _correspondence_safe_part(supplier.get('name'), 'FORNECEDOR')[:55]
+    document_number = _correspondence_safe_part(document.get('document_number'), 'SEM-DOCUMENTO')[:45]
+    file_name = f'FAC-{str(reference).zfill(3)}-{supplier["no"]}-{supplier_name}-{document_number}.pdf'
+    unc_root = str(
+        current_app.config.get('PHC_GED_UNC_ROOT')
+        or os.environ.get('PHC_GED_UNC_ROOT')
+        or r'\\10.0.1.11\ged'
+    ).strip().rstrip('\\/')
+    write_root = str(
+        current_app.config.get('PHC_GED_WRITE_ROOT')
+        or os.environ.get('PHC_GED_WRITE_ROOT')
+        or ''
+    ).strip()
+    storage = 'local' if write_root or os.name == 'nt' else 'smb'
+    results = []
+    for key, label, category in (
+        ('correspondence', 'Correio recebido', 'COURRIER_INTERNE_EXTERIEUR'),
+        ('purchase', 'Faturas de fornecedor', 'FACTURATION_FOURNISSEURS'),
+    ):
+        parts = (company_folder, category, str(received_at.year), _correspondence_month_folder(received_at), file_name)
+        unc_path = '\\'.join((unc_root, *parts))
+        results.append({
+            'key': key,
+            'label': label,
+            'file_name': file_name,
+            'unc_path': unc_path,
+            'write_path': os.path.join(write_root, *parts) if write_root else unc_path,
+            'storage': storage,
+        })
+    return results
+
+
+def _document_ai_smb_session(unc_path: str) -> None:
+    try:
+        import smbclient
+    except ImportError as exc:
+        raise RuntimeError('O cliente SMB necessário para escrever diretamente no servidor GED não está instalado.') from exc
+    parts = [part for part in str(unc_path or '').lstrip('\\').split('\\') if part]
+    if len(parts) < 2:
+        raise ValueError('O caminho UNC do GED não é válido.')
+    server = parts[0]
+    username = str(
+        current_app.config.get('PHC_GED_SMB_USER')
+        or os.environ.get('PHC_GED_SMB_USER')
+        or os.environ.get('DOCUMENT_AI_SMB_USER')
+        or ''
+    ).strip()
+    password = str(
+        current_app.config.get('PHC_GED_SMB_PASSWORD')
+        or os.environ.get('PHC_GED_SMB_PASSWORD')
+        or os.environ.get('DOCUMENT_AI_SMB_PASSWORD')
+        or ''
+    )
+    domain = str(
+        current_app.config.get('PHC_GED_SMB_DOMAIN')
+        or os.environ.get('PHC_GED_SMB_DOMAIN')
+        or os.environ.get('DOCUMENT_AI_SMB_DOMAIN')
+        or ''
+    ).strip()
+    if (not username or not password) and os.name != 'nt' and sys.platform == 'darwin':
+        try:
+            metadata_result = subprocess.run(
+                ['security', 'find-generic-password', '-s', 'APP_WEB_PHC_GED_SMB'],
+                check=True, capture_output=True, text=True,
+            )
+            metadata = f'{metadata_result.stdout}\n{metadata_result.stderr}'
+            secret = subprocess.run(
+                ['security', 'find-generic-password', '-s', 'APP_WEB_PHC_GED_SMB', '-w'],
+                check=True, capture_output=True, text=True,
+            ).stdout.rstrip('\r\n')
+            account_hex = re.search(r'"acct"<blob>=0x([0-9A-Fa-f]+)', metadata)
+            account_text = re.search(r'"acct"<blob>="([^"]+)"', metadata)
+            account = ''
+            if account_hex:
+                account = bytes.fromhex(account_hex.group(1)).decode('utf-8')
+            elif account_text:
+                account = account_text.group(1)
+            if account and secret:
+                username = account
+                password = secret
+        except Exception:
+            pass
+    if domain and username and '\\' not in username and '@' not in username:
+        username = f'{domain}\\{username}'
+    try:
+        smbclient.register_session(
+            server,
+            username=username or None,
+            password=password or None,
+            connection_timeout=15,
+        )
+    except Exception as exc:
+        hint = (
+            'Configura PHC_GED_SMB_USER e PHC_GED_SMB_PASSWORD no serviço da aplicação.'
+            if not username or not password else
+            'Confirma as credenciais SMB configuradas para o serviço da aplicação.'
+        )
+        raise RuntimeError(f'Não foi possível autenticar diretamente no servidor GED {server}. {hint}') from exc
+
+
+def _document_ai_file_digest(handle) -> bytes:
+    digest = hashlib.sha256()
+    while True:
+        chunk = handle.read(1024 * 1024)
+        if not chunk:
+            break
+        digest.update(chunk)
+    return digest.digest()
+
+
+def _write_document_ai_pdf(target: dict[str, str], file_bytes: bytes) -> bool:
+    write_path = target['write_path']
+    if target.get('storage') == 'smb':
+        import smbclient
+        unc_path = target['unc_path']
+        _document_ai_smb_session(unc_path)
+        parent = ntpath.dirname(unc_path)
+        smbclient.makedirs(parent, exist_ok=True)
+        expected_digest = hashlib.sha256(file_bytes).digest()
+        if smbclient.path.exists(unc_path):
+            with smbclient.open_file(unc_path, mode='rb') as existing_file:
+                if _document_ai_file_digest(existing_file) != expected_digest:
+                    raise FileExistsError(f'Já existe no GED um ficheiro diferente com o nome {target["file_name"]}.')
+            return False
+        temporary_path = f'{unc_path}.docai-{uuid.uuid4().hex}.tmp'
+        try:
+            with smbclient.open_file(temporary_path, mode='wb') as handle:
+                handle.write(file_bytes)
+            smbclient.replace(temporary_path, unc_path)
+            return True
+        finally:
+            if smbclient.path.exists(temporary_path):
+                smbclient.remove(temporary_path)
+    os.makedirs(os.path.dirname(write_path), exist_ok=True)
+    if os.path.exists(write_path):
+        with open(write_path, 'rb') as existing_file:
+            if hashlib.sha256(existing_file.read()).digest() != hashlib.sha256(file_bytes).digest():
+                raise FileExistsError(f'Já existe no GED um ficheiro diferente com o nome {target["file_name"]}.')
+        return False
+    descriptor, temporary_path = tempfile.mkstemp(prefix='.docai-', suffix='.tmp', dir=os.path.dirname(write_path))
+    try:
+        with os.fdopen(descriptor, 'wb') as handle:
+            handle.write(file_bytes)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary_path, write_path)
+        return True
+    finally:
+        if os.path.exists(temporary_path):
+            os.remove(temporary_path)
+
+
+def _remove_document_ai_pdf(target: dict[str, str]) -> None:
+    if target.get('storage') == 'smb':
+        import smbclient
+        _document_ai_smb_session(target['unc_path'])
+        if smbclient.path.exists(target['unc_path']):
+            smbclient.remove(target['unc_path'])
+        return
+    if os.path.exists(target['write_path']):
+        os.remove(target['write_path'])
+
+
+def submit_provisional_invoice_to_phc(
+    document_data: dict[str, Any] | None,
+    file_bytes: bytes,
+    original_file_name: str,
+    requested_by: str,
+) -> dict[str, Any]:
+    import pyodbc
+    from services.phc_user_import_service import _phc_conn_str
+
+    document = dict(document_data or {})
+    if not _is_provisional_purchase_source_type(document.get('document_type')):
+        raise ValueError('Este circuito aceita apenas faturas de fornecedor para lançar como Facture Provisoire.')
+    if not file_bytes or not str(original_file_name or '').lower().endswith('.pdf'):
+        raise ValueError('O PDF original é obrigatório para submeter a Facture Provisoire.')
+    document_number = str(document.get('document_number') or '').strip()
+    if not document_number:
+        raise ValueError('Confirma o número da Facture Provisoire antes de submeter.')
+    lines = [dict(item or {}) for item in (document.get('lines') or []) if isinstance(item, dict)]
+    if not lines:
+        raise ValueError('A Facture Provisoire tem de ter pelo menos uma linha.')
+    customer = dict(document.get('customer') or {})
+    if not _safe_int(customer.get('feid'), 0):
+        raise ValueError('Escolhe a entidade antes de submeter.')
+    source = _phc_origin_source(customer)
+    database_name = str(source.get('phc_db') or '').strip()
+    if source.get('kind') != 'phc' or not database_name:
+        raise ValueError('A entidade selecionada não tem uma base PHC configurada.')
+
+    received_at = datetime.now()
+    document_date = _document_date_value(document.get('document_date'))
+    due_date = _document_date_value(document.get('due_date') or document.get('document_date'))
+    year = document_date.year
+    unique_root = f'DOC_AI:{hashlib.sha256(file_bytes).hexdigest()}'
+    created_paths: list[str] = []
+    connection = pyodbc.connect(
+        _phc_conn_str(database_name, str(source.get('phc_server') or '').strip()),
+        timeout=15,
+        autocommit=False,
+    )
+    try:
+        cursor = connection.cursor()
+        cursor.execute('SET TRANSACTION ISOLATION LEVEL SERIALIZABLE')
+        lock = cursor.execute("""
+            DECLARE @result int;
+            EXEC @result = sp_getapplock @Resource=?, @LockMode='Exclusive', @LockOwner='Transaction', @LockTimeout=15000;
+            SELECT @result;
+        """, f'DOC_AI_PP_{database_name}_{year}_{_normalize_text(document_number)}').fetchone()
+        if not lock or _safe_int(lock[0], -999) < 0:
+            raise RuntimeError('Não foi possível reservar a integração desta Facture Provisoire. Tenta novamente.')
+
+        supplier = _phc_provisional_supplier(cursor, dict(document.get('supplier') or {}))
+        duplicate = cursor.execute("""
+            SELECT TOP 1 F.FOSTAMP, F.ADOC, A.FULLNAME
+            FROM dbo.FO F WITH (UPDLOCK, HOLDLOCK)
+            LEFT JOIN dbo.ANEXOS A ON A.RECSTAMP = F.FOSTAMP AND A.ORITABLE = 'FO'
+            WHERE F.DOCCODE = ? AND F.NO = ?
+              AND (A.UNIQUEID = ? OR LTRIM(RTRIM(F.ADOC)) = ?)
+            ORDER BY F.DATA DESC
+        """, DOC_AI_PURCHASE_INVOICE_DOCCODE, supplier['no'], f'{unique_root}:FO', document_number).fetchone()
+        if duplicate:
+            connection.rollback()
+            return {
+                'ok': True,
+                'duplicate': True,
+                'message': f'A Facture Provisoire {document_number} deste fornecedor já existe no PHC.',
+                'fostamp': str(duplicate[0] or '').strip(),
+                'document_number': str(duplicate[1] or '').strip(),
+                'phc_database': database_name,
+                'ged_path': str(duplicate[2] or '').strip(),
+            }
+
+        reference_row = cursor.execute("""
+            SELECT ISNULL(MAX(CAST(ISNULL(REF, 0) AS bigint)), 0)
+            FROM dbo.CR WITH (UPDLOCK, HOLDLOCK)
+            WHERE CAST(ISNULL(ANO, 0) AS int) = ? AND ISNULL(ENVIADA, 0) = 0
+        """, received_at.year).fetchone()
+        reference = _safe_int(reference_row[0] if reference_row else 0, 0) + 1
+        user = _phc_correspondence_user(cursor, requested_by)
+        article = _ensure_phc_provisional_article(cursor, requested_by, received_at)
+        tax_by_code, tax_by_rate = _phc_tax_configuration(cursor)
+        ged_targets = _provisional_invoice_ged_paths(document, source, supplier, reference, received_at)
+        for target in ged_targets:
+            if _write_document_ai_pdf(target, file_bytes):
+                created_paths.append(target['write_path'])
+
+        normalized_lines = []
+        tax_groups: dict[int, dict[str, Decimal]] = {}
+        for index, line in enumerate(lines, start=1):
+            qty = _phc_money(line.get('qty'))
+            if qty == 0:
+                qty = Decimal('1.00')
+            unit_price = _phc_money(line.get('unit_price'))
+            discount = _phc_money(line.get('discount'))
+            net = _phc_money(line.get('net_amount'))
+            if net == 0 and unit_price != 0:
+                net = (qty * unit_price * (Decimal('1.00') - discount / Decimal('100.00'))).quantize(Decimal('0.01'))
+            rate = _phc_money(line.get('tax_rate'))
+            code = _phc_tax_code(rate, tax_by_rate)
+            tax_amount = (net * rate / Decimal('100.00')).quantize(Decimal('0.01'))
+            group = tax_groups.setdefault(code, {'rate': rate, 'base': Decimal('0.00'), 'tax': Decimal('0.00')})
+            group['base'] += net
+            group['tax'] += tax_amount
+            normalized_lines.append({
+                'index': index,
+                'description': str(line.get('description') or article['design']).strip(),
+                'qty': qty,
+                'unit': str(line.get('unit') or 'UN').strip()[:6],
+                'unit_price': unit_price,
+                'discount': discount,
+                'net': net,
+                'rate': rate,
+                'code': code,
+            })
+
+        calculated_net = sum((item['net'] for item in normalized_lines), Decimal('0.00'))
+        calculated_tax = sum((item['tax'] for item in tax_groups.values()), Decimal('0.00'))
+        totals = dict(document.get('totals') or {})
+        net_total = _phc_money(totals.get('net_total')) or calculated_net
+        tax_total = _phc_money(totals.get('tax_total')) if totals.get('tax_total') not in (None, '') else calculated_tax
+        gross_total = _phc_money(totals.get('gross_total')) or (net_total + tax_total)
+        physical_lines = _expand_phc_invoice_lines(normalized_lines)
+        project = dict(document.get('origin_project') or {})
+        ccusto = str(project.get('ccusto') or supplier.get('ccusto') or '').strip()[:20]
+        currency = str(document.get('currency') or supplier.get('currency') or 'EURO').strip().upper()[:11] or 'EURO'
+        if currency in {'EUR', '€'}:
+            currency = 'EURO'
+        base_currency_factor = _phc_base_currency_per_euro(cursor) if currency == 'EURO' else Decimal('1.000000')
+        local_net_total = _phc_local_amount(net_total, base_currency_factor)
+        local_tax_total = _phc_local_amount(tax_total, base_currency_factor)
+        local_gross_total = _phc_local_amount(gross_total, base_currency_factor)
+        docname_row = cursor.execute("""
+            SELECT TOP 1 LTRIM(RTRIM(ISNULL(DOCNOME, '')))
+            FROM dbo.FO WITH (NOLOCK) WHERE DOCCODE = ? AND ISNULL(DOCNOME, '') <> ''
+            ORDER BY DATA DESC
+        """, DOC_AI_PURCHASE_INVOICE_DOCCODE).fetchone()
+        docname = str(docname_row[0] or '').strip() if docname_row else ''
+        if not docname:
+            docname = 'V/Fatura' if database_name in {'HSOLS_PT', 'GR360'} else 'V/Facture'
+        initials = str(user.get('initials') or requested_by or 'DOC')[:3]
+        time_text = received_at.strftime('%H:%M:%S')
+        fostamp = _new_stamp()
+        crstamp = _new_stamp()
+
+        tax_header_values: dict[str, Decimal] = {}
+        for code, values in tax_groups.items():
+            local_tax = _phc_local_amount(values['tax'], base_currency_factor, whole=True)
+            tax_header_values.update({
+                f'ivav{code}': local_tax,
+                f'eivav{code}': values['tax'],
+                f'paivav{code}': local_tax,
+                f'epaivav{code}': values['tax'],
+            })
+        _phc_insert_values(cursor, 'FO', {
+            'fostamp': fostamp, 'docnome': docname, 'adoc': document_number[:60],
+            'nome': str(supplier['name'])[:55], 'nome2': str(supplier['name2'])[:55],
+            'total': local_gross_total, 'etotal': gross_total, 'data': document_date, 'tipo': 'FO',
+            'docdata': document_date, 'foano': year, 'doccode': DOC_AI_PURCHASE_INVOICE_DOCCODE,
+            'no': supplier['no'], 'estab': supplier['estab'], 'ccusto': ccusto,
+            'ncusto': str(supplier['ncusto'])[:20], 'moeda': currency, 'totmoeda': 0,
+            'pdata': due_date, 'plano': 0, 'ivain': local_net_total, 'ttiva': local_tax_total,
+            'ttiliq': local_net_total, 'eivain': net_total, 'ettiva': tax_total, 'ettiliq': net_total,
+            'paivain': _phc_local_amount(net_total, base_currency_factor, whole=True),
+            'epaivain': net_total,
+            'patotal': _phc_local_amount(gross_total, base_currency_factor, whole=True),
+            'epatotal': gross_total,
+            'morada': str(supplier['address'])[:55], 'local': str(supplier['city'])[:43],
+            'codpost': str(supplier['postal_code'])[:45], 'ncont': str(supplier['tax_id'])[:20],
+            'tpstamp': str(supplier['tpstamp'])[:25], 'tpdesc': str(supplier['tpdesc'])[:30],
+            'lang': str(supplier['lang'])[:20], 'aprovado': 0,
+            'obs': 'Criado pela Leitura Inteligente com artigo genérico.',
+            'ousrinis': initials, 'ousrdata': received_at, 'ousrhora': time_text,
+            'usrinis': initials, 'usrdata': received_at, 'usrhora': time_text,
+            **tax_header_values,
+        })
+
+        fo2_values = {
+            'fo2stamp': fostamp, 'formapag': 1, 'olcodigo': 'P10001',
+            'taxpointdt': document_date, 'dataven': due_date, 'plano': 0,
+            'rowidindex': str(uuid.uuid4()).upper(),
+            'ousrinis': initials, 'ousrdata': received_at, 'ousrhora': time_text,
+            'usrinis': initials, 'usrdata': received_at, 'usrhora': time_text,
+        }
+        fo2_values.update({f'ivatx{code}': rate for code, rate in tax_by_code.items()})
+        _phc_insert_values(cursor, 'FO2', fo2_values)
+
+        for item in physical_lines:
+            continuation = bool(item.get('continuation'))
+            _phc_insert_values(cursor, 'FN', {
+                'fnstamp': _new_stamp(), 'fostamp': fostamp,
+                'ref': '' if continuation else DOC_AI_PROVISIONAL_ARTICLE_REF,
+                'design': item['description'],
+                'docnome': docname, 'adoc': document_number[:50],
+                'unidade': '' if continuation else item['unit'],
+                'taxaiva': 0,
+                'iva': 0 if continuation else item['rate'],
+                'qtt': 0 if continuation else item['qty'],
+                'pv': 0 if continuation else _phc_local_amount(item['unit_price'], base_currency_factor),
+                'epv': 0 if continuation else item['unit_price'],
+                'tiliquido': 0 if continuation else _phc_local_amount(item['net'], base_currency_factor, whole=True),
+                'etiliquido': 0 if continuation else item['net'],
+                'ivaincl': 0, 'tabiva': item['code'], 'armazem': 1,
+                'lordem': item['lordem'], 'data': document_date,
+                'stns': 0 if continuation else 1, 'fnccusto': ccusto, 'familia': '',
+                'ousrinis': initials, 'ousrdata': received_at, 'ousrhora': time_text,
+                'usrinis': initials, 'usrdata': received_at, 'usrhora': time_text,
+            })
+
+        for code, values in tax_groups.items():
+            _phc_insert_values(cursor, 'FOT', {
+                'fotstamp': _new_stamp(), 'fostamp': fostamp, 'codigo': code,
+                'taxa': values['rate'],
+                'baseinc': _phc_local_amount(values['base'], base_currency_factor, whole=True),
+                'ebaseinc': values['base'],
+                'valor': _phc_local_amount(values['tax'], base_currency_factor, whole=True),
+                'evalor': values['tax'],
+                'ousrinis': initials, 'ousrdata': received_at, 'ousrhora': time_text,
+                'usrinis': initials, 'usrdata': received_at, 'usrhora': time_text,
+            })
+
+        subject = os.path.splitext(ged_targets[0]['file_name'])[0][:80]
+        _phc_insert_values(cursor, 'CR', {
+            'crstamp': crstamp, 'data': document_date, 'empresa': str(supplier['name'])[:80],
+            'assunto': subject, 'ref': reference, 'refemp': document_number[:80],
+            'rdata': received_at, 'entrada': received_at, 'ano': received_at.year,
+            'tipo': DOC_AI_PURCHASE_INVOICE_CORRESPONDENCE_TYPE,
+            'enviada': 0, 'nenviada': 0, 'no': supplier['no'],
+            'estab': supplier['estab'], 'origem': 'FL',
+            'pasta': DOC_AI_PURCHASE_INVOICE_CORRESPONDENCE_TYPE,
+            'ousrinis': initials, 'ousrdata': received_at, 'ousrhora': time_text,
+            'usrinis': initials, 'usrdata': received_at, 'usrhora': time_text,
+            'u_origem': 'DOCUMENT_AI',
+        })
+
+        for target, recstamp, oritable, tabnm, summary, unique_suffix in (
+            (
+                ged_targets[0], crstamp, 'CR', 'Correspondência',
+                DOC_AI_PURCHASE_INVOICE_CORRESPONDENCE_TYPE, 'CR',
+            ),
+            (ged_targets[1], fostamp, 'FO', 'Compras a Fornecedores', 'FAC', 'FO'),
+        ):
+            _phc_insert_values(cursor, 'ANEXOS', {
+                'anexosstamp': _new_stamp(), 'oritable': oritable, 'tabnm': tabnm,
+                'resumo': summary, 'grupo': '', 'recstamp': recstamp,
+                'uniqueid': f'{unique_root}:{unique_suffix}',
+                'descricao': f'{docname} {document_number}'[:100], 'bdados': pyodbc.Binary(b''),
+                'fullname': target['unc_path'], 'fname': os.path.splitext(target['file_name'])[0][:150],
+                'fext': 'pdf', 'flen': len(file_bytes), 'tipo': 2, 'tpdoc': DOC_AI_PURCHASE_INVOICE_DOCCODE if oritable == 'FO' else 0,
+                'ausrinis': initials, 'ausrdata': received_at, 'ausrhora': time_text,
+                'usnoopen': user['no'], 'usnaopen': str(user['name'])[:55], 'u_enviado': 1,
+                'ousrinis': initials, 'ousrdata': received_at, 'ousrhora': time_text,
+                'usrinis': initials, 'usrdata': received_at, 'usrhora': time_text,
+            })
+
+        connection.commit()
+        return {
+            'ok': True, 'duplicate': False,
+            'message': f'Fatura {document_number} integrada como {docname} no PHC com {len(physical_lines)} linha(s).',
+            'fostamp': fostamp, 'crstamp': crstamp, 'reference': reference,
+            'year': received_at.year, 'document_number': document_number,
+            'phc_database': database_name, 'file_name': ged_targets[1]['file_name'],
+            'ged_path': ged_targets[1]['unc_path'],
+            'ged_paths': [{'label': target['label'], 'path': target['unc_path']} for target in ged_targets],
+            'article_ref': DOC_AI_PROVISIONAL_ARTICLE_REF,
+            'source_line_count': len(normalized_lines),
+            'phc_line_count': len(physical_lines),
+        }
+    except Exception:
+        try:
+            connection.rollback()
+        finally:
+            for path in created_paths:
+                try:
+                    target = next((item for item in ged_targets if item['write_path'] == path), None)
+                    if target:
+                        _remove_document_ai_pdf(target)
+                except Exception:
+                    current_app.logger.warning('Não foi possível remover o PDF do GED apó rollback: %s', path, exc_info=True)
+        raise
+    finally:
+        connection.close()
 
 
 def _phc_origin_supplier(cursor, supplier: dict[str, Any]) -> dict[str, Any]:

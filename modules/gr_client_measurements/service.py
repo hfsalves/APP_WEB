@@ -8,6 +8,7 @@ import os
 from typing import Any
 
 import pyodbc
+from flask import current_app
 
 from modules.gr_subcontractor_measurements.service import (
     SubcontractorMeasurementsError,
@@ -46,6 +47,9 @@ class ClientMeasurementsValidationError(SubcontractorMeasurementsValidationError
 
 class ClientMeasurementsNotFoundError(SubcontractorMeasurementsNotFoundError):
     pass
+
+
+PRODUCTION_ITEM_REF = "V.01.01.000.0021"
 
 
 def _parse_filter_date(value: Any):
@@ -111,6 +115,7 @@ def list_budgets(filters: dict[str, Any], user) -> dict[str, Any]:
     only_open = str(filters.get("only_open") or "1").strip().lower() not in {"0", "false", "no"}
 
     conn_str = _phc_conn_str(company["phc_db"], company.get("phc_server") or "")
+    has_uopcval_upsert = False
     with pyodbc.connect(conn_str, timeout=30) as conn:
         cursor = conn.cursor()
         series = _resolve_series(cursor)
@@ -628,6 +633,58 @@ def get_auto_attachment_file(feid: Any, anexosstamp: str, user) -> dict[str, Any
     )
 
 
+def _retention_types(cursor) -> list[dict[str, Any]]:
+    type_columns = _phc_columns(cursor, "U_TPRET")
+    if not {"ref", "design", "perdef", "desconto"}.issubset(type_columns):
+        return []
+    entity_filter = "WHERE LTRIM(RTRIM(ISNULL(TIPOENT, ''))) IN ('', 'CL')" if "tipoent" in type_columns else ""
+    return _fetch_rows(
+        cursor,
+        f"""
+        SELECT REF, DESIGN, PERDEF, DESCONTO
+        FROM dbo.U_TPRET WITH (NOLOCK)
+        {entity_filter}
+        ORDER BY REF
+        """,
+        (),
+    )
+
+
+def get_retention_options(feid: Any, user) -> dict[str, Any]:
+    company = _company_for_user(feid, user)
+    conn_str = _phc_conn_str(company["phc_db"], company.get("phc_server") or "")
+    with pyodbc.connect(conn_str, timeout=20) as conn:
+        cursor = conn.cursor()
+        retention_columns = _phc_columns(cursor, "U_RET")
+        types = _retention_types(cursor)
+        supported = bool(retention_columns and types)
+        tax_rates = _phc_tax_rates(cursor) if supported else []
+
+    return {
+        "company": company,
+        "supported": supported,
+        "message": "" if supported else "Esta empresa nao tem as tabelas de retencoes configuradas no PHC.",
+        "supports_vat": {"tabiva", "iva"}.issubset(retention_columns),
+        "rows": [
+            {
+                "ref": _text_value(row.get("REF")),
+                "design": _text_value(row.get("DESIGN")),
+                "default_percent": float(_decimal(row.get("PERDEF"))),
+                "discount": bool(_decimal(row.get("DESCONTO"))),
+            }
+            for row in types
+            if _text_value(row.get("REF"))
+        ],
+        "vat_rates": [
+            {
+                "code": int(_number_value(row.get("tabiva"))),
+                "rate": float(_decimal(row.get("taxaiva"))),
+            }
+            for row in tax_rates
+        ],
+    }
+
+
 def _parse_auto_date(value: Any) -> date:
     raw = _text_value(value)
     if not raw:
@@ -647,6 +704,25 @@ def _next_auto_obrano(cursor, auto_ndos: int, year: int) -> int:
         """,
         auto_ndos,
         year,
+    )
+    return int(cursor.fetchone()[0] or 1)
+
+
+def _next_work_situation_number(cursor, auto_ndos: int, process: str) -> int:
+    cursor.execute(
+        """
+        SELECT ISNULL(MAX(TRY_CONVERT(int, LTRIM(RTRIM(B.MAQUINA)))), 0) + 1
+        FROM dbo.BO B WITH (UPDLOCK, HOLDLOCK)
+        INNER JOIN dbo.BO2 B2 WITH (UPDLOCK, HOLDLOCK) ON B2.BO2STAMP = B.BOSTAMP
+        WHERE B.NDOS = ?
+          AND (
+                LTRIM(RTRIM(ISNULL(B.CCUSTO, ''))) = ?
+             OR LTRIM(RTRIM(ISNULL(B2.PROCESSO, ''))) = ?
+          )
+        """,
+        auto_ndos,
+        process,
+        process,
     )
     return int(cursor.fetchone()[0] or 1)
 
@@ -880,6 +956,78 @@ def _build_tax_totals(prepared_lines: list[dict[str, Any]]) -> dict[int, dict[st
     return totals
 
 
+def _prepare_retentions(
+    cursor,
+    payload_retentions: Any,
+    base: Decimal,
+    tax_totals: dict[int, dict[str, Decimal]],
+) -> list[dict[str, Any]]:
+    if payload_retentions in (None, ""):
+        return []
+    if not isinstance(payload_retentions, list):
+        raise ClientMeasurementsValidationError("Retencoes invalidas.")
+    if not payload_retentions:
+        return []
+    if len(payload_retentions) > 20:
+        raise ClientMeasurementsValidationError("Foram indicadas demasiadas retencoes.")
+
+    retention_columns = _phc_columns(cursor, "U_RET")
+    types = {_text_value(row.get("REF")).upper(): row for row in _retention_types(cursor)}
+    if not retention_columns or not types:
+        raise ClientMeasurementsValidationError("A empresa nao tem retencoes configuradas no PHC.")
+
+    tax_rates = {
+        int(_number_value(row.get("tabiva"))): _decimal(row.get("taxaiva"))
+        for row in _phc_tax_rates(cursor)
+    }
+    default_tax_code = next((code for code, totals in tax_totals.items() if totals["base"]), 0)
+    prepared: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    base_value = base.quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)
+
+    for item in payload_retentions:
+        if not isinstance(item, dict):
+            raise ClientMeasurementsValidationError("Retencao invalida.")
+        ref = _text_value(item.get("ref")).upper()
+        if not ref or ref in seen:
+            continue
+        row = types.get(ref)
+        if not row:
+            raise ClientMeasurementsValidationError(f"Tipo de retencao invalido: {ref}.")
+        seen.add(ref)
+
+        percent = _decimal(item.get("percent")).quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)
+        value = _decimal(item.get("value")).quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)
+        if value == 0 and percent != 0:
+            value = (base_value * percent / Decimal("100")).quantize(
+                Decimal("0.001"), rounding=ROUND_HALF_UP
+            )
+        elif base_value != 0 and value != 0:
+            percent = (value / base_value * Decimal("100")).quantize(
+                Decimal("0.001"), rounding=ROUND_HALF_UP
+            )
+        if value == 0:
+            continue
+
+        tax_code = int(_number_value(item.get("vat_code")))
+        if tax_code not in tax_rates:
+            tax_code = default_tax_code
+        tax_rate = tax_rates.get(tax_code, tax_totals.get(tax_code, {}).get("taxa", Decimal("0")))
+        prepared.append(
+            {
+                "ref": ref,
+                "design": _text_value(row.get("DESIGN"))[:60],
+                "base": base_value,
+                "percent": percent,
+                "value": value,
+                "discount": int(bool(_decimal(row.get("DESCONTO")))),
+                "vat_code": tax_code,
+                "vat_rate": _decimal(tax_rate),
+            }
+        )
+    return prepared
+
+
 def create_measurement_auto(payload: dict[str, Any], user) -> dict[str, Any]:
     company = _company_for_user(payload.get("feid"), user)
     budget_bostamp = _text_value(payload.get("bostamp"))
@@ -905,6 +1053,10 @@ def create_measurement_auto(payload: dict[str, Any], user) -> dict[str, Any]:
             budget_nmdos = _text_value(series["budget"].get("NMDOS"))
             auto_ndos = int(_number_value(series["auto"].get("NDOS")))
             auto_nmdos = _text_value(series["auto"].get("NMDOS"))
+            cursor.execute(
+                "SELECT CASE WHEN OBJECT_ID('dbo.sp_uopcval_upsert_bo', 'P') IS NULL THEN 0 ELSE 1 END"
+            )
+            has_uopcval_upsert = bool(cursor.fetchone()[0])
 
             header, source_lines, executed = _load_budget_for_insert(
                 cursor, budget_ndos, auto_ndos, budget_bostamp
@@ -917,10 +1069,28 @@ def create_measurement_auto(payload: dict[str, Any], user) -> dict[str, Any]:
             total_iva = sum((row["iva"] for row in tax_totals.values()), Decimal("0.00")).quantize(
                 Decimal("0.01"), rounding=ROUND_HALF_UP
             )
+            prepared_retentions = _prepare_retentions(
+                cursor, payload.get("retentions"), total_deb, tax_totals
+            )
+            retention_header_values = {
+                field: sum(
+                    (retention["value"] for retention in prepared_retentions if retention["ref"] == ref),
+                    Decimal("0"),
+                ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                for ref, field in {
+                    "PRORATA": "u_prorata",
+                    "RG": "u_rg",
+                    "RFT": "u_rft",
+                }.items()
+            }
+
+            process = _text_value(header.get("PROCESSO") or header.get("CCUSTO"))
+            if not process:
+                raise ClientMeasurementsValidationError("O orcamento nao tem obra definida.")
 
             obrano = _next_auto_obrano(cursor, auto_ndos, dataobra.year)
+            situation_number = _next_work_situation_number(cursor, auto_ndos, process)
             autono = _next_budget_autono(cursor, budget_ndos, auto_ndos, budget_bostamp)
-            process = _text_value(header.get("PROCESSO") or header.get("CCUSTO"))
             customer_no = int(_number_value(header.get("NO")))
             customer_name = _text_value(header.get("NOME"))[:55]
             currency = _text_value(header.get("MOEDA")) or "EURO"
@@ -942,7 +1112,8 @@ def create_measurement_auto(payload: dict[str, Any], user) -> dict[str, Any]:
                 "codpost": _text_value(header.get("CODPOST")),
                 "estab": int(_number_value(header.get("ESTAB"))),
                 "moeda": currency,
-                "ccusto": _text_value(header.get("CCUSTO") or process),
+                "ccusto": process,
+                "maquina": str(situation_number),
                 "fref": _text_value(header.get("FREF")),
                 "totaldeb": _phc_value(total_deb),
                 "etotaldeb": total_deb,
@@ -955,6 +1126,7 @@ def create_measurement_auto(payload: dict[str, Any], user) -> dict[str, Any]:
                 "usrinis": user_inis,
                 "usrdata": now_sql,
                 "usrhora": hour,
+                **retention_header_values,
             }
             bo_cols = _phc_columns(cursor, "BO")
             for tabiva, totals in tax_totals.items():
@@ -973,8 +1145,6 @@ def create_measurement_auto(payload: dict[str, Any], user) -> dict[str, Any]:
                         bo_values[local_base_col] = _phc_value(totals["base"])
                     if local_vat_col in bo_cols:
                         bo_values[local_vat_col] = _phc_value(totals["iva"])
-            _phc_insert(cursor, "BO", bo_values)
-
             _phc_insert(
                 cursor,
                 "BO2",
@@ -1052,6 +1222,13 @@ def create_measurement_auto(payload: dict[str, Any], user) -> dict[str, Any]:
             for idx, line in enumerate(prepared_lines, start=1):
                 source = line["source"]
                 line_no = int(_number_value(source.get("LORDEM"))) or idx * 1000
+                position = _text_value(source.get("LITEM") or source.get("POSIC"))
+                initial_qty = _decimal(source.get("QTT")).quantize(
+                    Decimal("0.001"), rounding=ROUND_HALF_UP
+                )
+                cumulative_qty = (line["prior_qty"] + line["qty"]).quantize(
+                    Decimal("0.001"), rounding=ROUND_HALF_UP
+                )
                 _phc_insert(
                     cursor,
                     "BI",
@@ -1065,7 +1242,7 @@ def create_measurement_auto(payload: dict[str, Any], user) -> dict[str, Any]:
                         "dataobra": dataobra,
                         "dataopen": date.today(),
                         "datafecho": PHC_ZERO_DATE,
-                        "ref": _text_value(source.get("REF")),
+                        "ref": PRODUCTION_ITEM_REF,
                         "design": _text_value(source.get("DESIGN"))[:60],
                         "qtt": line["qty"],
                         "qtt2": line["qty"],
@@ -1085,11 +1262,15 @@ def create_measurement_auto(payload: dict[str, Any], user) -> dict[str, Any]:
                         "stipo": int(_number_value(source.get("STIPO"))),
                         "no": customer_no,
                         "nome": customer_name,
-                        "ccusto": _text_value(source.get("CCUSTO") or header.get("CCUSTO") or process),
+                        "ccusto": process,
                         "bofref": _text_value(source.get("BOFREF") or header.get("FREF")),
                         "bifref": _text_value(source.get("BIFREF") or header.get("FREF")),
                         "familia": _text_value(source.get("FAMILIA")),
                         "lordem": line_no,
+                        "litem": position[:20],
+                        "posic": position[:10],
+                        "u_qttinit": initial_qty,
+                        "u_qttcum": cumulative_qty,
                         "lobs": _text_value(source.get("LOBS")),
                         "lobs2": _text_value(source.get("LOBS2")),
                         "oobistamp": line["source_bistamp"],
@@ -1135,20 +1316,190 @@ def create_measurement_auto(payload: dict[str, Any], user) -> dict[str, Any]:
                     },
                 )
 
+            # INTERSOL's U_OPCVAL trigger expects BO2 and BI to exist when BO is inserted.
+            _phc_insert(cursor, "BO", bo_values)
+            for retention in prepared_retentions:
+                _phc_insert(
+                    cursor,
+                    "U_RET",
+                    {
+                        "u_retstamp": _new_stamp(),
+                        "origem": "BO",
+                        "oristamp": bostamp,
+                        "nmdoc": auto_nmdos,
+                        "nrdoc": obrano,
+                        "adoc": "",
+                        "ref": retention["ref"],
+                        "design": retention["design"],
+                        "base": retention["base"],
+                        "perc": retention["percent"],
+                        "valor": retention["value"],
+                        "desconto": retention["discount"],
+                        "tabiva": retention["vat_code"],
+                        "iva": retention["vat_rate"],
+                        "marcada": 0,
+                        "ousrinis": user_inis,
+                        "ousrdata": now_sql,
+                        "ousrhora": hour,
+                        "usrinis": user_inis,
+                        "usrdata": now_sql,
+                        "usrhora": hour,
+                    },
+                )
+            if has_uopcval_upsert:
+                cursor.execute(
+                    "EXEC dbo.sp_uopcval_upsert_bo @BOSTAMP = ?, @debug = 0",
+                    (bostamp,),
+                )
+                while cursor.nextset():
+                    pass
             conn.commit()
         except Exception:
             conn.rollback()
             raise
+
+    with pyodbc.connect(conn_str, timeout=30) as verify_conn:
+        retention_count_sql = (
+            "(SELECT COUNT(*) FROM dbo.U_RET R WHERE R.ORIGEM = 'BO' AND R.ORISTAMP = B.BOSTAMP)"
+            if prepared_retentions
+            else "CAST(0 AS int)"
+        )
+        if has_uopcval_upsert:
+            uopcval_select_sql = """
+                (SELECT COUNT(*) FROM dbo.U_OPCVAL V WHERE V.ORIGEM = 'BO' AND V.ORISTAMP = B.BOSTAMP) AS UOPCVAL_COUNT,
+                (SELECT ISNULL(SUM(V.PRORATA), 0) FROM dbo.U_OPCVAL V WHERE V.ORIGEM = 'BO' AND V.ORISTAMP = B.BOSTAMP) AS UOPCVAL_PRORATA,
+                (SELECT ISNULL(SUM(V.RETGARANTIE), 0) FROM dbo.U_OPCVAL V WHERE V.ORIGEM = 'BO' AND V.ORISTAMP = B.BOSTAMP) AS UOPCVAL_RG,
+                (SELECT ISNULL(SUM(V.RETFINTRAV), 0) FROM dbo.U_OPCVAL V WHERE V.ORIGEM = 'BO' AND V.ORISTAMP = B.BOSTAMP) AS UOPCVAL_RFT,
+                (SELECT ISNULL(SUM(V.AUTRET), 0) FROM dbo.U_OPCVAL V WHERE V.ORIGEM = 'BO' AND V.ORISTAMP = B.BOSTAMP) AS UOPCVAL_OTHER,
+            """
+        else:
+            uopcval_select_sql = """
+                CAST(0 AS int) AS UOPCVAL_COUNT,
+                CAST(0 AS numeric(19, 6)) AS UOPCVAL_PRORATA,
+                CAST(0 AS numeric(19, 6)) AS UOPCVAL_RG,
+                CAST(0 AS numeric(19, 6)) AS UOPCVAL_RFT,
+                CAST(0 AS numeric(19, 6)) AS UOPCVAL_OTHER,
+            """
+        verified_rows = _fetch_rows(
+            verify_conn.cursor(),
+            f"""
+            SELECT TOP 1
+                DB_NAME() AS DATABASE_NAME,
+                B.BOSTAMP,
+                B.NDOS,
+                B.OBRANO,
+                B.BOANO,
+                B.CCUSTO,
+                B.MAQUINA,
+                B.U_PRORATA,
+                B.U_RG,
+                B.U_RFT,
+                {uopcval_select_sql}
+                (SELECT COUNT(*) FROM dbo.BI I WHERE I.BOSTAMP = B.BOSTAMP) AS LINE_COUNT,
+                (SELECT COUNT(*) FROM dbo.BI2 I2 WHERE I2.BOSTAMP = B.BOSTAMP) AS LINE2_COUNT,
+                (SELECT COUNT(*) FROM dbo.BI I WHERE I.BOSTAMP = B.BOSTAMP AND LTRIM(RTRIM(I.REF)) = ?) AS PRODUCTION_REF_COUNT,
+                (
+                    SELECT COUNT(*)
+                    FROM dbo.BI I
+                    INNER JOIN dbo.BI2 I2 ON I2.BI2STAMP = I.BISTAMP
+                    WHERE I.BOSTAMP = B.BOSTAMP
+                      AND ABS(ISNULL(I.U_QTTINIT, 0) - (ISNULL(I2.QTTMEDIDA, 0) + ISNULL(I2.QTTFALTA, 0))) < 0.001
+                      AND ABS(ISNULL(I.U_QTTCUM, 0) - (ISNULL(I2.QTTMEDIDA, 0) + ISNULL(I2.QTTNEW, 0))) < 0.001
+                      AND LTRIM(RTRIM(ISNULL(I.POSIC, ''))) = LEFT(LTRIM(RTRIM(ISNULL(I.LITEM, ''))), 10)
+                ) AS MEASUREMENT_FIELDS_COUNT,
+                {retention_count_sql} AS RETENTION_COUNT,
+                CASE WHEN EXISTS (SELECT 1 FROM dbo.BO2 B2 WHERE B2.BO2STAMP = B.BOSTAMP) THEN 1 ELSE 0 END AS HAS_BO2,
+                CASE WHEN EXISTS (SELECT 1 FROM dbo.BO3 B3 WHERE B3.BO3STAMP = B.BOSTAMP) THEN 1 ELSE 0 END AS HAS_BO3
+            FROM dbo.BO B WITH (NOLOCK)
+            WHERE B.BOSTAMP = ?
+              AND B.NDOS = ?
+              AND B.OBRANO = ?
+              AND B.BOANO = ?
+            """,
+            (PRODUCTION_ITEM_REF, bostamp, auto_ndos, obrano, dataobra.year),
+        )
+
+    verified = verified_rows[0] if verified_rows else None
+    expected_lines = len(prepared_lines)
+    expected_uopcval_values = {
+        "UOPCVAL_PRORATA": retention_header_values["u_prorata"],
+        "UOPCVAL_RG": retention_header_values["u_rg"],
+        "UOPCVAL_RFT": retention_header_values["u_rft"],
+        "UOPCVAL_OTHER": sum(
+            (
+                retention["value"]
+                for retention in prepared_retentions
+                if retention["ref"] not in {"PRORATA", "RG", "RFT"}
+            ),
+            Decimal("0"),
+        ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP),
+    }
+    if (
+        not verified
+        or int(_number_value(verified.get("LINE_COUNT"))) != expected_lines
+        or int(_number_value(verified.get("LINE2_COUNT"))) != expected_lines
+        or int(_number_value(verified.get("PRODUCTION_REF_COUNT"))) != expected_lines
+        or int(_number_value(verified.get("MEASUREMENT_FIELDS_COUNT"))) != expected_lines
+        or not bool(verified.get("HAS_BO2"))
+        or not bool(verified.get("HAS_BO3"))
+        or int(_number_value(verified.get("RETENTION_COUNT"))) != len(prepared_retentions)
+        or (has_uopcval_upsert and int(_number_value(verified.get("UOPCVAL_COUNT"))) <= 0)
+        or (
+            has_uopcval_upsert
+            and any(
+                _decimal(verified.get(field)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                != value
+                for field, value in expected_uopcval_values.items()
+            )
+        )
+        or _text_value(verified.get("CCUSTO")) != process
+        or _text_value(verified.get("MAQUINA")) != str(situation_number)
+        or any(
+            _decimal(verified.get(field)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP) != value
+            for field, value in retention_header_values.items()
+        )
+    ):
+        current_app.logger.error(
+            "Auto de cliente nao confirmado apos COMMIT: db=%s bostamp=%s ndos=%s numero=%s/%s situacao=%s obra=%s esperado_linhas=%s verificado=%s",
+            company.get("phc_db"),
+            bostamp,
+            auto_ndos,
+            obrano,
+            dataobra.year,
+            situation_number,
+            process,
+            expected_lines,
+            verified,
+        )
+        raise ClientMeasurementsError(
+            "O PHC nao confirmou a gravacao do auto. O documento nao foi considerado gravado."
+        )
+
+    verified_database = _text_value(verified.get("DATABASE_NAME"))
+    current_app.logger.info(
+        "Auto de cliente confirmado: db=%s bostamp=%s ndos=%s numero=%s/%s situacao=%s obra=%s linhas=%s",
+        verified_database,
+        bostamp,
+        auto_ndos,
+        obrano,
+        dataobra.year,
+        situation_number,
+        process,
+        expected_lines,
+    )
 
     return {
         "bostamp": bostamp,
         "obrano": obrano,
         "boano": dataobra.year,
         "autono": autono,
+        "situation_number": situation_number,
         "nmdos": auto_nmdos,
         "source_nmdos": budget_nmdos,
         "total": _money(total_deb),
         "line_count": len(prepared_lines),
+        "retention_count": len(prepared_retentions),
+        "verified_database": verified_database,
         "company": company,
     }
 
@@ -1157,6 +1508,7 @@ __all__ = [
     "ClientMeasurementsError",
     "create_measurement_auto",
     "get_auto_attachment_file",
+    "get_retention_options",
     "get_budget_autos",
     "get_budget_detail",
     "list_budgets",

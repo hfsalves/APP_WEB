@@ -20,6 +20,7 @@ from services.document_ai_service import (
     get_document_preview_page,
     get_document_source,
     get_template_detail,
+    get_document_integration_access,
     ingest_uploaded_document,
     ensure_llm_inbox_document,
     find_llm_inbox_document,
@@ -46,6 +47,8 @@ from services.document_ai_service import (
     search_phc_document_origins,
     search_phc_projects,
     split_extracted_pdf_into_inbox,
+    submit_correspondence_to_phc,
+    submit_provisional_invoice_to_phc,
     suggest_template,
     test_template,
     toggle_template_active,
@@ -77,6 +80,12 @@ def _document_ai_is_admin() -> bool:
     return bool(getattr(current_user, 'ADMIN', False))
 
 
+def _document_ai_has_integration_access(document_type: str) -> bool:
+    if _document_ai_is_admin():
+        return True
+    return bool(get_document_integration_access(_current_login()).get(str(document_type or '').strip().lower()))
+
+
 @bp.route('/document_ai/inbox')
 @login_required
 def document_ai_inbox_page():
@@ -90,7 +99,12 @@ def document_ai_inbox_page():
 def document_ai_extract_page():
     if not _document_ai_has_access('consultar'):
         return render_template('error.html', message='Sem permissão para extrair documentos.'), 403
-    return render_template('document_ai_extract.html', page_title='Leitura Inteligente de Documentos')
+    return render_template(
+        'document_ai_extract.html',
+        page_title='Leitura Inteligente de Documentos',
+        can_submit_correspondence=_document_ai_has_integration_access('correspondence'),
+        can_submit_provisional_invoice=_document_ai_has_integration_access('provisional_invoice'),
+    )
 
 
 @bp.route('/document_ai/review/<docinstamp>')
@@ -356,6 +370,78 @@ def api_document_ai_correspondence_next_reference():
     except Exception as exc:
         current_app.logger.exception('Erro ao consultar a próxima referência de correspondência no PHC')
         return jsonify({'available': False, 'error': str(exc)}), 500
+
+
+@bp.route('/api/document_ai/correspondence/submit', methods=['POST'])
+@login_required
+def api_document_ai_correspondence_submit():
+    if not _document_ai_has_integration_access('correspondence'):
+        return jsonify({'error': 'Não tens acesso para integrar correspondência no PHC.'}), 403
+    uploaded_file = request.files.get('file')
+    if not uploaded_file or not str(uploaded_file.filename or '').strip():
+        return jsonify({'error': 'O PDF original é obrigatório.'}), 400
+    if not str(uploaded_file.filename or '').lower().endswith('.pdf'):
+        return jsonify({'error': 'A correspondência deve ser submetida em PDF.'}), 400
+    max_file_size = 50 * 1024 * 1024
+    file_bytes = uploaded_file.stream.read(max_file_size + 1)
+    if not file_bytes:
+        return jsonify({'error': 'O PDF está vazio.'}), 400
+    if len(file_bytes) > max_file_size:
+        return jsonify({'error': 'O PDF excede o limite de 50 MB.'}), 413
+    try:
+        document_data = json.loads(request.form.get('document_data') or '{}')
+    except Exception:
+        return jsonify({'error': 'Os dados da correspondência não são válidos.'}), 400
+    try:
+        return jsonify(submit_correspondence_to_phc(
+            document_data,
+            file_bytes,
+            str(uploaded_file.filename or '').strip(),
+            _current_login(),
+        )), 201
+    except (ValueError, FileExistsError) as exc:
+        return jsonify({'error': str(exc)}), 400
+    except RuntimeError as exc:
+        return jsonify({'error': str(exc)}), 503
+    except Exception as exc:
+        current_app.logger.exception('Erro ao submeter correspondência no PHC')
+        return jsonify({'error': str(exc)}), 500
+
+
+@bp.route('/api/document_ai/provisional-invoice/submit', methods=['POST'])
+@login_required
+def api_document_ai_provisional_invoice_submit():
+    if not _document_ai_has_integration_access('provisional_invoice'):
+        return jsonify({'error': 'Não tens acesso para integrar Facture Provisoire no PHC.'}), 403
+    uploaded_file = request.files.get('file')
+    if not uploaded_file or not str(uploaded_file.filename or '').strip():
+        return jsonify({'error': 'O PDF original é obrigatório.'}), 400
+    if not str(uploaded_file.filename or '').lower().endswith('.pdf'):
+        return jsonify({'error': 'A Facture Provisoire deve ser submetida em PDF.'}), 400
+    max_file_size = 50 * 1024 * 1024
+    file_bytes = uploaded_file.stream.read(max_file_size + 1)
+    if not file_bytes:
+        return jsonify({'error': 'O PDF está vazio.'}), 400
+    if len(file_bytes) > max_file_size:
+        return jsonify({'error': 'O PDF excede o limite de 50 MB.'}), 413
+    try:
+        document_data = json.loads(request.form.get('document_data') or '{}')
+    except Exception:
+        return jsonify({'error': 'Os dados da Facture Provisoire não são válidos.'}), 400
+    try:
+        return jsonify(submit_provisional_invoice_to_phc(
+            document_data,
+            file_bytes,
+            str(uploaded_file.filename or '').strip(),
+            _current_login(),
+        )), 201
+    except (ValueError, FileExistsError) as exc:
+        return jsonify({'error': str(exc)}), 400
+    except RuntimeError as exc:
+        return jsonify({'error': str(exc)}), 503
+    except Exception as exc:
+        current_app.logger.exception('Erro ao submeter Facture Provisoire no PHC')
+        return jsonify({'error': str(exc)}), 500
 
 
 @bp.route('/api/document_ai/sources', methods=['GET'])

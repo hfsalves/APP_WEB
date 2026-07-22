@@ -9,6 +9,7 @@
 {% set ui_party_placeholder = party_placeholder|default('Nome ou numero') %}
 {% set ui_api_base = api_base|default('/api/gr_autos_subempreitada') %}
 {% set ui_write_enabled = write_enabled|default(true) %}
+{% set ui_retentions_enabled = retentions_enabled|default(false) %}
 
 {% block title %}{{ ui_screen_title }}{% endblock %}
 
@@ -26,6 +27,7 @@
   data-source-plural="{{ ui_source_plural }}"
   data-party-label="{{ ui_party_label }}"
   data-write-enabled="{{ '1' if ui_write_enabled else '0' }}"
+  data-retentions-enabled="{{ '1' if ui_retentions_enabled else '0' }}"
 >
   <div class="sz_page_container gr-submeasure-shell">
     <header class="sz_contextbar sz_page_contextbar gr-submeasure-contextbar">
@@ -133,6 +135,11 @@
               <label class="sz_label" for="submeasureAutoDate">Data</label>
               <input id="submeasureAutoDate" class="sz_input" type="date">
             </div>
+            <button id="submeasureRetentionsBtn" type="button" class="sz_button sz_button_secondary" {% if not ui_retentions_enabled %}hidden{% endif %}>
+              <i class="fa-solid fa-percent"></i>
+              <span>Retenções</span>
+              <strong id="submeasureRetentionsCount" class="gr-submeasure-button-count" hidden>0</strong>
+            </button>
             <button id="submeasureFillRemainingBtn" type="button" class="sz_button sz_button_secondary">
               <i class="fa-solid fa-list-check"></i>
               <span>Qtd. em falta</span>
@@ -243,6 +250,59 @@
             </table>
           </div>
         </section>
+      </div>
+    </section>
+  </div>
+
+  <div id="submeasureRetentionsModal" class="gr-submeasure-modal" hidden>
+    <div class="gr-submeasure-modal-backdrop" data-close-retentions-modal></div>
+    <section class="gr-submeasure-modal-panel gr-submeasure-retentions-panel" role="dialog" aria-modal="true" aria-labelledby="submeasureRetentionsModalTitle">
+      <header class="gr-submeasure-modal-head">
+        <div>
+          <strong id="submeasureRetentionsModalTitle">Retenções do auto</strong>
+          <span id="submeasureRetentionsModalMeta"></span>
+        </div>
+        <button id="submeasureRetentionsModalClose" type="button" class="sz_button sz_button_secondary" aria-label="Fechar">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </header>
+      <div class="gr-submeasure-retentions-body">
+        <div class="sz_table_host">
+          <table class="sz_table gr-submeasure-retentions-table">
+            <thead class="sz_table_head">
+              <tr>
+                <th class="gr-submeasure-retention-check"></th>
+                <th>Tipo</th>
+                <th>Descrição</th>
+                <th class="sz_text_right">Base</th>
+                <th class="sz_text_right">%</th>
+                <th class="sz_text_right">Valor</th>
+                <th>Desconto</th>
+                <th>Tab. IVA</th>
+                <th class="sz_text_right">IVA</th>
+              </tr>
+            </thead>
+            <tbody id="submeasureRetentionsBody">
+              <tr><td colspan="9" class="sz_table_cell sz_text_muted">A carregar...</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <footer class="gr-submeasure-retentions-footer">
+          <div>
+            <span>Total retenções</span>
+            <strong id="submeasureRetentionsTotal">0,00 EUR</strong>
+          </div>
+          <div class="gr-submeasure-retentions-footer-actions">
+            <button id="submeasureRetentionsCancelBtn" type="button" class="sz_button sz_button_secondary">
+              <i class="fa-solid fa-xmark"></i>
+              <span>Cancelar</span>
+            </button>
+            <button id="submeasureRetentionsApplyBtn" type="button" class="sz_button sz_button_primary">
+              <i class="fa-solid fa-check"></i>
+              <span>Aplicar</span>
+            </button>
+          </div>
+        </footer>
       </div>
     </section>
   </div>

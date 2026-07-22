@@ -12,6 +12,7 @@ from .service import (
     get_auto_attachment_file,
     get_budget_autos,
     get_budget_detail,
+    get_retention_options,
     list_budgets,
     list_companies_for_user,
 )
@@ -82,6 +83,7 @@ def page():
         party_label="Cliente",
         party_placeholder="Nome ou numero",
         api_base="/api/gr_autos_clientes",
+        retentions_enabled=True,
         write_enabled=True,
     )
 
@@ -122,6 +124,17 @@ def api_budget_detail():
                 **get_budget_detail(request.args.get("feid"), request.args.get("bostamp") or "", current_user),
             }
         )
+    except Exception as exc:
+        return _handle_error(exc)
+
+
+@bp.route("/api/gr_autos_clientes/retencoes/tipos")
+@login_required
+def api_retention_types():
+    if not _has_acl("consultar"):
+        return _forbidden()
+    try:
+        return jsonify({"ok": True, **get_retention_options(request.args.get("feid"), current_user)})
     except Exception as exc:
         return _handle_error(exc)
 

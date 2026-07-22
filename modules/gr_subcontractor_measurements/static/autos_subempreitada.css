@@ -235,6 +235,23 @@
   gap: 0.5rem;
 }
 
+.gr-submeasure-button-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.25rem;
+  border-radius: 999px;
+  background: var(--sz-color-primary);
+  color: #fff;
+  font-size: var(--sz-font-size-xs);
+  line-height: 1;
+}
+
+.gr-submeasure-button-count[hidden] {
+  display: none;
+}
+
 .gr-submeasure-input {
   width: 7.2rem;
   min-height: 2rem;
@@ -423,6 +440,95 @@
   background: var(--gr-submeasure-modal-surface-alt);
 }
 
+.gr-submeasure-retentions-panel {
+  width: min(96vw, 76rem);
+  height: min(76vh, 40rem);
+}
+
+.gr-submeasure-retentions-body {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  background: var(--gr-submeasure-modal-bg);
+}
+
+.gr-submeasure-retentions-body .sz_table_host {
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  background: var(--gr-submeasure-modal-bg);
+}
+
+.gr-submeasure-retentions-table {
+  min-width: 980px;
+  background: var(--gr-submeasure-modal-bg);
+}
+
+.gr-submeasure-retentions-table thead th {
+  background: var(--gr-submeasure-modal-surface);
+}
+
+.gr-submeasure-retentions-table tbody td {
+  background: var(--gr-submeasure-modal-bg);
+}
+
+.gr-submeasure-retentions-table tbody tr:hover td {
+  background: var(--gr-submeasure-modal-surface-alt);
+}
+
+.gr-submeasure-retention-check {
+  width: 3rem;
+  text-align: center;
+}
+
+.gr-submeasure-retention-input,
+.gr-submeasure-retention-vat {
+  width: 7rem;
+  min-height: 2rem;
+}
+
+.gr-submeasure-retention-input {
+  border: 1px solid var(--sz-color-border);
+  border-radius: var(--sz-radius-sm);
+  background: var(--sz-color-surface);
+  color: var(--sz-color-text);
+  padding: 0.25rem 0.45rem;
+  text-align: right;
+  font: inherit;
+}
+
+.gr-submeasure-retentions-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.8rem 1rem;
+  border-top: 1px solid var(--sz-color-border);
+  background: var(--gr-submeasure-modal-surface);
+}
+
+.gr-submeasure-retentions-footer > div:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.gr-submeasure-retentions-footer span {
+  color: var(--sz-color-text-muted);
+  font-size: var(--sz-font-size-xs);
+  font-weight: 700;
+}
+
+.gr-submeasure-retentions-footer strong {
+  color: var(--sz-color-text);
+  font-size: var(--sz-font-size-lg);
+}
+
+.gr-submeasure-retentions-footer-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
 @media (max-width: 1100px) {
   .gr-submeasure-contextbar {
     align-items: stretch;
@@ -458,5 +564,14 @@
 
   .gr-submeasure-measure-actions {
     flex-wrap: wrap;
+  }
+
+  .gr-submeasure-retentions-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .gr-submeasure-retentions-footer-actions {
+    justify-content: flex-end;
   }
 }

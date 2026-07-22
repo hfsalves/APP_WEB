@@ -101,6 +101,7 @@ document.addEventListener('DOMContentLoaded', () => {
     accessHelp: document.getElementById('docAiIntegrationAccessHelp'),
     accessSelected: document.getElementById('docAiIntegrationAccessSelected'),
     accessSave: document.getElementById('docAiIntegrationAccessSave'),
+    submitPhcBtn: document.getElementById('docAiExtractSubmitPhcBtn'),
   };
 
   const state = {
@@ -138,6 +139,9 @@ document.addEventListener('DOMContentLoaded', () => {
     accessSelectedUser: null,
     accessSearchTimer: null,
     accessSearchToken: 0,
+    submittingPhc: false,
+    integratedPhc: false,
+    integrationResult: null,
   };
 
   const typeLabels = {
@@ -147,6 +151,7 @@ document.addEventListener('DOMContentLoaded', () => {
     purchase_order: 'Nota de encomenda',
     delivery_note: 'Guia',
     proforma_invoice: 'Fatura pró-forma',
+    provisional_invoice: 'Facture Provisoire',
     receipt: 'Recibo',
     mail: 'Correio',
     unknown: 'Tipo desconhecido',
@@ -226,10 +231,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (customer.ged_folder) return gedSafePart(customer.ged_folder, 'PASTA-POR-CONFIGURAR');
     const name = gedSafePart(customer.name, '');
     const mappings = [
-      [/INTERSOL.*ALSACE|INTERSOL_AL/, 'HSOLS_FR'],
+      [/INTERSOL.*ALSACE|INTERSOL_AL/, 'HSOLS_INTERSOL_AL'],
       [/HSOLS.*FRANCE|HSOLS_FR/, 'HSOLS_FR'],
       [/INTERSOL.*LORRAINE|INTERSOL_LOR/, 'HSOLS_INTERSOL_LOR'],
       [/INTERSOL.*CH|INTERSOL_CH/, 'HSOLS_INTERSOL_CH'],
+      [/INTERSOL/, 'HSOLS_INTERSOL_AL'],
+      [/GR.?360/, 'HSOLS_GR360_PT'],
       [/HSOLS.*CH|HSOLS_CH/, 'HSOLS_CH'],
       [/HSOLS.*DE|HSOLS_DE/, 'HSOLS_DE'],
       [/HSOLS.*ES|HSOLS_ES/, 'HSOLS_ES'],
@@ -270,7 +277,7 @@ document.addEventListener('DOMContentLoaded', () => {
       category = documentData.mail_category === 'legal' ? 'JURIDIQUE' : 'COURRIER_INTERNE_EXTERIEUR';
       destinations = [{ label: documentData.mail_category === 'legal' ? 'Jurídico' : 'Correio recebido', category }];
       trailingPart = documentDate;
-    } else if (['invoice', 'credit_note', 'debit_note', 'proforma_invoice'].includes(documentData.document_type)) {
+    } else if (['invoice', 'credit_note', 'debit_note', 'proforma_invoice', 'provisional_invoice'].includes(documentData.document_type)) {
       prefix = 'FAC';
       category = 'FACTURATION_FOURNISSEURS';
       destinations = [
@@ -322,6 +329,42 @@ document.addEventListener('DOMContentLoaded', () => {
     els.gedStatus.textContent = incomplete
       ? 'Destino provisório: falta obter a correspondência, identificar o número do remetente/fornecedor ou configurar a pasta GED da entidade.'
       : `${paths.length} ${paths.length === 1 ? 'ficheiro previsto' : 'ficheiros previstos'} com os dados identificados.`;
+    if (state.integrationResult?.ged_path) {
+      els.gedFileName.textContent = state.integrationResult.file_name || fileName;
+      const integratedPath = els.gedPath.querySelector('code');
+      if (integratedPath) integratedPath.textContent = state.integrationResult.ged_path;
+      els.gedDestination.classList.remove('is-incomplete');
+      els.gedStatus.textContent = `Guardado no PHC ${state.integrationResult.phc_database || ''} e ligado à correspondência nº ${state.integrationResult.reference}.`;
+    }
+    updateSubmitPhcButton();
+  }
+
+  function updateSubmitPhcButton() {
+    if (!els.submitPhcBtn) return;
+    const documentData = state.documentData || {};
+    const party = documentData.supplier || {};
+    const isMail = documentData.document_type === 'mail';
+    const isProvisionalInvoice = ['invoice', 'provisional_invoice'].includes(documentData.document_type);
+    const allowed = (isMail && els.submitPhcBtn.dataset.canCorrespondence === '1')
+      || (isProvisionalInvoice && els.submitPhcBtn.dataset.canProvisionalInvoice === '1');
+    els.submitPhcBtn.hidden = !allowed;
+    if (!allowed) return;
+    const ready = Boolean(
+      state.file
+      && documentData.customer?.feid
+      && String(party.name || party.llm_name || '').trim()
+      && (isMail || Number(party.supplier_no || party.no || 0) > 0)
+      && state.correspondenceReference
+      && (isMail || (String(documentData.document_number || '').trim() && Array.isArray(documentData.lines) && documentData.lines.length))
+    );
+    els.submitPhcBtn.disabled = !ready || state.submittingPhc || state.integratedPhc;
+    if (state.integratedPhc) {
+      els.submitPhcBtn.innerHTML = '<i class="fa-solid fa-circle-check"></i><span>Submetido no PHC</span>';
+    } else if (state.submittingPhc) {
+      els.submitPhcBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i><span>A submeter...</span>';
+    } else {
+      els.submitPhcBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i><span>Submeter no PHC</span>';
+    }
   }
 
   function renderDocumentCard() {
@@ -374,6 +417,7 @@ document.addEventListener('DOMContentLoaded', () => {
       els.correspondenceSource.hidden = false;
       renderGedDestination();
     }
+    updateSubmitPhcButton();
   }
 
   function cleanupPreview() {
@@ -438,6 +482,9 @@ document.addEventListener('DOMContentLoaded', () => {
     state.correspondenceLookupToken += 1;
     state.correspondenceReference = null;
     state.correspondenceYear = null;
+    state.submittingPhc = false;
+    state.integratedPhc = false;
+    state.integrationResult = null;
     els.input.value = '';
     els.preview.hidden = true;
     els.dropzone.hidden = false;
@@ -456,6 +503,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderProjectCard();
     window.history.replaceState({}, '', '/document_ai/extract');
     setStatus('Pronto.');
+    updateSubmitPhcButton();
   }
 
   async function fetchJson(url, options = {}) {
@@ -858,18 +906,14 @@ document.addEventListener('DOMContentLoaded', () => {
     els.customerLabel.textContent = isMail ? 'Entidade' : 'Empresa cliente';
     els.customerName.textContent = isMail && !matched ? 'Por escolher' : (customer.name || '--');
     els.customerTax.textContent = matched && customer.tax_id ? `NIF: ${customer.tax_id}` : (matched ? 'NIF não identificado' : 'Empresa do grupo não identificada');
-    els.customerHint.hidden = !isMail;
-    els.customerCard.tabIndex = isMail ? 0 : -1;
-    els.customerCard.setAttribute('aria-label', isMail ? (matched ? 'Alterar entidade' : 'Escolher entidade') : 'Empresa cliente');
-    if (isMail) {
-      els.customerHint.innerHTML = matched
-        ? '<i class="fa-solid fa-pen"></i> Alterar entidade'
-        : '<i class="fa-solid fa-hand-pointer"></i> Escolher empresa do grupo';
-      els.customerCard.classList.toggle('is-unmatched', !matched);
-      els.customerCard.classList.toggle('is-matched', matched);
-    } else {
-      els.customerCard.classList.remove('is-unmatched', 'is-matched');
-    }
+    els.customerHint.hidden = false;
+    els.customerCard.tabIndex = 0;
+    els.customerCard.setAttribute('aria-label', matched ? 'Alterar entidade' : 'Escolher entidade');
+    els.customerHint.innerHTML = matched
+      ? '<i class="fa-solid fa-pen"></i> Alterar entidade'
+      : '<i class="fa-solid fa-hand-pointer"></i> Escolher empresa do grupo';
+    els.customerCard.classList.toggle('is-unmatched', !matched);
+    els.customerCard.classList.toggle('is-matched', matched);
   }
 
   function closeEntityModal() {
@@ -906,7 +950,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function openEntityModal() {
-    if (state.documentData?.document_type !== 'mail') return;
+    if (!state.documentData) return;
     els.entitySearch.value = '';
     els.entityModal.classList.add('sz_is_open');
     els.entityModal.setAttribute('aria-hidden', 'false');
@@ -959,6 +1003,16 @@ document.addEventListener('DOMContentLoaded', () => {
   async function selectEntity(index) {
     const selected = state.entityCandidates[Number(index)];
     if (!selected || !state.documentData) return;
+    const previousFeid = Number(state.documentData.customer?.feid || 0);
+    const isMail = state.documentData.document_type === 'mail';
+    if (previousFeid !== Number(selected.feid || 0)) {
+      state.selectedOrigins = [];
+      state.selectedProject = null;
+      state.projectSuggestionDismissed = false;
+      state.originLineMatches = [];
+      state.originLineReferenceLabel = '';
+      renderProjectCard();
+    }
     state.documentData.customer = {
       ...state.documentData.customer,
       feid: selected.feid,
@@ -973,6 +1027,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderCustomerCard(state.documentData.customer, state.matching);
     closeEntityModal();
     await Promise.all([rematchExternalParty(), loadCorrespondenceReference()]);
+    if (!isMail) loadOriginCandidates(state.documentData);
   }
 
   function renderOriginCandidates(payload = {}, options = {}) {
@@ -1642,6 +1697,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const isMail = documentData.document_type === 'mail';
 
     state.documentData = documentData;
+    state.submittingPhc = false;
+    state.integratedPhc = false;
+    state.integrationResult = null;
     if (state.selectedProject?.ccusto) state.documentData.origin_project = { ...state.selectedProject };
     state.matching = payload.matching || {};
     state.supplierCandidates = state.matching.supplier_candidates || [];
@@ -1788,6 +1846,52 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  async function submitDocumentToPhc() {
+    if (!els.submitPhcBtn || state.submittingPhc || state.integratedPhc) return;
+    const documentType = state.documentData?.document_type;
+    if (!state.file || !['mail', 'invoice', 'provisional_invoice'].includes(documentType)) {
+      showMessage('Carrega e valida primeiro um documento compatível.', 'error');
+      return;
+    }
+    state.submittingPhc = true;
+    updateSubmitPhcButton();
+    const isProvisionalInvoice = ['invoice', 'provisional_invoice'].includes(documentType);
+    setStatus(isProvisionalInvoice
+      ? 'A criar a correspondência, a Facture Provisoire, as linhas e os anexos no PHC...'
+      : 'A reservar a numeração, guardar o PDF no GED e criar a correspondência no PHC...');
+    const formData = new FormData();
+    formData.append('file', state.file);
+    formData.append('document_data', JSON.stringify(state.documentData));
+    try {
+      const endpoint = isProvisionalInvoice
+        ? '/api/document_ai/provisional-invoice/submit'
+        : '/api/document_ai/correspondence/submit';
+      const payload = await fetchJson(endpoint, {
+        method: 'POST',
+        body: formData,
+      });
+      state.correspondenceReference = Number(payload.reference || state.correspondenceReference || 0) || null;
+      state.correspondenceYear = Number(payload.year || state.correspondenceYear || new Date().getFullYear());
+      state.integrationResult = payload;
+      state.integratedPhc = true;
+      state.documentData.correspondence_reference = state.correspondenceReference;
+      state.documentData.correspondence_year = state.correspondenceYear;
+      renderDocumentCard();
+      renderGedDestination();
+      els.persistenceNote.textContent = payload.duplicate
+        ? 'Este PDF já se encontrava integrado no PHC; não foi criado um duplicado.'
+        : (isProvisionalInvoice ? 'A fatura foi integrada como V/Facture, com linhas e anexos.' : 'O correio foi guardado no GED e integrado no PHC.');
+      setStatus(payload.message || 'Documento integrado no PHC.');
+      showMessage(payload.message || 'Documento integrado no PHC.', 'success');
+    } catch (error) {
+      setStatus(error.message || 'Não foi possível submeter a correspondência.', true);
+      showMessage(error.message || 'Não foi possível submeter a correspondência.', 'error');
+    } finally {
+      state.submittingPhc = false;
+      updateSubmitPhcButton();
+    }
+  }
+
   els.backBtn?.addEventListener('click', () => { window.location.href = '/document_ai/inbox'; });
   els.accessBtn?.addEventListener('click', openAccessModal);
   els.accessCloseTop?.addEventListener('click', closeAccessModal);
@@ -1804,6 +1908,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (option) selectAccessUser(Number(option.dataset.integrationAccessUser));
   });
   els.accessSave?.addEventListener('click', saveAccessPermissions);
+  els.submitPhcBtn?.addEventListener('click', submitDocumentToPhc);
   els.resetBtn?.addEventListener('click', resetScreen);
   els.chooseBtn?.addEventListener('click', (event) => {
     event.stopPropagation();

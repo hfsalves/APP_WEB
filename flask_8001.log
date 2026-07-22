@@ -906,3 +906,16 @@ WARNING: This is a development server. Do not use it in a production deployment.
  * Running on http://127.0.0.1:8001
  * Running on http://10.0.1.114:8001
 Press CTRL+C to quit
+127.0.0.1 - - [22/Jul/2026 14:45:31] "GET /document_ai/extract HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jul/2026 14:45:31] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jul/2026 14:45:31] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jul/2026 14:45:31] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jul/2026 14:45:31] "GET /static/css/document_ai.css?v=1784726849 HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jul/2026 14:45:31] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jul/2026 14:45:31] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jul/2026 14:45:31] "GET /static/js/push.js?v=1784726849 HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jul/2026 14:45:31] "GET /static/js/document_ai_extract.js?v=1784726849 HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jul/2026 14:45:31] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jul/2026 14:45:31] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jul/2026 14:45:33] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jul/2026 14:45:48] "POST /api/document_ai/extract HTTP/1.1" 200 -

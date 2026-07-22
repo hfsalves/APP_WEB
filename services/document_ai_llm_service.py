@@ -192,7 +192,7 @@ def _document_classification_schema() -> dict[str, Any]:
         'properties': {
             'document_type': {
                 'type': 'string',
-                'enum': ['invoice', 'credit_note', 'purchase_order', 'delivery_note', 'mail', 'unknown'],
+                'enum': ['invoice', 'provisional_invoice', 'credit_note', 'purchase_order', 'delivery_note', 'mail', 'unknown'],
             },
             'external_party_role': {
                 'type': 'string',
@@ -691,7 +691,8 @@ def classify_document_visual(context: dict[str, Any]) -> dict[str, Any]:
             'Classify the visible business document and extract the accounting header values needed for purchase validation.'
         ),
         'allowed_document_types': {
-            'invoice': 'Invoice / Fatura / Facture',
+            'invoice': 'Invoice / Fatura / Facture / Note d’honoraires / Fee note',
+            'provisional_invoice': 'Facture Provisoire / Fatura Provisória, explicitly identified as provisional and intended for the PHC provisional-purchase workflow.',
             'credit_note': 'Credit note / Nota de crédito / Avoir',
             'purchase_order': 'Purchase order / Nota de encomenda / Bon de commande',
             'delivery_note': 'Delivery note / Guia / Bon de livraison / Bon d’enlèvement',
@@ -715,6 +716,11 @@ def classify_document_visual(context: dict[str, Any]) -> dict[str, Any]:
             'In concrete delivery notes, CENTRALE usually means the batching plant; it is not the supplier.',
             'Extract customer name and tax/VAT id from the buyer/delivery/customer section.',
             'Use document_type mail for correspondence, notices, declarations, requests, statements, certificates, legal or administrative letters and other incoming mail that is not a commercial document type listed above.',
+            'A document titled Note d’honoraires, Note d’honoraires fournisseur, Honoraires or Fee note is a supplier invoice for professional services. Always classify it as document_type invoice, never as mail, credit_note or unknown merely because the word Note is used.',
+            'When the document itself is explicitly titled Facture Provisoire or Fatura Provisória, classify it as document_type provisional_invoice. Do not use provisional_invoice merely because an ordinary invoice is awaiting internal approval.',
+            'For a Note d’honoraires, the professional, consultant, lawyer or other service provider issuing the document is the supplier and the recipient group company is the customer. Treat the visible services/fees as invoice lines even when there are no product references or physical quantities.',
+            'On French Notes d’honoraires, identify the issuer from the logo/brand plus the legal, VAT, bank and contact details in the footer. A large company-and-address block on the upper right is commonly the addressee/customer, not the issuer. Do not reverse supplier and customer because the recipient name is large or appears near the date.',
+            'Specific known layout: when the document carries the EFFIGEST logo and the footer VAT number FR80432966927, EFFIGEST is the supplier/issuer. When HSOLS FRANCE appears in the upper-right address block, HSOLS FRANCE is the customer/recipient.',
             'For mail, customer must contain the internal recipient company for which the correspondence is intended. Supplier must contain the external sender or external entity concerned, even when that external entity is actually a customer.',
             'For mail, customer must be one of the recipient’s own group companies. Never put a court, public authority, lawyer, expert, sender or other external correspondent in customer. If the internal group recipient is not visible, leave customer name and tax_id empty.',
             'Set external_party_role to customer when the external sender/entity is a customer, debtor or buyer of the internal company; supplier when it is a vendor, provider or creditor; otherwise unknown. For ordinary commercial purchase documents set it to supplier.',
@@ -722,7 +728,7 @@ def classify_document_visual(context: dict[str, Any]) -> dict[str, Any]:
             'For mail, set mail_title to a concise title describing the actual content, in the document language, with at most 25 characters. Prefer a useful subject such as "Mise en demeure"; do not use the sender name, recipient name, date, document type or generic words like correspondence. For non-mail documents return an empty string.',
             'For mail, return lines=[] and taxes=[], set all totals to 0, and do not manufacture commercial values.',
             'Extract document_number from the main title/header number, for example "Bon de livraison N°712806" -> "712806".',
-            'For invoices/credit notes use the number after Facture/Invoice/Avoir/Credit note when visible.',
+            'For invoices/credit notes use the number after Facture/Invoice/Avoir/Credit note when visible. For a Note d’honoraires, use the number following Note d’honoraires or N° as document_number; for example "NOTE D’HONORAIRES N° 159432" -> document_type invoice and document_number "159432".',
             'Extract document date, due date if visible, currency, net total without VAT, VAT total and gross total with VAT.',
             'Extract VAT/tax breakdown rows by rate when visible. Use taxes=[] when no VAT breakdown is visible.',
             'For delivery notes without prices, keep totals as 0 and explain that values are not visible in notes.',
@@ -761,7 +767,7 @@ def classify_document_visual(context: dict[str, Any]) -> dict[str, Any]:
             'Text such as Réf. Client, Votre référence, customer reference or order reference inside the designation is not an article ref unless the document explicitly labels a separate product/article reference column.',
             'However, a supplier may use Réf. Client / Référence client on delivery lines for the customer purchase-order number. When the same value is repeated across related delivery lines, return it in origin_references as document_type purchase_order, preserving the exact visible_text. Keep it as a candidate even when another Votre référence commande value is also visible; the PHC lookup will validate which reference is correct.',
             'Do not copy the same BL number into both ref and origin_delivery_note_number.',
-            'Document types may also include proforma_invoice, receipt, debit_note or other when those labels are visibly more accurate.',
+            'Document types may also include provisional_invoice, proforma_invoice, receipt, debit_note or other when those labels are visibly more accurate. Facture Provisoire is provisional_invoice; Pré-Facture or Facture Pro Forma is proforma_invoice.',
             'For each line, preserve the visible reference and full description. Use empty strings and numeric zero only when a value is not visible.',
             'Discount is the visible discount percentage, not the monetary discount amount.',
             'Tax rows must reproduce the footer VAT/tax breakdown by rate. Derive gross_total per rate only when it is arithmetically unambiguous.',

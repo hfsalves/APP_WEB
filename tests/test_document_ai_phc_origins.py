@@ -1,5 +1,8 @@
 import json
+import os
+import tempfile
 import unittest
+from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import patch
 from unittest.mock import MagicMock
@@ -9,7 +12,12 @@ from services.document_ai_service import (
     clear_document_phc_origin,
     get_cached_llm_extraction,
     get_next_phc_correspondence_reference,
+    submit_correspondence_to_phc,
+    DOC_AI_PROVISIONAL_ARTICLE_REF,
+    DOC_AI_PURCHASE_INVOICE_DOCCODE,
+    DOC_AI_PURCHASE_INVOICE_CORRESPONDENCE_TYPE,
     reset_llm_extraction,
+    resolve_fe_entity,
     save_llm_extraction,
     save_document_phc_origin,
     save_document_adjusted_lines,
@@ -17,11 +25,129 @@ from services.document_ai_service import (
     _match_document_lines_to_origin,
     _phc_contract_flow_stages,
     _normalize_document_integration_access,
+    _correspondence_file_name,
+    _correspondence_company_folder,
+    _ensure_phc_provisional_article,
+    _is_provisional_purchase_source_type,
+    _write_document_ai_pdf,
+    _split_phc_line_design,
+    _expand_phc_invoice_lines,
+    _phc_base_currency_per_euro,
+    _phc_local_amount,
+    _phc_tax_configuration,
+    _phc_tax_code,
 )
 from services import document_ai_service
 
 
 class DocumentAiPhcOriginTests(unittest.TestCase):
+    def test_provisional_invoice_permission_is_a_known_integration_type(self):
+        permissions = _normalize_document_integration_access({'provisional_invoice': True})
+
+        self.assertTrue(permissions['provisional_invoice'])
+
+    def test_supplier_invoice_is_eligible_for_provisional_purchase_submission(self):
+        self.assertTrue(_is_provisional_purchase_source_type('invoice'))
+        self.assertTrue(_is_provisional_purchase_source_type('provisional_invoice'))
+        self.assertFalse(_is_provisional_purchase_source_type('delivery_note'))
+        self.assertEqual(DOC_AI_PURCHASE_INVOICE_DOCCODE, 55)
+        self.assertEqual(DOC_AI_PURCHASE_INVOICE_CORRESPONDENCE_TYPE, 'FAC')
+
+    def test_provisional_invoice_tax_rate_must_exist_in_phc_configuration(self):
+        by_rate = {Decimal('0.00'): 5, Decimal('20.00'): 2}
+
+        self.assertEqual(_phc_tax_code(Decimal('20'), by_rate), 2)
+        with self.assertRaisesRegex(ValueError, '17.00%'):
+            _phc_tax_code(Decimal('17'), by_rate)
+
+    def test_duplicate_tax_rates_use_the_first_phc_table(self):
+        cursor = MagicMock()
+        cursor.execute.return_value.fetchall.return_value = [
+            (1, Decimal('5.50')),
+            (2, Decimal('20.00')),
+            (6, Decimal('20.00')),
+        ]
+
+        by_code, by_rate = _phc_tax_configuration(cursor)
+
+        self.assertEqual(by_code[6], Decimal('20.00'))
+        self.assertEqual(by_rate[Decimal('20.00')], 2)
+
+    def test_phc_currency_factor_uses_median_of_existing_documents(self):
+        cursor = MagicMock()
+        cursor.execute.return_value.fetchall.return_value = [
+            (Decimal('200.482000'),),
+            (Decimal('1.000000'),),
+            (Decimal('200.482000'),),
+        ]
+
+        factor = _phc_base_currency_per_euro(cursor)
+
+        self.assertEqual(factor, Decimal('200.482000'))
+        self.assertEqual(_phc_local_amount(Decimal('375'), factor), Decimal('75180.75000'))
+        self.assertEqual(_phc_local_amount(Decimal('375'), factor, whole=True), Decimal('75181'))
+
+    def test_generic_provisional_article_is_reused_when_it_exists(self):
+        cursor = MagicMock()
+        cursor.execute.return_value.fetchone.return_value = (
+            'ST-GENERIC', DOC_AI_PROVISIONAL_ARTICLE_REF, 'ARTIGO GENÉRICO - DOCUMENT AI',
+        )
+
+        with patch.object(document_ai_service, '_phc_insert_values') as insert:
+            result = _ensure_phc_provisional_article(cursor, 'tester', document_ai_service._now())
+
+        self.assertEqual(result['ref'], DOC_AI_PROVISIONAL_ARTICLE_REF)
+        self.assertEqual(result['stamp'], 'ST-GENERIC')
+        insert.assert_not_called()
+
+    def test_pdf_is_written_directly_over_smb_without_local_mount(self):
+        target = {
+            'storage': 'smb',
+            'unc_path': r'\\10.0.1.11\ged\HSOLS_FR\FACTURATION_FOURNISSEURS\invoice.pdf',
+            'write_path': r'\\10.0.1.11\ged\HSOLS_FR\FACTURATION_FOURNISSEURS\invoice.pdf',
+            'file_name': 'invoice.pdf',
+        }
+        handle = MagicMock()
+        context = MagicMock()
+        context.__enter__.return_value = handle
+        context.__exit__.return_value = False
+
+        with patch.object(document_ai_service, '_document_ai_smb_session') as session, patch(
+            'smbclient.makedirs'
+        ) as makedirs, patch('smbclient.path.exists', side_effect=[False, False]), patch(
+            'smbclient.open_file', return_value=context
+        ) as open_file, patch('smbclient.replace') as replace:
+            created = _write_document_ai_pdf(target, b'%PDF-test')
+
+        self.assertTrue(created)
+        session.assert_called_once_with(target['unc_path'])
+        makedirs.assert_called_once_with(
+            r'\\10.0.1.11\ged\HSOLS_FR\FACTURATION_FOURNISSEURS', exist_ok=True,
+        )
+        open_file.assert_called_once()
+        handle.write.assert_called_once_with(b'%PDF-test')
+        replace.assert_called_once()
+
+    def test_long_fn_design_is_split_on_words_and_ordered_by_lordem(self):
+        description = (
+            'Nos interventions en matière comptable relatives au suivi courant '
+            'de votre dossier pendant le mois de mai'
+        )
+
+        chunks = _split_phc_line_design(description)
+        expanded = _expand_phc_invoice_lines([{
+            'description': description,
+            'qty': Decimal('1.00'),
+            'net': Decimal('375.00'),
+        }])
+
+        self.assertGreater(len(chunks), 1)
+        self.assertTrue(all(len(chunk) <= 60 for chunk in chunks))
+        self.assertEqual(' '.join(chunks), description)
+        self.assertEqual([row['lordem'] for row in expanded], [1000, 2000])
+        self.assertFalse(expanded[0]['continuation'])
+        self.assertTrue(expanded[1]['continuation'])
+
     def test_document_integration_access_normalizes_only_known_types(self):
         permissions = _normalize_document_integration_access({
             'purchase_order': True,
@@ -34,6 +160,22 @@ class DocumentAiPhcOriginTests(unittest.TestCase):
         self.assertTrue(permissions['delivery_note'])
         self.assertFalse(permissions['invoice'])
         self.assertNotIn('unknown_type', permissions)
+
+    def test_group_entity_resolution_uses_configured_phc_companies(self):
+        configured = [{
+            'FEID': 1,
+            'NOME': 'HSOLS FRANCE',
+            'NOMEFISCAL': 'HSOLS FRANCE SAS',
+            'NIF': '46804213593',
+            'PHC_DB': 'HSOLS_FR',
+            'PHC_SERVER': '10.0.1.12',
+        }]
+        with patch.object(document_ai_service, '_configured_phc_sources', return_value=configured):
+            result = resolve_fe_entity('HSOLS FRANCE')
+
+        self.assertEqual(result['feid'], 1)
+        self.assertEqual(result['name'], 'HSOLS FRANCE SAS')
+        self.assertEqual(result['matched_by'], 'name')
 
     def test_contract_dossiers_are_discovered_from_each_phc_catalog(self):
         cursor = MagicMock()
@@ -90,6 +232,87 @@ class DocumentAiPhcOriginTests(unittest.TestCase):
 
         self.assertEqual(result['reference'], 1)
         self.assertEqual(result['year'], 2027)
+
+    def test_correspondence_file_name_uses_role_number_title_and_date(self):
+        result = _correspondence_file_name({
+            'mail_category': 'legal',
+            'external_party_role': 'customer',
+            'mail_title': 'Mise en demeure',
+            'document_date': '2026-07-10',
+        }, 404, {
+            'name': 'Caroline Pires',
+            'customer_no': 1234,
+        })
+
+        self.assertEqual(result, 'JUR-404-1234-CAROLINE PIRES-MISE EN DEMEURE-2026-07-10.pdf')
+
+    def test_correspondence_company_folder_supports_all_intersol_variants(self):
+        self.assertEqual(
+            _correspondence_company_folder({'name': 'INTERSOL ALSACE'}, {'phc_db': 'INTERSOL'}),
+            'HSOLS_INTERSOL_AL',
+        )
+        self.assertEqual(
+            _correspondence_company_folder({'name': 'INTERSOL LORRAINE'}, {'phc_db': 'INTERSOL'}),
+            'HSOLS_INTERSOL_LOR',
+        )
+
+    def test_submit_correspondence_inserts_cr_and_linked_attachment(self):
+        cursor = MagicMock()
+
+        def execute(query, *params):
+            cursor.fetchone.return_value = None
+            if 'sp_getapplock' in query:
+                cursor.fetchone.return_value = (0,)
+            elif 'MAX(CAST' in query:
+                cursor.fetchone.return_value = (2864,)
+            return cursor
+
+        cursor.execute.side_effect = execute
+        connection = MagicMock()
+        connection.cursor.return_value = cursor
+        document = {
+            'document_type': 'mail',
+            'mail_category': 'general',
+            'mail_title': 'Caution bancaire',
+            'document_date': '2026-05-22',
+            'external_party_role': 'supplier',
+            'customer': {'feid': 1, 'name': 'HSOLS FRANCE'},
+            'supplier': {'name': 'BTP BANQUE', 'supplier_no': 30779},
+        }
+        source = {'kind': 'phc', 'phc_db': 'HSOLS_FR', 'phc_server': '10.0.1.12'}
+        inserted = []
+        with tempfile.TemporaryDirectory() as directory:
+            target = os.path.join(directory, 'COR-2865.pdf')
+            ged = {
+                'file_name': 'COR-2865-30779-BTP BANQUE-CAUTION BANCAIRE-2026-05-22.pdf',
+                'unc_path': r'\\10.0.1.11\ged\HSOLS_FR\COURRIER\2026\COR-2865.pdf',
+                'write_path': target,
+            }
+            with patch.object(document_ai_service, '_phc_origin_source', return_value=source), patch(
+                'services.phc_user_import_service._phc_conn_str', return_value='PHC-CONNECTION'
+            ), patch('pyodbc.connect', return_value=connection), patch.object(
+                document_ai_service, '_phc_correspondence_party',
+                return_value={'name': 'BTP BANQUE', 'no': 30779, 'estab': 0, 'origin': 'FL', 'role': 'supplier'},
+            ), patch.object(
+                document_ai_service, '_phc_correspondence_user',
+                return_value={'no': 156, 'name': 'Utilizador', 'initials': 'UT', 'code': 'user'},
+            ), patch.object(
+                document_ai_service, '_correspondence_ged_paths', return_value=ged,
+            ), patch.object(
+                document_ai_service, '_phc_insert_values',
+                side_effect=lambda _cursor, table, values: inserted.append((table, values)),
+            ):
+                result = submit_correspondence_to_phc(document, b'%PDF-test', 'mail.pdf', 'user')
+
+            self.assertTrue(os.path.isfile(target))
+
+        self.assertEqual(result['reference'], 2865)
+        self.assertEqual([item[0] for item in inserted], ['CR', 'ANEXOS'])
+        self.assertEqual(inserted[0][1]['origem'], 'FL')
+        self.assertEqual(inserted[1][1]['oritable'], 'CR')
+        self.assertEqual(inserted[1][1]['recstamp'], inserted[0][1]['crstamp'])
+        self.assertTrue(inserted[1][1]['uniqueid'].startswith('DOC_AI:'))
+        connection.commit.assert_called_once()
 
     def test_purchase_flow_uses_the_configured_phc_stages(self):
         self.assertEqual(

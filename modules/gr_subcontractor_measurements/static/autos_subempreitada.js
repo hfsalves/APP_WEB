@@ -4,6 +4,9 @@
     contracts: [],
     detail: null,
     autosModal: null,
+    retentionOptions: null,
+    retentions: [],
+    retentionDraft: [],
     activeView: 'contracts',
   };
 
@@ -34,6 +37,8 @@
       'submeasureMetricRemaining',
       'submeasureBackBtn',
       'submeasureAutoDate',
+      'submeasureRetentionsBtn',
+      'submeasureRetentionsCount',
       'submeasureFillRemainingBtn',
       'submeasureClearLinesBtn',
       'submeasureCancelBtn',
@@ -54,6 +59,14 @@
       'submeasureSelectedAutoMeta',
       'submeasureOpenAutoAttachmentBtn',
       'submeasureAutosLinesBody',
+      'submeasureRetentionsModal',
+      'submeasureRetentionsModalClose',
+      'submeasureRetentionsModalTitle',
+      'submeasureRetentionsModalMeta',
+      'submeasureRetentionsBody',
+      'submeasureRetentionsTotal',
+      'submeasureRetentionsCancelBtn',
+      'submeasureRetentionsApplyBtn',
     ].forEach((id) => {
       els[id] = byId(id);
     });
@@ -73,6 +86,10 @@
 
   function writeEnabled() {
     return String(els.grSubmeasurePage?.dataset.writeEnabled || '1') === '1';
+  }
+
+  function retentionsEnabled() {
+    return String(els.grSubmeasurePage?.dataset.retentionsEnabled || '0') === '1';
   }
 
   function escapeHtml(value) {
@@ -388,13 +405,161 @@
     }
   }
 
+  function measurementDraftTotal() {
+    if (!state.detail) return 0;
+    return state.detail.lines.reduce((acc, line) => acc + lineDraftValue(line), 0);
+  }
+
+  function defaultRetentionVatCode(options) {
+    const measuredLines = (state.detail?.lines || [])
+      .filter((line) => lineDraftValue(line) > 0)
+      .sort((left, right) => lineDraftValue(right) - lineDraftValue(left));
+    const lineCode = Number(measuredLines[0]?.vat_code || 0);
+    if ((options?.vat_rates || []).some((row) => Number(row.code) === lineCode)) return lineCode;
+    return Number(options?.vat_rates?.[0]?.code || 0);
+  }
+
+  function retentionVatRate(code) {
+    const rates = state.retentionOptions?.vat_rates || [];
+    return Number(rates.find((row) => Number(row.code) === Number(code))?.rate || 0);
+  }
+
+  function syncRetentionBadge() {
+    const count = state.retentions.length;
+    els.submeasureRetentionsCount.textContent = String(count);
+    els.submeasureRetentionsCount.hidden = count === 0;
+  }
+
+  function syncAppliedRetentionBase(base) {
+    state.retentions = state.retentions.map((row) => ({
+      ...row,
+      value: base * Number(row.percent || 0) / 100,
+    }));
+  }
+
+  function closeRetentionsModal() {
+    els.submeasureRetentionsModal.hidden = true;
+    state.retentionDraft = [];
+  }
+
+  function retentionVatSelect(row, index) {
+    if (!state.retentionOptions?.supports_vat) return '<span class="gr-submeasure-muted">-</span>';
+    const options = state.retentionOptions?.vat_rates || [];
+    return `
+      <select class="sz_select gr-submeasure-retention-vat" data-retention-vat="${index}" ${row.selected ? '' : 'disabled'}>
+        ${options.map((rate) => `
+          <option value="${escapeHtml(rate.code)}" ${Number(rate.code) === Number(row.vat_code) ? 'selected' : ''}>
+            ${escapeHtml(rate.code)} · ${escapeHtml(formatPtNumber(rate.rate, 2, false))}%
+          </option>
+        `).join('')}
+      </select>
+    `;
+  }
+
+  function updateRetentionDraftTotal() {
+    const total = state.retentionDraft.reduce(
+      (sum, row) => sum + (row.selected ? Number(row.value || 0) : 0),
+      0,
+    );
+    els.submeasureRetentionsTotal.textContent = formatTotalMoney(total);
+  }
+
+  function renderRetentionRows() {
+    const rows = state.retentionDraft || [];
+    const base = measurementDraftTotal();
+    if (!rows.length) {
+      els.submeasureRetentionsBody.innerHTML = '<tr><td colspan="9" class="sz_table_cell sz_text_muted">Sem tipos de retenção configurados.</td></tr>';
+      updateRetentionDraftTotal();
+      return;
+    }
+    els.submeasureRetentionsBody.innerHTML = rows.map((row, index) => `
+      <tr data-retention-index="${index}">
+        <td class="gr-submeasure-retention-check">
+          <input type="checkbox" data-retention-selected="${index}" ${row.selected ? 'checked' : ''} aria-label="Selecionar ${escapeHtml(row.ref)}">
+        </td>
+        <td><strong>${escapeHtml(row.ref)}</strong></td>
+        <td>${escapeHtml(row.design)}</td>
+        <td class="sz_text_right">${escapeHtml(formatMoney(base))}</td>
+        <td class="sz_text_right">
+          <input class="gr-submeasure-retention-input" data-retention-field="percent" type="text" inputmode="decimal" ${row.selected ? '' : 'disabled'} value="${escapeHtml(formatInputNumber(row.percent, 3))}">
+        </td>
+        <td class="sz_text_right">
+          <input class="gr-submeasure-retention-input" data-retention-field="value" type="text" inputmode="decimal" ${row.selected ? '' : 'disabled'} value="${escapeHtml(formatInputNumber(row.value, 2))}">
+        </td>
+        <td>${row.discount ? 'Sim' : 'Não'}</td>
+        <td>${retentionVatSelect(row, index)}</td>
+        <td class="sz_text_right">${escapeHtml(formatPercent(retentionVatRate(row.vat_code)))}</td>
+      </tr>
+    `).join('');
+    updateRetentionDraftTotal();
+  }
+
+  async function loadRetentionOptions() {
+    const feid = String(selectedFeid());
+    if (String(state.retentionOptions?.feid || '') === feid) return state.retentionOptions;
+    const params = new URLSearchParams({ feid });
+    const payload = await fetchJson(`${apiBase()}/retencoes/tipos?${params.toString()}`);
+    state.retentionOptions = { ...payload, feid };
+    return state.retentionOptions;
+  }
+
+  async function openRetentionsModal() {
+    if (!retentionsEnabled() || !state.detail) return;
+    const base = measurementDraftTotal();
+    if (base <= 0) {
+      window.alert('Indique primeiro as quantidades ou valores deste auto.');
+      return;
+    }
+    els.submeasureRetentionsModal.hidden = false;
+    els.submeasureRetentionsModalMeta.textContent = 'A carregar...';
+    els.submeasureRetentionsBody.innerHTML = '<tr><td colspan="9" class="sz_table_cell sz_text_muted">A carregar...</td></tr>';
+    try {
+      const options = await loadRetentionOptions();
+      if (!options.supported) throw new Error(options.message || 'Retenções não configuradas nesta empresa.');
+      const applied = new Map(state.retentions.map((row) => [String(row.ref), row]));
+      const defaultVatCode = defaultRetentionVatCode(options);
+      state.retentionDraft = (options.rows || []).map((type) => {
+        const current = applied.get(String(type.ref));
+        const percent = Number(current?.percent ?? type.default_percent ?? 0);
+        return {
+          ref: type.ref,
+          design: type.design,
+          discount: Boolean(type.discount),
+          selected: Boolean(current),
+          percent,
+          value: current ? Number(current.value || 0) : base * percent / 100,
+          vat_code: Number(current?.vat_code ?? defaultVatCode),
+        };
+      });
+      els.submeasureRetentionsModalMeta.textContent = `Base do auto: ${formatTotalMoney(base)}`;
+      renderRetentionRows();
+    } catch (error) {
+      closeRetentionsModal();
+      window.alert(error.message || 'Erro ao carregar retenções.');
+    }
+  }
+
+  function applyRetentions() {
+    state.retentions = state.retentionDraft
+      .filter((row) => row.selected && Math.abs(Number(row.value || 0)) > 0.000001)
+      .map((row) => ({
+        ref: row.ref,
+        percent: Number(row.percent || 0),
+        value: Number(row.value || 0),
+        vat_code: Number(row.vat_code || 0),
+      }));
+    syncRetentionBadge();
+    closeRetentionsModal();
+  }
+
   function lineDraftValue(line) {
     return parseNumber(line.draftValue);
   }
 
   function updateDraftTotals() {
     if (!state.detail) return;
-    const total = state.detail.lines.reduce((acc, line) => acc + lineDraftValue(line), 0);
+    const total = measurementDraftTotal();
+    syncAppliedRetentionBase(total);
     els.submeasureDetailDraft.textContent = formatTotalMoney(total);
     els.submeasureDraftBtn.disabled = total <= 0 || !writeEnabled();
   }
@@ -557,6 +722,9 @@
   }
 
   async function openContract(bostamp) {
+    state.retentions = [];
+    state.retentionDraft = [];
+    syncRetentionBadge();
     els.submeasureLinesBody.innerHTML = '<tr><td colspan="11" class="sz_table_cell sz_text_muted">A carregar linhas...</td></tr>';
     showView('measurement');
     if (!els.submeasureAutoDate.value) {
@@ -566,6 +734,9 @@
     try {
       const payload = await fetchJson(`${apiBase()}/contrato?${params.toString()}`);
       state.detail = payload;
+      state.retentions = [];
+      state.retentionDraft = [];
+      syncRetentionBadge();
       state.detail.lines = (state.detail.lines || []).map((line) => ({
         ...line,
         draftQty: 0,
@@ -586,6 +757,8 @@
       line.draftValue = 0;
       line.draftPercent = 0;
     });
+    state.retentions = [];
+    syncRetentionBadge();
     renderLines();
   }
 
@@ -647,9 +820,15 @@
         bostamp: state.detail.contract.bostamp,
         data_auto: els.submeasureAutoDate.value,
         lines,
+        retentions: state.retentions,
       });
       const auto = payload.auto || {};
-      window.alert(`Auto gravado no PHC: ${auto.nmdos || 'Auto'} nº ${auto.obrano || ''}/${auto.boano || ''}.`);
+      const confirmedDatabase = auto.verified_database || auto.company?.phc_db || '';
+      const databaseLabel = confirmedDatabase ? ` na base ${confirmedDatabase}` : '';
+      const retentionLabel = Number(auto.retention_count || 0) > 0
+        ? ` · ${auto.retention_count} retenção(ões)`
+        : '';
+      window.alert(`Auto gravado no PHC${databaseLabel}: ${auto.nmdos || 'Auto'} nº ${auto.obrano || ''}/${auto.boano || ''}${retentionLabel}.`);
       await openContract(state.detail.contract.bostamp);
       await loadContracts();
     } catch (error) {
@@ -665,6 +844,9 @@
     els.submeasureRefreshBtn.addEventListener('click', loadContracts);
     els.submeasureCompany.addEventListener('change', () => {
       state.detail = null;
+      state.retentionOptions = null;
+      state.retentions = [];
+      syncRetentionBadge();
       els.submeasureMeasurementTab.disabled = true;
       showView('contracts');
       loadContracts();
@@ -695,13 +877,78 @@
       if (autoButton) selectAuto(autoButton.dataset.selectAuto || '');
     });
     document.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape' && !els.submeasureAutosModal.hidden) closeAutosModal();
+      if (event.key !== 'Escape') return;
+      if (!els.submeasureRetentionsModal.hidden) closeRetentionsModal();
+      else if (!els.submeasureAutosModal.hidden) closeAutosModal();
     });
     els.submeasureContractsTab.addEventListener('click', () => showView('contracts'));
     els.submeasureMeasurementTab.addEventListener('click', () => {
       if (!els.submeasureMeasurementTab.disabled) showView('measurement');
     });
     els.submeasureBackBtn.addEventListener('click', () => showView('contracts'));
+    els.submeasureRetentionsBtn.addEventListener('click', openRetentionsModal);
+    els.submeasureRetentionsModalClose.addEventListener('click', closeRetentionsModal);
+    els.submeasureRetentionsCancelBtn.addEventListener('click', closeRetentionsModal);
+    els.submeasureRetentionsApplyBtn.addEventListener('click', applyRetentions);
+    els.submeasureRetentionsModal.addEventListener('click', (event) => {
+      if (event.target.closest('[data-close-retentions-modal]')) {
+        closeRetentionsModal();
+        return;
+      }
+      const selected = event.target.closest('[data-retention-selected]');
+      if (selected) {
+        const row = state.retentionDraft[Number(selected.dataset.retentionSelected)];
+        if (!row) return;
+        row.selected = selected.checked;
+        renderRetentionRows();
+        return;
+      }
+    });
+    els.submeasureRetentionsBody.addEventListener('change', (event) => {
+      const vat = event.target.closest('[data-retention-vat]');
+      if (!vat) return;
+      const row = state.retentionDraft[Number(vat.dataset.retentionVat)];
+      if (!row) return;
+      row.vat_code = Number(vat.value || 0);
+      renderRetentionRows();
+    });
+    els.submeasureRetentionsBody.addEventListener('input', (event) => {
+      const input = event.target.closest('[data-retention-field]');
+      if (!input) return;
+      const index = Number(input.closest('[data-retention-index]')?.dataset.retentionIndex ?? -1);
+      const row = state.retentionDraft[index];
+      if (!row) return;
+      const base = measurementDraftTotal();
+      const value = parseNumber(input.value);
+      if (input.dataset.retentionField === 'percent') {
+        row.percent = value;
+        row.value = base * value / 100;
+      } else {
+        row.value = value;
+        row.percent = base ? value / base * 100 : 0;
+      }
+      const tr = input.closest('tr');
+      const otherField = input.dataset.retentionField === 'percent' ? 'value' : 'percent';
+      const otherInput = tr?.querySelector(`[data-retention-field="${otherField}"]`);
+      if (otherInput) {
+        otherInput.value = formatInputNumber(
+          otherField === 'percent' ? row.percent : row.value,
+          otherField === 'percent' ? 3 : 2,
+        );
+      }
+      updateRetentionDraftTotal();
+    });
+    els.submeasureRetentionsBody.addEventListener('blur', (event) => {
+      const input = event.target.closest('[data-retention-field]');
+      if (!input) return;
+      const index = Number(input.closest('[data-retention-index]')?.dataset.retentionIndex ?? -1);
+      const row = state.retentionDraft[index];
+      if (!row) return;
+      input.value = formatInputNumber(
+        input.dataset.retentionField === 'percent' ? row.percent : row.value,
+        input.dataset.retentionField === 'percent' ? 3 : 2,
+      );
+    }, true);
     els.submeasureFillRemainingBtn.addEventListener('click', fillRemainingDraft);
     els.submeasureClearLinesBtn.addEventListener('click', clearDraft);
     els.submeasureCancelBtn.addEventListener('click', cancelMeasurement);

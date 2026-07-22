@@ -266,6 +266,14 @@
       </div>
       <div class="sz_actionbar_right">
         <span id="docAiExtractPersistenceNote" class="sz_text_muted">O PDF e a leitura ficam guardados no inbox para evitar novas chamadas ao LLM.</span>
+        {% if can_submit_correspondence or can_submit_provisional_invoice %}
+        <button id="docAiExtractSubmitPhcBtn" type="button" class="sz_button sz_button_primary" hidden disabled
+                data-can-correspondence="{{ '1' if can_submit_correspondence else '0' }}"
+                data-can-provisional-invoice="{{ '1' if can_submit_provisional_invoice else '0' }}">
+          <i class="fa-solid fa-paper-plane"></i>
+          <span>Submeter no PHC</span>
+        </button>
+        {% endif %}
       </div>
     </footer>
   </div>
