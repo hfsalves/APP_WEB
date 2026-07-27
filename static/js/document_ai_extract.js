@@ -1862,6 +1862,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const formData = new FormData();
     formData.append('file', state.file);
     formData.append('document_data', JSON.stringify(state.documentData));
+    if (state.currentDocumentId) formData.append('document_id', state.currentDocumentId);
     try {
       const endpoint = isProvisionalInvoice
         ? '/api/document_ai/provisional-invoice/submit'

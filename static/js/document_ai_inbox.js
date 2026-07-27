@@ -1,6 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
   const els = {
     search: document.getElementById('docAiSearch'),
+    entityFilter: document.getElementById('docAiEntityFilter'),
     statusFilter: document.getElementById('docAiStatusFilter'),
     typeFilter: document.getElementById('docAiTypeFilter'),
     supplierFilter: document.getElementById('docAiSupplierFilter'),
@@ -28,6 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
     items: [],
     statuses: [],
     docTypes: [],
+    entities: [],
     loading: false,
   };
 
@@ -114,17 +116,32 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function populateFilters() {
-    if (els.statusFilter && !els.statusFilter.dataset.ready) {
+    if (els.entityFilter) {
+      const selectedEntity = els.entityFilter.value;
+      els.entityFilter.innerHTML = '<option value="">Todas as empresas</option>' + state.entities.map((item) => (
+        `<option value="${escapeHtml(item.feid)}">${escapeHtml(item.name || `FE ${item.feid}`)}</option>`
+      )).join('');
+      if ([...els.entityFilter.options].some((option) => option.value === selectedEntity)) {
+        els.entityFilter.value = selectedEntity;
+      }
+    }
+    if (els.statusFilter) {
+      const selectedStatus = els.statusFilter.value;
       els.statusFilter.innerHTML = '<option value="">Todos</option>' + state.statuses.map((item) => (
         `<option value="${escapeHtml(item.value)}">${escapeHtml(item.label)}</option>`
       )).join('');
-      els.statusFilter.dataset.ready = '1';
+      if ([...els.statusFilter.options].some((option) => option.value === selectedStatus)) {
+        els.statusFilter.value = selectedStatus;
+      }
     }
-    if (els.typeFilter && !els.typeFilter.dataset.ready) {
+    if (els.typeFilter) {
+      const selectedType = els.typeFilter.value;
       els.typeFilter.innerHTML = '<option value="">Todos</option>' + state.docTypes.map((item) => (
         `<option value="${escapeHtml(item.value)}">${escapeHtml(item.label)}</option>`
       )).join('');
-      els.typeFilter.dataset.ready = '1';
+      if ([...els.typeFilter.options].some((option) => option.value === selectedType)) {
+        els.typeFilter.value = selectedType;
+      }
     }
   }
 
@@ -204,6 +221,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const params = new URLSearchParams();
       if (els.search?.value.trim()) params.set('search', els.search.value.trim());
+      if (els.entityFilter?.value) params.set('feid', els.entityFilter.value);
       if (els.statusFilter?.value) params.set('status', els.statusFilter.value);
       if (els.typeFilter?.value) params.set('doc_type', els.typeFilter.value);
       if (els.supplierFilter?.value.trim()) params.set('supplier', els.supplierFilter.value.trim());
@@ -213,6 +231,7 @@ document.addEventListener('DOMContentLoaded', () => {
       state.items = Array.isArray(payload.items) ? payload.items : [];
       state.statuses = Array.isArray(payload.statuses) ? payload.statuses : [];
       state.docTypes = Array.isArray(payload.doc_types) ? payload.doc_types : [];
+      state.entities = Array.isArray(payload.entities) ? payload.entities : [];
       populateFilters();
       renderCounts(payload.counts || {});
       renderTable();
@@ -301,7 +320,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadInbox();
   });
   els.resetFilters?.addEventListener('click', () => {
-    [els.search, els.statusFilter, els.typeFilter, els.supplierFilter, els.dateFrom, els.dateTo].forEach((el) => {
+    [els.search, els.entityFilter, els.statusFilter, els.typeFilter, els.supplierFilter, els.dateFrom, els.dateTo].forEach((el) => {
       if (el) el.value = '';
     });
     closeFiltersModal();

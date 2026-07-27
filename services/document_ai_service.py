@@ -102,6 +102,7 @@ DOC_AI_STATUSES = [
     {'value': 'template_unknown', 'label': 'Template desconhecido'},
     {'value': 'review_required', 'label': 'Por validar'},
     {'value': 'parsed_ok', 'label': 'Processado'},
+    {'value': 'provisional_invoice', 'label': 'Facture Provisoire'},
     {'value': 'parse_error', 'label': 'Erro'},
 ]
 
@@ -3256,6 +3257,10 @@ def reset_llm_extraction(document_stamp: str, requested_by: str) -> None:
     meta.pop('llm_full_extraction', None)
     meta.pop('phc_origin', None)
     meta.pop('phc_origins', None)
+    integrated_as_provisional = (
+        str((meta.get('phc_integration') or {}).get('type') or '').strip().lower()
+        == 'provisional_invoice'
+    )
     document.processing_meta_json = _json_dumps(meta)
     document.json_resultado = _json_dumps(canonical_result_base('unknown'))
     document.fornecedor_no = None
@@ -3266,7 +3271,7 @@ def reset_llm_extraction(document_stamp: str, requested_by: str) -> None:
     document.extraction_method = 'failed'
     document.extraction_quality_score = 0
     document.processing_stage = 'new'
-    document.processing_status = 'new'
+    document.processing_status = 'provisional_invoice' if integrated_as_provisional else 'new'
     document.last_processing_error = ''
     document.dtproc = None
     document.dtalt = _now()
@@ -3304,13 +3309,60 @@ def save_llm_extraction(document_stamp: str, payload: dict[str, Any], requested_
     document.extraction_method = 'llm_visual'
     document.extraction_quality_score = confidence
     document.processing_stage = 'llm_extracted'
-    document.processing_status = 'parsed_ok' if confidence >= 0.75 else 'review_required'
+    integrated_as_provisional = (
+        str((meta.get('phc_integration') or {}).get('type') or '').strip().lower()
+        == 'provisional_invoice'
+    )
+    document.processing_status = (
+        'provisional_invoice'
+        if integrated_as_provisional
+        or str(document_data.get('document_type') or '').strip().lower() == 'provisional_invoice'
+        else ('parsed_ok' if confidence >= 0.75 else 'review_required')
+    )
     document.last_processing_error = ''
     document.dtproc = now
     document.dtalt = now
     document.useralteracao = requested_by or document.useralteracao or ''
     db.session.commit()
     return get_cached_llm_extraction(document.docinstamp) or {}
+
+
+def mark_document_as_provisional_invoice(
+    document_stamp: str,
+    integration_result: dict[str, Any] | None,
+    requested_by: str,
+    expected_file_hash: str = '',
+) -> dict[str, Any]:
+    document = db.session.get(DocInbox, str(document_stamp or '').strip())
+    if not document:
+        raise ValueError('Documento do inbox não encontrado.')
+    expected_hash = str(expected_file_hash or '').strip().lower()
+    stored_hash = str(document.file_hash or '').strip().lower()
+    if expected_hash and stored_hash and expected_hash != stored_hash:
+        raise ValueError('O documento submetido não corresponde ao documento selecionado no inbox.')
+    result = dict(integration_result or {})
+    now = _now()
+    meta = _json_loads(document.processing_meta_json, {})
+    meta['phc_integration'] = {
+        'type': 'provisional_invoice',
+        'fostamp': str(result.get('fostamp') or '').strip(),
+        'document_number': str(result.get('document_number') or '').strip(),
+        'phc_database': str(result.get('phc_database') or '').strip(),
+        'duplicate': bool(result.get('duplicate')),
+        'integrated_at': now.isoformat(),
+        'integrated_by': requested_by or '',
+    }
+    document.processing_meta_json = _json_dumps(meta)
+    document.processing_stage = 'phc_integrated'
+    document.processing_status = 'provisional_invoice'
+    document.dtalt = now
+    document.useralteracao = requested_by or document.useralteracao or ''
+    db.session.commit()
+    return {
+        'ok': True,
+        'document_id': document.docinstamp,
+        'status': document.processing_status,
+    }
 
 
 def identify_supplier_from_text(text_value: str, feid: int | None = None) -> dict[str, Any]:
@@ -4539,6 +4591,10 @@ def extract_document_text(
 def _doc_queryset_sql(filters: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     where_parts = []
     params: dict[str, Any] = {}
+    feid = _safe_int(filters.get('feid'), 0)
+    if feid > 0:
+        where_parts.append('CAST(ISNULL(D.FEID, 0) AS int) = :feid')
+        params['feid'] = feid
     status = str(filters.get('status') or '').strip()
     if status:
         where_parts.append("UPPER(LTRIM(RTRIM(ISNULL(D.PROCESSING_STATUS, '')))) = :status")
@@ -4622,11 +4678,30 @@ def list_documents(filters: dict[str, Any] | None = None) -> dict[str, Any]:
         ORDER BY D.DTCRI DESC
     """), params).mappings().all()
 
+    entity_rows = db.session.execute(text("""
+        SELECT DISTINCT
+            CAST(FE.FEID AS int) AS FEID,
+            LTRIM(RTRIM(ISNULL(NULLIF(FE.NOMEFISCAL, ''), ISNULL(FE.NOME, '')))) AS NOME
+        FROM dbo.DOC_INBOX D
+        INNER JOIN dbo.FE FE ON CAST(FE.FEID AS int) = D.FEID
+        WHERE ISNULL(D.FEID, 0) > 0
+        ORDER BY NOME
+    """)).mappings().all()
+
     items = []
     counts = {}
     for row in rows:
-        status = str(row.get('PROCESSING_STATUS') or 'new').strip()
         processing_meta = _json_loads(row.get('PROCESSING_META_JSON'), {})
+        integrated_as_provisional = (
+            str((processing_meta.get('phc_integration') or {}).get('type') or '').strip().lower()
+            == 'provisional_invoice'
+        )
+        status = (
+            'provisional_invoice'
+            if integrated_as_provisional
+            or str(row.get('DOC_TYPE_DETECTED') or '').strip().lower() == 'provisional_invoice'
+            else str(row.get('PROCESSING_STATUS') or 'new').strip()
+        )
         batch_meta = dict(processing_meta.get('batch') or {})
         counts[status] = counts.get(status, 0) + 1
         items.append({
@@ -4654,7 +4729,16 @@ def list_documents(filters: dict[str, Any] | None = None) -> dict[str, Any]:
             'processed_at': row.get('DTPROC').isoformat() if row.get('DTPROC') else None,
         })
 
-    return {'items': items, 'counts': counts, 'statuses': DOC_AI_STATUSES, 'doc_types': DOC_AI_DOC_TYPES}
+    return {
+        'items': items,
+        'counts': counts,
+        'statuses': DOC_AI_STATUSES,
+        'doc_types': DOC_AI_DOC_TYPES,
+        'entities': [
+            {'feid': _safe_int(row.get('FEID'), 0), 'name': str(row.get('NOME') or '').strip()}
+            for row in entity_rows
+        ],
+    }
 
 
 def _serialize_document_source(source: DocSource) -> dict[str, Any]:

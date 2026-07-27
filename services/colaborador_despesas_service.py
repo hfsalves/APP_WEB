@@ -1273,6 +1273,28 @@ def _phc_columns(cursor, table_name: str) -> set[str]:
     return {str(row[0] or '').strip().lower() for row in cursor.fetchall()}
 
 
+def _phc_character_maximum_length(cursor, table_name: str, column_name: str) -> int | None:
+    """Returns a text column limit from the target PHC database."""
+    cursor.execute("""
+        SELECT CHARACTER_MAXIMUM_LENGTH
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = 'dbo'
+          AND TABLE_NAME = ?
+          AND COLUMN_NAME = ?
+    """, table_name, column_name)
+    row = cursor.fetchone()
+    try:
+        length = int(row[0]) if row and row[0] is not None else 0
+    except (TypeError, ValueError):
+        length = 0
+    return length if length > 0 else None
+
+
+def _phc_text(value: Any, maximum_length: int | None, fallback_length: int) -> str:
+    text_value = str(value or '').strip()
+    return text_value[:maximum_length or fallback_length]
+
+
 def _phc_insert(cursor, table_name: str, values: dict[str, Any]) -> dict[str, Any]:
     columns = _phc_columns(cursor, table_name)
     filtered = {key: value for key, value in values.items() if key.lower() in columns}
@@ -2024,6 +2046,10 @@ def launch_expenses_to_phc(stamps: list[str], user) -> dict[str, Any]:
                     'usrhora': hour,
                 })
 
+            # BI differs between PHC databases. In particular HSOLS_FR has a
+            # shorter LOBS2 than other companies, so respect the actual schema.
+            bi_lobs_length = _phc_character_maximum_length(cursor, 'BI', 'LOBS')
+            bi_lobs2_length = _phc_character_maximum_length(cursor, 'BI', 'LOBS2')
             for line in prepared_lines:
                 row = line['row']
                 article = line['article']
@@ -2056,8 +2082,8 @@ def launch_expenses_to_phc(stamps: list[str], user) -> dict[str, Any]:
                     'stipo': article['stipo'],
                     'no': supplier['no'],
                     'nome': supplier['nome'][:55],
-                    'lobs': str(row.get('VIATURA') or '').strip()[:60],
-                    'lobs2': str(row.get('OBS') or '').strip()[:60],
+                    'lobs': _phc_text(row.get('VIATURA'), bi_lobs_length, 60),
+                    'lobs2': _phc_text(row.get('OBS'), bi_lobs2_length, 60),
                     'ccusto': line['ccusto'],
                     'bofref': supplier.get('fref') or '',
                     'bifref': supplier.get('fref') or '',

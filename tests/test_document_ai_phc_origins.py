@@ -19,6 +19,7 @@ from services.document_ai_service import (
     reset_llm_extraction,
     resolve_fe_entity,
     save_llm_extraction,
+    mark_document_as_provisional_invoice,
     save_document_phc_origin,
     save_document_adjusted_lines,
     _score_phc_origin_candidate,
@@ -36,11 +37,42 @@ from services.document_ai_service import (
     _phc_local_amount,
     _phc_tax_configuration,
     _phc_tax_code,
+    _doc_queryset_sql,
 )
 from services import document_ai_service
 
 
 class DocumentAiPhcOriginTests(unittest.TestCase):
+    def test_inbox_query_filters_by_group_entity(self):
+        where_sql, params = _doc_queryset_sql({'feid': '8'})
+
+        self.assertIn('D.FEID', where_sql)
+        self.assertEqual(params['feid'], 8)
+
+    def test_marking_inbox_document_as_provisional_invoice_is_persistent(self):
+        document = SimpleNamespace(
+            docinstamp='DOC-1', file_hash='abc123', processing_meta_json='{}',
+            processing_stage='parsed', processing_status='parsed_ok', dtalt=None,
+            useralteracao='',
+        )
+        with patch.object(document_ai_service.db.session, 'get', return_value=document), patch.object(
+            document_ai_service.db.session, 'commit'
+        ) as commit:
+            result = mark_document_as_provisional_invoice(
+                'DOC-1',
+                {'fostamp': 'FO-1', 'document_number': '159432', 'phc_database': 'HSOLS_FR'},
+                'ldias',
+                'abc123',
+            )
+
+        meta = json.loads(document.processing_meta_json)
+        self.assertEqual(result['status'], 'provisional_invoice')
+        self.assertEqual(document.processing_status, 'provisional_invoice')
+        self.assertEqual(document.processing_stage, 'phc_integrated')
+        self.assertEqual(meta['phc_integration']['type'], 'provisional_invoice')
+        self.assertEqual(meta['phc_integration']['fostamp'], 'FO-1')
+        commit.assert_called_once()
+
     def test_provisional_invoice_permission_is_a_known_integration_type(self):
         permissions = _normalize_document_integration_access({'provisional_invoice': True})
 

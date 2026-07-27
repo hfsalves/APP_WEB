@@ -1,3 +1,4 @@
+import hashlib
 import io
 import json
 
@@ -28,6 +29,7 @@ from services.document_ai_service import (
     list_document_integration_access_users,
     list_documents,
     list_templates,
+    mark_document_as_provisional_invoice,
     reprocess_document,
     reconcile_extracted_document,
     reset_llm_extraction,
@@ -187,6 +189,7 @@ def api_document_ai_inbox():
     if not _document_ai_has_access('consultar'):
         return jsonify({'error': 'Sem permissão.'}), 403
     filters = {
+        'feid': request.args.get('feid', ''),
         'status': request.args.get('status', ''),
         'doc_type': request.args.get('doc_type', ''),
         'supplier': request.args.get('supplier', ''),
@@ -429,12 +432,21 @@ def api_document_ai_provisional_invoice_submit():
     except Exception:
         return jsonify({'error': 'Os dados da Facture Provisoire não são válidos.'}), 400
     try:
-        return jsonify(submit_provisional_invoice_to_phc(
+        result = submit_provisional_invoice_to_phc(
             document_data,
             file_bytes,
             str(uploaded_file.filename or '').strip(),
             _current_login(),
-        )), 201
+        )
+        document_id = str(request.form.get('document_id') or '').strip()
+        if document_id:
+            mark_document_as_provisional_invoice(
+                document_id,
+                result,
+                _current_login(),
+                hashlib.sha256(file_bytes).hexdigest(),
+            )
+        return jsonify(result), 201
     except (ValueError, FileExistsError) as exc:
         return jsonify({'error': str(exc)}), 400
     except RuntimeError as exc:

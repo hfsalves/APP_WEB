@@ -109,6 +109,13 @@
   background: color-mix(in srgb, var(--sz-color-danger) 12%, transparent);
 }
 
+.docai-status-chip.status-provisional_invoice,
+.docai-state-badge.status-provisional_invoice {
+  color: var(--sz-color-warning);
+  border-color: color-mix(in srgb, var(--sz-color-warning) 48%, transparent);
+  background: color-mix(in srgb, var(--sz-color-warning) 18%, transparent);
+}
+
 .docai-status-chip.status-new,
 .docai-status-chip.status-text_extracted,
 .docai-state-badge.status-new,

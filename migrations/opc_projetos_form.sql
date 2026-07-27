@@ -31,28 +31,36 @@ DECLARE @fields TABLE (
     TAM_MOBILE int NOT NULL,
     LISTA bit NOT NULL,
     FILTRO bit NOT NULL,
+    ADMIN bit NOT NULL,
+    VISIVEL bit NOT NULL,
     RONLY bit NOT NULL,
     OBRIGATORIO bit NOT NULL
 );
 
-INSERT INTO @fields (NMCAMPO, DESCRICAO, TIPO, ORDEM, TAM, ORDEM_MOBILE, TAM_MOBILE, LISTA, FILTRO, RONLY, OBRIGATORIO)
+INSERT INTO @fields (
+    NMCAMPO, DESCRICAO, TIPO, ORDEM, TAM, ORDEM_MOBILE, TAM_MOBILE,
+    LISTA, FILTRO, ADMIN, VISIVEL, RONLY, OBRIGATORIO
+)
 VALUES
-    ('PROCESSO', 'Processo', 'TEXT', 11, 3, 11, 20, 1, 1, 0, 1),
-    ('DESCRICAO', 'Obra', 'TEXT', 12, 6, 21, 20, 1, 1, 0, 1),
-    ('NOME', 'Cliente', 'TEXT', 13, 3, 31, 20, 1, 1, 0, 0),
-    ('U_ORIGEM', 'Origem', 'TEXT', 21, 3, 41, 20, 1, 1, 0, 0),
-    ('DATAI', 'Data início', 'DATE', 22, 3, 51, 10, 1, 1, 0, 0),
-    ('DATAF', 'Data fim', 'DATE', 23, 3, 52, 10, 1, 1, 0, 0),
-    ('NO', 'Nº cliente', 'INT', 31, 2, 61, 10, 0, 0, 0, 0),
-    ('DATAFECHO', 'Data fecho', 'DATE', 32, 2, 62, 10, 0, 0, 0, 0),
-    ('OBS', 'Observações', 'TEXT', 33, 2, 71, 20, 0, 0, 0, 0),
-    ('U_RG', 'RG', 'DECIMAL', 41, 2, 81, 10, 0, 0, 0, 0),
-    ('U_RFT', 'RFT', 'DECIMAL', 42, 2, 82, 10, 0, 0, 0, 0),
-    ('U_CODE', 'Código', 'TEXT', 43, 2, 91, 10, 0, 0, 0, 0),
-    ('U_FACTOR', 'Factor', 'BIT', 51, 2, 101, 10, 0, 0, 0, 0),
-    ('U_NMARCHE', 'Nº mercado', 'TEXT', 52, 3, 111, 20, 0, 0, 0, 0),
-    ('U_CONTAFAC', 'Conta faturação', 'TEXT', 53, 3, 121, 20, 0, 0, 0, 0),
-    ('U_IBAN2', 'IBAN', 'TEXT', 61, 6, 131, 20, 0, 0, 0, 0);
+    ('PROCESSO', 'Processo', 'TEXT', 11, 3, 11, 20, 1, 1, 0, 1, 0, 1),
+    ('DESCRICAO', 'Obra', 'TEXT', 12, 6, 21, 20, 1, 1, 0, 1, 0, 1),
+    ('NOME', 'Cliente', 'TEXT', 13, 3, 31, 20, 1, 1, 0, 0, 0, 0),
+    ('U_ORIGEM', 'Origem', 'TEXT', 21, 3, 41, 20, 1, 1, 0, 1, 0, 0),
+    ('DATAI', 'Data início', 'DATE', 22, 3, 51, 10, 1, 1, 0, 1, 0, 0),
+    ('DATAF', 'Data fim', 'DATE', 23, 3, 52, 10, 1, 1, 0, 1, 0, 0),
+    ('U_MORADA', 'Morada', 'TEXT', 31, 6, 61, 20, 0, 0, 0, 1, 0, 0),
+    ('U_LOCAL', 'Localidade', 'TEXT', 32, 3, 62, 20, 0, 0, 0, 1, 0, 0),
+    ('OBS', 'Observações', 'TEXT', 41, 9, 71, 20, 0, 0, 0, 1, 0, 0),
+    ('U_IBAN', 'IBAN', 'TEXT', 51, 6, 81, 20, 0, 0, 1, 1, 0, 0),
+    ('U_IBAN2', 'IBAN 2', 'TEXT', 52, 6, 82, 20, 0, 0, 1, 1, 0, 0),
+    ('NO', 'Nº cliente', 'INT', 61, 2, 91, 10, 0, 0, 0, 0, 0, 0),
+    ('DATAFECHO', 'Data fecho', 'DATE', 62, 2, 92, 10, 0, 0, 0, 0, 0, 0),
+    ('U_RG', 'RG', 'DECIMAL', 71, 2, 101, 10, 0, 0, 0, 0, 0, 0),
+    ('U_RFT', 'RFT', 'DECIMAL', 72, 2, 102, 10, 0, 0, 0, 0, 0, 0),
+    ('U_CODE', 'Código', 'TEXT', 73, 2, 111, 10, 0, 0, 0, 0, 0, 0),
+    ('U_FACTOR', 'Factor', 'BIT', 81, 2, 121, 10, 0, 0, 0, 0, 0, 0),
+    ('U_NMARCHE', 'Nº mercado', 'TEXT', 82, 3, 131, 20, 0, 0, 0, 0, 0, 0),
+    ('U_CONTAFAC', 'Conta faturação', 'TEXT', 83, 3, 141, 20, 0, 0, 0, 0, 0, 0);
 
 MERGE dbo.CAMPOS AS target
 USING @fields AS source
@@ -68,18 +76,20 @@ WHEN MATCHED THEN
         TAM_MOBILE = source.TAM_MOBILE,
         LISTA = source.LISTA,
         FILTRO = source.FILTRO,
+        ADMIN = source.ADMIN,
+        VISIVEL = source.VISIVEL,
         RONLY = source.RONLY,
         OBRIGATORIO = source.OBRIGATORIO
 WHEN NOT MATCHED THEN
     INSERT (
         CAMPOSSTAMP, ORDEM, NMCAMPO, DESCRICAO, TIPO, TABELA,
-        LISTA, FILTRO, FILTRODEFAULT, ADMIN, RONLY, COMBO, VIRTUAL,
+        LISTA, FILTRO, FILTRODEFAULT, ADMIN, RONLY, COMBO, VIRTUAL, VISIVEL,
         TAM, ORDEM_MOBILE, TAM_MOBILE, CONDICAO_VISIVEL, OBRIGATORIO
     )
     VALUES (
         LEFT(REPLACE(CONVERT(varchar(36), NEWID()), '-', ''), 25),
         source.ORDEM, source.NMCAMPO, source.DESCRICAO, source.TIPO, 'OPC',
-        source.LISTA, source.FILTRO, '', 0, source.RONLY, '', '',
+        source.LISTA, source.FILTRO, '', source.ADMIN, source.RONLY, '', '', source.VISIVEL,
         source.TAM, source.ORDEM_MOBILE, source.TAM_MOBILE, '', source.OBRIGATORIO
     );
 
