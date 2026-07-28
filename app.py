@@ -27346,7 +27346,6 @@ def create_app():
                 FROM dbo.v_diario_v2
                 WHERE YEAR(DATA) = :ano
                   AND ISNULL(VALOR,0) <> 0
-                  AND ISNULL(OBS,'') <> 'CANCELADA'
                 GROUP BY MONTH(DATA)
             )
             SELECT
@@ -27423,7 +27422,6 @@ def create_app():
                     )
                 WHERE YEAR(V.DATA) = :ano
                   AND ISNULL(V.VALOR, 0) <> 0
-                  AND ISNULL(V.OBS, '') <> 'CANCELADA'
                   AND A.EDIFICIO IS NOT NULL
                 GROUP BY A.EDIFICIO, MONTH(V.DATA)
             )
@@ -27526,11 +27524,11 @@ def create_app():
                     WHEN UPPER(LTRIM(RTRIM(ISNULL(V.TIPO,'')))) = 'GESTAO' THEN 'GESTAO'
                     ELSE 'EXPLORACAO'
                 END AS TIPO,
+                LTRIM(RTRIM(ISNULL(V.OBS, ''))) AS OBS,
                 ISNULL(V.VALOR, 0) AS VALOR
             FROM dbo.v_diario_v2 V
             WHERE YEAR(V.DATA) = :ano
               AND ISNULL(V.VALOR,0) <> 0
-              AND ISNULL(V.OBS,'') <> 'CANCELADA'
         """), {'ano': ano}).mappings().all()
 
         prev_rows = db.session.execute(text("""
@@ -27543,7 +27541,6 @@ def create_app():
             FROM dbo.v_diario_v2 PV
             WHERE YEAR(PV.DATA) = :ano_anterior
               AND ISNULL(PV.VALOR,0) <> 0
-              AND ISNULL(PV.OBS,'') <> 'CANCELADA'
             GROUP BY CASE
                 WHEN UPPER(LTRIM(RTRIM(ISNULL(PV.TIPO,'')))) = 'GESTAO' THEN 'GESTAO'
                 ELSE 'EXPLORACAO'
@@ -27571,6 +27568,7 @@ def create_app():
                 continue
             mes = int(dia.month)
             valor = float(row.get('VALOR') or 0)
+            is_cancelada = str(row.get('OBS') or '').strip().upper() == 'CANCELADA'
             key = (mes, tipo, nome)
             agg = sold.setdefault(key, {'noites': 0, 'total': 0.0})
             agg['noites'] += 1
@@ -27579,7 +27577,8 @@ def create_app():
             tagg = type_month.setdefault(tkey, {'noites': 0, 'total': 0.0})
             tagg['noites'] += 1
             tagg['total'] += valor
-            occupied.setdefault((mes, nome), set()).add(dia)
+            if not is_cancelada:
+                occupied.setdefault((mes, nome), set()).add(dia)
 
         type_month_adr = {
             key: (val['total'] / val['noites']) if val['noites'] else 0.0
@@ -27693,7 +27692,6 @@ def create_app():
                 WHERE YEAR(V.DATA) = :ano
                   AND MONTH(V.DATA) = :mes
                   AND ISNULL(V.VALOR,0) <> 0
-                  AND ISNULL(V.OBS,'') <> 'CANCELADA'
                   AND {tipo_filter_v}
                 GROUP BY COALESCE(A.ALOJAMENTO, LTRIM(RTRIM(ISNULL(V.CCUSTO, ''))))
             ),
@@ -27708,7 +27706,6 @@ def create_app():
                 FROM dbo.v_diario_v2 PV
                 WHERE YEAR(PV.DATA) = :ano_anterior
                   AND ISNULL(PV.VALOR,0) <> 0
-                  AND ISNULL(PV.OBS,'') <> 'CANCELADA'
                   AND {tipo_filter_pv}
             ),
             Cal AS (
