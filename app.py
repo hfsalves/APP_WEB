@@ -21409,6 +21409,31 @@ def create_app():
         stamp = quote(str(rsstamp or '').strip(), safe='')
         return f'/api/faturacao/reservas-global/pdf/{stamp}'
 
+    def _fatglob_pdf_remote_response(filename: str):
+        clean_filename = os.path.basename(str(filename or '').strip())
+        if not clean_filename or clean_filename != str(filename or '').strip():
+            abort(404)
+        url = f"{_fatglob_pdf_base_url()}/{quote(clean_filename)}"
+        try:
+            req = Request(url, headers={'Accept': 'application/pdf'}, method='GET')
+            timeout = max(1, min(_to_int(os.environ.get('PHC_PDF_TIMEOUT'), 20), 120))
+            with urlopen(req, timeout=timeout) as resp:
+                data = resp.read()
+                status_code = int(getattr(resp, 'status', 200) or 200)
+        except Exception:
+            app.logger.exception('Erro ao obter PDF PHC remoto: %s', url)
+            abort(404)
+        if status_code < 200 or status_code >= 300 or not data.lstrip().startswith(b'%PDF'):
+            app.logger.warning('Resposta remota sem PDF valido: %s status=%s bytes=%s', url, status_code, len(data or b''))
+            abort(404)
+        return send_file(
+            io.BytesIO(data),
+            mimetype='application/pdf',
+            as_attachment=False,
+            download_name=clean_filename,
+            max_age=0,
+        )
+
     @app.route('/api/faturacao/reservas-global/pdf/<path:rsstamp>', methods=['GET'])
     @login_required
     def api_faturacao_reservas_global_pdf(rsstamp):
@@ -21438,7 +21463,7 @@ def create_app():
                 base_abs = os.path.abspath(base_dir)
                 if candidate.startswith(base_abs + os.sep) and os.path.isfile(candidate):
                     return send_file(candidate, mimetype='application/pdf', as_attachment=False, download_name=filename, max_age=0, conditional=True)
-            return redirect(f"{_fatglob_pdf_base_url()}/{quote(filename)}")
+            return _fatglob_pdf_remote_response(filename)
         except Exception:
             app.logger.exception('Erro ao abrir PDF PHC da reserva.')
             abort(404)
@@ -42168,7 +42193,9 @@ OPTION (MAXRECURSION 32767);
 
             phc_pdf = str(row.get('PHC_PDF') or '').strip()
             if phc_pdf.lower().startswith(('http://', 'https://')):
-                return redirect(phc_pdf)
+                filename = _pm_pdf_public_filename(phc_pdf)
+                if filename:
+                    return _fatglob_pdf_remote_response(filename)
             if phc_pdf:
                 abs_pdf = os.path.abspath(phc_pdf)
                 if os.path.isfile(abs_pdf):
@@ -42176,7 +42203,10 @@ OPTION (MAXRECURSION 32767);
 
             for candidate in _pm_faturacao_pdf_candidates(row.get('CLIENTE_BDPHC'), row.get('PHC_NUMERO'), phc_pdf):
                 if candidate.lower().startswith(('http://', 'https://')):
-                    return redirect(candidate)
+                    filename = _pm_pdf_public_filename(candidate)
+                    if filename:
+                        return _fatglob_pdf_remote_response(filename)
+                    continue
                 for base_dir in _fatglob_pdf_dirs():
                     base_abs = os.path.abspath(base_dir)
                     path = candidate if os.path.isabs(candidate) else os.path.join(base_abs, candidate)
@@ -42187,7 +42217,7 @@ OPTION (MAXRECURSION 32767);
             for candidate in _pm_faturacao_pdf_candidates(row.get('CLIENTE_BDPHC'), row.get('PHC_NUMERO'), phc_pdf):
                 filename = _pm_pdf_public_filename(candidate)
                 if filename:
-                    return redirect(f"{_fatglob_pdf_base_url()}/{quote(filename)}")
+                    return _fatglob_pdf_remote_response(filename)
         except Exception:
             app.logger.exception('Erro ao abrir PDF PHC do processamento mensal.')
         abort(404)
