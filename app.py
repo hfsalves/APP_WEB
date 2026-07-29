@@ -21005,7 +21005,27 @@ def create_app():
         cl_nome_expr = "LTRIM(RTRIM(ISNULL(CL.NOME, AL.CLIENTE)))" if 'NOME' in cl_cols else "LTRIM(RTRIM(ISNULL(AL.CLIENTE,'')))"
         cl_bdphc_expr = "LTRIM(RTRIM(ISNULL(CL.BDPHC,'')))" if 'BDPHC' in cl_cols else "''"
         cl_bdphc_order_expr = "CASE WHEN LTRIM(RTRIM(ISNULL(CLX.BDPHC,''))) <> '' THEN 0 ELSE 1 END" if 'BDPHC' in cl_cols else "0"
-        if 'ID' in cl_cols and 'CLIENTID' in al_cols:
+        if 'CLIENTID' in al_cols and 'NO' in cl_cols:
+            cl_join_sql = """
+            OUTER APPLY (
+              SELECT TOP 1 CLX.*
+              FROM dbo.CL CLX
+              WHERE (
+                    ISNULL(AL.CLIENTID, 0) <> 0
+                AND ISNULL(CLX.NO, 0) = ISNULL(AL.CLIENTID, 0)
+              )
+              OR LTRIM(RTRIM(ISNULL(CLX.NOME,''))) = LTRIM(RTRIM(ISNULL(AL.CLIENTE,'')))
+              ORDER BY
+                CASE
+                  WHEN ISNULL(AL.CLIENTID, 0) <> 0 AND ISNULL(CLX.NO, 0) = ISNULL(AL.CLIENTID, 0) THEN 0
+                  WHEN LTRIM(RTRIM(ISNULL(CLX.NOME,''))) = LTRIM(RTRIM(ISNULL(AL.CLIENTE,''))) THEN 1
+                  ELSE 2
+                END,
+                {cl_bdphc_order_expr},
+                CLX.NO
+            ) CL
+            """.format(cl_bdphc_order_expr=cl_bdphc_order_expr)
+        elif 'ID' in cl_cols and 'CLIENTID' in al_cols:
             cl_join_sql = """
             OUTER APPLY (
               SELECT TOP 1 CLX.*
