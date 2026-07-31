@@ -17,6 +17,7 @@ import hashlib
 import hmac
 import html
 import logging
+import zipfile
 import xml.etree.ElementTree as ET
 import click
 from pathlib import Path
@@ -41187,7 +41188,7 @@ OPTION (MAXRECURSION 32767);
         bd = _fatglob_pdf_safe_part(bdphc)
         num = _fatglob_pdf_safe_part(numero)
         if bd and num:
-            candidates.extend([f'{bd}_FT_{num}.pdf', f'{bd}_FR_{num}.pdf', f'{bd}_{num}.pdf'])
+            candidates.extend([f'{bd}_FR_{num}.pdf', f'{bd}_FT_{num}.pdf', f'{bd}_{num}.pdf'])
         out, seen = [], set()
         for item in candidates:
             value = str(item or '').strip()
@@ -41327,32 +41328,23 @@ OPTION (MAXRECURSION 32767);
             'download_url': url_for('api_processamento_mensal_documento_download', dmstamp=str(header.get('DMSTAMP') or ''), filename=filename),
         }
 
-    def _pm_safe_document_filename(filename, fallback):
-        original_name = secure_filename(str(filename or '').strip())
-        fallback_name = secure_filename(str(fallback or '').strip())
-        chosen = original_name or fallback_name
-        if not chosen:
-            raise ValueError('Nome de ficheiro inválido.')
-        ext = chosen.rsplit('.', 1)[-1].lower() if '.' in chosen else ''
-        if ext not in CLIENT_DOCUMENTS_ALLOWED_EXT:
-            chosen = f"{chosen}.xml"
-        if not chosen.lower().endswith('.xml'):
-            raise ValueError('O SAF-T tem de ser um ficheiro XML.')
-        return chosen
-
-    def _pm_client_docs_save_bytes(header, filename, content):
+    def _pm_client_docs_save_generated_bytes(header, filename, content, allowed_extensions, fallback, replace=False):
         data = bytes(content or b'')
         if not data:
             raise ValueError('Ficheiro vazio.')
+        allowed = {str(ext or '').strip().lower().lstrip('.') for ext in allowed_extensions or []}
+        base_name = secure_filename(str(filename or '').strip()) or secure_filename(str(fallback or '').strip())
+        extension = base_name.rsplit('.', 1)[-1].lower() if '.' in base_name else ''
+        if not base_name or extension not in allowed:
+            raise ValueError('Nome ou extensão de ficheiro inválido.')
         folder, rel_dir = _pm_client_docs_folder(header, create=True)
         if not folder:
             raise ValueError('Não foi possível preparar a pasta do cliente.')
-        base_name = _pm_safe_document_filename(filename, 'SAFT.xml')
         base, extension = os.path.splitext(base_name)
         target_name = base_name
         full_path = os.path.realpath(os.path.abspath(os.path.join(folder, target_name)))
         counter = 1
-        while os.path.exists(full_path):
+        while not replace and os.path.exists(full_path):
             target_name = f'{base}_{counter}{extension}'
             full_path = os.path.realpath(os.path.abspath(os.path.join(folder, target_name)))
             counter += 1
@@ -41371,6 +41363,15 @@ OPTION (MAXRECURSION 32767);
             'path': rel_file,
             'download_url': url_for('api_processamento_mensal_documento_download', dmstamp=str(header.get('DMSTAMP') or ''), filename=target_name),
         }
+
+    def _pm_client_docs_save_bytes(header, filename, content):
+        return _pm_client_docs_save_generated_bytes(
+            header,
+            filename,
+            content,
+            allowed_extensions={'xml'},
+            fallback='SAFT.xml',
+        )
 
     def _pm_phc_saft_conn_str(database_name):
         database = str(database_name or '').strip()
@@ -41576,12 +41577,8 @@ OPTION (MAXRECURSION 32767);
             ORDER BY L.DTCRI DESC
         """), {'dmstamp': str(dmstamp or '').strip()}).mappings().first()
 
-    def _pm_faturacao_pdf_attachment(dmstamp):
-        row = _pm_faturacao_invoice_log(dmstamp)
-        if not row:
-            raise ValueError('Este fecho mensal ainda não tem uma fatura emitida.')
-
-        phc_pdf = str(row.get('PHC_PDF') or '').strip()
+    def _pm_pdf_attachment_from_values(bdphc, numero, phc_pdf=''):
+        phc_pdf = str(phc_pdf or '').strip()
         if phc_pdf and not phc_pdf.lower().startswith(('http://', 'https://')):
             abs_pdf = os.path.abspath(phc_pdf)
             if os.path.isfile(abs_pdf):
@@ -41590,8 +41587,8 @@ OPTION (MAXRECURSION 32767);
                     return os.path.basename(abs_pdf), data
 
         candidates = _pm_faturacao_pdf_candidates(
-            row.get('CLIENTE_BDPHC'),
-            row.get('PHC_NUMERO'),
+            bdphc,
+            numero,
             phc_pdf,
         )
         filenames = []
@@ -41618,6 +41615,107 @@ OPTION (MAXRECURSION 32767);
             except Exception:
                 continue
         raise ValueError('Não foi possível encontrar o PDF da fatura no servidor PHC.')
+
+    def _pm_faturacao_pdf_attachment(dmstamp):
+        row = _pm_faturacao_invoice_log(dmstamp)
+        if not row:
+            raise ValueError('Este fecho mensal ainda não tem uma fatura emitida.')
+        return _pm_pdf_attachment_from_values(
+            row.get('CLIENTE_BDPHC'),
+            row.get('PHC_NUMERO'),
+            row.get('PHC_PDF'),
+        )
+
+    def _pm_guest_invoice_rows(dmstamp):
+        _try_ensure_faturacao_reservas_global_schema()
+        al_cols = _faturacao_proprietarios_table_cols('AL')
+        owner_clauses = [
+            "LTRIM(RTRIM(ISNULL(AL.CLIENTE,''))) = LTRIM(RTRIM(ISNULL(DM.NOME,'')))",
+            "EXISTS (SELECT 1 FROM dbo.CL CL_OWNER WHERE CL_OWNER.NO = DM.NO AND LTRIM(RTRIM(ISNULL(CL_OWNER.NOME,''))) = LTRIM(RTRIM(ISNULL(AL.CLIENTE,''))))",
+        ]
+        if 'CLIENTID' in al_cols:
+            owner_clauses.insert(0, 'ISNULL(AL.CLIENTID,0) = ISNULL(DM.NO,0)')
+        owner_sql = ' OR '.join(owner_clauses)
+        return db.session.execute(text(f"""
+            SELECT DISTINCT
+              LTRIM(RTRIM(ISNULL(RS.RSSTAMP,''))) AS RSSTAMP,
+              LTRIM(RTRIM(ISNULL(RS.RESERVA,''))) AS RESERVA,
+              LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO,AL.NOME))) AS ALOJAMENTO,
+              CAST(RS.DATAOUT AS date) AS DATAOUT,
+              LTRIM(RTRIM(ISNULL(LOG.CLIENTE_BDPHC,''))) AS CLIENTE_BDPHC,
+              LTRIM(RTRIM(ISNULL(LOG.PHC_NUMERO,''))) AS PHC_NUMERO,
+              LTRIM(RTRIM(ISNULL(LOG.PHC_DOC,''))) AS PHC_DOC,
+              LTRIM(RTRIM(ISNULL(LOG.PHC_PDF,''))) AS PHC_PDF
+            FROM dbo.DM DM
+            INNER JOIN dbo.AL AL
+              ON ISNULL(AL.CLESTAB,0) = ISNULL(DM.CLESTAB,0)
+             AND ({owner_sql})
+            INNER JOIN dbo.RS RS
+              ON LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO,''))) = LTRIM(RTRIM(ISNULL(AL.NOME,'')))
+            CROSS APPLY (
+              SELECT TOP 1 L.*
+              FROM dbo.FAT_RESERVAS_PHC_LOG L
+              WHERE L.RSSTAMP = RS.RSSTAMP
+                AND UPPER(LTRIM(RTRIM(ISNULL(L.STATUS,'')))) IN ('SENT','OK')
+              ORDER BY L.DTCRI DESC
+            ) LOG
+            WHERE DM.DMSTAMP = :dmstamp
+              AND RS.DATAOUT >= DATEFROMPARTS(DM.ANO, DM.MES, 1)
+              AND RS.DATAOUT < DATEADD(month, 1, DATEFROMPARTS(DM.ANO, DM.MES, 1))
+            ORDER BY DATAOUT, RESERVA, ALOJAMENTO
+        """), {'dmstamp': str(dmstamp or '').strip()}).mappings().all()
+
+    def _pm_build_guest_invoices_zip(header):
+        rows = _pm_guest_invoice_rows(header.get('DMSTAMP'))
+        if not rows:
+            raise ValueError('Não existem faturas de hóspedes emitidas para este proprietário e mês.')
+
+        output = io.BytesIO()
+        added = []
+        missing = []
+        used_names = set()
+        with zipfile.ZipFile(output, mode='w', compression=zipfile.ZIP_DEFLATED, compresslevel=6) as archive:
+            for row in rows:
+                reserva = str(row.get('RESERVA') or row.get('RSSTAMP') or '').strip()
+                try:
+                    filename, pdf_data = _pm_pdf_attachment_from_values(
+                        row.get('CLIENTE_BDPHC'),
+                        row.get('PHC_NUMERO'),
+                        row.get('PHC_PDF'),
+                    )
+                except ValueError:
+                    missing.append(reserva)
+                    continue
+                archive_name = secure_filename(filename) or f'{secure_filename(reserva) or "fatura"}.pdf'
+                stem, extension = os.path.splitext(archive_name)
+                candidate = archive_name
+                counter = 2
+                while candidate.lower() in used_names:
+                    candidate = f'{stem}_{counter}{extension}'
+                    counter += 1
+                used_names.add(candidate.lower())
+                archive.writestr(candidate, pdf_data)
+                added.append({'reserva': reserva, 'filename': candidate})
+        if not added:
+            raise ValueError('As faturas estão emitidas, mas nenhum PDF foi encontrado no servidor PHC.')
+
+        ano = int(header.get('ANO') or date.today().year)
+        mes = int(header.get('MES') or date.today().month)
+        filename = f'Faturas_Hospedes_{ano:04d}-{mes:02d}.zip'
+        saved = _pm_client_docs_save_generated_bytes(
+            header,
+            filename,
+            output.getvalue(),
+            allowed_extensions={'zip'},
+            fallback=filename,
+            replace=True,
+        )
+        return saved, {
+            'invoices': len(rows),
+            'pdfs': len(added),
+            'missing': len(missing),
+            'missing_reservations': missing,
+        }
 
     def _pm_email_profile():
         from services.email_service import ensure_email_tables
@@ -41693,7 +41791,7 @@ Guest SPA"""
         profile = _pm_email_profile()
         return {
             'from': 'geral@guestspa.pt',
-            'to': 'hfsalves@hotmail.com; pnalves.pa@gmail.com',
+            'to': 'guestspa.pt@gmail.com',
             'cc': '',
             'bcc': '',
             'subject': f'Guest SPA | Fatura - {month_name} de {ano}',
@@ -41791,6 +41889,11 @@ Guest SPA"""
                 com_value = float(r.get('COMISSOES') or 0) if has_com else 0
                 document_files = _pm_client_docs_files(r)
                 saft_files = [f for f in document_files if str(f.get('ext') or '').lower() == 'xml']
+                guest_zip_files = [
+                    f for f in document_files
+                    if str(f.get('ext') or '').lower() == 'zip'
+                    and str(f.get('name') or '').lower().startswith('faturas_hospedes_')
+                ]
                 warnings = []
                 if total_value <= 0 and com_value <= 0:
                     warnings.append('Sem valor a faturar')
@@ -41820,6 +41923,8 @@ Guest SPA"""
                     'SAFT_AVAILABLE': 1 if clestab == 0 else 0,
                     'SAFT_GENERATED': 1 if clestab == 0 and saft_files else 0,
                     'SAFT_FILENAME': str(saft_files[-1].get('name') or '') if clestab == 0 and saft_files else '',
+                    'GUEST_PDFS_ZIP_GENERATED': 1 if guest_zip_files else 0,
+                    'GUEST_PDFS_ZIP_FILENAME': str(guest_zip_files[-1].get('name') or '') if guest_zip_files else '',
                 })
             return jsonify({'rows': out})
         except Exception as e:
@@ -42058,6 +42163,26 @@ Guest SPA"""
             return jsonify({'error': str(e)}), 422
         except Exception as e:
             app.logger.exception('Erro ao enviar email do processamento mensal.')
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/processamento_mensal/hospedes-pdfs/<path:dmstamp>', methods=['POST'])
+    @login_required
+    def api_processamento_mensal_hospedes_pdfs(dmstamp):
+        try:
+            header = _pm_faturacao_gestao_header(dmstamp)
+            if not header:
+                return jsonify({'error': 'Registo não encontrado.'}), 404
+            saved, summary = _pm_build_guest_invoices_zip(header)
+            return jsonify({
+                'ok': True,
+                'file': saved,
+                'files': _pm_client_docs_files(header),
+                'summary': summary,
+            })
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 422
+        except Exception as e:
+            app.logger.exception('Erro ao reunir PDFs das faturas de hóspedes.')
             return jsonify({'error': str(e)}), 500
 
     @app.route('/api/processamento_mensal/documentos/<dmstamp>', methods=['GET'])

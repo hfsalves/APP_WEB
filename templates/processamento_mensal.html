@@ -468,6 +468,7 @@
   .pm-fat-btn,
   .pm-doc-btn,
   .pm-saft-btn,
+  .pm-guest-pdfs-btn,
   .pm-email-btn,
   .pm-pdf-link,
   .pm-pdf-empty {
@@ -500,6 +501,22 @@
     color: var(--sz-color-primary);
   }
 
+  .pm-guest-pdfs-btn {
+    color: var(--sz-color-info, var(--sz-color-primary));
+  }
+
+  .pm-guest-pdfs-btn.is-generated {
+    background: color-mix(in srgb, var(--sz-color-success) 16%, var(--sz-color-surface));
+    border-color: color-mix(in srgb, var(--sz-color-success) 48%, var(--sz-color-border));
+    color: var(--sz-color-success);
+  }
+
+  .pm-guest-pdfs-btn.is-generated:hover {
+    background: color-mix(in srgb, var(--sz-color-success) 24%, var(--sz-color-surface));
+    border-color: var(--sz-color-success);
+    color: var(--sz-color-success);
+  }
+
   .pm-saft-btn.is-generated {
     background: color-mix(in srgb, var(--sz-color-success) 16%, var(--sz-color-surface));
     border-color: color-mix(in srgb, var(--sz-color-success) 48%, var(--sz-color-border));
@@ -520,6 +537,7 @@
   .pm-fat-btn:hover,
   .pm-doc-btn:hover,
   .pm-saft-btn:hover,
+  .pm-guest-pdfs-btn:hover,
   .pm-email-btn:hover,
   .pm-pdf-link:hover {
     background: color-mix(in srgb, var(--sz-color-primary) 12%, var(--sz-color-surface));
@@ -554,6 +572,11 @@
   .pm-email-btn:disabled {
     cursor: not-allowed;
     opacity: .35;
+  }
+
+  .pm-guest-pdfs-btn:disabled {
+    cursor: wait;
+    opacity: .55;
   }
 
   .pm-email-dialog {
@@ -878,5 +901,5 @@
   }
 </style>
 
-<script src="{{ url_for('static', filename='js/processamento_mensal.js') }}?v={{ static_version }}&pmv=20260731_monthly_email"></script>
+<script src="{{ url_for('static', filename='js/processamento_mensal.js') }}?v={{ static_version }}&pmv=20260731_guest_pdfs_zip"></script>
 {% endblock %}

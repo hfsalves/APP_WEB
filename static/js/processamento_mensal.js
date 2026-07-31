@@ -110,6 +110,15 @@ document.addEventListener('DOMContentLoaded', () => {
     return `<button class="pm-email-btn" title="${escapeHtml(title)}"${available ? '' : ' disabled'}><i class="fa-solid fa-envelope"></i></button>`;
   }
 
+  function guestPdfsButton(row) {
+    const generated = Number(row?.GUEST_PDFS_ZIP_GENERATED || 0) === 1;
+    const filename = String(row?.GUEST_PDFS_ZIP_FILENAME || '').trim();
+    const title = generated
+      ? `ZIP de faturas dos hóspedes criado${filename ? `: ${filename}` : ''}`
+      : 'Reunir PDFs das faturas dos hóspedes';
+    return `<button class="pm-guest-pdfs-btn${generated ? ' is-generated' : ''}" title="${escapeHtml(title)}"><i class="fa-solid fa-file-zipper"></i></button>`;
+  }
+
   function invoiceEligibleRows() {
     return lastRows.filter(r => Number(r.FATURADO_GESTAO || 0) !== 1 && Number(r.FATURACAO_OK || 0) === 1);
   }
@@ -172,7 +181,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <td class="text-end">${escapeHtml(totIva.toFixed(2))}</td>
           <td>${invoiceBadge(r)}</td>
           <td>${pdfCell(r)}</td>
-          <td><span class="pm-row-actions">${saftButton(r)}${docsButton(r)}${emailButton(r)}${canInvoice ? '<button class="pm-fat-btn" title="Emitir fatura"><i class="fa-solid fa-file-invoice"></i></button>' : ''}${canDelete ? '<button class="pm-del" title="Eliminar"><i class="fa-solid fa-trash"></i></button>' : ''}</span></td>
+          <td><span class="pm-row-actions">${saftButton(r)}${guestPdfsButton(r)}${docsButton(r)}${emailButton(r)}${canInvoice ? '<button class="pm-fat-btn" title="Emitir fatura"><i class="fa-solid fa-file-invoice"></i></button>' : ''}${canDelete ? '<button class="pm-del" title="Eliminar"><i class="fa-solid fa-trash"></i></button>' : ''}</span></td>
         </tr>
       `;
     }).join('');
@@ -254,6 +263,15 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
 
+    body.querySelectorAll('.pm-guest-pdfs-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const tr = btn.closest('tr');
+        const stamp = tr?.getAttribute('data-stamp') || '';
+        if (!stamp) return;
+        await collectGuestPdfs(stamp, btn);
+      });
+    });
+
     body.querySelectorAll('.pm-comm').forEach(el => {
       el.addEventListener('click', () => openDrill(el.getAttribute('data-stamp') || '', 'comissoes'));
     });
@@ -327,13 +345,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const documents = Array.isArray(files) ? files : [];
     const saftFiles = documents.filter(file => String(file?.ext || '').toLowerCase() === 'xml');
     const latestSaft = saftFiles.length ? saftFiles[saftFiles.length - 1] : null;
+    const guestZipFiles = documents.filter(file => (
+      String(file?.ext || '').toLowerCase() === 'zip'
+      && String(file?.name || '').toLowerCase().startsWith('faturas_hospedes_')
+    ));
+    const latestGuestZip = guestZipFiles.length ? guestZipFiles[guestZipFiles.length - 1] : null;
     lastRows = lastRows.map(row => (
       String(row.DMSTAMP || '') === String(stamp || '')
         ? {
             ...row,
             DOC_COUNT: documents.length,
             SAFT_GENERATED: Number(row.SAFT_AVAILABLE ?? (Number(row.CLESTAB || 0) === 0 ? 1 : 0)) === 1 && latestSaft ? 1 : 0,
-            SAFT_FILENAME: Number(row.SAFT_AVAILABLE ?? (Number(row.CLESTAB || 0) === 0 ? 1 : 0)) === 1 ? (latestSaft?.name || '') : ''
+            SAFT_FILENAME: Number(row.SAFT_AVAILABLE ?? (Number(row.CLESTAB || 0) === 0 ? 1 : 0)) === 1 ? (latestSaft?.name || '') : '',
+            GUEST_PDFS_ZIP_GENERATED: latestGuestZip ? 1 : 0,
+            GUEST_PDFS_ZIP_FILENAME: latestGuestZip?.name || ''
           }
         : row
     ));
@@ -383,6 +408,34 @@ document.addEventListener('DOMContentLoaded', () => {
       const file = data.file || {};
       const documents = Number(data.summary?.documents || 0);
       alert(`SAF-T gerado: ${file.name || 'ficheiro XML'} (${documents} documento${documents === 1 ? '' : 's'})`);
+    } catch (e) {
+      alert(`Erro: ${e.message || e}`);
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  async function collectGuestPdfs(stamp, btn) {
+    const row = lastRows.find(item => String(item.DMSTAMP || '') === String(stamp || ''));
+    const label = row?.NOME ? ` de ${row.NOME}` : '';
+    if (!confirm(`Criar ou atualizar o ZIP das faturas dos hóspedes${label}?`)) return;
+    if (btn) btn.disabled = true;
+    try {
+      const res = await fetch(`/api/processamento_mensal/hospedes-pdfs/${encodeURIComponent(stamp)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.error) throw new Error(data.error || res.statusText);
+      const files = Array.isArray(data.files) ? data.files : [];
+      updateRowDocuments(stamp, files);
+      if (currentDocsStamp && String(currentDocsStamp) === String(stamp)) {
+        renderDocs(files);
+      }
+      const summary = data.summary || {};
+      const missing = Number(summary.missing || 0);
+      const detail = missing ? ` ${missing} PDF${missing === 1 ? '' : 's'} em falta.` : '';
+      alert(`ZIP criado com ${Number(summary.pdfs || 0)} fatura(s).${detail}`);
     } catch (e) {
       alert(`Erro: ${e.message || e}`);
     } finally {
