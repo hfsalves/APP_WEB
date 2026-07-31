@@ -2,7 +2,7 @@
 
 from flask import Blueprint, render_template, request, jsonify, abort, current_app, g, url_for
 from flask_login import login_required, current_user
-from sqlalchemy import MetaData, Table, select, text, String, or_, and_, exists, bindparam
+from sqlalchemy import MetaData, Table, select, text, String, Numeric, Integer, SmallInteger, BigInteger, Float, Boolean, or_, and_, exists, bindparam
 from app import db
 from models import Campo, Menu, Acessos, CamposModal, Linhas
 from services.db_i18n_service import _extract_openai_text, _para_value, _strip_json_fence, _translation_model, translate_db_record
@@ -14,7 +14,7 @@ from datetime import date, timedelta, datetime
 import json
 import re
 import os
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 import xml.etree.ElementTree as ET
 from urllib import request as urllib_request, error as urllib_error
 from werkzeug.utils import secure_filename
@@ -695,6 +695,107 @@ def get_table(table_name):
     except Exception as e:
         current_app.logger.error(f"Erro ao refletir tabela {schema_name}.{physical_table} ({table_name}): {e}")
         abort(404, f"Tabela {table_name} não encontrada")
+
+
+def _to_decimal_for_write(value, field_name: str) -> Decimal | None:
+    """Accept the decimal formats used by the generic forms before writing SQL Server values."""
+    if value is None or value == '':
+        return None
+    if isinstance(value, Decimal):
+        return value
+    if isinstance(value, bool):
+        return Decimal(int(value))
+    if isinstance(value, (int, float)):
+        return Decimal(str(value))
+
+    raw = str(value).strip().replace('\u00a0', '').replace(' ', '')
+    if not raw:
+        return None
+    if ',' in raw and '.' in raw:
+        if raw.rfind(',') > raw.rfind('.'):
+            raw = raw.replace('.', '').replace(',', '.')
+        else:
+            raw = raw.replace(',', '')
+    else:
+        raw = raw.replace(',', '.')
+    try:
+        return Decimal(raw)
+    except (InvalidOperation, ValueError):
+        raise ValueError(f'O campo "{field_name}" deve conter um número válido.')
+
+
+def _repair_va_shifted_payload(table, values: dict) -> dict:
+    """Recover a legacy VA client payload whose values shift after C. Custo.
+
+    Older cached versions of the vehicle form could submit CCUSTO in CUSTOTOTAL,
+    moving every following value one column to the left.  The signature is very
+    specific: CUSTOTOTAL contains text and INATIVO contains a non-bit number.
+    """
+    if 'CUSTOTOTAL' not in values or 'INATIVO' not in values:
+        return values
+
+    try:
+        _to_decimal_for_write(values.get('CUSTOTOTAL'), 'CUSTOTOTAL')
+        return values
+    except ValueError:
+        pass
+
+    try:
+        shifted_total = _to_decimal_for_write(values.get('INATIVO'), 'INATIVO')
+    except ValueError:
+        return values
+    if shifted_total is None or shifted_total in (Decimal(0), Decimal(1)):
+        return values
+
+    sequence = [
+        'CCUSTO', 'CUSTOTOTAL', 'INATIVO', 'DTINSPECAO', 'DTLIMIUC',
+        'DTTACOGRAFO', 'DTLIMITADOR', 'DISPREGDIARIO', 'CENTRABETAO',
+        'ATRELADO', 'BOMBA', 'CILINDRADA', 'COMBUSTIVEL', 'DTMATRICULA',
+        'VERSAO', 'POTENCIAKW', 'PESOBRUTO', 'TARA', 'NRLUGARES',
+        'CATEGORIA', 'CARROCARIA', 'COR', 'CO2_GKM', 'NORMAEURO',
+        'MATRICULAANTERIOR', 'PAISPROCEDENCIA', 'DTAQUISICAO', 'VALORAQUISICAO',
+    ]
+    sequence = [field for field in sequence if field in table.c]
+    if len(sequence) < 2:
+        return values
+
+    repaired = dict(values)
+    for current, following in zip(sequence, sequence[1:]):
+        if following in values:
+            repaired[current] = values[following]
+    # There is no reliable value after the final field. Keep the existing value.
+    repaired.pop(sequence[-1], None)
+    current_app.logger.warning(
+        'Payload VA corrigido automaticamente: valores deslocados depois de CCUSTO.'
+    )
+    return repaired
+
+
+def _normalise_write_values(table, table_name: str, values: dict) -> dict:
+    normalized = dict(values)
+    if str(table_name or '').strip().upper() == 'VA':
+        normalized = _repair_va_shifted_payload(table, normalized)
+
+    for name, value in list(normalized.items()):
+        column = table.c.get(name)
+        if column is None:
+            continue
+        if isinstance(column.type, (Numeric, Float)):
+            normalized[name] = _to_decimal_for_write(value, name)
+        elif isinstance(column.type, (Integer, SmallInteger, BigInteger)):
+            decimal_value = _to_decimal_for_write(value, name)
+            if decimal_value is None:
+                normalized[name] = None
+            elif decimal_value != decimal_value.to_integral_value():
+                raise ValueError(f'O campo "{name}" deve conter um número inteiro.')
+            else:
+                normalized[name] = int(decimal_value)
+        elif isinstance(column.type, Boolean):
+            if isinstance(value, str):
+                normalized[name] = value.strip().lower() in {'1', 'true', 'sim', 'yes', 'on'}
+            else:
+                normalized[name] = bool(value)
+    return normalized
 
 
 def _column_exists(table_name: str, column_name: str) -> bool:
@@ -4317,6 +4418,11 @@ def create_record(table_name):
             clean[col_map[lk]] = v
     # â€” end filtra â€”
 
+    try:
+        clean = _normalise_write_values(table, table_name, clean)
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+
     _ensure_named_stamp(table, table_name, clean)
     if tn == 'DBW':
         if not str(clean.get('DBWSTAMP') or '').strip() or '-' in str(clean.get('DBWSTAMP') or ''):
@@ -4432,7 +4538,10 @@ def update_record(table_name, record_stamp):
         lk = k.lower()
         if lk in col_map:
             clean[col_map[lk]] = v
-    data = clean
+    try:
+        data = _normalise_write_values(table, table_name, clean)
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
 
     if _is_partner_table(tn) and 'NO' in data:
         data.pop('NO', None)

@@ -21116,7 +21116,11 @@ def create_app():
               {rs_ftncont_expr} AS FTNCONT,
               CAST(RS.DATAIN AS date) AS DATAIN,
               CAST(RS.DATAOUT AS date) AS DATAOUT,
-              DATEADD(day, 1, CAST(RS.DATAOUT AS date)) AS FDATA,
+              CASE
+                WHEN CAST(RS.DATAOUT AS date) = EOMONTH(CAST(RS.DATAOUT AS date))
+                  THEN CAST(RS.DATAOUT AS date)
+                ELSE DATEADD(day, 1, CAST(RS.DATAOUT AS date))
+              END AS FDATA,
               {rs_noites_expr} AS NOITES,
               {rs_estadia_expr} AS ESTADIA,
               {rs_limpeza_expr} AS LIMPEZA,
@@ -21165,10 +21169,17 @@ def create_app():
         if tipo in ('EXPLORACAO', 'GESTAO'):
             where.append("UPPER(LTRIM(RTRIM(ISNULL(AL.TIPO,'')))) = :tipo")
             params['tipo'] = tipo
+        eligibility_date_sql = """
+            CASE
+              WHEN CAST(RS.DATAOUT AS date) = EOMONTH(CAST(RS.DATAOUT AS date))
+                THEN CAST(RS.DATAOUT AS date)
+              ELSE DATEADD(day, 1, CAST(RS.DATAOUT AS date))
+            END
+        """
         if elegibilidade == 'elegivel':
-            where.append("DATEADD(day, 1, CAST(RS.DATAOUT AS date)) <= CAST(GETDATE() AS date)")
+            where.append(f"{eligibility_date_sql} <= CAST(GETDATE() AS date)")
         elif elegibilidade == 'futuro':
-            where.append("DATEADD(day, 1, CAST(RS.DATAOUT AS date)) > CAST(GETDATE() AS date)")
+            where.append(f"{eligibility_date_sql} > CAST(GETDATE() AS date)")
         if faturado in ('por_faturar', 'faturado'):
             rs_cols = _faturacao_proprietarios_table_cols('RS')
             rs_faturado_expr = "ISNULL(RS.FATURADO,0)" if 'FATURADO' in rs_cols else "0"
@@ -21191,6 +21202,22 @@ def create_app():
             return value.strftime('%d.%m.%Y')
         return ''
 
+    def _date_value(value):
+        if isinstance(value, datetime):
+            return value.date()
+        return value if isinstance(value, date) else None
+
+    def _is_month_end(value):
+        day = _date_value(value)
+        return bool(day and (day + timedelta(days=1)).day == 1)
+
+    def _faturacao_reservas_global_document_date(dataout):
+        today_value = date.today()
+        checkout = _date_value(dataout)
+        if checkout and checkout == today_value and _is_month_end(checkout):
+            return today_value
+        return today_value - timedelta(days=1)
+
     def _phc_reservas_cliente_generico_no(tipo: str):
         tipo_norm = str(tipo or '').strip().upper()
         if tipo_norm == 'EXPLORACAO':
@@ -21201,7 +21228,7 @@ def create_app():
         reserva = str(row.get('RESERVA') or row.get('RSSTAMP') or '').strip()
         datain = row.get('DATAIN') or row.get('DATAOUT')
         dataout = row.get('DATAOUT') or datain
-        fdata = date.today() - timedelta(days=1)
+        fdata = _faturacao_reservas_global_document_date(dataout)
         hospede = str(row.get('HOSPEDE') or '').strip() or 'Cliente Final'
         tipo = str(row.get('TIPO') or '').strip().upper()
         bdphc = str(row.get('CLIENTE_BDPHC') or '').strip()
@@ -21592,13 +21619,13 @@ def create_app():
             bdphc = str(row.get('CLIENTE_BDPHC') or '').strip()
             dataout = row.get('DATAOUT')
             elegibilidade_data = row.get('FDATA')
-            fdata = date.today() - timedelta(days=1)
+            fdata = _faturacao_reservas_global_document_date(dataout)
             valor_total = round(_num(row.get('VALOR_TOTAL'), 0), 2)
             if int(row.get('FATURADO') or 0) == 1:
                 errors.append({'RSSTAMP': rsstamp, 'RESERVA': reserva, 'error': 'Reserva já faturada no PHC.'})
                 continue
             if not hasattr(elegibilidade_data, 'toordinal') or elegibilidade_data > today_value:
-                errors.append({'RSSTAMP': rsstamp, 'RESERVA': reserva, 'error': 'A fatura só pode ser emitida no dia seguinte ao checkout.'})
+                errors.append({'RSSTAMP': rsstamp, 'RESERVA': reserva, 'error': 'A fatura só pode ser emitida na data indicada para faturação.'})
                 continue
             if tipo == 'GESTAO' and not bdphc:
                 errors.append({'RSSTAMP': rsstamp, 'RESERVA': reserva, 'error': 'Proprietário sem BDPHC definida.'})
