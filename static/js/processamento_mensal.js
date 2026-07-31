@@ -21,8 +21,23 @@ document.addEventListener('DOMContentLoaded', () => {
   const docsInput = document.getElementById('pmDocsInput');
   const docsPick = document.getElementById('pmDocsPick');
   const docsModal = docsModalEl ? new bootstrap.Modal(docsModalEl) : null;
+  const emailModalEl = document.getElementById('pmEmailModal');
+  const emailTitle = document.getElementById('pmEmailTitle');
+  const emailClient = document.getElementById('pmEmailClient');
+  const emailStatus = document.getElementById('pmEmailStatus');
+  const emailFrom = document.getElementById('pmEmailFrom');
+  const emailTo = document.getElementById('pmEmailTo');
+  const emailCc = document.getElementById('pmEmailCc');
+  const emailBcc = document.getElementById('pmEmailBcc');
+  const emailSubject = document.getElementById('pmEmailSubject');
+  const emailMessage = document.getElementById('pmEmailMessage');
+  const emailAttachments = document.getElementById('pmEmailAttachments');
+  const emailSend = document.getElementById('pmEmailSend');
+  const emailModal = emailModalEl ? new bootstrap.Modal(emailModalEl) : null;
   let lastRows = [];
   let currentDocsStamp = '';
+  let currentEmailStamp = '';
+  let emailSmtpConfigured = false;
   const drillModalEl = document.getElementById('pmDrillModal');
   const drillTitle = document.getElementById('pmDrillTitle');
   const drillHead = document.getElementById('pmDrillHead');
@@ -70,6 +85,29 @@ document.addEventListener('DOMContentLoaded', () => {
     const count = Number(row.DOC_COUNT || 0);
     const badge = count > 0 ? `<span class="pm-doc-count">${escapeHtml(String(count))}</span>` : '';
     return `<button class="pm-doc-btn" title="Documentos do cliente"><i class="fa-solid fa-paperclip"></i>${badge}</button>`;
+  }
+
+  function saftButton(row) {
+    const bdphc = String(row?.CLIENTE_BDPHC || '').trim();
+    const available = Number(row?.SAFT_AVAILABLE ?? (Number(row?.CLESTAB || 0) === 0 ? 1 : 0)) === 1;
+    const generated = Number(row?.SAFT_GENERATED || 0) === 1;
+    const filename = String(row?.SAFT_FILENAME || '').trim();
+    const disabled = bdphc && available ? '' : ' disabled';
+    const title = !bdphc
+      ? 'BD PHC em falta'
+      : !available
+        ? 'SAF-T total disponível no estabelecimento 0'
+      : generated
+        ? `SAF-T gerado${filename ? `: ${filename}` : ''}`
+        : `Gerar SAF-T mensal (${bdphc})`;
+    const generatedClass = available && generated ? ' is-generated' : '';
+    return `<button class="pm-saft-btn${generatedClass}" title="${escapeHtml(title)}"${disabled}><i class="fa-solid fa-file-code"></i></button>`;
+  }
+
+  function emailButton(row) {
+    const available = Boolean(String(row?.PHC_PDF_URL || '').trim());
+    const title = available ? 'Enviar fatura por email' : 'Fatura PDF indisponível';
+    return `<button class="pm-email-btn" title="${escapeHtml(title)}"${available ? '' : ' disabled'}><i class="fa-solid fa-envelope"></i></button>`;
   }
 
   function invoiceEligibleRows() {
@@ -134,7 +172,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <td class="text-end">${escapeHtml(totIva.toFixed(2))}</td>
           <td>${invoiceBadge(r)}</td>
           <td>${pdfCell(r)}</td>
-          <td><span class="pm-row-actions">${docsButton(r)}${canInvoice ? '<button class="pm-fat-btn" title="Emitir fatura"><i class="fa-solid fa-file-invoice"></i></button>' : ''}${canDelete ? '<button class="pm-del" title="Eliminar"><i class="fa-solid fa-trash"></i></button>' : ''}</span></td>
+          <td><span class="pm-row-actions">${saftButton(r)}${docsButton(r)}${emailButton(r)}${canInvoice ? '<button class="pm-fat-btn" title="Emitir fatura"><i class="fa-solid fa-file-invoice"></i></button>' : ''}${canDelete ? '<button class="pm-del" title="Eliminar"><i class="fa-solid fa-trash"></i></button>' : ''}</span></td>
         </tr>
       `;
     }).join('');
@@ -195,6 +233,24 @@ document.addEventListener('DOMContentLoaded', () => {
         const stamp = tr?.getAttribute('data-stamp') || '';
         if (!stamp) return;
         await openDocs(stamp);
+      });
+    });
+
+    body.querySelectorAll('.pm-saft-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const tr = btn.closest('tr');
+        const stamp = tr?.getAttribute('data-stamp') || '';
+        if (!stamp) return;
+        await gerarSaft(stamp, btn);
+      });
+    });
+
+    body.querySelectorAll('.pm-email-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const tr = btn.closest('tr');
+        const stamp = tr?.getAttribute('data-stamp') || '';
+        if (!stamp) return;
+        await openEmail(stamp);
       });
     });
 
@@ -267,10 +323,18 @@ document.addEventListener('DOMContentLoaded', () => {
     docsStatus.classList.toggle('is-error', Boolean(isError));
   }
 
-  function updateRowDocCount(stamp, count) {
+  function updateRowDocuments(stamp, files) {
+    const documents = Array.isArray(files) ? files : [];
+    const saftFiles = documents.filter(file => String(file?.ext || '').toLowerCase() === 'xml');
+    const latestSaft = saftFiles.length ? saftFiles[saftFiles.length - 1] : null;
     lastRows = lastRows.map(row => (
       String(row.DMSTAMP || '') === String(stamp || '')
-        ? { ...row, DOC_COUNT: count }
+        ? {
+            ...row,
+            DOC_COUNT: documents.length,
+            SAFT_GENERATED: Number(row.SAFT_AVAILABLE ?? (Number(row.CLESTAB || 0) === 0 ? 1 : 0)) === 1 && latestSaft ? 1 : 0,
+            SAFT_FILENAME: Number(row.SAFT_AVAILABLE ?? (Number(row.CLESTAB || 0) === 0 ? 1 : 0)) === 1 ? (latestSaft?.name || '') : ''
+          }
         : row
     ));
     render(lastRows);
@@ -291,12 +355,123 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!res.ok || data.error) throw new Error(data.error || res.statusText);
       if (docsFolder) docsFolder.textContent = data.folder ? `Pasta no portal: ${data.folder}` : '';
       renderDocs(data.files || []);
-      updateRowDocCount(stamp, Array.isArray(data.files) ? data.files.length : 0);
+      updateRowDocuments(stamp, data.files || []);
     } catch (e) {
       setDocsStatus(`Erro: ${e.message || e}`, true);
       if (docsBody) docsBody.innerHTML = '<div class="text-muted p-3">Não foi possível carregar os documentos.</div>';
     }
   }
+
+  async function gerarSaft(stamp, btn) {
+    const row = lastRows.find(r => String(r.DMSTAMP || '') === String(stamp || ''));
+    const label = row?.NOME ? ` de ${row.NOME}` : '';
+    if (!confirm(`Gerar SAF-T mensal${label}?`)) return;
+    if (btn) btn.disabled = true;
+    try {
+      const res = await fetch('/api/processamento_mensal/saft', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dmstamp: stamp })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.error) throw new Error(data.error || res.statusText);
+      const files = Array.isArray(data.files) ? data.files : [];
+      updateRowDocuments(stamp, files);
+      if (currentDocsStamp && String(currentDocsStamp) === String(stamp)) {
+        renderDocs(files);
+      }
+      const file = data.file || {};
+      const documents = Number(data.summary?.documents || 0);
+      alert(`SAF-T gerado: ${file.name || 'ficheiro XML'} (${documents} documento${documents === 1 ? '' : 's'})`);
+    } catch (e) {
+      alert(`Erro: ${e.message || e}`);
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  function setEmailStatus(message, type = '') {
+    if (!emailStatus) return;
+    emailStatus.textContent = message || '';
+    emailStatus.classList.toggle('is-error', type === 'error');
+    emailStatus.classList.toggle('is-warning', type === 'warning');
+  }
+
+  function renderEmailAttachment(attachment) {
+    if (!emailAttachments) return;
+    if (!attachment?.name) {
+      emailAttachments.innerHTML = '<span class="text-muted">Sem anexos.</span>';
+      return;
+    }
+    emailAttachments.innerHTML = `
+      <div class="pm-email-attachment" title="${escapeHtml(attachment.name)}">
+        <i class="fa-solid fa-file-pdf"></i>
+        <span class="pm-email-attachment-name">${escapeHtml(attachment.name)}</span>
+        <span class="pm-muted">${escapeHtml(formatFileSize(attachment.size))}</span>
+      </div>
+    `;
+  }
+
+  async function openEmail(stamp) {
+    if (!emailModal || !stamp) return;
+    currentEmailStamp = stamp;
+    emailSmtpConfigured = false;
+    const row = lastRows.find(item => String(item.DMSTAMP || '') === String(stamp));
+    if (emailTitle) emailTitle.textContent = 'Enviar fatura por email';
+    if (emailClient) emailClient.textContent = row?.NOME || '';
+    [emailFrom, emailTo, emailCc, emailBcc, emailSubject, emailMessage].forEach(field => {
+      if (field) field.value = '';
+    });
+    if (emailAttachments) emailAttachments.innerHTML = '<span class="text-muted">A preparar anexo...</span>';
+    if (emailSend) emailSend.disabled = true;
+    setEmailStatus('A preparar email...');
+    emailModal.show();
+    try {
+      const res = await fetch(`/api/processamento_mensal/email/${encodeURIComponent(stamp)}/preview`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.error) throw new Error(data.error || res.statusText);
+      if (emailFrom) emailFrom.value = data.from || 'geral@guestspa.pt';
+      if (emailTo) emailTo.value = data.to || '';
+      if (emailCc) emailCc.value = data.cc || '';
+      if (emailBcc) emailBcc.value = data.bcc || '';
+      if (emailSubject) emailSubject.value = data.subject || '';
+      if (emailMessage) emailMessage.value = data.body || '';
+      renderEmailAttachment(data.attachment || {});
+      emailSmtpConfigured = Boolean(data.smtp_configured);
+      setEmailStatus(data.smtp_message || '', emailSmtpConfigured ? '' : 'warning');
+      if (emailSend) emailSend.disabled = !emailSmtpConfigured;
+    } catch (e) {
+      setEmailStatus(`Erro: ${e.message || e}`, 'error');
+      if (emailAttachments) emailAttachments.innerHTML = '<span class="text-muted">Anexo indisponível.</span>';
+    }
+  }
+
+  emailSend?.addEventListener('click', async () => {
+    if (!currentEmailStamp || !emailSmtpConfigured) return;
+    if (emailSend) emailSend.disabled = true;
+    setEmailStatus('A enviar email...');
+    try {
+      const res = await fetch(`/api/processamento_mensal/email/${encodeURIComponent(currentEmailStamp)}/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: emailTo?.value || '',
+          cc: emailCc?.value || '',
+          bcc: emailBcc?.value || '',
+          subject: emailSubject?.value || '',
+          body: emailMessage?.value || ''
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.error) throw new Error(data.error || res.statusText);
+      setEmailStatus('Email enviado com sucesso.');
+      emailModal.hide();
+      alert('Email enviado com sucesso.');
+    } catch (e) {
+      setEmailStatus(`Erro: ${e.message || e}`, 'error');
+      if (emailSend) emailSend.disabled = false;
+    }
+  });
 
   docsPick?.addEventListener('click', () => {
     if (!currentDocsStamp || !docsInput) return;
@@ -320,7 +495,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const uploaded = Array.isArray(data.uploaded) ? data.uploaded.length : files.length;
       setDocsStatus(`${uploaded} ficheiro(s) adicionado(s).`);
       renderDocs(data.files || []);
-      updateRowDocCount(currentDocsStamp, Array.isArray(data.files) ? data.files.length : uploaded);
+      updateRowDocuments(currentDocsStamp, data.files || []);
     } catch (e) {
       setDocsStatus(`Erro: ${e.message || e}`, true);
     } finally {

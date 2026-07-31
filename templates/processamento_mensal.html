@@ -171,6 +171,59 @@
     </div>
   </div>
 </div>
+<div class="modal fade pm-modal" id="pmEmailModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered pm-email-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <h5 class="modal-title" id="pmEmailTitle">Enviar fatura por email</h5>
+          <div class="pm-muted" id="pmEmailClient"></div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body pm-email-body">
+        <div class="pm-email-status" id="pmEmailStatus"></div>
+        <div class="pm-email-grid">
+          <label class="sz_field pm-email-full" for="pmEmailFrom">
+            <span class="sz_label">De</span>
+            <input class="sz_input" id="pmEmailFrom" type="email" readonly>
+          </label>
+          <label class="sz_field pm-email-full" for="pmEmailTo">
+            <span class="sz_label">Para</span>
+            <input class="sz_input" id="pmEmailTo" type="text" autocomplete="off">
+          </label>
+          <label class="sz_field pm-email-full" for="pmEmailSubject">
+            <span class="sz_label">Assunto</span>
+            <input class="sz_input" id="pmEmailSubject" type="text" maxlength="500">
+          </label>
+          <label class="sz_field" for="pmEmailCc">
+            <span class="sz_label">CC</span>
+            <input class="sz_input" id="pmEmailCc" type="text" autocomplete="off">
+          </label>
+          <label class="sz_field" for="pmEmailBcc">
+            <span class="sz_label">BCC</span>
+            <input class="sz_input" id="pmEmailBcc" type="text" autocomplete="off">
+          </label>
+          <label class="sz_field pm-email-full" for="pmEmailMessage">
+            <span class="sz_label">Mensagem</span>
+            <textarea class="sz_input pm-email-message" id="pmEmailMessage" rows="18"></textarea>
+          </label>
+          <div class="sz_field pm-email-full">
+            <span class="sz_label">Anexos</span>
+            <div class="pm-email-attachments" id="pmEmailAttachments"></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="sz_button sz_button_ghost" type="button" data-bs-dismiss="modal">Cancelar</button>
+        <button class="sz_button sz_button_primary" type="button" id="pmEmailSend">
+          <i class="fa-solid fa-paper-plane"></i>
+          <span>Enviar</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <style>
   .pm-page-container {
@@ -414,6 +467,8 @@
 
   .pm-fat-btn,
   .pm-doc-btn,
+  .pm-saft-btn,
+  .pm-email-btn,
   .pm-pdf-link,
   .pm-pdf-empty {
     display: inline-flex;
@@ -437,8 +492,35 @@
     color: var(--sz-color-text-secondary);
   }
 
+  .pm-saft-btn {
+    color: var(--sz-color-info, var(--sz-color-primary));
+  }
+
+  .pm-email-btn {
+    color: var(--sz-color-primary);
+  }
+
+  .pm-saft-btn.is-generated {
+    background: color-mix(in srgb, var(--sz-color-success) 16%, var(--sz-color-surface));
+    border-color: color-mix(in srgb, var(--sz-color-success) 48%, var(--sz-color-border));
+    color: var(--sz-color-success);
+  }
+
+  .pm-saft-btn.is-generated:hover {
+    background: color-mix(in srgb, var(--sz-color-success) 24%, var(--sz-color-surface));
+    border-color: var(--sz-color-success);
+    color: var(--sz-color-success);
+  }
+
+  .pm-saft-btn:disabled {
+    cursor: not-allowed;
+    opacity: .35;
+  }
+
   .pm-fat-btn:hover,
   .pm-doc-btn:hover,
+  .pm-saft-btn:hover,
+  .pm-email-btn:hover,
   .pm-pdf-link:hover {
     background: color-mix(in srgb, var(--sz-color-primary) 12%, var(--sz-color-surface));
     border-color: color-mix(in srgb, var(--sz-color-primary) 46%, var(--sz-color-border));
@@ -467,6 +549,91 @@
 
   .pm-pdf-empty {
     opacity: 0.52;
+  }
+
+  .pm-email-btn:disabled {
+    cursor: not-allowed;
+    opacity: .35;
+  }
+
+  .pm-email-dialog {
+    width: min(94vw, 58rem);
+    max-width: 58rem;
+  }
+
+  .pm-email-body {
+    max-height: min(76vh, 52rem);
+    overflow-y: auto;
+  }
+
+  .pm-email-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--sz-space-3);
+  }
+
+  .pm-email-full {
+    grid-column: 1 / -1;
+  }
+
+  .pm-email-message {
+    min-height: 24rem;
+    resize: vertical;
+    white-space: pre-wrap;
+    line-height: 1.45;
+  }
+
+  .pm-email-status {
+    display: none;
+    margin-bottom: var(--sz-space-3);
+    padding: .65rem .8rem;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-sm);
+    background: var(--sz-color-surface-alt);
+    color: var(--sz-color-text-secondary);
+    font-size: var(--sz-font-size-sm);
+  }
+
+  .pm-email-status:not(:empty) {
+    display: block;
+  }
+
+  .pm-email-status.is-error {
+    border-color: color-mix(in srgb, var(--sz-color-danger) 45%, var(--sz-color-border));
+    color: var(--sz-color-danger);
+  }
+
+  .pm-email-status.is-warning {
+    border-color: color-mix(in srgb, var(--sz-color-warning) 45%, var(--sz-color-border));
+    color: var(--sz-color-warning);
+  }
+
+  .pm-email-attachments {
+    display: flex;
+    min-height: 2.5rem;
+    align-items: center;
+  }
+
+  .pm-email-attachment {
+    display: inline-flex;
+    min-width: 0;
+    align-items: center;
+    gap: .55rem;
+    padding: .5rem .7rem;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-sm);
+    background: var(--sz-color-surface-alt);
+    color: var(--sz-color-text-secondary);
+  }
+
+  .pm-email-attachment i {
+    color: var(--sz-color-danger);
+  }
+
+  .pm-email-attachment-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .pm-invoice-badge {
@@ -700,8 +867,16 @@
     .pm-month {
       min-width: 0;
     }
+
+    .pm-email-grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .pm-email-full {
+      grid-column: auto;
+    }
   }
 </style>
 
-<script src="{{ url_for('static', filename='js/processamento_mensal.js') }}?v={{ static_version }}&pmv=20260630_1"></script>
+<script src="{{ url_for('static', filename='js/processamento_mensal.js') }}?v={{ static_version }}&pmv=20260731_monthly_email"></script>
 {% endblock %}

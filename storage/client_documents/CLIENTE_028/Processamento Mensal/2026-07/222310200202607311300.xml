@@ -1,0 +1,364 @@
+<?xml version="1.0" encoding="Windows-1252" standalone="yes"?>
+<AuditFile xmlns="urn:OECD:StandardAuditFile-Tax:PT_1.04_01">
+  <Header>
+    <AuditFileVersion>1.04_01</AuditFileVersion>
+    <CompanyID>222310200</CompanyID>
+    <TaxRegistrationNumber>222310200</TaxRegistrationNumber>
+    <TaxAccountingBasis>P</TaxAccountingBasis>
+    <CompanyName>HELDER GUSTAVO VARANDAS AFONSO</CompanyName>
+    <BusinessName>HELDER GUSTAVO VARANDAS AFONSO</BusinessName>
+    <CompanyAddress>
+      <AddressDetail>R DO DOUTOR JOAQUIM PIRES DE LIMA 293 2.º ESQ.</AddressDetail>
+      <City>PORTO</City>
+      <PostalCode>4200-350 PORTO</PostalCode>
+      <Country>PT</Country>
+    </CompanyAddress>
+    <FiscalYear>2026</FiscalYear>
+    <StartDate>2026-07-01</StartDate>
+    <EndDate>2026-07-31</EndDate>
+    <CurrencyCode>EUR</CurrencyCode>
+    <DateCreated>2026-07-31</DateCreated>
+    <TaxEntity>Global</TaxEntity>
+    <ProductCompanyTaxID>502199326</ProductCompanyTaxID>
+    <SoftwareCertificateNumber>6</SoftwareCertificateNumber>
+    <ProductID>CS Advanced 202601/PHC</ProductID>
+    <ProductVersion>2026.01.00.122</ProductVersion>
+  </Header>
+  <MasterFiles>
+    <Customer>
+      <CustomerID>ADM26052940329.6540000-1</CustomerID>
+      <AccountID>Desconhecido</AccountID>
+      <CustomerTaxID>999999990</CustomerTaxID>
+      <CompanyName>Consumidor Final</CompanyName>
+      <BillingAddress>
+        <AddressDetail>Desconhecido</AddressDetail>
+        <City>Desconhecido</City>
+        <PostalCode>0000-000</PostalCode>
+        <Country>PT</Country>
+      </BillingAddress>
+      <SelfBillingIndicator>0</SelfBillingIndicator>
+    </Customer>
+  </MasterFiles>
+  <SourceDocuments>
+    <SalesInvoices>
+      <NumberOfEntries>5</NumberOfEntries>
+      <TotalDebit>0.000000</TotalDebit>
+      <TotalCredit>2143.400000</TotalCredit>
+      <Invoice>
+        <InvoiceNo>FR 2026A3/1</InvoiceNo>
+        <ATCUD>J6S7XFSH-1</ATCUD>
+        <DocumentStatus>
+          <InvoiceStatus>N</InvoiceStatus>
+          <InvoiceStatusDate>2026-07-29T09:43:29</InvoiceStatusDate>
+          <SourceID>Administrador de Sistema</SourceID>
+          <SourceBilling>P</SourceBilling>
+        </DocumentStatus>
+        <Hash>BrVc+WlvrXbZdgcdf2Qh6b+VOc008bJrnTkoKBr1uTz5KY3tsSiU/527lhlAWOLLHI3fb731LUTshz/tH+S7xkZpE30YXsnu8rKGIBgkZZZ+6VLZqn9xW8yDbXgATyzeCMhaoI7rKLbekv2CHv0+sWJgCggnhJ4LUHFEQ6nV8nM=</Hash>
+        <HashControl>1</HashControl>
+        <InvoiceDate>2026-07-28</InvoiceDate>
+        <InvoiceType>FR</InvoiceType>
+        <SpecialRegimes>
+          <SelfBillingIndicator>0</SelfBillingIndicator>
+          <CashVATSchemeIndicator>0</CashVATSchemeIndicator>
+          <ThirdPartiesBillingIndicator>0</ThirdPartiesBillingIndicator>
+        </SpecialRegimes>
+        <SourceID>Administrador de Sistema</SourceID>
+        <EACCode>55201</EACCode>
+        <SystemEntryDate>2026-07-29T09:43:29</SystemEntryDate>
+        <CustomerID>ADM26052940329.6540000-1</CustomerID>
+        <Line>
+          <LineNumber>1</LineNumber>
+          <ProductCode>ESTADIA</ProductCode>
+          <ProductDescription>ESTADIA</ProductDescription>
+          <Quantity>1.000</Quantity>
+          <UnitOfMeasure>Unidade</UnitOfMeasure>
+          <UnitPrice>539.626840</UnitPrice>
+          <TaxPointDate>2026-07-29</TaxPointDate>
+          <Description>Estadia de 28.06.2026 a 04.07.2026 -(HMJDW4RXJB)</Description>
+          <CreditAmount>539.626840</CreditAmount>
+          <Tax>
+            <TaxType>IVA</TaxType>
+            <TaxCountryRegion>PT</TaxCountryRegion>
+            <TaxCode>RED</TaxCode>
+            <TaxPercentage>6.000000</TaxPercentage>
+          </Tax>
+        </Line>
+        <Line>
+          <LineNumber>2</LineNumber>
+          <ProductCode>LIMPEZA</ProductCode>
+          <ProductDescription>TAXA DE LIMPEZA</ProductDescription>
+          <Quantity>1.000</Quantity>
+          <UnitOfMeasure>Unidade</UnitOfMeasure>
+          <UnitPrice>42.453160</UnitPrice>
+          <TaxPointDate>2026-07-29</TaxPointDate>
+          <Description>Taxa de Limpeza</Description>
+          <CreditAmount>42.453160</CreditAmount>
+          <Tax>
+            <TaxType>IVA</TaxType>
+            <TaxCountryRegion>PT</TaxCountryRegion>
+            <TaxCode>RED</TaxCode>
+            <TaxPercentage>6.000000</TaxPercentage>
+          </Tax>
+        </Line>
+        <DocumentTotals>
+          <TaxPayable>34.920000</TaxPayable>
+          <NetTotal>582.080000</NetTotal>
+          <GrossTotal>617.00</GrossTotal>
+        </DocumentTotals>
+      </Invoice>
+      <Invoice>
+        <InvoiceNo>FR 2026A3/2</InvoiceNo>
+        <ATCUD>J6S7XFSH-2</ATCUD>
+        <DocumentStatus>
+          <InvoiceStatus>N</InvoiceStatus>
+          <InvoiceStatusDate>2026-07-29T09:44:27</InvoiceStatusDate>
+          <SourceID>Administrador de Sistema</SourceID>
+          <SourceBilling>P</SourceBilling>
+        </DocumentStatus>
+        <Hash>BtD82Ms9fzE+IllnYEF/8iZvo5RWwW2BzeBqzzaZn1dL4j3K1nYLDNY3ZhIy6zKn27B423fWYgyYeqynXVP4B8xpoISqzO5uVjIxyRJwWSQiFlGC7fUD2GM1qAfLGvfMdy01YDYhhqkwwWlF8sntw6J1G3ZEv0wi90scQFp+tQA=</Hash>
+        <HashControl>1</HashControl>
+        <InvoiceDate>2026-07-28</InvoiceDate>
+        <InvoiceType>FR</InvoiceType>
+        <SpecialRegimes>
+          <SelfBillingIndicator>0</SelfBillingIndicator>
+          <CashVATSchemeIndicator>0</CashVATSchemeIndicator>
+          <ThirdPartiesBillingIndicator>0</ThirdPartiesBillingIndicator>
+        </SpecialRegimes>
+        <SourceID>Administrador de Sistema</SourceID>
+        <EACCode>55201</EACCode>
+        <SystemEntryDate>2026-07-29T09:44:27</SystemEntryDate>
+        <CustomerID>ADM26052940329.6540000-1</CustomerID>
+        <Line>
+          <LineNumber>1</LineNumber>
+          <ProductCode>ESTADIA</ProductCode>
+          <ProductDescription>ESTADIA</ProductDescription>
+          <Quantity>1.000</Quantity>
+          <UnitOfMeasure>Unidade</UnitOfMeasure>
+          <UnitPrice>208.487744</UnitPrice>
+          <TaxPointDate>2026-07-29</TaxPointDate>
+          <Description>Estadia de 04.07.2026 a 06.07.2026 -(HM85FTP2CB)</Description>
+          <CreditAmount>208.487744</CreditAmount>
+          <Tax>
+            <TaxType>IVA</TaxType>
+            <TaxCountryRegion>PT</TaxCountryRegion>
+            <TaxCode>RED</TaxCode>
+            <TaxPercentage>6.000000</TaxPercentage>
+          </Tax>
+        </Line>
+        <Line>
+          <LineNumber>2</LineNumber>
+          <ProductCode>LIMPEZA</ProductCode>
+          <ProductDescription>TAXA DE LIMPEZA</ProductDescription>
+          <Quantity>1.000</Quantity>
+          <UnitOfMeasure>Unidade</UnitOfMeasure>
+          <UnitPrice>42.452256</UnitPrice>
+          <TaxPointDate>2026-07-29</TaxPointDate>
+          <Description>Taxa de Limpeza</Description>
+          <CreditAmount>42.452256</CreditAmount>
+          <Tax>
+            <TaxType>IVA</TaxType>
+            <TaxCountryRegion>PT</TaxCountryRegion>
+            <TaxCode>RED</TaxCode>
+            <TaxPercentage>6.000000</TaxPercentage>
+          </Tax>
+        </Line>
+        <DocumentTotals>
+          <TaxPayable>15.060000</TaxPayable>
+          <NetTotal>250.940000</NetTotal>
+          <GrossTotal>266.00</GrossTotal>
+        </DocumentTotals>
+      </Invoice>
+      <Invoice>
+        <InvoiceNo>FR 2026A3/3</InvoiceNo>
+        <ATCUD>J6S7XFSH-3</ATCUD>
+        <DocumentStatus>
+          <InvoiceStatus>N</InvoiceStatus>
+          <InvoiceStatusDate>2026-07-29T09:44:28</InvoiceStatusDate>
+          <SourceID>Administrador de Sistema</SourceID>
+          <SourceBilling>P</SourceBilling>
+        </DocumentStatus>
+        <Hash>RG8Y3XcWODBXxzseTBsJYsasrW/TL/lmkt3QBTN0IwbHVxBh9zVDHqYNO79lIb+5sMwQ3OBE8ACiT29Y6CW845DBdS1oBAxnFzZJo7wz0V3QEYciOJ9S8bTtsMt2PuevB/m23cYgkC3jA57HyQSGL5R4gfRCQrWDnT0DhOFOGis=</Hash>
+        <HashControl>1</HashControl>
+        <InvoiceDate>2026-07-28</InvoiceDate>
+        <InvoiceType>FR</InvoiceType>
+        <SpecialRegimes>
+          <SelfBillingIndicator>0</SelfBillingIndicator>
+          <CashVATSchemeIndicator>0</CashVATSchemeIndicator>
+          <ThirdPartiesBillingIndicator>0</ThirdPartiesBillingIndicator>
+        </SpecialRegimes>
+        <SourceID>Administrador de Sistema</SourceID>
+        <EACCode>55201</EACCode>
+        <SystemEntryDate>2026-07-29T09:44:28</SystemEntryDate>
+        <CustomerID>ADM26052940329.6540000-1</CustomerID>
+        <Line>
+          <LineNumber>1</LineNumber>
+          <ProductCode>ESTADIA</ProductCode>
+          <ProductDescription>ESTADIA</ProductDescription>
+          <Quantity>1.000</Quantity>
+          <UnitOfMeasure>Unidade</UnitOfMeasure>
+          <UnitPrice>353.776786</UnitPrice>
+          <TaxPointDate>2026-07-29</TaxPointDate>
+          <Description>Estadia de 09.07.2026 a 12.07.2026 -(HMCSMF2PKK)</Description>
+          <CreditAmount>353.776786</CreditAmount>
+          <Tax>
+            <TaxType>IVA</TaxType>
+            <TaxCountryRegion>PT</TaxCountryRegion>
+            <TaxCode>RED</TaxCode>
+            <TaxPercentage>6.000000</TaxPercentage>
+          </Tax>
+        </Line>
+        <Line>
+          <LineNumber>2</LineNumber>
+          <ProductCode>LIMPEZA</ProductCode>
+          <ProductDescription>TAXA DE LIMPEZA</ProductDescription>
+          <Quantity>1.000</Quantity>
+          <UnitOfMeasure>Unidade</UnitOfMeasure>
+          <UnitPrice>42.453214</UnitPrice>
+          <TaxPointDate>2026-07-29</TaxPointDate>
+          <Description>Taxa de Limpeza</Description>
+          <CreditAmount>42.453214</CreditAmount>
+          <Tax>
+            <TaxType>IVA</TaxType>
+            <TaxCountryRegion>PT</TaxCountryRegion>
+            <TaxCode>RED</TaxCode>
+            <TaxPercentage>6.000000</TaxPercentage>
+          </Tax>
+        </Line>
+        <DocumentTotals>
+          <TaxPayable>23.770000</TaxPayable>
+          <NetTotal>396.230000</NetTotal>
+          <GrossTotal>420.00</GrossTotal>
+        </DocumentTotals>
+      </Invoice>
+      <Invoice>
+        <InvoiceNo>FR 2026A3/4</InvoiceNo>
+        <ATCUD>J6S7XFSH-4</ATCUD>
+        <DocumentStatus>
+          <InvoiceStatus>N</InvoiceStatus>
+          <InvoiceStatusDate>2026-07-29T09:44:30</InvoiceStatusDate>
+          <SourceID>Administrador de Sistema</SourceID>
+          <SourceBilling>P</SourceBilling>
+        </DocumentStatus>
+        <Hash>yfrz2lUk+Hefm6kRBGkGLTun6pZL41Z4meS2K1rGlfmXCDy28uXxyfQpk6GwO5pZ8Jyu9vGs/aA2HCWkFiM5OxapDYLSNo6viXgUuVnV84rUunwmqkGQlN+oB+Y0k+WGuGGztiMDqfP6iaXSswS1oolXMfjlurm95ElfHvTwV80=</Hash>
+        <HashControl>1</HashControl>
+        <InvoiceDate>2026-07-28</InvoiceDate>
+        <InvoiceType>FR</InvoiceType>
+        <SpecialRegimes>
+          <SelfBillingIndicator>0</SelfBillingIndicator>
+          <CashVATSchemeIndicator>0</CashVATSchemeIndicator>
+          <ThirdPartiesBillingIndicator>0</ThirdPartiesBillingIndicator>
+        </SpecialRegimes>
+        <SourceID>Administrador de Sistema</SourceID>
+        <EACCode>55201</EACCode>
+        <SystemEntryDate>2026-07-29T09:44:30</SystemEntryDate>
+        <CustomerID>ADM26052940329.6540000-1</CustomerID>
+        <Line>
+          <LineNumber>1</LineNumber>
+          <ProductCode>ESTADIA</ProductCode>
+          <ProductDescription>ESTADIA</ProductDescription>
+          <Quantity>1.000</Quantity>
+          <UnitOfMeasure>Unidade</UnitOfMeasure>
+          <UnitPrice>370.756918</UnitPrice>
+          <TaxPointDate>2026-07-29</TaxPointDate>
+          <Description>Estadia de 14.07.2026 a 18.07.2026 -(HMFT4KKPH8)</Description>
+          <CreditAmount>370.756918</CreditAmount>
+          <Tax>
+            <TaxType>IVA</TaxType>
+            <TaxCountryRegion>PT</TaxCountryRegion>
+            <TaxCode>RED</TaxCode>
+            <TaxPercentage>6.000000</TaxPercentage>
+          </Tax>
+        </Line>
+        <Line>
+          <LineNumber>2</LineNumber>
+          <ProductCode>LIMPEZA</ProductCode>
+          <ProductDescription>TAXA DE LIMPEZA</ProductDescription>
+          <Quantity>1.000</Quantity>
+          <UnitOfMeasure>Unidade</UnitOfMeasure>
+          <UnitPrice>42.453082</UnitPrice>
+          <TaxPointDate>2026-07-29</TaxPointDate>
+          <Description>Taxa de Limpeza</Description>
+          <CreditAmount>42.453082</CreditAmount>
+          <Tax>
+            <TaxType>IVA</TaxType>
+            <TaxCountryRegion>PT</TaxCountryRegion>
+            <TaxCode>RED</TaxCode>
+            <TaxPercentage>6.000000</TaxPercentage>
+          </Tax>
+        </Line>
+        <DocumentTotals>
+          <TaxPayable>24.790000</TaxPayable>
+          <NetTotal>413.210000</NetTotal>
+          <GrossTotal>438.00</GrossTotal>
+        </DocumentTotals>
+      </Invoice>
+      <Invoice>
+        <InvoiceNo>FR 2026A3/5</InvoiceNo>
+        <ATCUD>J6S7XFSH-5</ATCUD>
+        <DocumentStatus>
+          <InvoiceStatus>N</InvoiceStatus>
+          <InvoiceStatusDate>2026-07-29T09:44:32</InvoiceStatusDate>
+          <SourceID>Administrador de Sistema</SourceID>
+          <SourceBilling>P</SourceBilling>
+        </DocumentStatus>
+        <Hash>TJtEKRpO837Te47grKG1T8bEX/vQCi3DJb8UM0jlZ4iMW8/EQWd5rBEI7E7B9Mw/pOnIqJOg/bZAG5TtUaLnMAeoaVdoE3EbYK0eh3Z38YszyDBUe1sCg1vaYteDkGXqfNdbbHyr6BytA/Ig6uyQ6E6IMTNABV8P2pAnH4QRMOw=</Hash>
+        <HashControl>1</HashControl>
+        <InvoiceDate>2026-07-28</InvoiceDate>
+        <InvoiceType>FR</InvoiceType>
+        <SpecialRegimes>
+          <SelfBillingIndicator>0</SelfBillingIndicator>
+          <CashVATSchemeIndicator>0</CashVATSchemeIndicator>
+          <ThirdPartiesBillingIndicator>0</ThirdPartiesBillingIndicator>
+        </SpecialRegimes>
+        <SourceID>Administrador de Sistema</SourceID>
+        <EACCode>55201</EACCode>
+        <SystemEntryDate>2026-07-29T09:44:32</SystemEntryDate>
+        <CustomerID>ADM26052940329.6540000-1</CustomerID>
+        <Line>
+          <LineNumber>1</LineNumber>
+          <ProductCode>ESTADIA</ProductCode>
+          <ProductDescription>ESTADIA</ProductDescription>
+          <Quantity>1.000</Quantity>
+          <UnitOfMeasure>Unidade</UnitOfMeasure>
+          <UnitPrice>458.487458</UnitPrice>
+          <TaxPointDate>2026-07-29</TaxPointDate>
+          <Description>Estadia de 20.07.2026 a 25.07.2026 -(HMQTCK9JRY)</Description>
+          <CreditAmount>458.487458</CreditAmount>
+          <Tax>
+            <TaxType>IVA</TaxType>
+            <TaxCountryRegion>PT</TaxCountryRegion>
+            <TaxCode>RED</TaxCode>
+            <TaxPercentage>6.000000</TaxPercentage>
+          </Tax>
+        </Line>
+        <Line>
+          <LineNumber>2</LineNumber>
+          <ProductCode>LIMPEZA</ProductCode>
+          <ProductDescription>TAXA DE LIMPEZA</ProductDescription>
+          <Quantity>1.000</Quantity>
+          <UnitOfMeasure>Unidade</UnitOfMeasure>
+          <UnitPrice>42.452542</UnitPrice>
+          <TaxPointDate>2026-07-29</TaxPointDate>
+          <Description>Taxa de Limpeza</Description>
+          <CreditAmount>42.452542</CreditAmount>
+          <Tax>
+            <TaxType>IVA</TaxType>
+            <TaxCountryRegion>PT</TaxCountryRegion>
+            <TaxCode>RED</TaxCode>
+            <TaxPercentage>6.000000</TaxPercentage>
+          </Tax>
+        </Line>
+        <DocumentTotals>
+          <TaxPayable>30.060000</TaxPayable>
+          <NetTotal>500.940000</NetTotal>
+          <GrossTotal>531.00</GrossTotal>
+        </DocumentTotals>
+      </Invoice>
+    </SalesInvoices>
+    <WorkingDocuments>
+      <NumberOfEntries>0</NumberOfEntries>
+      <TotalDebit>0.000000</TotalDebit>
+      <TotalCredit>0.000000</TotalCredit>
+    </WorkingDocuments>
+  </SourceDocuments>
+</AuditFile>

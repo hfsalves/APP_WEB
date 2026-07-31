@@ -15,9 +15,11 @@ import io
 import importlib.util
 import hashlib
 import hmac
+import html
 import logging
 import xml.etree.ElementTree as ET
 import click
+from pathlib import Path
 from email.utils import parsedate_to_datetime
 from decimal import Decimal, ROUND_HALF_UP
 from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory, send_file, session, Response, abort, has_request_context, g, current_app
@@ -66,6 +68,7 @@ from services.saft_service import (
     get_saft_filter_options,
     preview_saft_sales,
 )
+from services.phc_saft_service import PhcSaftError, generate_phc_monthly_saft
 from services.hash_service import ft_invoice_no
 from services.shop_guest_service import (
     build_shop_cart,
@@ -21436,22 +21439,25 @@ def create_app():
         stamp = quote(str(rsstamp or '').strip(), safe='')
         return f'/api/faturacao/reservas-global/pdf/{stamp}'
 
-    def _fatglob_pdf_remote_response(filename: str):
+    def _fatglob_pdf_remote_content(filename: str):
         clean_filename = os.path.basename(str(filename or '').strip())
         if not clean_filename or clean_filename != str(filename or '').strip():
-            abort(404)
+            raise FileNotFoundError('Nome de PDF inválido.')
         url = f"{_fatglob_pdf_base_url()}/{quote(clean_filename)}"
-        try:
-            req = Request(url, headers={'Accept': 'application/pdf'}, method='GET')
-            timeout = max(1, min(_to_int(os.environ.get('PHC_PDF_TIMEOUT'), 20), 120))
-            with urlopen(req, timeout=timeout) as resp:
-                data = resp.read()
-                status_code = int(getattr(resp, 'status', 200) or 200)
-        except Exception:
-            app.logger.exception('Erro ao obter PDF PHC remoto: %s', url)
-            abort(404)
+        req = Request(url, headers={'Accept': 'application/pdf'}, method='GET')
+        timeout = max(1, min(_to_int(os.environ.get('PHC_PDF_TIMEOUT'), 20), 120))
+        with urlopen(req, timeout=timeout) as resp:
+            data = resp.read()
+            status_code = int(getattr(resp, 'status', 200) or 200)
         if status_code < 200 or status_code >= 300 or not data.lstrip().startswith(b'%PDF'):
-            app.logger.warning('Resposta remota sem PDF valido: %s status=%s bytes=%s', url, status_code, len(data or b''))
+            raise FileNotFoundError(f'Resposta remota sem PDF válido: {clean_filename}')
+        return clean_filename, data
+
+    def _fatglob_pdf_remote_response(filename: str):
+        try:
+            clean_filename, data = _fatglob_pdf_remote_content(filename)
+        except Exception:
+            app.logger.exception('Erro ao obter PDF PHC remoto: %s', filename)
             abort(404)
         return send_file(
             io.BytesIO(data),
@@ -41225,6 +41231,7 @@ OPTION (MAXRECURSION 32767);
               LTRIM(RTRIM(ISNULL(CL.MORADA,''))) AS CLIENTE_MORADA,
               LTRIM(RTRIM(ISNULL(CL.CODPOST,''))) AS CLIENTE_CODPOST,
               LTRIM(RTRIM(ISNULL(CL.LOCAL,''))) AS CLIENTE_LOCAL,
+              LTRIM(RTRIM(ISNULL(CL.BDPHC,''))) AS CLIENTE_BDPHC,
               CAST(ISNULL(DM.COMISSOES,0) AS decimal(18,2)) AS COMISSOES,
               CAST(ISNULL(DM.TOTAL,0) AS decimal(18,2)) AS TOTAL
             FROM dbo.DM DM
@@ -41319,6 +41326,64 @@ OPTION (MAXRECURSION 32767);
             'path': rel_file,
             'download_url': url_for('api_processamento_mensal_documento_download', dmstamp=str(header.get('DMSTAMP') or ''), filename=filename),
         }
+
+    def _pm_safe_document_filename(filename, fallback):
+        original_name = secure_filename(str(filename or '').strip())
+        fallback_name = secure_filename(str(fallback or '').strip())
+        chosen = original_name or fallback_name
+        if not chosen:
+            raise ValueError('Nome de ficheiro inválido.')
+        ext = chosen.rsplit('.', 1)[-1].lower() if '.' in chosen else ''
+        if ext not in CLIENT_DOCUMENTS_ALLOWED_EXT:
+            chosen = f"{chosen}.xml"
+        if not chosen.lower().endswith('.xml'):
+            raise ValueError('O SAF-T tem de ser um ficheiro XML.')
+        return chosen
+
+    def _pm_client_docs_save_bytes(header, filename, content):
+        data = bytes(content or b'')
+        if not data:
+            raise ValueError('Ficheiro vazio.')
+        folder, rel_dir = _pm_client_docs_folder(header, create=True)
+        if not folder:
+            raise ValueError('Não foi possível preparar a pasta do cliente.')
+        base_name = _pm_safe_document_filename(filename, 'SAFT.xml')
+        base, extension = os.path.splitext(base_name)
+        target_name = base_name
+        full_path = os.path.realpath(os.path.abspath(os.path.join(folder, target_name)))
+        counter = 1
+        while os.path.exists(full_path):
+            target_name = f'{base}_{counter}{extension}'
+            full_path = os.path.realpath(os.path.abspath(os.path.join(folder, target_name)))
+            counter += 1
+        try:
+            if os.path.commonpath([folder, full_path]) != folder:
+                raise ValueError('Caminho inválido.')
+        except ValueError:
+            raise
+        except Exception:
+            raise ValueError('Caminho inválido.')
+        with open(full_path, 'wb') as fh:
+            fh.write(data)
+        rel_file = f'{rel_dir}/{target_name}' if rel_dir else target_name
+        return {
+            'name': target_name,
+            'path': rel_file,
+            'download_url': url_for('api_processamento_mensal_documento_download', dmstamp=str(header.get('DMSTAMP') or ''), filename=target_name),
+        }
+
+    def _pm_phc_saft_conn_str(database_name):
+        database = str(database_name or '').strip()
+        if not database or not re.fullmatch(r'[A-Za-z0-9_$#@.\-]+', database):
+            raise ValueError('Nome da base PHC inválido.')
+        conn_str = _build_pyodbc_conn_str(
+            server=os.environ.get('PHC_SQL_SERVER', '192.168.1.51'),
+            port=os.environ.get('PHC_SQL_PORT', '1433'),
+            database=database,
+            username=os.environ.get('PHC_SQL_USER', prod_username),
+            password=os.environ.get('PHC_SQL_PASSWORD', prod_password),
+        )
+        return f'{conn_str};ApplicationIntent=ReadOnly;'
 
     def _pm_faturacao_gestao_lines(dmstamp):
         value_expr = _pm_commission_value_sql()
@@ -41498,6 +41563,150 @@ OPTION (MAXRECURSION 32767);
             'origem': {'app': 'stationzero', 'user': user_login},
         }
 
+    def _pm_faturacao_invoice_log(dmstamp):
+        return db.session.execute(text("""
+            SELECT TOP 1
+              LTRIM(RTRIM(ISNULL(L.CLIENTE_BDPHC,''))) AS CLIENTE_BDPHC,
+              LTRIM(RTRIM(ISNULL(L.PHC_NUMERO,''))) AS PHC_NUMERO,
+              LTRIM(RTRIM(ISNULL(L.PHC_DOC,''))) AS PHC_DOC,
+              LTRIM(RTRIM(ISNULL(L.PHC_PDF,''))) AS PHC_PDF
+            FROM dbo.FAT_GESTAO_AL_PHC_LOG L
+            WHERE L.DMSTAMP = :dmstamp
+              AND UPPER(LTRIM(RTRIM(ISNULL(L.STATUS,'')))) IN ('SENT','OK')
+            ORDER BY L.DTCRI DESC
+        """), {'dmstamp': str(dmstamp or '').strip()}).mappings().first()
+
+    def _pm_faturacao_pdf_attachment(dmstamp):
+        row = _pm_faturacao_invoice_log(dmstamp)
+        if not row:
+            raise ValueError('Este fecho mensal ainda não tem uma fatura emitida.')
+
+        phc_pdf = str(row.get('PHC_PDF') or '').strip()
+        if phc_pdf and not phc_pdf.lower().startswith(('http://', 'https://')):
+            abs_pdf = os.path.abspath(phc_pdf)
+            if os.path.isfile(abs_pdf):
+                data = Path(abs_pdf).read_bytes()
+                if data.lstrip().startswith(b'%PDF'):
+                    return os.path.basename(abs_pdf), data
+
+        candidates = _pm_faturacao_pdf_candidates(
+            row.get('CLIENTE_BDPHC'),
+            row.get('PHC_NUMERO'),
+            phc_pdf,
+        )
+        filenames = []
+        seen = set()
+        for candidate in candidates:
+            filename = _pm_pdf_public_filename(candidate)
+            key = filename.lower()
+            if filename and key not in seen:
+                seen.add(key)
+                filenames.append(filename)
+
+        for filename in filenames:
+            for base_dir in _fatglob_pdf_dirs():
+                base_abs = os.path.abspath(base_dir)
+                abs_path = os.path.abspath(os.path.join(base_abs, filename))
+                if abs_path.startswith(base_abs + os.sep) and os.path.isfile(abs_path):
+                    data = Path(abs_path).read_bytes()
+                    if data.lstrip().startswith(b'%PDF'):
+                        return filename, data
+
+        for filename in filenames:
+            try:
+                return _fatglob_pdf_remote_content(filename)
+            except Exception:
+                continue
+        raise ValueError('Não foi possível encontrar o PDF da fatura no servidor PHC.')
+
+    def _pm_email_profile():
+        from services.email_service import ensure_email_tables
+
+        ensure_email_tables()
+        profile_name = str(os.environ.get('PM_GUESTSPA_EMAIL_PROFILE') or '').strip()
+        params = {'from_email': 'geral@guestspa.pt'}
+        name_filter = ''
+        if profile_name:
+            name_filter = 'AND UPPER(LTRIM(RTRIM(ISNULL(NOME_PERFIL,\'\')))) = :profile_name'
+            params['profile_name'] = profile_name.upper()
+        row = db.session.execute(text(f"""
+            SELECT TOP 1 ID, NOME_PERFIL, EMAIL_FROM
+            FROM dbo.EMAIL_PROFILES
+            WHERE ISNULL(ATIVO,0) = 1
+              AND LOWER(LTRIM(RTRIM(ISNULL(EMAIL_FROM,'')))) = :from_email
+              {name_filter}
+            ORDER BY DEFAULT_PROFILE DESC, ID
+        """), params).mappings().first()
+        return dict(row) if row else None
+
+    def _pm_email_body(ano, mes):
+        month_names = [
+            'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
+            'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro',
+        ]
+        month_name = month_names[int(mes) - 1]
+        return f"""Estimado Cliente,
+
+Na sequência do fecho do mês de {month_name} de {int(ano)}, enviamos em anexo a nossa fatura referente às comissões de gestão deste mês.
+
+Relembramos que, através da nossa plataforma Station Zero, tem acesso aos relatórios, documentos e restantes informações relativas ao seu alojamento.
+
+A plataforma encontra-se disponível em:
+https://szeroapp.com
+
+Na área de cliente poderá consultar, entre outras informações:
+• Relatórios mensais de exploração;
+• Informação detalhada sobre as reservas;
+• Área de ficheiros, onde disponibilizamos toda a documentação mensal para consulta e download.
+
+Os documentos referentes ao mês atual já se encontram disponíveis na plataforma.
+
+O seu gabinete de contabilidade também poderá consultar e descarregar diretamente a documentação necessária para efeitos contabilísticos através da plataforma.
+
+Se tiver alguma dificuldade no acesso à plataforma ou qualquer questão, estaremos naturalmente disponíveis para ajudar.
+
+Com os melhores cumprimentos,
+
+Guest SPA"""
+
+    def _pm_email_html(body_text):
+        escaped = html.escape(str(body_text or '').strip())
+        escaped = escaped.replace(
+            'https://szeroapp.com',
+            '<a href="https://szeroapp.com" style="color:#1f5f99;text-decoration:underline;">https://szeroapp.com</a>',
+        )
+        content = escaped.replace('\n', '<br>\n')
+        return (
+            '<!doctype html><html><body>'
+            '<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#172033;">'
+            f'{content}'
+            '</div></body></html>'
+        )
+
+    def _pm_email_defaults(header, attachment_name, attachment_size):
+        ano = int(header.get('ANO') or date.today().year)
+        mes = int(header.get('MES') or date.today().month)
+        month_name = [
+            'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
+            'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro',
+        ][mes - 1]
+        profile = _pm_email_profile()
+        return {
+            'from': 'geral@guestspa.pt',
+            'to': 'hfsalves@hotmail.com; pnalves.pa@gmail.com',
+            'cc': '',
+            'bcc': '',
+            'subject': f'Guest SPA | Fatura - {month_name} de {ano}',
+            'body': _pm_email_body(ano, mes),
+            'attachment': {
+                'name': attachment_name,
+                'size': int(attachment_size or 0),
+                'type': 'application/pdf',
+            },
+            'smtp_configured': bool(profile),
+            'smtp_message': '' if profile else 'Falta configurar um perfil SMTP ativo para geral@guestspa.pt.',
+        }
+
     @app.route('/processamento_mensal')
     @login_required
     def processamento_mensal_page():
@@ -41543,6 +41752,7 @@ OPTION (MAXRECURSION 32767);
             sql = text("""
                 SELECT
                     DM.DMSTAMP, DM.ANO, DM.MES, DM.NO, DM.NOME, ISNULL(DM.CLESTAB, 0) AS CLESTAB,
+                    LTRIM(RTRIM(ISNULL(CL.BDPHC, ''))) AS CLIENTE_BDPHC,
                     CASE
                         WHEN LTRIM(RTRIM(ISNULL(DM.FATURATG,''))) = ''
                          AND LTRIM(RTRIM(ISNULL(DM.DOSSIER,''))) = ''
@@ -41551,6 +41761,8 @@ OPTION (MAXRECURSION 32767);
                     {extra_cols}
                     {invoice_cols}
                 FROM dbo.DM
+                LEFT JOIN dbo.CL AS CL
+                  ON CL.NO = DM.NO
                 {invoice_join}
                 WHERE DM.ANO = :ano AND DM.MES = :mes
                 ORDER BY DM.NOME, DM.NO, ISNULL(DM.CLESTAB, 0)
@@ -41571,11 +41783,14 @@ OPTION (MAXRECURSION 32767);
             out = []
             for r in rows:
                 faturado = int(r.get('FATURADO_GESTAO') or 0)
+                clestab = int(r.get('CLESTAB') or 0)
                 status = (r.get('FATURACAO_STATUS') or '').strip()
                 phc_numero = (r.get('PHC_NUMERO') or '').strip()
                 phc_doc = (r.get('PHC_DOC') or '').strip()
                 total_value = float(r.get('TOTAL') or 0) if has_tot else 0
                 com_value = float(r.get('COMISSOES') or 0) if has_com else 0
+                document_files = _pm_client_docs_files(r)
+                saft_files = [f for f in document_files if str(f.get('ext') or '').lower() == 'xml']
                 warnings = []
                 if total_value <= 0 and com_value <= 0:
                     warnings.append('Sem valor a faturar')
@@ -41585,7 +41800,8 @@ OPTION (MAXRECURSION 32767);
                     'MES': int(r.get('MES') or 0),
                     'NO': r.get('NO') or '',
                     'NOME': r.get('NOME') or '',
-                    'CLESTAB': int(r.get('CLESTAB') or 0),
+                    'CLESTAB': clestab,
+                    'CLIENTE_BDPHC': (r.get('CLIENTE_BDPHC') or '').strip(),
                     'CAN_DELETE': int(r.get('CAN_DELETE') or 0),
                     'COMISSOES': float(r.get('COMISSOES') or 0) if has_com else 0,
                     'IMPUTACOES': float(r.get('IMPUTACOES') or 0) if has_imp else 0,
@@ -41600,7 +41816,10 @@ OPTION (MAXRECURSION 32767);
                     'PHC_BDPHC': (r.get('PHC_BDPHC') or '').strip(),
                     'PHC_PDF_URL': _pm_faturacao_gestao_pdf_url(r.get('DMSTAMP') or '', bool(faturado and phc_numero)),
                     'FATURACAO_ERROR': (r.get('FATURACAO_ERROR') or '').strip(),
-                    'DOC_COUNT': len(_pm_client_docs_files(r)),
+                    'DOC_COUNT': len(document_files),
+                    'SAFT_AVAILABLE': 1 if clestab == 0 else 0,
+                    'SAFT_GENERATED': 1 if clestab == 0 and saft_files else 0,
+                    'SAFT_FILENAME': str(saft_files[-1].get('name') or '') if clestab == 0 and saft_files else '',
                 })
             return jsonify({'rows': out})
         except Exception as e:
@@ -41711,6 +41930,134 @@ OPTION (MAXRECURSION 32767);
             return jsonify({'ok': True})
         except Exception as e:
             db.session.rollback()
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/processamento_mensal/saft', methods=['POST'])
+    @login_required
+    def api_processamento_mensal_saft():
+        try:
+            body = request.get_json(silent=True) or {}
+            dmstamp = str(body.get('dmstamp') or body.get('stamp') or '').strip()
+            if not dmstamp:
+                return jsonify({'error': 'DMSTAMP obrigatório.'}), 400
+
+            header = _pm_faturacao_gestao_header(dmstamp)
+            if not header:
+                return jsonify({'error': 'Registo não encontrado.'}), 404
+
+            if int(header.get('CLESTAB') or 0) != 0:
+                return jsonify({'error': 'O SAF-T total deve ser gerado na linha do estabelecimento 0.'}), 400
+
+            bdphc = str(header.get('CLIENTE_BDPHC') or '').strip()
+            if not bdphc:
+                return jsonify({'error': 'Cliente sem BDPHC definido.'}), 400
+
+            ano = int(header.get('ANO') or date.today().year)
+            mes = int(header.get('MES') or date.today().month)
+            if mes < 1 or mes > 12:
+                return jsonify({'error': 'Mês inválido.'}), 400
+            dt_ini = date(ano, mes, 1)
+            dt_fim = date(ano, mes, calendar.monthrange(ano, mes)[1])
+            login_timeout = max(1, min(_to_int(os.environ.get('PHC_SQL_LOGIN_TIMEOUT'), 8), 60))
+            query_timeout = max(5, min(_to_int(os.environ.get('PHC_SAFT_QUERY_TIMEOUT'), 90), 300))
+            with pyodbc.connect(_pm_phc_saft_conn_str(bdphc), timeout=login_timeout) as phc_conn:
+                phc_conn.timeout = query_timeout
+                filename, xml_bytes, summary = generate_phc_monthly_saft(
+                    phc_conn,
+                    dt_ini,
+                    dt_fim,
+                    created_on=date.today(),
+                )
+            saved = _pm_client_docs_save_bytes(header, filename, xml_bytes)
+            return jsonify({
+                'ok': True,
+                'file': saved,
+                'files': _pm_client_docs_files(header),
+                'bdphc': bdphc,
+                'summary': summary,
+            })
+        except PhcSaftError as e:
+            return jsonify({'error': str(e)}), 422
+        except pyodbc.Error as e:
+            app.logger.exception('Erro de ligação SQL ao gerar SAF-T mensal em %s.', locals().get('bdphc', ''))
+            return jsonify({'error': f'Não foi possível ler a base PHC {locals().get("bdphc", "")}: {e}'}), 502
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 400
+        except Exception as e:
+            app.logger.exception('Erro ao gerar SAF-T mensal diretamente da base PHC.')
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/processamento_mensal/email/<path:dmstamp>/preview', methods=['GET'])
+    @login_required
+    def api_processamento_mensal_email_preview(dmstamp):
+        try:
+            header = _pm_faturacao_gestao_header(dmstamp)
+            if not header:
+                return jsonify({'error': 'Registo não encontrado.'}), 404
+            attachment_name, attachment_data = _pm_faturacao_pdf_attachment(dmstamp)
+            return jsonify(_pm_email_defaults(header, attachment_name, len(attachment_data)))
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 422
+        except Exception as e:
+            app.logger.exception('Erro ao preparar email do processamento mensal.')
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/processamento_mensal/email/<path:dmstamp>/send', methods=['POST'])
+    @login_required
+    def api_processamento_mensal_email_send(dmstamp):
+        try:
+            from services.email_service import EmailServiceError, queue_email, send_email_now
+
+            header = _pm_faturacao_gestao_header(dmstamp)
+            if not header:
+                return jsonify({'error': 'Registo não encontrado.'}), 404
+            profile = _pm_email_profile()
+            if not profile:
+                return jsonify({'error': 'Falta configurar um perfil SMTP ativo para geral@guestspa.pt.'}), 503
+
+            payload = request.get_json(silent=True) or {}
+            to = payload.get('to') or ''
+            cc = payload.get('cc') or ''
+            bcc = payload.get('bcc') or ''
+            subject = str(payload.get('subject') or '').strip()
+            body_text = str(payload.get('body') or '').strip()
+            if len(subject) > 500:
+                return jsonify({'error': 'O assunto não pode exceder 500 caracteres.'}), 400
+            if len(body_text) > 100000:
+                return jsonify({'error': 'O corpo do email é demasiado extenso.'}), 400
+
+            attachment_name, attachment_data = _pm_faturacao_pdf_attachment(dmstamp)
+            email_id = queue_email(
+                profile_id=int(profile['ID']),
+                to=to,
+                cc=cc,
+                bcc=bcc,
+                subject=subject,
+                body_text=body_text,
+                body_html=_pm_email_html(body_text),
+                attachments=[{
+                    'file_name': attachment_name,
+                    'file_content': attachment_data,
+                    'mime_type': 'application/pdf',
+                }],
+                priority=1,
+                context='PROCESSAMENTO_MENSAL_FATURA',
+                context_id=str(dmstamp or '').strip(),
+                created_by=str(getattr(current_user, 'LOGIN', '') or '').strip(),
+                max_attempts=1,
+                from_email='geral@guestspa.pt',
+                from_name='Guest SPA',
+            )
+            result = send_email_now(email_id)
+            if not result.get('ok'):
+                return jsonify({'error': result.get('error') or 'Erro ao enviar email.', 'email_id': email_id}), 502
+            return jsonify({'ok': True, 'email_id': email_id})
+        except EmailServiceError as e:
+            return jsonify({'error': str(e)}), 400
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 422
+        except Exception as e:
+            app.logger.exception('Erro ao enviar email do processamento mensal.')
             return jsonify({'error': str(e)}), 500
 
     @app.route('/api/processamento_mensal/documentos/<dmstamp>', methods=['GET'])

@@ -7,7 +7,7 @@ import smtplib
 import ssl
 from datetime import datetime
 from email.message import EmailMessage
-from email.utils import getaddresses, formataddr
+from email.utils import formataddr, formatdate, getaddresses, make_msgid
 from pathlib import Path
 
 from cryptography.fernet import Fernet, InvalidToken
@@ -558,6 +558,9 @@ def _build_message(row: dict, attachments: list[dict]) -> EmailMessage:
     if cc_list:
         msg['Cc'] = ', '.join(cc_list)
     msg['Subject'] = _clean(row.get('SUBJECT'))
+    msg['Date'] = formatdate(localtime=True)
+    msg['Message-ID'] = make_msgid(domain=(from_email.rsplit('@', 1)[-1] if '@' in from_email else None))
+    msg['Reply-To'] = from_email
     body_text = _clean(row.get('BODY_TEXT')) or ' '
     body_html = _clean(row.get('BODY_HTML'))
     msg.set_content(body_text)
