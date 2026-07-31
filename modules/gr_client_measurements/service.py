@@ -84,6 +84,10 @@ def _truncate_phc_text(value: Any, maximum_length: int | None) -> str:
     return text[:maximum_length] if maximum_length else text
 
 
+def _budget_line_description(line: dict[str, Any]) -> str:
+    return _text_value(line.get("DGERAL")) or _text_value(line.get("DESIGN"))
+
+
 def _parse_filter_date(value: Any):
     from datetime import datetime
 
@@ -350,7 +354,7 @@ def get_budget_detail(feid: Any, bostamp: str, user) -> dict[str, Any]:
                 GROUP BY ROOT.BISTAMP
             )
             SELECT
-                BI.BISTAMP, BI.BOSTAMP, BI.REF, BI.DGERAL, BI.UNIDADE,
+                BI.BISTAMP, BI.BOSTAMP, BI.REF, BI.DGERAL, BI.DESIGN, BI.UNIDADE,
                 BI.QTT, BI.EDEBITO, BI.ETTDEB, BI.IVA, BI.TABIVA,
                 BI.CCUSTO, BI.LORDEM, BI.LOBS,
                 ISNULL(E.EXEC_QTY, 0) AS EXEC_QTY,
@@ -415,7 +419,7 @@ def get_budget_detail(feid: Any, bostamp: str, user) -> dict[str, Any]:
             {
                 "bistamp": _text_value(row.get("BISTAMP")),
                 "ref": _text_value(row.get("REF")),
-                "design": _text_value(row.get("DGERAL")),
+                "design": _budget_line_description(row),
                 "unit": _text_value(row.get("UNIDADE")),
                 "qty": _qty(qty),
                 "unit_price": _money(row.get("EDEBITO")),
@@ -1254,7 +1258,7 @@ def create_measurement_auto(payload: dict[str, Any], user) -> dict[str, Any]:
 
             for idx, line in enumerate(prepared_lines, start=1):
                 source = line["source"]
-                source_description = _text_value(source.get("DGERAL"))
+                source_description = _budget_line_description(source)
                 line_no = int(_number_value(source.get("LORDEM"))) or idx * 1000
                 position = _text_value(source.get("LITEM") or source.get("POSIC"))
                 initial_qty = _decimal(source.get("QTT")).quantize(

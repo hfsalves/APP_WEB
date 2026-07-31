@@ -84,6 +84,7 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
   const TABLE_NAME_UPPER = String(TABLE_NAME || '').toUpperCase();
   const RECORD_STAMP = window.RECORD_STAMP;
   const isAdminUser  = window.IS_ADMIN_USER;
+  const canViewAdminFields = Boolean(window.CAN_VIEW_ADMIN_FIELDS ?? isAdminUser);
   const MENU_STAMP = String(window.MENU_STAMP || '').trim();
   const useExactWidths = Boolean(window.DYNAMIC_FORM_EXACT_WIDTHS);
   const DEV_MODE = window.DEV_MODE || false;
@@ -2227,7 +2228,7 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
 
   // agrupa por dezena de ORDEM
   const visibleLayoutCols = cols
-    .filter(c => (!c.admin || isAdminUser) && isColumnVisible(c))
+    .filter(c => (!c.admin || canViewAdminFields) && isColumnVisible(c))
     .sort((a, b) => {
       const oa = isMobile ? a.ordem_mobile : a.ordem;
       const ob = isMobile ? b.ordem_mobile : b.ordem;

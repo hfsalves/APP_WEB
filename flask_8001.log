@@ -2410,3 +2410,71 @@ Press CTRL+C to quit
 127.0.0.1 - - [31/Jul/2026 11:07:24] "GET /service-worker.js HTTP/1.1" 304 -
 127.0.0.1 - - [31/Jul/2026 11:07:25] "GET /generic/api/OPC/MSM23012559792,362198811 HTTP/1.1" 200 -
 127.0.0.1 - - [31/Jul/2026 11:07:25] "GET /api/anexos?table=OPC&rec=MSM23012559792,362198811 HTTP/1.1" 200 -
+127.0.0.1 - - [31/Jul/2026 11:45:04] "GET /gr360_autos_clientes HTTP/1.1" 200 -
+127.0.0.1 - - [31/Jul/2026 11:45:04] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [31/Jul/2026 11:45:04] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [31/Jul/2026 11:45:04] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [31/Jul/2026 11:45:04] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [31/Jul/2026 11:45:04] "GET /gr_subcontractor_measurements/static/autos_subempreitada.css HTTP/1.1" 304 -
+127.0.0.1 - - [31/Jul/2026 11:45:04] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [31/Jul/2026 11:45:04] "GET /gr_subcontractor_measurements/static/autos_subempreitada.js?v=1785492178 HTTP/1.1" 200 -
+127.0.0.1 - - [31/Jul/2026 11:45:04] "GET /static/js/push.js?v=1785492178 HTTP/1.1" 304 -
+127.0.0.1 - - [31/Jul/2026 11:45:04] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [31/Jul/2026 11:45:05] "GET /api/gr_autos_clientes/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [31/Jul/2026 11:45:06] "GET /api/gr_autos_clientes/contratos?feid=2&data_inicio=2026-01-01&data_fim=2026-07-31&only_open=1 HTTP/1.1" 200 -
+127.0.0.1 - - [31/Jul/2026 11:45:06] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [31/Jul/2026 11:45:30] "GET /api/gr_autos_clientes/contrato?feid=2&bostamp=SRF26070442904,021000001 HTTP/1.1" 200 -
+127.0.0.1 - - [31/Jul/2026 11:45:33] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [31/Jul/2026 11:45:51] "GET /gr360_autos_clientes HTTP/1.1" 200 -
+127.0.0.1 - - [31/Jul/2026 11:45:51] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [31/Jul/2026 11:45:51] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [31/Jul/2026 11:45:51] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [31/Jul/2026 11:45:51] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [31/Jul/2026 11:45:51] "GET /gr_subcontractor_measurements/static/autos_subempreitada.css HTTP/1.1" 304 -
+127.0.0.1 - - [31/Jul/2026 11:45:51] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [31/Jul/2026 11:45:51] "GET /static/js/push.js?v=1785492178 HTTP/1.1" 304 -
+127.0.0.1 - - [31/Jul/2026 11:45:51] "GET /gr_subcontractor_measurements/static/autos_subempreitada.js?v=1785492178 HTTP/1.1" 304 -
+127.0.0.1 - - [31/Jul/2026 11:45:52] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [31/Jul/2026 11:45:52] "GET /api/gr_autos_clientes/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [31/Jul/2026 11:45:53] "GET /api/gr_autos_clientes/contratos?feid=2&data_inicio=2026-01-01&data_fim=2026-07-31&only_open=1 HTTP/1.1" 200 -
+127.0.0.1 - - [31/Jul/2026 11:45:53] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [31/Jul/2026 11:45:57] "GET /api/gr_autos_clientes/contrato?feid=2&bostamp=SRF26050242346,983000001 HTTP/1.1" 200 -
+ * Serving Flask app 'app:app'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://192.168.115.4:8001
+Press CTRL+C to quit
+127.0.0.1 - - [31/Jul/2026 11:50:18] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [31/Jul/2026 11:50:19] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [31/Jul/2026 11:50:26] "GET /api/gr_autos_clientes/contratos?feid=1&data_inicio=2026-01-01&data_fim=2026-07-31&only_open=1 HTTP/1.1" 200 -
+127.0.0.1 - - [31/Jul/2026 11:50:29] "GET /api/gr_autos_clientes/contrato?feid=1&bostamp=SRF26073030538,350000002 HTTP/1.1" 200 -
+127.0.0.1 - - [31/Jul/2026 11:50:31] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [31/Jul/2026 11:50:32] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+ * Serving Flask app 'app:app'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://192.168.115.4:8001
+Press CTRL+C to quit
+127.0.0.1 - - [31/Jul/2026 11:51:57] "GET /gr360_autos_clientes HTTP/1.1" 200 -
+127.0.0.1 - - [31/Jul/2026 11:51:57] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [31/Jul/2026 11:51:57] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [31/Jul/2026 11:51:57] "GET /gr_subcontractor_measurements/static/autos_subempreitada.css HTTP/1.1" 304 -
+127.0.0.1 - - [31/Jul/2026 11:51:57] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [31/Jul/2026 11:51:57] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [31/Jul/2026 11:51:57] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [31/Jul/2026 11:51:57] "GET /static/js/push.js?v=1785495065 HTTP/1.1" 200 -
+127.0.0.1 - - [31/Jul/2026 11:51:57] "GET /gr_subcontractor_measurements/static/autos_subempreitada.js?v=1785495065 HTTP/1.1" 200 -
+127.0.0.1 - - [31/Jul/2026 11:51:57] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [31/Jul/2026 11:51:57] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [31/Jul/2026 11:51:57] "GET /api/gr_autos_clientes/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [31/Jul/2026 11:51:58] "GET /api/gr_autos_clientes/contratos?feid=2&data_inicio=2026-01-01&data_fim=2026-07-31&only_open=1 HTTP/1.1" 200 -
+127.0.0.1 - - [31/Jul/2026 11:51:58] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [31/Jul/2026 11:52:02] "GET /api/gr_autos_clientes/contratos?feid=1&data_inicio=2026-01-01&data_fim=2026-07-31&only_open=1 HTTP/1.1" 200 -
+127.0.0.1 - - [31/Jul/2026 11:52:06] "GET /api/gr_autos_clientes/contrato?feid=1&bostamp=SRF26070856173,929000001 HTTP/1.1" 200 -
+127.0.0.1 - - [31/Jul/2026 11:52:10] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [31/Jul/2026 11:52:11] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [31/Jul/2026 11:52:17] "GET /api/gr_autos_clientes/contrato?feid=1&bostamp=EI25112657797,311000001 HTTP/1.1" 200 -
