@@ -244,6 +244,7 @@ class US(UserMixin, db.Model):
     DEV      = db.Column(db.Boolean, default=False, nullable=False)
     MNADMIN  = db.Column(db.Boolean, default=False, nullable=False)
     LSADMIN  = db.Column(db.Boolean, default=False, nullable=False)
+    ADMINOPC = db.Column(db.Boolean, default=False, nullable=False)
     FOTO     = db.Column(db.String(255), nullable=True)  # caminho relativo sob /static
     LPADMIN  = db.Column(db.Boolean, default=False, nullable=False)
     HOME     = db.Column(db.String(200), unique=True, nullable=False)

@@ -52,6 +52,38 @@ class ClientMeasurementsNotFoundError(SubcontractorMeasurementsNotFoundError):
 PRODUCTION_ITEM_REF = "V.01.01.000.0021"
 
 
+def _phc_text_column_limits(
+    cursor,
+    table_name: str,
+    column_names: tuple[str, ...],
+) -> dict[str, int | None]:
+    names = tuple({name.strip().lower() for name in column_names if name.strip()})
+    if not names:
+        return {}
+    placeholders = ", ".join("?" for _ in names)
+    cursor.execute(
+        f"""
+        SELECT LOWER(COLUMN_NAME), CHARACTER_MAXIMUM_LENGTH
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = 'dbo'
+          AND TABLE_NAME = ?
+          AND LOWER(COLUMN_NAME) IN ({placeholders})
+        """,
+        table_name,
+        *names,
+    )
+    limits: dict[str, int | None] = {}
+    for column_name, maximum_length in cursor.fetchall():
+        limit = int(maximum_length) if maximum_length is not None else None
+        limits[str(column_name).strip().lower()] = limit if limit and limit > 0 else None
+    return limits
+
+
+def _truncate_phc_text(value: Any, maximum_length: int | None) -> str:
+    text = _text_value(value)
+    return text[:maximum_length] if maximum_length else text
+
+
 def _parse_filter_date(value: Any):
     from datetime import datetime
 
@@ -318,7 +350,7 @@ def get_budget_detail(feid: Any, bostamp: str, user) -> dict[str, Any]:
                 GROUP BY ROOT.BISTAMP
             )
             SELECT
-                BI.BISTAMP, BI.BOSTAMP, BI.REF, BI.DESIGN, BI.UNIDADE,
+                BI.BISTAMP, BI.BOSTAMP, BI.REF, BI.DGERAL, BI.UNIDADE,
                 BI.QTT, BI.EDEBITO, BI.ETTDEB, BI.IVA, BI.TABIVA,
                 BI.CCUSTO, BI.LORDEM, BI.LOBS,
                 ISNULL(E.EXEC_QTY, 0) AS EXEC_QTY,
@@ -383,7 +415,7 @@ def get_budget_detail(feid: Any, bostamp: str, user) -> dict[str, Any]:
             {
                 "bistamp": _text_value(row.get("BISTAMP")),
                 "ref": _text_value(row.get("REF")),
-                "design": _text_value(row.get("DESIGN")),
+                "design": _text_value(row.get("DGERAL")),
                 "unit": _text_value(row.get("UNIDADE")),
                 "qty": _qty(qty),
                 "unit_price": _money(row.get("EDEBITO")),
@@ -1061,6 +1093,7 @@ def create_measurement_auto(payload: dict[str, Any], user) -> dict[str, Any]:
             header, source_lines, executed = _load_budget_for_insert(
                 cursor, budget_ndos, auto_ndos, budget_bostamp
             )
+            bi_text_limits = _phc_text_column_limits(cursor, "BI", ("design", "dgeral"))
             prepared_lines = _prepare_measurement_lines(source_lines, executed, payload_lines)
             tax_totals = _build_tax_totals(prepared_lines)
             total_deb = sum((line["amount"] for line in prepared_lines), Decimal("0.00")).quantize(
@@ -1221,6 +1254,7 @@ def create_measurement_auto(payload: dict[str, Any], user) -> dict[str, Any]:
 
             for idx, line in enumerate(prepared_lines, start=1):
                 source = line["source"]
+                source_description = _text_value(source.get("DGERAL"))
                 line_no = int(_number_value(source.get("LORDEM"))) or idx * 1000
                 position = _text_value(source.get("LITEM") or source.get("POSIC"))
                 initial_qty = _decimal(source.get("QTT")).quantize(
@@ -1243,7 +1277,12 @@ def create_measurement_auto(payload: dict[str, Any], user) -> dict[str, Any]:
                         "dataopen": date.today(),
                         "datafecho": PHC_ZERO_DATE,
                         "ref": PRODUCTION_ITEM_REF,
-                        "design": _text_value(source.get("DESIGN"))[:60],
+                        "dgeral": _truncate_phc_text(
+                            source_description, bi_text_limits.get("dgeral")
+                        ),
+                        "design": _truncate_phc_text(
+                            source_description, bi_text_limits.get("design")
+                        ),
                         "qtt": line["qty"],
                         "qtt2": line["qty"],
                         "unidade": _text_value(source.get("UNIDADE")),
