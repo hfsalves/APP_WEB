@@ -4404,3 +4404,834 @@ WARNING: This is a development server. Do not use it in a production deployment.
  * Running on http://127.0.0.1:8001
  * Running on http://10.0.1.110:8001
 Press CTRL+C to quit
+[2026-08-03 16:48:28,492] WARNING in app: Falhou ligação SQL Server via 192.168.1.50,1433 (DRIVER={ODBC Driver 18 for SQL Server};SERVER=192.168.1.50,1433;DATABASE=GESTAO;UID=sa;PWD=***;TrustServerCertificate=Yes;Application Name=SZERO): ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+ * Serving Flask app 'app:app'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://10.0.1.110:8001
+Press CTRL+C to quit
+127.0.0.1 - - [03/Aug/2026 16:49:59] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 16:50:00] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 16:50:00] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 16:50:00] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 16:50:00] "GET /gr_budgets/static/gr_budgets.css?v=1785772106-money-2-decimals-1 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 16:50:00] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 16:50:00] "GET /static/js/push.js?v=1785772106 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 16:50:00] "GET /gr_budgets/static/gr_budgets.js?v=1785772106-i18n-pt-fr-1 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 16:50:00] "GET /api/gr_orcamentos/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 16:50:00] "GET /api/gr_orcamentos/series?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 16:50:00] "GET /api/gr_orcamentos/comerciais?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 16:50:00] "GET /api/gr_orcamentos/orcamentos?feid=1&ndos=115&year=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 16:50:01] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=44CCED983972439680EE00A4D HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 16:50:01] "GET /service-worker.js HTTP/1.1" 304 -
+[2026-08-03 16:50:21,426] WARNING in app: Falhou ligação SQL Server via 192.168.1.50,1433 (DRIVER={ODBC Driver 18 for SQL Server};SERVER=192.168.1.50,1433;DATABASE=GESTAO;UID=sa;PWD=***;TrustServerCertificate=Yes;Application Name=SZERO): ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+ * Serving Flask app 'app:app'
+ * Debug mode: off
+Address already in use
+Port 8001 is in use by another program. Either identify and stop that program, or start the server with a different port.
+[2026-08-03 16:50:41,571] WARNING in app: Falhou ligação SQL Server via 192.168.1.50,1433 (DRIVER={ODBC Driver 18 for SQL Server};SERVER=192.168.1.50,1433;DATABASE=GESTAO;UID=sa;PWD=***;TrustServerCertificate=Yes;Application Name=SZERO): ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+ * Serving Flask app 'app:app'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://10.0.1.110:8001
+Press CTRL+C to quit
+127.0.0.1 - - [03/Aug/2026 16:50:47] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 16:50:47] "GET /gr_budgets/static/gr_budgets.css?v=1785772239-money-2-decimals-1 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 16:50:47] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 16:50:47] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 16:50:47] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 16:50:47] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 16:50:47] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 16:50:47] "GET /gr_budgets/static/gr_budgets.js?v=1785772239-i18n-pt-fr-1 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 16:50:47] "GET /static/js/push.js?v=1785772239 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 16:50:47] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 16:50:47] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 16:50:47] "GET /api/gr_orcamentos/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 16:50:47] "GET /api/gr_orcamentos/series?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 16:50:47] "GET /api/gr_orcamentos/comerciais?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 16:50:48] "GET /api/gr_orcamentos/orcamentos?feid=1&ndos=115&year=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 16:50:48] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=44CCED983972439680EE00A4D HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 16:50:49] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 16:50:49] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 16:50:49] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 16:50:49] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 16:50:49] "GET /gr_budgets/static/gr_budgets.css?v=1785772239-money-2-decimals-1 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 16:50:49] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 16:50:49] "GET /static/js/push.js?v=1785772239 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 16:50:49] "GET /gr_budgets/static/gr_budgets.js?v=1785772239-i18n-pt-fr-1 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 16:50:49] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 16:50:49] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 16:50:49] "GET /api/gr_orcamentos/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 16:50:49] "GET /api/gr_orcamentos/comerciais?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 16:50:49] "GET /api/gr_orcamentos/series?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 16:50:49] "GET /api/gr_orcamentos/orcamentos?feid=1&ndos=115&year=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 16:50:50] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=44CCED983972439680EE00A4D HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 16:50:50] "GET /service-worker.js HTTP/1.1" 304 -
+[2026-08-03 16:52:56,487] WARNING in app: Falhou ligação SQL Server via 192.168.1.50,1433 (DRIVER={ODBC Driver 18 for SQL Server};SERVER=192.168.1.50,1433;DATABASE=GESTAO;UID=sa;PWD=***;TrustServerCertificate=Yes;Application Name=SZERO): ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+ * Serving Flask app 'app:app'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://10.0.1.110:8001
+Press CTRL+C to quit
+127.0.0.1 - - [03/Aug/2026 16:53:06] "GET / HTTP/1.1" 302 -
+127.0.0.1 - - [03/Aug/2026 16:55:26] "GET /generic/opc_projetos_form/SRF26012335306,815337901 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 16:55:26] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 16:55:26] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 16:55:26] "GET /static/css/opc_projetos_form.css?v=opc-containers-1 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 16:55:26] "GET /static/js/dynamic_form.js HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 16:55:26] "GET /static/js/opc_projetos_form.js HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 16:55:26] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 16:55:26] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 16:55:26] "GET /static/js/push.js?v=1785772374 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 16:55:26] "GET /generic/api/opc/SRF26012335306,815337901/phc_info HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 16:55:26] "GET /generic/api/opc/SRF26012335306,815337901/phc_info HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 16:55:27] "GET /generic/api/OPC?action=describe&menustamp=C662E899ECD4419F905CCBB86&include_screen_meta=1 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 16:55:27] "GET /generic/api/OPC/SRF26012335306,815337901 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 16:55:27] "GET /api/anexos?table=OPC&rec=SRF26012335306,815337901 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 16:55:28] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 16:59:10] "GET /manuais HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 16:59:10] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 16:59:10] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 16:59:10] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 16:59:10] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 16:59:10] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 16:59:10] "GET /static/js/push.js?v=1785772374 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 16:59:10] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 16:59:10] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 16:59:12] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 16:59:22] "GET /generic/view/OPC HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 16:59:22] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 16:59:22] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 16:59:22] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 16:59:22] "GET /static/js/dynamic_list.js?v=1785772374 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 16:59:22] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 16:59:22] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 16:59:22] "GET /static/js/push.js?v=1785772374 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 16:59:22] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 16:59:23] "GET /generic/api/OPC?action=describe&include_screen_meta=1&menustamp=C662E899ECD4419F905CCBB86 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 16:59:23] "GET /generic/api/OPC HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 16:59:24] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 16:59:35] "GET /generic/opc_projetos_form/SRF26012335306,815337901%20?menustamp=C662E899ECD4419F905CCBB86&return_to=/generic/view/OPC HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 16:59:35] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 16:59:35] "GET /static/css/opc_projetos_form.css?v=opc-containers-1 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 16:59:35] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 16:59:35] "GET /static/js/dynamic_form.js HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 16:59:35] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 16:59:35] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 16:59:35] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 16:59:35] "GET /static/js/push.js?v=1785772374 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 16:59:35] "GET /static/js/opc_projetos_form.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 16:59:35] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 16:59:36] "GET /generic/api/opc/SRF26012335306,815337901%20/phc_info HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 16:59:36] "GET /generic/api/opc/SRF26012335306,815337901%20/phc_info HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 16:59:36] "GET /generic/api/OPC?action=describe&menustamp=C662E899ECD4419F905CCBB86&include_screen_meta=1 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 16:59:36] "GET /generic/api/OPC/SRF26012335306,815337901 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 16:59:36] "GET /api/anexos?table=OPC&rec=SRF26012335306,815337901 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 16:59:37] "GET /service-worker.js HTTP/1.1" 304 -
+[2026-08-03 17:02:11,610] WARNING in app: Falhou ligação SQL Server via 192.168.1.50,1433 (DRIVER={ODBC Driver 18 for SQL Server};SERVER=192.168.1.50,1433;DATABASE=GESTAO;UID=sa;PWD=***;TrustServerCertificate=Yes;Application Name=SZERO): ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+ * Serving Flask app 'app:app'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://10.0.1.110:8001
+Press CTRL+C to quit
+127.0.0.1 - - [03/Aug/2026 17:02:14] "GET /login HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:03:24] "GET /login HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:06:41] "GET /generic/opc_projetos_form/SRF26012335306,815337901%20?menustamp=C662E899ECD4419F905CCBB86&return_to=/generic/view/OPC HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:06:41] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:06:41] "GET /static/css/opc_projetos_form.css?v=opc-containers-1 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:06:41] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:06:41] "GET /static/js/opc_projetos_form.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:06:41] "GET /static/js/dynamic_form.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:06:41] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:06:41] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:06:41] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:06:41] "GET /static/js/push.js?v=1785772929 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:06:41] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:06:41] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:06:41] "GET /generic/api/opc/SRF26012335306,815337901%20/phc_info HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:06:41] "GET /generic/api/opc/SRF26012335306,815337901%20/phc_info HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:06:42] "GET /generic/api/OPC?action=describe&menustamp=C662E899ECD4419F905CCBB86&include_screen_meta=1 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:06:42] "GET /generic/api/OPC/SRF26012335306,815337901 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:06:42] "GET /api/anexos?table=OPC&rec=SRF26012335306,815337901 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:06:43] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:09:09] "GET /generic/opc_projetos_form/SRF26012335306,815337901%20?menustamp=C662E899ECD4419F905CCBB86&return_to=/generic/view/OPC HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:09:09] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:09:09] "GET /static/js/dynamic_form.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:09:09] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:09:09] "GET /static/css/opc_projetos_form.css?v=opc-containers-1 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:09:09] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:09:09] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:09:09] "GET /static/js/push.js?v=1785772929 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:09:09] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:09:09] "GET /static/js/opc_projetos_form.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:09:09] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:09:09] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:09:09] "GET /generic/api/opc/SRF26012335306,815337901%20/phc_info HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:09:09] "GET /generic/api/opc/SRF26012335306,815337901%20/phc_info HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:09:10] "GET /generic/api/OPC?action=describe&menustamp=C662E899ECD4419F905CCBB86&include_screen_meta=1 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:09:10] "GET /generic/api/OPC/SRF26012335306,815337901 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:09:10] "GET /api/anexos?table=OPC&rec=SRF26012335306,815337901 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:09:11] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:11:13] "GET /generic/opc_projetos_form/SRF26012335306,815337901%20?menustamp=C662E899ECD4419F905CCBB86&return_to=/generic/view/OPC HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:11:13] "GET /static/js/dynamic_form.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:11:13] "GET /static/css/opc_projetos_form.css?v=opc-containers-1 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:11:13] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:11:13] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:11:13] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:11:14] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:11:14] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:11:14] "GET /static/js/opc_projetos_form.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:11:14] "GET /static/js/push.js?v=1785772929 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:11:14] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:11:14] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:11:14] "GET /generic/api/opc/SRF26012335306,815337901%20/phc_info HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:11:14] "GET /generic/api/opc/SRF26012335306,815337901%20/phc_info HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:11:14] "GET /generic/api/OPC?action=describe&menustamp=C662E899ECD4419F905CCBB86&include_screen_meta=1 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:11:14] "GET /generic/api/OPC/SRF26012335306,815337901 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:11:15] "GET /api/anexos?table=OPC&rec=SRF26012335306,815337901 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:11:15] "GET /service-worker.js HTTP/1.1" 304 -
+[2026-08-03 17:11:36,938] WARNING in app: Falhou ligação SQL Server via 192.168.1.50,1433 (DRIVER={ODBC Driver 18 for SQL Server};SERVER=192.168.1.50,1433;DATABASE=GESTAO;UID=sa;PWD=***;TrustServerCertificate=Yes;Application Name=SZERO): ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+ * Serving Flask app 'app:app'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://10.0.1.110:8001
+Press CTRL+C to quit
+127.0.0.1 - - [03/Aug/2026 17:11:46] "GET / HTTP/1.1" 302 -
+127.0.0.1 - - [03/Aug/2026 17:11:53] "GET /generic/opc_projetos_form/SRF26012335306,815337901 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:11:53] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:11:53] "GET /static/css/opc_projetos_form.css?v=opc-containers-1 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:11:53] "GET /static/js/dynamic_form.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:11:53] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:11:53] "GET /static/js/opc_projetos_form.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:11:53] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:11:53] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:11:53] "GET /static/js/push.js?v=1785773494 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:11:53] "GET /generic/api/opc/SRF26012335306,815337901/phc_info HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:11:53] "GET /generic/api/opc/SRF26012335306,815337901/phc_info HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:11:54] "GET /generic/api/OPC?action=describe&menustamp=C662E899ECD4419F905CCBB86&include_screen_meta=1 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:11:54] "GET /generic/api/OPC/SRF26012335306,815337901 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:11:54] "GET /api/anexos?table=OPC&rec=SRF26012335306,815337901 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:11:55] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:12:33] "GET /generic/opc_projetos_form/SRF26012335306,815337901%20?menustamp=C662E899ECD4419F905CCBB86&return_to=/generic/view/OPC HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:12:33] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:12:33] "GET /static/css/opc_projetos_form.css?v=opc-containers-1 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:12:33] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:12:33] "GET /static/js/dynamic_form.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:12:33] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:12:33] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:12:33] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:12:33] "GET /static/js/push.js?v=1785773494 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:12:33] "GET /static/js/opc_projetos_form.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:12:33] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:12:33] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:12:33] "GET /generic/api/opc/SRF26012335306,815337901%20/phc_info HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:12:33] "GET /generic/api/opc/SRF26012335306,815337901%20/phc_info HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:12:34] "GET /generic/api/OPC?action=describe&menustamp=C662E899ECD4419F905CCBB86&include_screen_meta=1 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:12:34] "GET /generic/api/OPC/SRF26012335306,815337901 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:12:34] "GET /api/anexos?table=OPC&rec=SRF26012335306,815337901 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:12:35] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:18:46] "GET /api/gr_orcamentos/series?feid=8 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:18:46] "GET /api/gr_orcamentos/comerciais?feid=8 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:18:47] "GET /api/gr_orcamentos/orcamentos?feid=8&ndos=115&year=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:18:47] "GET /api/gr_orcamentos/orcamento?feid=8&bostamp=AB26080330688,180000001 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:18:49] "GET /api/gr_orcamentos/orcamento?feid=8&bostamp=AB26073141338,699000002 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:18:53] "GET /api/gr_orcamentos/orcamento/AB26073141338,699000002/pdf?feid=8&style=modern HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:18:55] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:19:20] "GET /api/gr_orcamentos/orcamento?feid=8&bostamp=AB26072830676,066000001 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:19:23] "GET /api/gr_orcamentos/orcamento?feid=8&bostamp=JOM26061860133,742000002 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:19:27] "GET /api/gr_orcamentos/orcamento/JOM26061860133,742000002/pdf?feid=8&style=modern HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:19:28] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:20:16] "GET /api/gr_orcamentos/orcamento?feid=8&bostamp=JOM26060462495,135000002 HTTP/1.1" 200 -
+[2026-08-03 17:20:26,355] WARNING in app: Falhou ligação SQL Server via 192.168.1.50,1433 (DRIVER={ODBC Driver 18 for SQL Server};SERVER=192.168.1.50,1433;DATABASE=GESTAO;UID=sa;PWD=***;TrustServerCertificate=Yes;Application Name=SZERO): ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+ * Serving Flask app 'app:app'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://10.0.1.110:8001
+Press CTRL+C to quit
+127.0.0.1 - - [03/Aug/2026 17:20:36] "GET / HTTP/1.1" 302 -
+127.0.0.1 - - [03/Aug/2026 17:20:42] "GET /generic/opc_projetos_form/SRF26012335306,815337901 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:20:42] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:20:42] "GET /static/css/opc_projetos_form.css?v=opc-containers-1 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:20:42] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:20:42] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:20:42] "GET /static/js/dynamic_form.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:20:42] "GET /static/js/opc_projetos_form.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:20:43] "GET /static/js/push.js?v=1785774024 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:20:43] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:20:43] "GET /generic/api/opc/SRF26012335306,815337901/phc_info HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:20:43] "GET /generic/api/opc/SRF26012335306,815337901/phc_info HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:20:43] "GET /generic/api/OPC?action=describe&menustamp=C662E899ECD4419F905CCBB86&include_screen_meta=1 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:20:43] "GET /generic/api/OPC/SRF26012335306,815337901 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:20:43] "GET /api/anexos?table=OPC&rec=SRF26012335306,815337901 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:20:44] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:20:53] "GET /generic/view/OPC HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:20:53] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:20:53] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:20:53] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:20:53] "GET /static/js/dynamic_list.js?v=1785774024 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:20:53] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:20:53] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:20:53] "GET /static/js/push.js?v=1785774024 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:20:53] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:20:54] "GET /generic/api/OPC?action=describe&include_screen_meta=1&menustamp=C662E899ECD4419F905CCBB86 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:20:54] "GET /generic/api/OPC HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:20:55] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:20:57] "GET /logout HTTP/1.1" 302 -
+127.0.0.1 - - [03/Aug/2026 17:20:57] "GET /login HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:20:57] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:20:57] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:20:57] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:20:57] "GET /static/js/push.js?v=1785774024 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:20:57] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:20:57] "GET /static/images/icon-512.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:20:57] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:20:58] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:21:02] "POST /login HTTP/1.1" 302 -
+127.0.0.1 - - [03/Aug/2026 17:21:02] "GET / HTTP/1.1" 302 -
+127.0.0.1 - - [03/Aug/2026 17:21:02] "GET /monitor HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:21:03] "GET /monitor HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:21:03] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:21:03] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:21:03] "GET /static/js/push.js?v=1785774024 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:21:03] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:21:03] "GET /static/js/monitor.js?v=4 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:21:03] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:21:03] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+[2026-08-03 17:21:03,845] ERROR in generic_crud: Erro em combo_options
+Traceback (most recent call last):
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+pyodbc.ProgrammingError: ('42S22', "[42S22] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Invalid column name 'USCLIENTE'. (207) (SQLExecDirectW)")
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/hugoalves/Projects/APP_WEB/blueprints/generic_crud.py", line 3459, in combo_options
+    rows = db.session.execute(stmt, params).fetchall()
+           ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/scoping.py", line 779, in execute
+    return self._proxied.execute(
+           ~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2365, in execute
+    return self._execute_internal(
+           ~~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2260, in _execute_internal
+    result = conn.execute(
+        statement, params or {}, execution_options=execution_options
+    )
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1415, in execute
+    return meth(
+        self,
+        distilled_parameters,
+        execution_options or NO_OPTIONS,
+    )
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/sql/elements.py", line 523, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self, distilled_params, execution_options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1637, in _execute_clauseelement
+    ret = self._execute_context(
+        dialect,
+    ...<8 lines>...
+        cache_hit=cache_hit,
+    )
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1842, in _execute_context
+    return self._exec_single_context(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^
+        dialect, context, statement, parameters
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1982, in _exec_single_context
+    self._handle_dbapi_exception(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        e, str_statement, effective_parameters, cursor, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 2351, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+sqlalchemy.exc.ProgrammingError: (pyodbc.ProgrammingError) ('42S22', "[42S22] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Invalid column name 'USCLIENTE'. (207) (SQLExecDirectW)")
+[SQL: SELECT LOGIN FROM US WHERE ISNULL(INATIVO,0)=0 AND ISNULL(USCLIENTE,0)=0 ORDER BY 1]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+127.0.0.1 - - [03/Aug/2026 17:21:03] "GET /generic/api/options?query=SELECT%20LOGIN%20FROM%20US%20WHERE%20ISNULL(INATIVO,0)%3D0%20AND%20ISNULL(USCLIENTE,0)%3D0%20ORDER%20BY%201 HTTP/1.1" 500 -
+127.0.0.1 - - [03/Aug/2026 17:21:03] "GET /generic/api/monitor_tasks_filtered?only_mine=1&start=2026-07-27&end=2026-08-10&_=1785774063685 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:21:05] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:21:06] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:21:06] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:21:06] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:21:06] "GET /gr_budgets/static/gr_budgets.css?v=1785774024-money-2-decimals-1 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:21:06] "GET /static/js/push.js?v=1785774024 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:21:06] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:21:06] "GET /gr_budgets/static/gr_budgets.js?v=1785774024-company-logo-1 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:21:07] "GET /api/gr_orcamentos/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:21:07] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:21:07] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:21:08] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:21:08] "GET /static/js/push.js?v=1785774024 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:21:08] "GET /gr_budgets/static/gr_budgets.css?v=1785774024-money-2-decimals-1 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:21:08] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:21:08] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:21:08] "GET /gr_budgets/static/gr_budgets.js?v=1785774024-company-logo-1 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:21:08] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:21:08] "GET /api/gr_orcamentos/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:21:08] "GET /api/gr_orcamentos/series?feid=8 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:21:08] "GET /api/gr_orcamentos/comerciais?feid=8 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:21:09] "GET /api/gr_orcamentos/orcamentos?feid=8&ndos=115&year=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:21:09] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:21:09] "GET /api/gr_orcamentos/orcamento?feid=8&bostamp=JOM26042764596,321000002 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:21:15] "GET /api/gr_orcamentos/orcamento?feid=8&bostamp=JOM26042855667,599000002 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:21:18] "GET /api/gr_orcamentos/orcamento?feid=8&bostamp=JOM26032352093,629000002 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:21:21] "GET /api/gr_orcamentos/orcamento?feid=8&bostamp=JOM26022757112,455000002 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:21:24] "GET /api/gr_orcamentos/orcamento?feid=8&bostamp=JOM26020356808,595000002 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:21:27] "GET /api/gr_orcamentos/orcamento?feid=8&bostamp=JOM26042325000,682000002 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:21:41] "GET /manuais HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:21:41] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:21:41] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:21:41] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:21:41] "GET /static/js/push.js?v=1785774024 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:21:41] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:21:41] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:21:42] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:21:46] "GET /manuais/orcamentos-clientes/fr HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:21:46] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:21:46] "GET /static/js/push.js?v=1785774024 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:21:46] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:21:46] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:21:46] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:21:46] "GET /manuais/ficheiro/Processo/Orçamentos%20de%20Clientes/fr/guide.html HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:21:46] "GET /manuais/ficheiro/Processo/Autos%20de%20Medição%20de%20Clientes/manual.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:21:46] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:21:47] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:21:56] "GET /manuais HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:21:56] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:21:56] "GET /static/js/push.js?v=1785774024 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:21:56] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:21:56] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:21:56] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:21:56] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:21:57] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:24:26] "GET /manuais HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:24:26] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:24:26] "GET /static/js/push.js?v=1785774024 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:24:26] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:24:26] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:24:26] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:24:26] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:24:26] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:24:28] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:24:53] "GET /manuais HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:24:53] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:24:54] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:24:54] "GET /static/js/push.js?v=1785774024 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:24:54] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:24:54] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:24:54] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:24:54] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:24:55] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:24:59] "POST /api/i18n/language HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:25:00] "GET /manuais HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:25:00] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:25:00] "GET /static/js/push.js?v=1785774024 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:25:00] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:25:00] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:25:00] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:25:00] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:25:00] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:25:01] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:25:06] "POST /api/i18n/language HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:25:07] "GET /manuais HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:25:07] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:25:07] "GET /static/js/push.js?v=1785774024 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:25:07] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:25:07] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:25:07] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:25:07] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:25:07] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:25:08] "GET /service-worker.js HTTP/1.1" 304 -
+[2026-08-03 17:26:03,220] WARNING in app: Falhou ligação SQL Server via 192.168.1.50,1433 (DRIVER={ODBC Driver 18 for SQL Server};SERVER=192.168.1.50,1433;DATABASE=GESTAO;UID=sa;PWD=***;TrustServerCertificate=Yes;Application Name=SZERO): ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+ * Serving Flask app 'app:app'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://10.0.1.110:8001
+Press CTRL+C to quit
+127.0.0.1 - - [03/Aug/2026 17:29:10] "GET /manuais HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:29:10] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:29:10] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:29:10] "GET /static/js/push.js?v=1785774361 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:29:10] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:29:10] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:29:10] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:29:10] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:29:11] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:29:20] "GET /manuais HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:29:20] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:29:20] "GET /static/js/push.js?v=1785774361 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:29:20] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:29:20] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:29:20] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:29:20] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:29:20] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:29:22] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:30:06] "GET /manuais HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:30:06] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:30:06] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:30:06] "GET /static/js/push.js?v=1785774361 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:30:06] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:30:06] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:30:06] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:30:06] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:30:08] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:30:09] "GET / HTTP/1.1" 302 -
+127.0.0.1 - - [03/Aug/2026 17:30:10] "GET /monitor HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:30:10] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:30:10] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:30:10] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:30:10] "GET /static/js/push.js?v=1785774361 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:30:10] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:30:10] "GET /static/js/monitor.js?v=4 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:30:10] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+[2026-08-03 17:30:10,254] ERROR in generic_crud: Erro em combo_options
+Traceback (most recent call last):
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+pyodbc.ProgrammingError: ('42S22', "[42S22] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Invalid column name 'USCLIENTE'. (207) (SQLExecDirectW)")
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/hugoalves/Projects/APP_WEB/blueprints/generic_crud.py", line 3459, in combo_options
+    rows = db.session.execute(stmt, params).fetchall()
+           ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/scoping.py", line 779, in execute
+    return self._proxied.execute(
+           ~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2365, in execute
+    return self._execute_internal(
+           ~~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2260, in _execute_internal
+    result = conn.execute(
+        statement, params or {}, execution_options=execution_options
+    )
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1415, in execute
+    return meth(
+        self,
+        distilled_parameters,
+        execution_options or NO_OPTIONS,
+    )
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/sql/elements.py", line 523, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self, distilled_params, execution_options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1637, in _execute_clauseelement
+    ret = self._execute_context(
+        dialect,
+    ...<8 lines>...
+        cache_hit=cache_hit,
+    )
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1842, in _execute_context
+    return self._exec_single_context(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^
+        dialect, context, statement, parameters
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1982, in _exec_single_context
+    self._handle_dbapi_exception(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        e, str_statement, effective_parameters, cursor, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 2351, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+sqlalchemy.exc.ProgrammingError: (pyodbc.ProgrammingError) ('42S22', "[42S22] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Invalid column name 'USCLIENTE'. (207) (SQLExecDirectW)")
+[SQL: SELECT LOGIN FROM US WHERE ISNULL(INATIVO,0)=0 AND ISNULL(USCLIENTE,0)=0 ORDER BY 1]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+127.0.0.1 - - [03/Aug/2026 17:30:10] "GET /generic/api/options?query=SELECT%20LOGIN%20FROM%20US%20WHERE%20ISNULL(INATIVO,0)%3D0%20AND%20ISNULL(USCLIENTE,0)%3D0%20ORDER%20BY%201 HTTP/1.1" 500 -
+127.0.0.1 - - [03/Aug/2026 17:30:10] "GET /generic/api/monitor_tasks_filtered?only_mine=1&start=2026-07-27&end=2026-08-10&_=1785774610098 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:30:11] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:30:12] "GET /dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:30:12] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:30:12] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:30:12] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:30:12] "GET /static/js/push.js?v=1785774361 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:30:12] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:30:12] "GET /static/js/dashboard.js?v=1785774361 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:30:12] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:30:13] "GET /api/dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:30:14] "GET /service-worker.js HTTP/1.1" 304 -
+[2026-08-03 17:30:24,071] WARNING in app: Falhou ligação SQL Server via 192.168.1.50,1433 (DRIVER={ODBC Driver 18 for SQL Server};SERVER=192.168.1.50,1433;DATABASE=GESTAO;UID=sa;PWD=***;TrustServerCertificate=Yes;Application Name=SZERO): ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+ * Serving Flask app 'app:app'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://10.0.1.110:8001
+Press CTRL+C to quit
+127.0.0.1 - - [03/Aug/2026 17:30:28] "GET /dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:30:28] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:30:28] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:30:28] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:30:28] "GET /static/js/dashboard.js?v=1785774621 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:30:28] "GET /static/js/push.js?v=1785774621 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:30:28] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:30:28] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:30:28] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:30:28] "GET /api/dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:30:29] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:30:33] "GET /manuais HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:30:33] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:30:33] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:30:33] "GET /static/js/push.js?v=1785774621 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:30:33] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:30:33] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:30:33] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:30:34] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:30:35] "GET /dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:30:35] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:30:37] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:33:01] "GET /dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:33:01] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:33:01] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:33:01] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:33:01] "GET /static/js/push.js?v=1785774621 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:33:01] "GET /static/js/dashboard.js?v=1785774621 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:33:01] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:33:01] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:33:01] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:33:01] "GET /api/dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:33:03] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:33:05] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:33:05] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:33:05] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:33:05] "GET /static/js/push.js?v=1785774621 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:33:05] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:33:05] "GET /gr_budgets/static/gr_budgets.css?v=1785774621-money-2-decimals-1 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:33:05] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:33:05] "GET /gr_budgets/static/gr_budgets.js?v=1785774621-company-logo-1 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:33:05] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:33:06] "GET /api/gr_orcamentos/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:33:06] "GET /api/gr_orcamentos/series?feid=8 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:33:06] "GET /api/gr_orcamentos/comerciais?feid=8 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:33:06] "GET /api/gr_orcamentos/orcamentos?feid=8&ndos=115&year=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:33:07] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:33:07] "GET /api/gr_orcamentos/orcamento?feid=8&bostamp=JOM26042764596,321000002 HTTP/1.1" 200 -
+[2026-08-03 17:33:19,382] WARNING in app: Falhou ligação SQL Server via 192.168.1.50,1433 (DRIVER={ODBC Driver 18 for SQL Server};SERVER=192.168.1.50,1433;DATABASE=GESTAO;UID=sa;PWD=***;TrustServerCertificate=Yes;Application Name=SZERO): ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+ * Serving Flask app 'app:app'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://10.0.1.110:8001
+Press CTRL+C to quit
+127.0.0.1 - - [03/Aug/2026 17:33:21] "GET /login HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:33:45] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:33:45] "GET /gr_budgets/static/gr_budgets.css?v=1785774797-money-2-decimals-1 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:33:45] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:33:45] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:33:45] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:33:45] "GET /static/js/push.js?v=1785774797 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:33:45] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:33:45] "GET /gr_budgets/static/gr_budgets.js?v=1785774797-company-logo-1 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:33:45] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:33:45] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:33:45] "GET /api/gr_orcamentos/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:33:46] "GET /api/gr_orcamentos/comerciais?feid=8 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:33:46] "GET /api/gr_orcamentos/series?feid=8 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:33:46] "GET /api/gr_orcamentos/orcamentos?feid=8&ndos=115&year=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:33:47] "GET /api/gr_orcamentos/orcamento?feid=8&bostamp=JOM26042764596,321000002 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:33:47] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:34:13] "GET /api/gr_orcamentos/orcamento?feid=8&bostamp=JOM26042764596,321000002 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:41:17] "GET /generic/view/OPC HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:41:17] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:41:17] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:41:17] "GET /static/js/push.js?v=1785774797 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:41:17] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:41:17] "GET /static/js/dynamic_list.js?v=1785774797 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:41:18] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:41:18] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:41:18] "GET /generic/api/OPC?action=describe&include_screen_meta=1&menustamp=C662E899ECD4419F905CCBB86 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:41:18] "GET /generic/api/OPC HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:41:19] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:47:16] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:47:16] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:47:16] "GET /static/js/push.js?v=1785774797 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:47:16] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:47:16] "GET /gr_budgets/static/gr_budgets.css?v=1785774797-money-2-decimals-1 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:47:16] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:47:16] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:47:16] "GET /gr_budgets/static/gr_budgets.js?v=1785774797-company-logo-1 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:47:16] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:47:16] "GET /api/gr_orcamentos/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:47:17] "GET /api/gr_orcamentos/comerciais?feid=8 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:47:17] "GET /api/gr_orcamentos/series?feid=8 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:47:17] "GET /api/gr_orcamentos/orcamentos?feid=8&ndos=115&year=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:47:17] "GET /api/gr_orcamentos/orcamento?feid=8&bostamp=JOM26042764596,321000002 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:47:17] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:47:39] "GET /api/gr_orcamentos/clientes?feid=8&q=g HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:47:39] "GET /api/gr_orcamentos/clientes?feid=8&q=gs HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:47:41] "GET /api/gr_orcamentos/clientes?feid=8&q=gse HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:48:44] "GET /api/gr_orcamentos/orcamento?feid=8&bostamp=JOM26042764596,321000002 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:49:22] "GET /api/gr_orcamentos/opcoes-tecnicas?feid=8 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:50:38] "POST /api/profile/viewmode HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:50:38] "POST /api/profile/viewmode HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:50:38] "POST /api/profile/viewmode HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:50:38] "POST /api/profile/viewmode HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:52:25] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:52:25] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:52:25] "GET /generic/api/OPC HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:52:26] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:52:31] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:52:31] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:52:31] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:52:31] "GET /gr_budgets/static/gr_budgets.css?v=1785774797-money-2-decimals-1 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:52:31] "GET /static/js/push.js?v=1785774797 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:52:31] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:52:31] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:52:31] "GET /gr_budgets/static/gr_budgets.js?v=1785774797-company-logo-1 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:52:31] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:52:31] "GET /api/gr_orcamentos/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:52:31] "GET /api/gr_orcamentos/series?feid=8 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:52:31] "GET /api/gr_orcamentos/comerciais?feid=8 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:52:32] "GET /api/gr_orcamentos/orcamentos?feid=8&ndos=115&year=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:52:32] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:52:32] "GET /api/gr_orcamentos/orcamento?feid=8&bostamp=JOM26042764596,321000002 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:52:39] "GET /logout HTTP/1.1" 302 -
+127.0.0.1 - - [03/Aug/2026 17:52:39] "GET /login HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:52:39] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:52:39] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:52:39] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:52:39] "GET /static/js/push.js?v=1785774797 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:52:39] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:52:39] "GET /static/images/icon-512.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:52:39] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:52:40] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:52:44] "POST /login HTTP/1.1" 302 -
+127.0.0.1 - - [03/Aug/2026 17:52:44] "GET / HTTP/1.1" 302 -
+127.0.0.1 - - [03/Aug/2026 17:52:46] "GET /dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:52:47] "GET /dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:52:47] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:52:47] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:52:47] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:52:47] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:52:47] "GET /static/js/dashboard.js?v=1785774797 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:52:47] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:52:47] "GET /static/js/push.js?v=1785774797 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:52:47] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:52:48] "GET /api/dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:52:48] "POST /api/widgets/COMPLIANCE_DATAS_30D/run HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:52:49] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:52:49] "POST /api/widgets/MAPA_GESTAO_GR_RESUMO/run HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:52:49] "POST /api/widgets/MAPA_GESTAO_GR_TOP_PREJUIZO/run HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:52:49] "POST /api/widgets/MAPA_GESTAO_GR_TOP_LUCRO/run HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:52:58] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:52:58] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:52:58] "GET /gr_budgets/static/gr_budgets.css?v=1785774797-money-2-decimals-1 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:52:58] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:52:58] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:52:58] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:52:58] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:52:58] "GET /static/js/push.js?v=1785774797 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:52:58] "GET /gr_budgets/static/gr_budgets.js?v=1785774797-company-logo-1 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:52:58] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:52:58] "GET /api/gr_orcamentos/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:52:59] "GET /api/gr_orcamentos/comerciais?feid=8 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:52:59] "GET /api/gr_orcamentos/series?feid=8 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:52:59] "GET /api/gr_orcamentos/orcamentos?feid=8&ndos=115&year=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:52:59] "GET /api/gr_orcamentos/orcamento?feid=8&bostamp=AB26080330688,180000001 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:53:00] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:53:04] "GET /api/gr_orcamentos/series?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:53:04] "GET /api/gr_orcamentos/comerciais?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:53:04] "GET /api/gr_orcamentos/orcamentos?feid=1&ndos=115&year=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:53:05] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=44CCED983972439680EE00A4D HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:53:14] "POST /api/profile/viewmode HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:53:14] "POST /api/profile/viewmode HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:53:59] "GET /api/gr_orcamentos/orcamento/44CCED983972439680EE00A4D/pdf?feid=1&style=modern HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:54:01] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 17:59:42] "GET /api/gr_orcamentos/opcoes-tecnicas?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 17:59:42] "GET /api/gr_orcamentos/oci?feid=1&bistamp=45D65D2BF3EF48AB81370BB39 HTTP/1.1" 200 -

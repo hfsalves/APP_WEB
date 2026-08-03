@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 
-{% block title %}Orçamentos · GR360{% endblock %}
+{% block title %}{{ _('gr_budgets.page_title') }}{% endblock %}
 
 {% block extra_head %}
   {{ super() }}
-  <link rel="stylesheet" href="{{ url_for('gr_budgets.static', filename='gr_budgets.css') }}?v={{ config.get('STATIC_VERSION', 1) }}-oci-positions-compact-1">
+  <link rel="stylesheet" href="{{ url_for('gr_budgets.static', filename='gr_budgets.css') }}?v={{ config.get('STATIC_VERSION', 1) }}-money-2-decimals-1">
 {% endblock %}
 
 {% block content %}
@@ -12,34 +12,34 @@
   <div class="sz_page_container gr-budget-shell">
     <header class="sz_contextbar sz_page_contextbar gr-budget-contextbar">
       <div class="sz_contextbar_left">
-        <h1 class="sz_page_title">Orçamentos</h1>
-        <div class="sz_breadcrumbs">GR360 / ORÇAMENTAÇÃO</div>
-        <p class="sz_page_subtitle">Consulta dos dossiers internos de orçamento no PHC.</p>
+        <h1 class="sz_page_title">{{ _('gr_budgets.title') }}</h1>
+        <div class="sz_breadcrumbs">{{ _('gr_budgets.breadcrumb') }}</div>
+        <p class="sz_page_subtitle">{{ _('gr_budgets.subtitle') }}</p>
       </div>
       <div class="sz_contextbar_right gr-budget-context-actions">
         <div class="gr-budget-filters">
           <label class="sz_field gr-budget-filter-company">
-            <span class="sz_label">Empresa</span>
-            <select id="budgetCompany" class="sz_select" aria-label="Empresa"></select>
+            <span class="sz_label">{{ _('gr_budgets.field.company') }}</span>
+            <select id="budgetCompany" class="sz_select" aria-label="{{ _('gr_budgets.aria.company') }}"></select>
           </label>
           <label class="sz_field">
-            <span class="sz_label">Série</span>
-            <select id="budgetSeries" class="sz_select" aria-label="Série"></select>
+            <span class="sz_label">{{ _('gr_budgets.field.series') }}</span>
+            <select id="budgetSeries" class="sz_select" aria-label="{{ _('gr_budgets.field.series') }}"></select>
           </label>
           <label class="sz_field gr-budget-filter-year">
-            <span class="sz_label">Ano</span>
+            <span class="sz_label">{{ _('gr_budgets.field.year') }}</span>
             <input id="budgetYear" class="sz_input" type="number" min="1900" max="2200" inputmode="numeric">
           </label>
           <label class="sz_field gr-budget-filter-search">
-            <span class="sz_label">Pesquisar</span>
+            <span class="sz_label">{{ _('gr_budgets.field.search') }}</span>
             <span class="gr-budget-search-wrap">
               <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
-              <input id="budgetSearch" class="sz_input" type="search" placeholder="N.º, cliente, obra ou localidade">
+              <input id="budgetSearch" class="sz_input" type="search" placeholder="{{ _('gr_budgets.help.search') }}">
             </span>
           </label>
-          <button id="budgetRefresh" type="button" class="sz_button sz_button_secondary gr-budget-refresh" title="Atualizar dados">
+          <button id="budgetRefresh" type="button" class="sz_button sz_button_secondary gr-budget-refresh" title="{{ _('gr_budgets.title.refresh') }}">
             <i class="fa-solid fa-rotate"></i>
-            <span>Atualizar</span>
+            <span>{{ _('gr_budgets.action.refresh') }}</span>
           </button>
         </div>
       </div>
@@ -50,8 +50,8 @@
 
       <section id="budgetEmpty" class="sz_panel gr-budget-empty" hidden>
         <i class="fa-regular fa-folder-open" aria-hidden="true"></i>
-        <strong class="sz_h4">Não existem orçamentos para os filtros selecionados.</strong>
-        <span class="sz_text_muted">Altere a série, o ano ou a pesquisa.</span>
+        <strong class="sz_h4">{{ _('gr_budgets.empty.title') }}</strong>
+        <span class="sz_text_muted">{{ _('gr_budgets.empty.hint') }}</span>
       </section>
 
       <div id="budgetContent" class="gr-budget-content" hidden>
@@ -59,32 +59,40 @@
           <div class="sz_section_header gr-budget-document-header">
             <div class="gr-budget-document-toolbar">
               <div class="gr-budget-document-meta">
-                <span class="sz_caption" id="budgetDocumentEyebrow">Dossier interno</span>
-                <strong id="budgetResultCount" class="sz_text_sm">A carregar…</strong>
+                <span class="sz_caption" id="budgetDocumentEyebrow">{{ _('gr_budgets.document.dossier_internal') }}</span>
+                <strong id="budgetResultCount" class="sz_text_sm">{{ _('common.loading') }}</strong>
               </div>
-              <select id="budgetDocument" class="sz_select gr-budget-document-select" aria-label="Selecionar orçamento"></select>
+              <select id="budgetDocument" class="sz_select gr-budget-document-select" aria-label="{{ _('gr_budgets.action.select_budget') }}"></select>
               <div class="gr-budget-nav-buttons">
-                <button id="budgetPrevious" type="button" class="sz_button sz_button_secondary gr-budget-icon-button" title="Orçamento anterior" aria-label="Orçamento anterior">
+                <button id="budgetPrevious" type="button" class="sz_button sz_button_secondary gr-budget-icon-button" title="{{ _('gr_budgets.title.previous') }}" aria-label="{{ _('gr_budgets.aria.previous_budget') }}">
                   <i class="fa-solid fa-chevron-left"></i>
                 </button>
-                <button id="budgetNext" type="button" class="sz_button sz_button_secondary gr-budget-icon-button" title="Orçamento seguinte" aria-label="Orçamento seguinte">
+                <button id="budgetNext" type="button" class="sz_button sz_button_secondary gr-budget-icon-button" title="{{ _('gr_budgets.title.next') }}" aria-label="{{ _('gr_budgets.aria.next_budget') }}">
                   <i class="fa-solid fa-chevron-right"></i>
                 </button>
               </div>
             </div>
             <div class="gr-budget-header-actions">
               <div id="budgetStatus" class="gr-budget-statuses"></div>
-              <button id="budgetPrint" type="button" class="sz_button sz_button_secondary" title="Abrir o PDF do orçamento para imprimir" disabled>
+              <button id="budgetPrint" type="button" class="sz_button sz_button_secondary" title="{{ _('gr_budgets.title.print') }}" disabled>
                 <i class="fa-solid fa-print" aria-hidden="true"></i>
-                <span>Imprimir</span>
+                <span>{{ _('gr_budgets.action.print') }}</span>
               </button>
-              <button id="budgetNew" type="button" class="sz_button sz_button_primary" title="Criar novo orçamento">
+              <button id="budgetNew" type="button" class="sz_button sz_button_primary" title="{{ _('gr_budgets.title.create') }}">
                 <i class="fa-solid fa-plus" aria-hidden="true"></i>
-                <span>Novo</span>
+                <span>{{ _('gr_budgets.action.new') }}</span>
+              </button>
+              <button id="budgetEdit" type="button" class="sz_button sz_button_secondary" title="{{ _('gr_budgets.title.edit') }}" hidden>
+                <i class="fa-solid fa-pen" aria-hidden="true"></i>
+                <span>{{ _('gr_budgets.action.edit') }}</span>
               </button>
               <button id="budgetCancelEdit" type="button" class="sz_button sz_button_secondary" hidden>
                 <i class="fa-solid fa-xmark" aria-hidden="true"></i>
-                <span>Cancelar</span>
+                <span>{{ _('gr_budgets.action.cancel') }}</span>
+              </button>
+              <button id="budgetSave" type="button" class="sz_button sz_button_primary" hidden>
+                <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i>
+                <span>{{ _('gr_budgets.action.save') }}</span>
               </button>
             </div>
           </div>
@@ -93,9 +101,9 @@
             <div class="gr-budget-detail-layout">
               <div class="gr-budget-form-grid">
                 <div class="sz_field sz_table_lookup_field gr-budget-client-field">
-                  <label class="sz_label" for="budgetClientSearch">Cliente</label>
+                  <label class="sz_label" for="budgetClientSearch">{{ _('gr_budgets.field.client') }}</label>
                   <div class="sz_table_lookup">
-                    <input id="budgetClientSearch" class="sz_input" type="search" autocomplete="off" spellcheck="false" placeholder="Pesquisar por número, nome ou NIF">
+                    <input id="budgetClientSearch" class="sz_input" type="search" autocomplete="off" spellcheck="false" placeholder="{{ _('gr_budgets.help.client_search') }}">
                     <div id="budgetClientResults" class="sz_table_lookup_dropdown" hidden></div>
                   </div>
                   <input id="budgetClientNumber" type="hidden">
@@ -103,42 +111,42 @@
                   <span id="budgetClientMeta" class="sz_help">—</span>
                 </div>
                 <label class="sz_field gr-budget-work-field">
-                  <span class="sz_label">Nome da obra</span>
+                  <span class="sz_label">{{ _('gr_budgets.field.work_name') }}</span>
                   <input id="budgetWorkInput" class="sz_input" type="text" autocomplete="off">
                 </label>
                 <label class="sz_field">
-                  <span class="sz_label">Localidade</span>
+                  <span class="sz_label">{{ _('gr_budgets.field.locality') }}</span>
                   <input id="budgetLocalityInput" class="sz_input" type="text" autocomplete="off">
                 </label>
                 <label class="sz_field">
-                  <span class="sz_label">Data</span>
+                  <span class="sz_label">{{ _('gr_budgets.field.date') }}</span>
                   <input id="budgetDateInput" class="sz_input" type="date">
                 </label>
                 <label class="sz_field">
-                  <span class="sz_label">Comercial</span>
+                  <span class="sz_label">{{ _('gr_budgets.field.salesperson') }}</span>
                   <select id="budgetSalespersonSelect" class="sz_select"></select>
                 </label>
                 <label class="sz_field">
-                  <span class="sz_label">A/C</span>
+                  <span class="sz_label">{{ _('gr_budgets.field.attention') }}</span>
                   <input id="budgetAttentionInput" class="sz_input" type="text" autocomplete="off">
                 </label>
               </div>
 
-              <aside class="gr-budget-totals" aria-label="Totais do orçamento">
+              <aside class="gr-budget-totals" aria-label="{{ _('gr_budgets.aria.budget_totals') }}">
                 <div class="sz_sidebar_section gr-budget-total gr-budget-total-primary">
-                  <span class="sz_sidebar_title">Total preço</span>
+                  <span class="sz_sidebar_title">{{ _('gr_budgets.field.total_price') }}</span>
                   <strong id="budgetTotal" class="sz_sidebar_value">—</strong>
                 </div>
                 <div class="sz_sidebar_section gr-budget-total">
-                  <span class="sz_sidebar_title">Custo total</span>
+                  <span class="sz_sidebar_title">{{ _('gr_budgets.field.cost_total') }}</span>
                   <strong id="budgetCost" class="sz_sidebar_value">—</strong>
                 </div>
                 <div class="sz_sidebar_section gr-budget-total">
-                  <span class="sz_sidebar_title">Margem</span>
+                  <span class="sz_sidebar_title">{{ _('gr_budgets.field.margin') }}</span>
                   <strong id="budgetMargin" class="sz_sidebar_value">—</strong>
                 </div>
                 <div class="sz_sidebar_section gr-budget-total">
-                  <span class="sz_sidebar_title">Lucro</span>
+                  <span class="sz_sidebar_title">{{ _('gr_budgets.field.profit') }}</span>
                   <strong id="budgetProfit" class="sz_sidebar_value">—</strong>
                 </div>
               </aside>
@@ -149,17 +157,17 @@
         <section class="sz_section gr-budget-lines-card">
           <div class="sz_section_header gr-budget-section-heading">
             <div>
-              <h3 class="sz_h3">Linhas do orçamento</h3>
-              <p id="budgetLineCount" class="sz_text_muted">0 linhas · BI + BI2</p>
+              <h3 class="sz_h3">{{ _('gr_budgets.section.lines') }}</h3>
+              <p id="budgetLineCount" class="sz_text_muted">{{ _('gr_budgets.count.line_other', count=0) }} · BI + BI2</p>
             </div>
             <div class="gr-budget-lines-actions">
               <div class="gr-budget-legend sz_text_muted">
                 <span class="gr-budget-plus-demo">+</span>
-                <span>Detalhe técnico da linha</span>
+                <span>{{ _('gr_budgets.action.technical_detail') }}</span>
               </div>
               <button id="budgetAddLine" type="button" class="sz_button sz_button_secondary">
                 <i class="fa-solid fa-plus" aria-hidden="true"></i>
-                <span>Nova linha</span>
+                <span>{{ _('gr_budgets.action.new_line') }}</span>
               </button>
             </div>
           </div>
@@ -167,18 +175,18 @@
             <table class="sz_table sz_table_compact gr-budget-table">
               <thead class="sz_table_head">
                 <tr>
-                  <th class="gr-budget-col-item">Item</th>
-                  <th>Referência</th>
-                  <th class="gr-budget-col-description">Designação</th>
-                  <th class="gr-budget-num">Qtd.</th>
-                  <th>Unidade</th>
-                  <th class="gr-budget-num">Espessura</th>
-                  <th class="gr-budget-num">Preço</th>
-                  <th class="gr-budget-num">Total</th>
-                  <th class="gr-budget-check">Técnica</th>
-                  <th class="gr-budget-num">Custo total</th>
-                  <th class="gr-budget-num">Margem</th>
-                  <th class="gr-budget-num">Lucro</th>
+                  <th class="gr-budget-col-item">{{ _('gr_budgets.field.item') }}</th>
+                  <th>{{ _('gr_budgets.field.reference') }}</th>
+                  <th class="gr-budget-col-description">{{ _('gr_budgets.field.designation') }}</th>
+                  <th class="gr-budget-num">{{ _('gr_budgets.field.quantity') }}</th>
+                  <th>{{ _('gr_budgets.field.unit') }}</th>
+                  <th class="gr-budget-num">{{ _('gr_budgets.field.thickness') }}</th>
+                  <th class="gr-budget-num">{{ _('gr_budgets.field.price') }}</th>
+                  <th class="gr-budget-num">{{ _('gr_budgets.field.total') }}</th>
+                  <th class="gr-budget-check">{{ _('gr_budgets.field.technical') }}</th>
+                  <th class="gr-budget-num">{{ _('gr_budgets.field.cost_total') }}</th>
+                  <th class="gr-budget-num">{{ _('gr_budgets.field.margin') }}</th>
+                  <th class="gr-budget-num">{{ _('gr_budgets.field.profit') }}</th>
                 </tr>
               </thead>
               <tbody id="budgetLines"></tbody>
@@ -191,7 +199,7 @@
 
       <div id="budgetLoading" class="sz_panel gr-budget-loading" hidden>
         <span class="gr-budget-spinner" aria-hidden="true"></span>
-        <span class="sz_text_sm">A carregar orçamento do PHC…</span>
+        <span class="sz_text_sm">{{ _('gr_budgets.loading') }}</span>
       </div>
     </main>
 
@@ -200,23 +208,23 @@
         <section class="sz_section gr-budget-oci-line-card">
           <div class="sz_section_header gr-budget-oci-section-header">
             <div>
-              <h2 id="budgetOciTitle" class="sz_h3">Dados da linha</h2>
+              <h2 id="budgetOciTitle" class="sz_h3">{{ _('gr_budgets.section.line_data') }}</h2>
               <p id="budgetOciSubtitle" class="sz_text_muted">—</p>
             </div>
             <div class="gr-budget-oci-header-actions">
               <button id="budgetOciPositions" type="button" class="sz_button sz_button_ghost gr-budget-position-trigger" aria-haspopup="dialog" hidden>
                 <i class="fa-solid fa-layer-group" aria-hidden="true"></i>
-                <span id="budgetOciPositionsCount">0 posições</span>
+                <span id="budgetOciPositionsCount">{{ _('gr_budgets.count.position_other', count=0) }}</span>
                 <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
               </button>
-              <span id="budgetOciMode" class="sz_badge sz_badge_info">Detalhe técnico</span>
+              <span id="budgetOciMode" class="sz_badge sz_badge_info">{{ _('gr_budgets.action.technical_detail') }}</span>
               <button id="budgetOciCancel" type="button" class="sz_button sz_button_secondary">
                 <i class="fa-solid fa-xmark" aria-hidden="true"></i>
-                <span>Cancelar</span>
+                <span>{{ _('gr_budgets.action.cancel') }}</span>
               </button>
               <button id="budgetOciSave" type="button" class="sz_button sz_button_primary">
                 <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i>
-                <span>Gravar</span>
+                <span>{{ _('gr_budgets.action.save') }}</span>
               </button>
             </div>
           </div>
@@ -225,80 +233,80 @@
             <div class="gr-budget-oci-line-layout">
               <div class="gr-budget-oci-fields">
               <label class="sz_field gr-budget-oci-field-ouvrage">
-                <span class="sz_label">Tipo de ouvrage</span>
+                <span class="sz_label">{{ _('gr_budgets.field.ouvrage_type') }}</span>
                 <select id="budgetOciOuvrage" class="sz_select"></select>
               </label>
               <label class="sz_field">
-                <span class="sz_label">Posição</span>
+                <span class="sz_label">{{ _('gr_budgets.field.position') }}</span>
                 <input id="budgetOciPosition" class="sz_input" type="number" min="1" step="1">
               </label>
               <input id="budgetOciReference" type="hidden">
               <input id="budgetOciDesignation" type="hidden">
               <label class="sz_field gr-budget-oci-field-description">
-                <span class="sz_label">Descrição da posição</span>
+                <span class="sz_label">{{ _('gr_budgets.field.position_description') }}</span>
                 <input id="budgetOciDescription" class="sz_input" type="text" maxlength="220">
               </label>
               <label class="sz_field">
-                <span class="sz_label">Surface</span>
+                <span class="sz_label">{{ _('gr_budgets.field.surface') }}</span>
                 <input id="budgetOciSurface" class="sz_input gr-budget-number-input" type="number" min="0" step="0.0001">
               </label>
               <label class="sz_field">
-                <span class="sz_label">Unidade</span>
+                <span class="sz_label">{{ _('gr_budgets.field.unit') }}</span>
                 <input id="budgetOciUnit" class="sz_input" type="text" maxlength="4">
               </label>
               <label class="sz_field">
-                <span class="sz_label">Espessura</span>
+                <span class="sz_label">{{ _('gr_budgets.field.thickness') }}</span>
                 <input id="budgetOciThickness" class="sz_input gr-budget-number-input" type="number" min="0" step="0.001">
               </label>
               <label class="sz_field">
-                <span class="sz_label">Volume</span>
+                <span class="sz_label">{{ _('gr_budgets.field.volume') }}</span>
                 <input id="budgetOciVolume" class="sz_input gr-budget-number-input" type="number" readonly>
               </label>
               <label class="sz_field gr-budget-oci-field-purchase-price">
-                <span class="sz_label">Preço compra / m²</span>
-                <input id="budgetOciPurchasePrice" class="sz_input gr-budget-number-input" type="number" min="0" step="0.0001" readonly>
+                <span class="sz_label">{{ _('gr_budgets.field.purchase_price_unit') }}</span>
+                <input id="budgetOciPurchasePrice" class="sz_input gr-budget-number-input" type="number" min="0" step="0.01" readonly>
               </label>
               <label class="sz_field gr-budget-oci-field-purchase-total">
-                <span class="sz_label">Custo total</span>
+                <span class="sz_label">{{ _('gr_budgets.field.cost_total') }}</span>
                 <input id="budgetOciPurchaseTotal" class="sz_input gr-budget-number-input" type="number" readonly>
               </label>
               <label id="budgetOciSalePriceField" class="sz_field gr-budget-price-driver gr-budget-oci-field-sale-price">
-                <span class="sz_label">Preço venda / m²</span>
-                <input id="budgetOciSalePrice" class="sz_input gr-budget-number-input" type="number" min="0" step="0.0001">
+                <span class="sz_label">{{ _('gr_budgets.field.sale_price_unit') }}</span>
+                <input id="budgetOciSalePrice" class="sz_input gr-budget-number-input" type="number" min="0" step="0.01">
               </label>
               <label class="sz_field">
-                <span class="sz_label">Venda total</span>
+                <span class="sz_label">{{ _('gr_budgets.field.sale_total') }}</span>
                 <input id="budgetOciSaleTotal" class="sz_input gr-budget-number-input" type="number" readonly>
               </label>
               <label class="sz_field">
-                <span class="sz_label">Margem / m²</span>
+                <span class="sz_label">{{ _('gr_budgets.field.margin_unit') }}</span>
                 <input id="budgetOciMarginUnit" class="sz_input gr-budget-number-input" type="number" readonly>
               </label>
               <label class="sz_field">
-                <span class="sz_label">Margem total</span>
+                <span class="sz_label">{{ _('gr_budgets.field.margin_total') }}</span>
                 <input id="budgetOciMarginTotal" class="sz_input gr-budget-number-input" type="number" readonly>
               </label>
               <label id="budgetOciMarginPercentField" class="sz_field gr-budget-price-driver">
-                <span class="sz_label">Margem %</span>
+                <span class="sz_label">{{ _('gr_budgets.field.margin_percent') }}</span>
                 <input id="budgetOciMarginPercent" class="sz_input gr-budget-number-input" type="number" min="-999.99" max="99.99" step="0.01">
               </label>
               <label class="sz_field gr-budget-oci-field-prorata">
-                <span class="sz_label">Pro-rata %</span>
+                <span class="sz_label">{{ _('gr_budgets.field.prorata') }}</span>
                 <input id="budgetOciProrata" class="sz_input gr-budget-number-input" type="number" min="0" max="99.99" step="0.01">
               </label>
               </div>
 
-              <aside class="gr-budget-oci-rules" aria-label="Opções e indicadores da linha">
-                <div class="gr-budget-oci-flags" aria-label="Opções da linha">
-                  <label class="sz_checkbox"><input id="budgetOciSimultaneous" type="checkbox"><span>Simultané</span></label>
-                  <label class="sz_checkbox"><input id="budgetOciVariant" type="checkbox"><span>Variant</span></label>
-                  <label class="sz_checkbox"><input id="budgetOciOption" type="checkbox"><span>Option</span></label>
+              <aside class="gr-budget-oci-rules" aria-label="{{ _('gr_budgets.aria.line_options_and_indicators') }}">
+                <div class="gr-budget-oci-flags" aria-label="{{ _('gr_budgets.aria.line_options') }}">
+                  <label class="sz_checkbox"><input id="budgetOciSimultaneous" type="checkbox"><span>{{ _('gr_budgets.option.simultaneous') }}</span></label>
+                  <label class="sz_checkbox"><input id="budgetOciVariant" type="checkbox"><span>{{ _('gr_budgets.option.variant') }}</span></label>
+                  <label class="sz_checkbox"><input id="budgetOciOption" type="checkbox"><span>{{ _('gr_budgets.option.option') }}</span></label>
                 </div>
-                <div class="gr-budget-simultaneous-summary" aria-label="Totais para cálculo de simultâneos">
-                  <div><span>m³ Bombagem simultânea</span><strong id="budgetOciM3Sim">0,00</strong></div>
-                  <div><span>m³ Bombagem não simultânea</span><strong id="budgetOciM3NonSim">0,00</strong></div>
-                  <div><span>m² MO simultânea</span><strong id="budgetOciM2MoSim">0,00</strong></div>
-                  <div><span>m² MO não simultânea</span><strong id="budgetOciM2MoNonSim">0,00</strong></div>
+                <div class="gr-budget-simultaneous-summary" aria-label="{{ _('gr_budgets.aria.simultaneous_totals') }}">
+                  <div><span>{{ _('gr_budgets.indicator.m3_pumping_simultaneous') }}</span><strong id="budgetOciM3Sim">0,00</strong></div>
+                  <div><span>{{ _('gr_budgets.indicator.m3_pumping_non_simultaneous') }}</span><strong id="budgetOciM3NonSim">0,00</strong></div>
+                  <div><span>{{ _('gr_budgets.indicator.m2_labour_simultaneous') }}</span><strong id="budgetOciM2MoSim">0,00</strong></div>
+                  <div><span>{{ _('gr_budgets.indicator.m2_labour_non_simultaneous') }}</span><strong id="budgetOciM2MoNonSim">0,00</strong></div>
                 </div>
               </aside>
             </div>
@@ -311,18 +319,18 @@
         <section class="sz_section gr-budget-oci-grid-card">
           <div class="sz_section_header gr-budget-oci-section-header">
             <div>
-              <h3 class="sz_h3">Estrutura de custos</h3>
-              <p id="budgetOciRowCount" class="sz_text_muted">0 linhas · OCI</p>
+              <h3 class="sz_h3">{{ _('gr_budgets.section.cost_structure') }}</h3>
+              <p id="budgetOciRowCount" class="sz_text_muted">{{ _('gr_budgets.count.oci_line_other', count=0) }}</p>
             </div>
             <button id="budgetOciAddRow" type="button" class="sz_button sz_button_secondary">
               <i class="fa-solid fa-plus" aria-hidden="true"></i>
-              <span>Adicionar componente</span>
+              <span>{{ _('gr_budgets.action.add_component') }}</span>
             </button>
           </div>
           <div class="gr-budget-oci-workspace">
-            <aside class="gr-budget-oci-family-sidebar" aria-label="Adicionar componente por família">
+            <aside class="gr-budget-oci-family-sidebar" aria-label="{{ _('gr_budgets.aria.add_component_by_family') }}">
               <div class="gr-budget-component-column-header">
-                <strong class="sz_text_sm">Famílias</strong>
+                <strong class="sz_text_sm">{{ _('gr_budgets.component.families') }}</strong>
                 <span id="budgetOciFamilyCount" class="sz_caption">0</span>
               </div>
               <div id="budgetOciFamilyList" class="gr-budget-component-family-list gr-budget-oci-family-list"></div>
@@ -331,19 +339,19 @@
               <table class="sz_table sz_table_compact gr-budget-oci-table">
                 <thead class="sz_table_head">
                   <tr>
-                    <th class="gr-budget-oci-col-designation">Designação</th>
-                    <th>Fórmula</th>
-                    <th class="gr-budget-num">Preço compra</th>
-                    <th class="gr-budget-num">Forfait</th>
-                    <th class="gr-budget-num">Surface</th>
-                    <th class="gr-budget-num">Espessura</th>
-                    <th class="gr-budget-num">Total m³</th>
-                    <th class="gr-budget-num">Kg / m³</th>
-                    <th class="gr-budget-num">Qtd. consum.</th>
-                    <th class="gr-budget-num">Coef. ML</th>
-                    <th class="gr-budget-num">Preço de custo</th>
-                    <th>Un.</th>
-                    <th aria-label="Ações"></th>
+                    <th class="gr-budget-oci-col-designation">{{ _('gr_budgets.field.designation') }}</th>
+                    <th>{{ _('gr_budgets.field.formula') }}</th>
+                    <th class="gr-budget-num">{{ _('gr_budgets.field.purchase_price') }}</th>
+                    <th class="gr-budget-num">{{ _('gr_budgets.field.forfait') }}</th>
+                    <th class="gr-budget-num">{{ _('gr_budgets.field.surface') }}</th>
+                    <th class="gr-budget-num">{{ _('gr_budgets.field.thickness') }}</th>
+                    <th class="gr-budget-num">{{ _('gr_budgets.field.total_m3') }}</th>
+                    <th class="gr-budget-num">{{ _('gr_budgets.field.kg_m3') }}</th>
+                    <th class="gr-budget-num">{{ _('gr_budgets.field.quantity_consumed') }}</th>
+                    <th class="gr-budget-num">{{ _('gr_budgets.field.coefficient_ml') }}</th>
+                    <th class="gr-budget-num">{{ _('gr_budgets.field.cost_price') }}</th>
+                    <th>{{ _('gr_budgets.field.unit_short') }}</th>
+                    <th aria-label="{{ _('gr_budgets.aria.table_actions') }}"></th>
                   </tr>
                 </thead>
                 <tbody id="budgetOciRows"></tbody>
@@ -360,30 +368,30 @@
     <div class="sz_panel gr-budget-component-picker-panel">
       <div class="sz_modal_header gr-budget-component-picker-header">
         <div>
-          <span class="sz_caption">ESTRUTURA DE CUSTOS</span>
-          <h3 id="budgetComponentPickerTitle" class="sz_modal_title">Adicionar componente</h3>
+          <span class="sz_caption">{{ _('gr_budgets.component.cost_structure') }}</span>
+          <h3 id="budgetComponentPickerTitle" class="sz_modal_title">{{ _('gr_budgets.component.title') }}</h3>
         </div>
-        <button type="button" class="sz_button sz_button_ghost gr-budget-icon-button" data-component-close aria-label="Fechar">
+        <button type="button" class="sz_button sz_button_ghost gr-budget-icon-button" data-component-close aria-label="{{ _('gr_budgets.aria.close') }}">
           <i class="fa-solid fa-xmark" aria-hidden="true"></i>
         </button>
       </div>
       <div class="sz_modal_body gr-budget-component-picker-body">
-        <section class="gr-budget-component-articles" aria-label="Artigos da família selecionada">
+        <section class="gr-budget-component-articles" aria-label="{{ _('gr_budgets.aria.selected_family_articles') }}">
           <div class="gr-budget-component-column-header">
             <div>
-              <strong id="budgetComponentFamilyTitle" class="sz_text_sm">Artigos</strong>
-              <span id="budgetComponentArticleCount" class="sz_caption">0 artigos</span>
+              <strong id="budgetComponentFamilyTitle" class="sz_text_sm">{{ _('gr_budgets.component.articles') }}</strong>
+              <span id="budgetComponentArticleCount" class="sz_caption">{{ _('gr_budgets.count.article_other', count=0) }}</span>
             </div>
           </div>
           <div class="sz_table_host gr-budget-component-table-host">
             <table class="sz_table sz_table_compact gr-budget-component-table">
               <thead class="sz_table_head">
                 <tr>
-                  <th>Referência</th>
-                  <th>Designação</th>
-                  <th>Unidade</th>
-                  <th class="gr-budget-num">Preço compra</th>
-                  <th>Fórmula</th>
+                  <th>{{ _('gr_budgets.field.reference') }}</th>
+                  <th>{{ _('gr_budgets.field.designation') }}</th>
+                  <th>{{ _('gr_budgets.field.unit') }}</th>
+                  <th class="gr-budget-num">{{ _('gr_budgets.field.purchase_price') }}</th>
+                  <th>{{ _('gr_budgets.field.formula') }}</th>
                 </tr>
               </thead>
               <tbody id="budgetComponentArticles"></tbody>
@@ -392,10 +400,10 @@
         </section>
       </div>
       <div class="sz_modal_footer gr-budget-component-picker-footer">
-        <span id="budgetComponentSelection" class="sz_text_muted">Selecione um artigo.</span>
+        <span id="budgetComponentSelection" class="sz_text_muted">{{ _('gr_budgets.component.select_article') }}</span>
         <div class="gr-budget-component-picker-buttons">
-          <button type="button" class="sz_button sz_button_secondary" data-component-close>Cancelar</button>
-          <button id="budgetComponentConfirm" type="button" class="sz_button sz_button_primary" disabled>OK</button>
+          <button type="button" class="sz_button sz_button_secondary" data-component-close>{{ _('gr_budgets.action.cancel') }}</button>
+          <button id="budgetComponentConfirm" type="button" class="sz_button sz_button_primary" disabled>{{ _('gr_budgets.action.ok') }}</button>
         </div>
       </div>
     </div>
@@ -405,10 +413,10 @@
     <div class="sz_panel gr-budget-position-picker-panel">
       <div class="sz_modal_header gr-budget-position-picker-header">
         <div>
-          <h3 id="budgetPositionPickerTitle" class="sz_modal_title">Posições do orçamento</h3>
-          <p id="budgetPositionPickerSubtitle" class="sz_text_muted">Selecione a posição que pretende abrir.</p>
+          <h3 id="budgetPositionPickerTitle" class="sz_modal_title">{{ _('gr_budgets.position.modal_title') }}</h3>
+          <p id="budgetPositionPickerSubtitle" class="sz_text_muted">{{ _('gr_budgets.position.modal_subtitle') }}</p>
         </div>
-        <button type="button" class="sz_button sz_button_ghost gr-budget-icon-button" data-position-picker-close aria-label="Fechar">
+        <button type="button" class="sz_button sz_button_ghost gr-budget-icon-button" data-position-picker-close aria-label="{{ _('gr_budgets.aria.close') }}">
           <i class="fa-solid fa-xmark" aria-hidden="true"></i>
         </button>
       </div>
@@ -422,19 +430,19 @@
     <div class="sz_panel gr-budget-position-confirm-panel">
       <div class="sz_modal_header">
         <div>
-          <span class="sz_caption">MUDAR DE POSIÇÃO</span>
-          <h3 id="budgetPositionSwitchTitle" class="sz_modal_title">Gravar a posição atual?</h3>
+          <span class="sz_caption">{{ _('gr_budgets.confirm.change_position_caption') }}</span>
+          <h3 id="budgetPositionSwitchTitle" class="sz_modal_title">{{ _('gr_budgets.confirm.change_position_title') }}</h3>
         </div>
       </div>
       <div class="sz_modal_body gr-budget-position-confirm-body">
-        <p id="budgetPositionSwitchText">Pretende gravar as alterações antes de mudar de posição?</p>
+        <p id="budgetPositionSwitchText">{{ _('gr_budgets.confirm.change_position_text') }}</p>
       </div>
       <div class="sz_modal_footer gr-budget-position-confirm-actions">
-        <button type="button" class="sz_button sz_button_ghost" data-position-switch-cancel>Cancelar</button>
-        <button id="budgetPositionSwitchDiscard" type="button" class="sz_button sz_button_secondary">Mudar sem gravar</button>
+        <button type="button" class="sz_button sz_button_ghost" data-position-switch-cancel>{{ _('gr_budgets.action.cancel') }}</button>
+        <button id="budgetPositionSwitchDiscard" type="button" class="sz_button sz_button_secondary">{{ _('gr_budgets.action.change_without_saving') }}</button>
         <button id="budgetPositionSwitchSave" type="button" class="sz_button sz_button_primary">
           <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i>
-          <span>Gravar e mudar</span>
+          <span>{{ _('gr_budgets.action.save_and_change') }}</span>
         </button>
       </div>
     </div>
@@ -445,5 +453,8 @@
 
 {% block scripts %}
   {{ super() }}
-  <script src="{{ url_for('gr_budgets.static', filename='gr_budgets.js') }}?v={{ config.get('STATIC_VERSION', 1) }}-oci-positions-compact-1" defer></script>
+  <script>
+    window.SZ_I18N = Object.assign({}, window.SZ_I18N || {}, {{ gr_budgets_i18n|tojson }});
+  </script>
+  <script src="{{ url_for('gr_budgets.static', filename='gr_budgets.js') }}?v={{ config.get('STATIC_VERSION', 1) }}-company-logo-1" defer></script>
 {% endblock %}

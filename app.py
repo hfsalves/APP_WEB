@@ -43298,18 +43298,97 @@ Guest SPA"""
     def profile():
         return render_template('profile.html', user=current_user, page_title=translate('profile.title'))
 
+    def _manuals_ui_labels():
+        labels = {
+            'pt_PT': {'manuals': 'Manuais', 'breadcrumb': 'AJUDA / MANUAIS', 'back': 'Manuais', 'open_pt': 'Abrir em português', 'open_fr': 'Abrir em francês'},
+            'fr': {'manuals': 'Guides', 'breadcrumb': 'AIDE / GUIDES', 'back': 'Guides', 'open_pt': 'Ouvrir en portugais', 'open_fr': 'Ouvrir en français'},
+            'en': {'manuals': 'Guides', 'breadcrumb': 'HELP / GUIDES', 'back': 'Guides', 'open_pt': 'Open in Portuguese', 'open_fr': 'Open in French'},
+            'es': {'manuals': 'Manuales', 'breadcrumb': 'AYUDA / MANUALES', 'back': 'Manuales', 'open_pt': 'Abrir en portugués', 'open_fr': 'Abrir en francés'},
+            'de': {'manuals': 'Handbücher', 'breadcrumb': 'HILFE / HANDBÜCHER', 'back': 'Handbücher', 'open_pt': 'Auf Portugiesisch öffnen', 'open_fr': 'Auf Französisch öffnen'},
+        }
+        return labels.get(getattr(g, 'language', BASE_LANGUAGE), labels['pt_PT'])
+
     @app.route('/manuais')
     @login_required
     def manuals():
+        manuals_ui = {
+            'pt_PT': {
+                'page_title': 'Manuais de utilizador',
+                'breadcrumb': 'AJUDA / MANUAIS',
+                'intro': 'Selecione o idioma para abrir o manual em HTML.',
+                'languages_label': 'Idiomas disponíveis',
+                'open_pt': 'Abrir em português',
+                'open_fr': 'Abrir em francês',
+                'autos_title': 'Autos de Medição de Clientes',
+                'autos_description': 'Criação, consulta e retenções nos autos de medição.',
+                'budgets_title': 'Orçamentos de Clientes',
+                'budgets_description': 'Criação, consulta, cálculo e impressão de orçamentos.',
+            },
+            'fr': {
+                'page_title': 'Guides utilisateur',
+                'breadcrumb': 'AIDE / GUIDES',
+                'intro': 'Sélectionnez la langue pour ouvrir le guide HTML.',
+                'languages_label': 'Langues disponibles',
+                'open_pt': 'Ouvrir en portugais',
+                'open_fr': 'Ouvrir en français',
+                'autos_title': 'Situations de travaux clients',
+                'autos_description': 'Création, consultation et retenues sur les situations de travaux.',
+                'budgets_title': 'Devis clients',
+                'budgets_description': 'Création, consultation, calcul et impression des devis.',
+            },
+            'en': {
+                'page_title': 'User guides',
+                'breadcrumb': 'HELP / GUIDES',
+                'intro': 'Select a language to open the HTML guide.',
+                'languages_label': 'Available languages',
+                'open_pt': 'Open in Portuguese',
+                'open_fr': 'Open in French',
+                'autos_title': 'Client work statements',
+                'autos_description': 'Create, consult and manage retentions in client work statements.',
+                'budgets_title': 'Client quotations',
+                'budgets_description': 'Create, consult, calculate and print quotations.',
+            },
+            'es': {
+                'page_title': 'Manuales de usuario',
+                'breadcrumb': 'AYUDA / MANUALES',
+                'intro': 'Seleccione el idioma para abrir el manual HTML.',
+                'languages_label': 'Idiomas disponibles',
+                'open_pt': 'Abrir en portugués',
+                'open_fr': 'Abrir en francés',
+                'autos_title': 'Certificaciones de obra de clientes',
+                'autos_description': 'Creación, consulta y retenciones en las certificaciones de obra.',
+                'budgets_title': 'Presupuestos de clientes',
+                'budgets_description': 'Creación, consulta, cálculo e impresión de presupuestos.',
+            },
+            'de': {
+                'page_title': 'Benutzerhandbücher',
+                'breadcrumb': 'HILFE / HANDBÜCHER',
+                'intro': 'Wählen Sie eine Sprache, um das HTML-Handbuch zu öffnen.',
+                'languages_label': 'Verfügbare Sprachen',
+                'open_pt': 'Auf Portugiesisch öffnen',
+                'open_fr': 'Auf Französisch öffnen',
+                'autos_title': 'Kunden-Aufmaße',
+                'autos_description': 'Erstellen, abfragen und Einbehalte in Kunden-Aufmaßen verwalten.',
+                'budgets_title': 'Kundenangebote',
+                'budgets_description': 'Angebote erstellen, abfragen, berechnen und drucken.',
+            },
+        }
+        ui = manuals_ui.get(getattr(g, 'language', BASE_LANGUAGE), manuals_ui['pt_PT'])
         available_manuals = [
             {
-                'title': 'Autos de Medição de Clientes',
-                'description': 'Criação, consulta e retenções nos autos de medição.',
+                'title': ui['autos_title'],
+                'description': ui['autos_description'],
                 'pt_url': url_for('manual_view', language='pt'),
                 'fr_url': url_for('manual_view', language='fr'),
             },
+            {
+                'title': ui['budgets_title'],
+                'description': ui['budgets_description'],
+                'pt_url': url_for('budget_manual_view', language='pt'),
+                'fr_url': url_for('budget_manual_view', language='fr'),
+            },
         ]
-        return render_template('manuals.html', manuals=available_manuals)
+        return render_template('manuals.html', manuals=available_manuals, manuals_ui=ui)
 
     @app.route('/manuais/autos-medicao-clientes/<language>')
     @login_required
@@ -43334,7 +43413,32 @@ Guest SPA"""
             'fr_url': url_for('manual_view', language='fr'),
             'file_url': url_for('manuals_file', filename=manual['file']),
         }
-        return render_template('manual_view.html', manual=manual)
+        return render_template('manual_view.html', manual=manual, manuals_ui=_manuals_ui_labels())
+
+    @app.route('/manuais/orcamentos-clientes/<language>')
+    @login_required
+    def budget_manual_view(language):
+        manuals_by_language = {
+            'pt': {
+                'title': 'Orçamentos de Clientes',
+                'file': 'Processo/Orçamentos de Clientes/pt/guia.html',
+            },
+            'fr': {
+                'title': 'Devis clients',
+                'file': 'Processo/Orçamentos de Clientes/fr/guide.html',
+            },
+        }
+        manual = manuals_by_language.get(language)
+        if manual is None:
+            abort(404)
+        manual = {
+            **manual,
+            'language': language,
+            'pt_url': url_for('budget_manual_view', language='pt'),
+            'fr_url': url_for('budget_manual_view', language='fr'),
+            'file_url': url_for('manuals_file', filename=manual['file']),
+        }
+        return render_template('manual_view.html', manual=manual, manuals_ui=_manuals_ui_labels())
 
     @app.route('/manuais/ficheiro/<path:filename>')
     @login_required

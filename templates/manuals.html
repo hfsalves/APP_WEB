@@ -1,19 +1,19 @@
 {% extends "base.html" %}
-{% block title %}Manuais de utilizador{% endblock %}
+{% block title %}{{ manuals_ui.page_title }}{% endblock %}
 
 {% block content %}
 <div class="sz_page manuals-page">
   <div class="sz_page_container">
     <header class="sz_contextbar sz_page_contextbar manuals-contextbar">
       <div class="sz_contextbar_left">
-        <div class="sz_page_title">Manuais de utilizador</div>
-        <div class="sz_breadcrumbs">AJUDA / MANUAIS</div>
+        <div class="sz_page_title">{{ manuals_ui.page_title }}</div>
+        <div class="sz_breadcrumbs">{{ manuals_ui.breadcrumb }}</div>
       </div>
     </header>
 
-    <section class="sz_page_body manuals-body" aria-label="Lista de manuais disponíveis">
+    <section class="sz_page_body manuals-body" aria-label="{{ manuals_ui.languages_label }}">
       <div class="manuals-intro">
-        Selecione o idioma para abrir o manual em HTML.
+        {{ manuals_ui.intro }}
       </div>
       <div class="sz_panel manuals-list">
         {% for manual in manuals %}
@@ -23,11 +23,11 @@
             <h2>{{ manual.title }}</h2>
             <p>{{ manual.description }}</p>
           </div>
-          <div class="manual-row-languages" aria-label="Idiomas disponíveis">
-            <a class="manual-language-link" href="{{ manual.pt_url }}" lang="pt-PT" title="Abrir em português">
+          <div class="manual-row-languages" aria-label="{{ manuals_ui.languages_label }}">
+            <a class="manual-language-link" href="{{ manual.pt_url }}" lang="pt-PT" title="{{ manuals_ui.open_pt }}">
               <span class="manual-flag" aria-hidden="true">🇵🇹</span><span>PT</span>
             </a>
-            <a class="manual-language-link" href="{{ manual.fr_url }}" lang="fr" title="Ouvrir en français">
+            <a class="manual-language-link" href="{{ manual.fr_url }}" lang="fr" title="{{ manuals_ui.open_fr }}">
               <span class="manual-flag" aria-hidden="true">🇫🇷</span><span>FR</span>
             </a>
           </div>

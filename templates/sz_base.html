@@ -679,9 +679,9 @@
           <span class="sidebar-label">{{ _('common.profile') }}</span>
         </a>
         {% endif %}
-        <a class="sidebar-footer-link" href="{{ url_for('manuals') }}" title="Manuais">
+        <a class="sidebar-footer-link" href="{{ url_for('manuals') }}" title="{{ _('common.user_guides') }}">
           <i class="fa-solid fa-circle-question me-2"></i>
-          <span class="sidebar-label">Manuais</span>
+          <span class="sidebar-label">{{ _('common.user_guides') }}</span>
         </a>
         <a class="sidebar-footer-link" href="{{ url_for('logout') }}">
           <i class="fa-solid fa-sign-out-alt me-2"></i>

@@ -89,12 +89,14 @@ def _read_source_users(source: dict) -> tuple[list[dict], str]:
             missing = sorted(required - columns)
             if missing:
                 return [], f"{database_name}: campos em falta na US: {', '.join(missing)}"
-            cursor.execute("""
+            vendedor_sql = "ISNULL(CONVERT(int, vendedor), 0)" if "vendedor" in columns else "0"
+            cursor.execute(f"""
                 SELECT
                     LTRIM(RTRIM(ISNULL(CONVERT(varchar(250), username), ''))) AS username,
                     LTRIM(RTRIM(ISNULL(CONVERT(varchar(250), usercode), ''))) AS usercode,
                     LTRIM(RTRIM(ISNULL(CONVERT(varchar(250), email), ''))) AS email,
-                    LTRIM(RTRIM(ISNULL(CONVERT(varchar(250), aextpw), ''))) AS aextpw
+                    LTRIM(RTRIM(ISNULL(CONVERT(varchar(250), aextpw), ''))) AS aextpw,
+                    {vendedor_sql} AS vendedor
                 FROM dbo.US
                 WHERE ISNULL(inactivo, 0) = 0
                   AND LTRIM(RTRIM(ISNULL(CONVERT(varchar(250), usercode), ''))) <> ''
@@ -107,6 +109,7 @@ def _read_source_users(source: dict) -> tuple[list[dict], str]:
                     "login": str(row.usercode or "").strip(),
                     "email": str(row.email or "").strip(),
                     "password": str(row.aextpw or "").strip(),
+                    "vendedor": int(row.vendedor or 0),
                 })
             return rows, ""
     except Exception as exc:
@@ -193,6 +196,8 @@ def _aggregate_source_users() -> tuple[list[dict], list[str], list[dict]]:
                     "email": row.get("email") or "",
                     "login": login,
                     "password": row.get("password") or "",
+                    "vendedor": int(row.get("vendedor") or 0),
+                    "vendedor_intersol": False,
                     "empresas": [],
                     "feids": [],
                     "exists_local": False,
@@ -205,6 +210,13 @@ def _aggregate_source_users() -> tuple[list[dict], list[str], list[dict]]:
                 item["email"] = row.get("email")
             if not item.get("password") and row.get("password"):
                 item["password"] = row.get("password")
+            source_is_intersol = str(source.get("PHC_DB") or "").strip().casefold() == "intersol"
+            source_vendedor = int(row.get("vendedor") or 0)
+            if source_is_intersol:
+                item["vendedor"] = source_vendedor
+                item["vendedor_intersol"] = True
+            elif not item.get("vendedor_intersol") and not item.get("vendedor") and source_vendedor:
+                item["vendedor"] = source_vendedor
             feid = int(source.get("FEID") or 0)
             if feid and feid not in item["feids"]:
                 item["feids"].append(feid)
@@ -280,6 +292,7 @@ def _insert_or_update_user(row: dict) -> tuple[str, bool]:
     nome = str(row.get("nome") or login).strip()[:60]
     email = str(row.get("email") or "").strip()[:120]
     password = str(row.get("password") or "").strip()[:128]
+    vendedor = int(row.get("vendedor") or 0)
     if not email:
         email = _generated_missing_email(login)
     local = _find_local_user_by_login(login)
@@ -292,12 +305,14 @@ def _insert_or_update_user(row: dict) -> tuple[str, bool]:
             UPDATE dbo.US
                SET NOME = :nome,
                    EMAIL = :email,
-                   PASSWORD = :password
+                   PASSWORD = :password,
+                   VENDEDOR = :vendedor
              WHERE USSTAMP = :usstamp
         """), {
             "nome": nome,
             "email": email,
             "password": password,
+            "vendedor": vendedor,
             "usstamp": usstamp,
         })
         return usstamp, False
@@ -313,7 +328,7 @@ def _insert_or_update_user(row: dict) -> tuple[str, bool]:
             ADMIN, TECNICO, COR, DEV, HOME, MNADMIN, LPADMIN, INATIVO,
             FOTO, TELEFONE, LSADMIN, ESCALA, TESOURARIA, TEMPOS, VIEWMODE,
             PASSWORD_MIGRADA, PASSWORD_RESET_REQUIRED, FAILED_LOGIN_COUNT,
-            IS_ACTIVE, PENO, PENOME, MOTORISTA
+            IS_ACTIVE, PENO, PENOME, MOTORISTA, VENDEDOR
         )
         VALUES
         (
@@ -321,7 +336,7 @@ def _insert_or_update_user(row: dict) -> tuple[str, bool]:
             0, '', '', 0, '', 0, 0, 0,
             '', '', 0, '', 0, 0, 'LIGHT MODE',
             0, 0, 0,
-            1, 0, '', ''
+            1, 0, '', '', :VENDEDOR
         )
     """), {
         "USSTAMP": usstamp,
@@ -329,6 +344,7 @@ def _insert_or_update_user(row: dict) -> tuple[str, bool]:
         "LOGIN": login[:60],
         "PASSWORD": password,
         "EMAIL": email,
+        "VENDEDOR": vendedor,
     })
     return usstamp, True
 

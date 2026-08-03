@@ -5,6 +5,7 @@ from decimal import Decimal, ROUND_HALF_UP
 import io
 import mimetypes
 import os
+import re
 from typing import Any
 
 import pyodbc
@@ -50,6 +51,25 @@ class ClientMeasurementsNotFoundError(SubcontractorMeasurementsNotFoundError):
 
 
 PRODUCTION_ITEM_REF = "V.01.01.000.0021"
+MARKET_PROCESS_PREFIXES = {
+    "HSOLS_PT": "PT",
+    "HSOLS_FR": "FR",
+    "HSOLS_DE": "DE",
+    "HSOLS_ES": "ES",
+    "HSOLS_MA": "MA",
+    "INTERSOL": "IS",
+}
+
+
+def _market_process_code(database_name: Any, value: Any) -> str:
+    process = _text_value(value)
+    prefix = MARKET_PROCESS_PREFIXES.get(_text_value(database_name).upper())
+    if not process or not prefix:
+        return process
+    numeric_suffix = re.search(r"(\d+)$", process)
+    if not numeric_suffix:
+        return process
+    return f"{prefix}{numeric_suffix.group(1)}"
 
 
 def _phc_text_column_limits(
@@ -1101,9 +1121,20 @@ def create_measurement_auto(payload: dict[str, Any], user) -> dict[str, Any]:
             auto_ndos = int(_number_value(series["auto"].get("NDOS")))
             auto_nmdos = _text_value(series["auto"].get("NMDOS"))
             cursor.execute(
-                "SELECT CASE WHEN OBJECT_ID('dbo.sp_uopcval_upsert_bo', 'P') IS NULL THEN 0 ELSE 1 END"
+                """
+                SELECT
+                    CASE WHEN OBJECT_ID('dbo.sp_uopcval_upsert_bo', 'P') IS NULL THEN 0 ELSE 1 END,
+                    CASE WHEN OBJECT_ID('dbo.uSP_PUT_OPCVAL', 'P') IS NULL THEN 0 ELSE 1 END
+                """
             )
-            has_uopcval_upsert = bool(cursor.fetchone()[0])
+            procedure_flags = cursor.fetchone()
+            has_uopcval_upsert = bool(procedure_flags[0])
+            has_legacy_uopcval_upsert = bool(procedure_flags[1])
+            is_intersol = _text_value(company.get("phc_db")).upper() == "INTERSOL"
+            if is_intersol and not (has_uopcval_upsert and has_legacy_uopcval_upsert):
+                raise ClientMeasurementsError(
+                    "A INTERSOL nao tem as procedures de preenchimento da U_OPCVAL configuradas."
+                )
 
             header, source_lines, executed = _load_budget_for_insert(
                 cursor, budget_ndos, auto_ndos, budget_bostamp
@@ -1132,7 +1163,10 @@ def create_measurement_auto(payload: dict[str, Any], user) -> dict[str, Any]:
                 }.items()
             }
 
-            process = _text_value(header.get("PROCESSO") or header.get("CCUSTO"))
+            process = _market_process_code(
+                company.get("phc_db"),
+                header.get("PROCESSO") or header.get("CCUSTO"),
+            )
             if not process:
                 raise ClientMeasurementsValidationError("O orcamento nao tem obra definida.")
 
@@ -1400,6 +1434,27 @@ def create_measurement_auto(payload: dict[str, Any], user) -> dict[str, Any]:
                         "usrhora": hour,
                     },
                 )
+
+            # Reinforce the work code after all dependent records exist. The BO update
+            # also fires INTERSOL's U_OPCVAL trigger with the complete document in place.
+            cursor.execute(
+                "UPDATE dbo.BO2 SET PROCESSO = ? WHERE BO2STAMP = ?",
+                (process, bostamp),
+            )
+            cursor.execute(
+                "UPDATE dbo.BO SET CCUSTO = ? WHERE BOSTAMP = ?",
+                (process, bostamp),
+            )
+            while cursor.nextset():
+                pass
+
+            if is_intersol:
+                cursor.execute(
+                    "EXEC dbo.uSP_PUT_OPCVAL @IN_ORIGEM = ?, @IN_STAMP = ?, @IN_USR = ?",
+                    ("BO", bostamp, user_inis),
+                )
+                while cursor.nextset():
+                    pass
             if has_uopcval_upsert:
                 cursor.execute(
                     "EXEC dbo.sp_uopcval_upsert_bo @BOSTAMP = ?, @debug = 0",
@@ -1444,6 +1499,7 @@ def create_measurement_auto(payload: dict[str, Any], user) -> dict[str, Any]:
                 B.OBRANO,
                 B.BOANO,
                 B.CCUSTO,
+                B2.PROCESSO,
                 B.MAQUINA,
                 B.U_PRORATA,
                 B.U_RG,
@@ -1465,6 +1521,7 @@ def create_measurement_auto(payload: dict[str, Any], user) -> dict[str, Any]:
                 CASE WHEN EXISTS (SELECT 1 FROM dbo.BO2 B2 WHERE B2.BO2STAMP = B.BOSTAMP) THEN 1 ELSE 0 END AS HAS_BO2,
                 CASE WHEN EXISTS (SELECT 1 FROM dbo.BO3 B3 WHERE B3.BO3STAMP = B.BOSTAMP) THEN 1 ELSE 0 END AS HAS_BO3
             FROM dbo.BO B WITH (NOLOCK)
+            LEFT JOIN dbo.BO2 B2 WITH (NOLOCK) ON B2.BO2STAMP = B.BOSTAMP
             WHERE B.BOSTAMP = ?
               AND B.NDOS = ?
               AND B.OBRANO = ?
@@ -1507,6 +1564,7 @@ def create_measurement_auto(payload: dict[str, Any], user) -> dict[str, Any]:
             )
         )
         or _text_value(verified.get("CCUSTO")) != process
+        or _text_value(verified.get("PROCESSO")) != process
         or _text_value(verified.get("MAQUINA")) != str(situation_number)
         or any(
             _decimal(verified.get(field)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP) != value

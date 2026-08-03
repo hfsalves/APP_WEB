@@ -33,6 +33,8 @@ li { margin: 5px 0; }
 table { width: calc(100% - 28px); margin: 0 14px 14px; border-collapse: collapse; background: white; }
 th { padding: 6px; background: #e7eef8; color: #455a76; text-align: left; font-size: 6.4pt; text-transform: uppercase; }
 td { padding: 6px; border-bottom: 1px solid #e2e9f2; }.right { text-align: right; }.muted { color: #6c7c93; }
+.manual-table { width: 100%; margin: 10px 0 16px; font-size: 9.5pt; }
+.manual-table th { padding: 8px; font-size: 8pt; }.manual-table td { padding: 8px; vertical-align: top; }
 .callouts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin: 8px 0 13px; }
 .callout { padding: 8px; border-left: 3px solid #1b6bc9; background: #f0f5fb; font-size: 9pt; }.callout b { color: #102a5c; }
 .actions { display: flex; justify-content: flex-end; gap: 6px; padding: 10px 14px; background: white; }.secondary { background: #71809a; }.warning { background: #c47c11; }

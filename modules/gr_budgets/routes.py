@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import re
+
 from flask import Blueprint, Response, jsonify, render_template, request
 from flask_login import current_user, login_required
 
+from i18n import BASE_LANGUAGE, js_translations, reload_translations, translate
 from models import Acessos, db
 from modules.gr_subcontractor_measurements.service import SubcontractorMeasurementsError
 
@@ -16,6 +19,7 @@ from .service import (
     get_budget_technical_options,
     list_budgets,
     render_budget_pdf_html,
+    save_budget,
     list_companies_for_user,
     search_budget_clients,
 )
@@ -29,6 +33,63 @@ bp = Blueprint(
     static_folder="static",
     static_url_path="/gr_budgets/static",
 )
+
+
+_BUDGET_ERROR_KEYS = {
+    "A tabela E1 não existe na base PHC desta empresa.": "gr_budgets.error.company_data_unavailable",
+    "A tabela E1 não tem a ficha da empresa configurada.": "gr_budgets.error.company_configuration",
+    "A tabela CM3 não existe no PHC desta empresa.": "gr_budgets.error.salespeople_unavailable",
+    "Série de orçamento inválida.": "gr_budgets.error.series_invalid",
+    "Série de orçamento inexistente nesta empresa.": "gr_budgets.error.series_missing",
+    "Ano inválido.": "gr_budgets.error.year_invalid",
+    "Orçamento não indicado.": "gr_budgets.error.budget_missing",
+    "Orçamento não encontrado no PHC desta empresa.": "gr_budgets.error.budget_not_found",
+    "O orçamento já não existe no PHC desta empresa.": "gr_budgets.error.budget_not_found",
+    "Número de Devis inválido.": "gr_budgets.error.budget_number_invalid",
+    "Devis não encontrado no PHC desta empresa.": "gr_budgets.error.budget_not_found",
+    "A tabela ST não existe no PHC desta empresa.": "gr_budgets.error.components_table_unavailable",
+    "A tabela STFAMI não tem a configuração necessária para selecionar componentes.": "gr_budgets.error.components_configuration",
+    "Linha do orçamento não indicada.": "gr_budgets.error.line_missing",
+    "Linha do orçamento não encontrada no PHC desta empresa.": "gr_budgets.error.line_not_found",
+    "A tabela OCI não existe no PHC desta empresa.": "gr_budgets.error.no_technical_structure",
+    "Data do orçamento inválida.": "gr_budgets.error.date_invalid",
+    "Selecione um cliente válido.": "gr_budgets.error.client_invalid",
+    "O cliente selecionado já não está disponível no PHC.": "gr_budgets.error.client_unavailable",
+    "O comercial selecionado já não está disponível no PHC.": "gr_budgets.error.salesperson_unavailable",
+    "Dados do orçamento inválidos.": "gr_budgets.error.budget_invalid",
+    "Cabeçalho do orçamento inválido.": "gr_budgets.error.header_invalid",
+    "Linhas do orçamento inválidas.": "gr_budgets.error.budget_lines_invalid",
+    "O orçamento já não está em preparação e não pode ser alterado.": "gr_budgets.error.budget_not_in_preparation",
+    "O orçamento foi alterado por outro utilizador. Atualize os dados antes de voltar a gravar.": "gr_budgets.error.budget_stale",
+    "Existem linhas duplicadas no orçamento.": "gr_budgets.error.budget_lines_duplicate",
+}
+
+
+def _budget_i18n_payload() -> dict[str, str]:
+    catalogs = reload_translations()
+    keys = [
+        key
+        for key in (catalogs.get(BASE_LANGUAGE, {}) or {})
+        if str(key).startswith("gr_budgets.")
+    ]
+    return js_translations(keys)
+
+
+def _localized_error_message(exc: Exception) -> str:
+    message = str(exc or "").strip()
+    key = _BUDGET_ERROR_KEYS.get(message)
+    if key:
+        return translate(key)
+
+    line_match = re.fullmatch(r"Linha (\d+) inválida\.", message)
+    if line_match:
+        return translate("gr_budgets.error.budget_line_invalid", line=line_match.group(1))
+    owned_match = re.fullmatch(r"A linha (\d+) não pertence a este orçamento\.", message)
+    if owned_match:
+        return translate("gr_budgets.error.budget_line_not_owned", line=owned_match.group(1))
+    if message.startswith("Sem colunas válidas para atualizar "):
+        return translate("gr_budgets.error.no_valid_update_fields")
+    return translate("gr_budgets.error.generic")
 
 
 def _has_acl() -> bool:
@@ -51,15 +112,31 @@ def _has_acl() -> bool:
     return any(bool(getattr(row, "consultar", False)) for row in rows)
 
 
+def _has_write_acl(creating: bool) -> bool:
+    if getattr(current_user, "ADMIN", False) or getattr(current_user, "DEV", False):
+        return True
+    login = (getattr(current_user, "LOGIN", "") or "").strip()
+    if not login:
+        return False
+    aliases = ("GR_ORCAMENTOS", "ORCAMENTOS", "GR_BUDGETS", "DEVIS")
+    rows = (
+        Acessos.query.filter(Acessos.utilizador == login)
+        .filter(db.func.upper(db.func.ltrim(db.func.rtrim(Acessos.tabela))).in_(aliases))
+        .all()
+    )
+    field = "inserir" if creating else "editar"
+    return any(bool(getattr(row, field, False)) for row in rows)
+
+
 def _forbidden(api: bool = True):
-    message = "Sem permissão para consultar orçamentos."
+    message = translate("gr_budgets.error.forbidden_consult")
     return (jsonify({"error": message}), 403) if api else (message, 403)
 
 
 def _handle_error(exc: Exception):
     if isinstance(exc, (BudgetsError, SubcontractorMeasurementsError)):
-        return jsonify({"error": str(exc)}), getattr(exc, "status_code", 500)
-    return jsonify({"error": str(exc)}), 500
+        return jsonify({"error": _localized_error_message(exc)}), getattr(exc, "status_code", 500)
+    return jsonify({"error": translate("gr_budgets.error.generic")}), 500
 
 
 @bp.route("/gr360_orcamentos")
@@ -69,7 +146,10 @@ def _handle_error(exc: Exception):
 def page():
     if not _has_acl():
         return _forbidden(api=False)
-    return render_template("gr_budgets/budgets.html")
+    return render_template(
+        "gr_budgets/budgets.html",
+        gr_budgets_i18n=_budget_i18n_payload(),
+    )
 
 
 @bp.route("/api/gr_orcamentos/empresas")
@@ -183,6 +263,20 @@ def api_budget_detail():
                 ),
             }
         )
+    except Exception as exc:
+        return _handle_error(exc)
+
+
+@bp.route("/api/gr_orcamentos/orcamento", methods=["POST"])
+@login_required
+def api_save_budget():
+    payload = request.get_json(silent=True) or {}
+    creating = not bool(str(payload.get("bostamp") or "").strip())
+    if not _has_write_acl(creating):
+        key = "gr_budgets.error.forbidden_create" if creating else "gr_budgets.error.forbidden_edit"
+        return jsonify({"error": translate(key)}), 403
+    try:
+        return jsonify({"ok": True, **save_budget(payload, current_user)})
     except Exception as exc:
         return _handle_error(exc)
 

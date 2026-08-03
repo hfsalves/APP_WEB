@@ -3,6 +3,7 @@ import unittest
 
 from modules.gr_client_measurements.service import (
     ClientMeasurementsValidationError,
+    _market_process_code,
     _prepare_measurement_lines,
 )
 
@@ -60,6 +61,20 @@ class PrepareMeasurementLinesTests(unittest.TestCase):
                 {},
                 [{"bistamp": "LINE1", "qty": "0"}],
             )
+
+
+class MarketProcessCodeTests(unittest.TestCase):
+    def test_replaces_the_canonical_prefix_with_the_market_prefix(self):
+        self.assertEqual(_market_process_code("INTERSOL", "HS1234"), "IS1234")
+        self.assertEqual(_market_process_code("HSOLS_FR", "HS1234"), "FR1234")
+        self.assertEqual(_market_process_code("HSOLS_PT", "HS1234"), "PT1234")
+        self.assertEqual(_market_process_code("HSOLS_DE", "FR0123"), "DE0123")
+        self.assertEqual(_market_process_code("HSOLS_ES", "HS1533"), "ES1533")
+        self.assertEqual(_market_process_code("HSOLS_MA", "IS0001"), "MA0001")
+
+    def test_keeps_non_work_codes_unchanged(self):
+        self.assertEqual(_market_process_code("INTERSOL", "DGD"), "DGD")
+        self.assertEqual(_market_process_code("OTHER", "HS1234"), "HS1234")
 
 
 if __name__ == "__main__":

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ manual.title }} · Manuais{% endblock %}
+{% block title %}{{ manual.title }} · {{ manuals_ui.manuals }}{% endblock %}
 
 {% block content %}
 <div class="sz_page manual-view-page">
@@ -7,12 +7,12 @@
     <header class="sz_contextbar sz_page_contextbar manual-view-contextbar">
       <div class="sz_contextbar_left">
         <div class="sz_page_title">{{ manual.title }}</div>
-        <div class="sz_breadcrumbs">AJUDA / MANUAIS</div>
+        <div class="sz_breadcrumbs">{{ manuals_ui.breadcrumb }}</div>
       </div>
       <div class="manual-view-actions">
-        <a class="sz_button sz_button_secondary" href="{{ url_for('manuals') }}"><i class="fa-solid fa-arrow-left"></i><span>Manuais</span></a>
-        <a class="manual-language-link{% if manual.language == 'pt' %} is-active{% endif %}" href="{{ manual.pt_url }}" lang="pt-PT" title="Abrir em português"><span aria-hidden="true">🇵🇹</span><span>PT</span></a>
-        <a class="manual-language-link{% if manual.language == 'fr' %} is-active{% endif %}" href="{{ manual.fr_url }}" lang="fr" title="Ouvrir en français"><span aria-hidden="true">🇫🇷</span><span>FR</span></a>
+        <a class="sz_button sz_button_secondary" href="{{ url_for('manuals') }}"><i class="fa-solid fa-arrow-left"></i><span>{{ manuals_ui.back }}</span></a>
+        <a class="manual-language-link{% if manual.language == 'pt' %} is-active{% endif %}" href="{{ manual.pt_url }}" lang="pt-PT" title="{{ manuals_ui.open_pt }}"><span aria-hidden="true">🇵🇹</span><span>PT</span></a>
+        <a class="manual-language-link{% if manual.language == 'fr' %} is-active{% endif %}" href="{{ manual.fr_url }}" lang="fr" title="{{ manuals_ui.open_fr }}"><span aria-hidden="true">🇫🇷</span><span>FR</span></a>
       </div>
     </header>
     <section class="sz_page_body manual-view-body">

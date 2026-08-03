@@ -1,5 +1,6 @@
 from decimal import Decimal
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
@@ -7,7 +8,12 @@ from unittest.mock import patch
 from flask import Flask
 
 from modules.gr_budgets import routes as budget_routes
-from modules.gr_budgets.service import _vat_payload, budget_print_payload, render_budget_pdf_html
+from modules.gr_budgets.service import (
+    _company_logo_path,
+    _vat_payload,
+    budget_print_payload,
+    render_budget_pdf_html,
+)
 
 
 class BudgetPdfTests(unittest.TestCase):
@@ -182,14 +188,99 @@ class BudgetPdfTests(unittest.TestCase):
         self.assertEqual(response.headers["Content-Disposition"], 'inline; filename="Devis_1516.pdf"')
         self.assertEqual(response.headers["Cache-Control"], "no-store, no-cache, must-revalidate, max-age=0")
 
+    def test_company_logo_never_falls_back_to_another_fe_folder(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            intersol_dir = root / "storage/fe_logos/INTERSOL-STAMP"
+            hsols_dir = root / "storage/fe_logos/HSOLS-STAMP"
+            intersol_dir.mkdir(parents=True)
+            hsols_dir.mkdir(parents=True)
+            intersol_logo = intersol_dir / "logo_intersol.png"
+            hsols_logo = hsols_dir / "logo_hsols.png"
+            intersol_logo.write_bytes(b"intersol")
+            hsols_logo.write_bytes(b"hsols")
+
+            resolved = _company_logo_path(
+                "INTERSOL-STAMP",
+                "storage/fe_logos/HSOLS-STAMP/logo_hsols.png",
+                app_root=root,
+            )
+
+            self.assertEqual(Path(resolved), intersol_logo.resolve())
+
+    def test_company_without_own_logo_does_not_use_another_company_logo(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            hsols_dir = root / "storage/fe_logos/HSOLS-STAMP"
+            hsols_dir.mkdir(parents=True)
+            (hsols_dir / "logo_hsols.png").write_bytes(b"hsols")
+
+            resolved = _company_logo_path(
+                "INTERSOL-STAMP",
+                "storage/fe_logos/HSOLS-STAMP/logo_hsols.png",
+                app_root=root,
+            )
+
+            self.assertEqual(resolved, "")
+
     def test_budget_screen_exposes_print_button_and_pdf_url_builder(self):
         root = Path(__file__).resolve().parents[1]
         template = (root / "modules/gr_budgets/templates/gr_budgets/budgets.html").read_text(encoding="utf-8")
         script = (root / "modules/gr_budgets/static/gr_budgets.js").read_text(encoding="utf-8")
         self.assertIn('id="budgetPrint"', template)
         self.assertIn("/orcamento/${encodeURIComponent(bostamp)}/pdf", script)
-        self.assertIn("url.searchParams.set('feid', feid)", script)
+        self.assertIn("selectedFeid !== detailFeid", script)
+        self.assertIn("url.searchParams.set('feid', detailFeid)", script)
         self.assertIn("elements.printBudget.addEventListener('click', printBudget)", script)
+
+    def test_budget_screen_exposes_phc_save_button_and_post_action(self):
+        root = Path(__file__).resolve().parents[1]
+        template = (root / "modules/gr_budgets/templates/gr_budgets/budgets.html").read_text(encoding="utf-8")
+        script = (root / "modules/gr_budgets/static/gr_budgets.js").read_text(encoding="utf-8")
+        self.assertIn('id="budgetCancelEdit"', template)
+        self.assertIn('id="budgetSave"', template)
+        self.assertIn('id="budgetEdit"', template)
+        self.assertIn("await postJson('/orcamento', budgetWritePayload())", script)
+        self.assertIn("elements.editBudget.addEventListener('click', startEditBudget)", script)
+        self.assertIn("elements.saveBudget.addEventListener('click', saveBudget)", script)
+
+    def test_new_budget_header_is_kept_when_returning_from_technical_detail(self):
+        root = Path(__file__).resolve().parents[1]
+        script = (root / "modules/gr_budgets/static/gr_budgets.js").read_text(encoding="utf-8")
+        self.assertIn("function syncEditableHeaderToState()", script)
+        open_oci = script.index("async function openOci(lineIndex, newLine)")
+        sync_header = script.index("syncEditableHeaderToState();", open_oci)
+        start_loading = script.index("showLoading(true);", open_oci)
+        self.assertLess(sync_header, start_loading)
+        self.assertIn("syncEditableHeaderToState();\n    closeClientLookup();", script)
+
+    def test_budget_line_money_is_presented_with_two_decimals(self):
+        root = Path(__file__).resolve().parents[1]
+        template = (root / "modules/gr_budgets/templates/gr_budgets/budgets.html").read_text(encoding="utf-8")
+        script = (root / "modules/gr_budgets/static/gr_budgets.js").read_text(encoding="utf-8")
+        self.assertIn("minimumFractionDigits: 2, maximumFractionDigits: 2", script)
+        self.assertIn("roundMoney(row.purchase_price).toFixed(2)", script)
+        self.assertIn('id="budgetOciSalePrice"', template)
+        self.assertIn('min="0" step="0.01"', template)
+
+    def test_save_endpoint_uses_write_acl_and_authenticated_user(self):
+        app = Flask(__name__)
+        user = SimpleNamespace(ADMIN=True, DEV=False, LOGIN="codex")
+        saved = {"created": True, "bostamp": "NEW-STAMP", "number": 1620, "year": 2026}
+        with app.test_request_context(
+            "/api/gr_orcamentos/orcamento",
+            method="POST",
+            json={"feid": 7, "ndos": 115, "header": {"client_number": 1}},
+        ):
+            with patch.object(budget_routes, "current_user", user), \
+                    patch.object(budget_routes, "_has_write_acl", return_value=True) as acl, \
+                    patch.object(budget_routes, "save_budget", return_value=saved) as save:
+                response = budget_routes.api_save_budget.__wrapped__()
+
+        acl.assert_called_once_with(True)
+        save.assert_called_once_with({"feid": 7, "ndos": 115, "header": {"client_number": 1}}, user)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["bostamp"], "NEW-STAMP")
 
 
 if __name__ == "__main__":

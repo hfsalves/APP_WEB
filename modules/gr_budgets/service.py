@@ -3,8 +3,10 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import date, datetime
 from decimal import Decimal, ROUND_HALF_UP
+from pathlib import Path
 import re
 from typing import Any
+import unicodedata
 
 import pyodbc
 from flask import render_template
@@ -37,6 +39,20 @@ from modules.gr_subcontractor_measurements.service import (
 
 MAX_RESULTS = 300
 DEFAULT_SERIES_NAME = "Devis"
+CLIENT_BUDGET_SERIES = (
+    "devis",
+    "etude et execution",
+    "devis perdu",
+)
+INTERSOL_RESTRICTED_BUDGET_NDOS = (115, 122)
+INTERSOL_OWN_BUDGET_SALESPERSONS = frozenset({10, 11, 12, 13, 14})
+INTERSOL_AGENCY_BUDGET_SALESPERSONS = {
+    20: ("INTERSOL-ALSACE",),
+    21: ("INTERSOL-LORRAINE",),
+    22: ("INTERSOL-LORRAINE", "INTERSOL-CHAMPAGNE"),
+}
+_APP_ROOT = Path(__file__).resolve().parents[2]
+_COMPANY_LOGO_EXTENSIONS = frozenset({".png", ".jpg", ".jpeg", ".webp"})
 
 
 class BudgetsError(SubcontractorMeasurementsError):
@@ -55,8 +71,50 @@ class BudgetsConflictError(BudgetsError):
     status_code = 409
 
 
+def _company_logo_path(
+    festamp: Any,
+    configured_path: Any,
+    *,
+    app_root: Path | None = None,
+) -> str:
+    """Resolve a logo owned by this FE record, never one from another FE folder."""
+    root = (app_root or _APP_ROOT).resolve()
+    storage_root = (root / "storage" / "fe_logos").resolve()
+    clean_festamp = _text_value(festamp)
+    company_dir = (storage_root / clean_festamp).resolve() if clean_festamp else None
+    if company_dir is not None and not company_dir.is_relative_to(storage_root):
+        company_dir = None
+
+    configured = _text_value(configured_path).replace("\\", "/")
+    if configured:
+        configured_file = Path(configured)
+        if not configured_file.is_absolute():
+            configured_file = root / configured_file
+        configured_file = configured_file.resolve()
+        belongs_to_company = company_dir is not None and configured_file.is_relative_to(company_dir)
+        outside_managed_storage = not configured_file.is_relative_to(storage_root)
+        if (
+            configured_file.is_file()
+            and configured_file.suffix.casefold() in _COMPANY_LOGO_EXTENSIONS
+            and (belongs_to_company or outside_managed_storage)
+        ):
+            return str(configured_file)
+
+    # Recover from a stale/wrong LOGOTIPO_PATH by looking only inside the
+    # directory keyed by this FE.FESTAMP. No cross-company fallback is allowed.
+    if company_dir is not None and company_dir.is_dir():
+        candidates = [
+            path
+            for path in company_dir.iterdir()
+            if path.is_file() and path.suffix.casefold() in _COMPANY_LOGO_EXTENSIONS
+        ]
+        if candidates:
+            return str(max(candidates, key=lambda path: path.stat().st_mtime_ns).resolve())
+    return ""
+
+
 def _company_with_print_settings(company: dict[str, Any]) -> dict[str, Any]:
-    """Add print assets stored in the application's FE record."""
+    """Add print assets stored in the selected application's FE record."""
     enriched = dict(company or {})
     try:
         with pyodbc.connect(_client_conn_str(), timeout=10) as conn:
@@ -67,14 +125,20 @@ def _company_with_print_settings(company: dict[str, Any]) -> dict[str, Any]:
             rows = _fetch_rows(
                 cursor,
                 """
-                SELECT TOP 1 LTRIM(RTRIM(ISNULL(LOGOTIPO_PATH, ''))) AS LOGOTIPO_PATH
+                SELECT TOP 1
+                    LTRIM(RTRIM(ISNULL(FESTAMP, ''))) AS FESTAMP,
+                    LTRIM(RTRIM(ISNULL(LOGOTIPO_PATH, ''))) AS LOGOTIPO_PATH
                 FROM dbo.FE
                 WHERE FEID = ?
                 """,
                 (int(enriched.get("feid") or 0),),
             )
         if rows:
-            enriched["logo_path"] = _text_value(rows[0].get("LOGOTIPO_PATH"))
+            enriched["festamp"] = _text_value(rows[0].get("FESTAMP"))
+            enriched["logo_path"] = _company_logo_path(
+                enriched["festamp"],
+                rows[0].get("LOGOTIPO_PATH"),
+            )
     except Exception:
         # A falta de logótipo não deve impedir a emissão do documento.
         enriched["logo_path"] = ""
@@ -85,6 +149,13 @@ def _bool_value(value: Any) -> bool:
     if isinstance(value, str):
         return value.strip().lower() in {"1", "true", "sim", "yes", "y"}
     return bool(value)
+
+
+def _budget_is_in_preparation(row: dict[str, Any]) -> bool:
+    return not any(
+        _bool_value(row.get(field))
+        for field in ("APROVADO", "FECHADA", "ADJUDICADO", "ANULADO")
+    )
 
 
 def _business_date_iso(value: Any) -> str:
@@ -102,6 +173,10 @@ def _revision_token(date_value: Any, time_value: Any) -> str:
 
 def _percent(value: Any) -> float:
     return float(_decimal(value).quantize(Decimal("0.01")))
+
+
+def _write_money(value: Any) -> Decimal:
+    return _decimal(value).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
 def _item_path(value: Any) -> tuple[tuple[int, int, str], ...]:
@@ -201,6 +276,53 @@ def _pick_default_series(rows: list[dict[str, Any]]) -> int:
     return int(rows[0].get("ndos") or 0) if rows else 0
 
 
+def _series_name_key(value: Any) -> str:
+    normalized = unicodedata.normalize("NFKD", _text_value(value))
+    without_accents = "".join(character for character in normalized if not unicodedata.combining(character))
+    return " ".join(without_accents.casefold().split())
+
+
+def _intersol_budget_visibility_predicate(
+    salesperson_number: Any,
+    table_alias: str = "B",
+) -> tuple[str, tuple[Any, ...]]:
+    alias = table_alias if re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", table_alias or "") else "B"
+    salesperson = int(_number_value(salesperson_number))
+    scope_sql = ""
+    scope_params: tuple[Any, ...] = ()
+
+    if salesperson in INTERSOL_OWN_BUDGET_SALESPERSONS:
+        scope_sql = f"{alias}.VENDEDOR = ?"
+        scope_params = (salesperson,)
+    elif salesperson in INTERSOL_AGENCY_BUDGET_SALESPERSONS:
+        agencies = INTERSOL_AGENCY_BUDGET_SALESPERSONS[salesperson]
+        placeholders = ", ".join("?" for _ in agencies)
+        scope_sql = f"{alias}.MAQUINA IN ({placeholders})"
+        scope_params = tuple(agencies)
+
+    if not scope_sql:
+        return "1 = 1", ()
+
+    ndos_placeholders = ", ".join("?" for _ in INTERSOL_RESTRICTED_BUDGET_NDOS)
+    return (
+        f"({alias}.NDOS NOT IN ({ndos_placeholders}) OR ({scope_sql}))",
+        tuple(INTERSOL_RESTRICTED_BUDGET_NDOS) + scope_params,
+    )
+
+
+def _budget_visibility_predicate(
+    company: dict[str, Any],
+    user,
+    table_alias: str = "B",
+) -> tuple[str, tuple[Any, ...]]:
+    if _text_value(company.get("phc_db")).casefold() != "intersol":
+        return "1 = 1", ()
+    return _intersol_budget_visibility_predicate(
+        getattr(user, "VENDEDOR", 0),
+        table_alias,
+    )
+
+
 def _series_rows(cursor) -> list[dict[str, Any]]:
     rows = _fetch_rows(
         cursor,
@@ -211,7 +333,11 @@ def _series_rows(cursor) -> list[dict[str, Any]]:
             ISNULL(QTTDEC, 3) AS QTTDEC,
             ISNULL(PREDEC, 4) AS PREDEC,
             ISNULL(ORCAMENTO, 0) AS ORCAMENTO,
-            ISNULL(OCI, 0) AS OCI
+            ISNULL(OCI, 0) AS OCI,
+            ISNULL(ARMAZEM, 1) AS ARMAZEM,
+            ISNULL(OCUPACAO, 0) AS OCUPACAO,
+            LTRIM(RTRIM(ISNULL(TIPOSAFT, ''))) AS TIPOSAFT,
+            LTRIM(RTRIM(ISNULL(IDSERIE, ''))) AS IDSERIE
         FROM dbo.TS
         WHERE UPPER(LTRIM(RTRIM(ISNULL(NMDOS, '')))) = 'DEVIS'
            OR (ISNULL(ORCAMENTO, 0) = 1 AND ISNULL(OCI, 0) = 1)
@@ -219,7 +345,8 @@ def _series_rows(cursor) -> list[dict[str, Any]]:
         """,
         (),
     )
-    return [
+    allowed_order = {name: index for index, name in enumerate(CLIENT_BUDGET_SERIES)}
+    result = [
         {
             "ndos": int(_number_value(row.get("NDOS"))),
             "name": _text_value(row.get("NMDOS")),
@@ -227,10 +354,24 @@ def _series_rows(cursor) -> list[dict[str, Any]]:
             "price_decimals": int(_number_value(row.get("PREDEC"))),
             "is_budget": _bool_value(row.get("ORCAMENTO")),
             "uses_oci": _bool_value(row.get("OCI")),
+            "warehouse": int(_number_value(row.get("ARMAZEM"))) or 1,
+            "occupation": int(_number_value(row.get("OCUPACAO"))),
+            "saft_type": _text_value(row.get("TIPOSAFT")),
+            "series_id": _text_value(row.get("IDSERIE")),
         }
         for row in rows
-        if int(_number_value(row.get("NDOS"))) > 0
+        if (
+            int(_number_value(row.get("NDOS"))) > 0
+            and _series_name_key(row.get("NMDOS")) in allowed_order
+        )
     ]
+    return sorted(
+        result,
+        key=lambda row: (
+            allowed_order[_series_name_key(row.get("name"))],
+            int(row.get("ndos") or 0),
+        ),
+    )
 
 
 def get_budget_series(feid: Any, user) -> dict[str, Any]:
@@ -382,6 +523,9 @@ def list_budgets(filters: dict[str, Any], user) -> dict[str, Any]:
         ndos = _parse_ndos(filters.get("ndos"), series)
         where = ["B.NDOS = ?", "B.BOANO = ?"]
         params: list[Any] = [ndos, year]
+        visibility_sql, visibility_params = _budget_visibility_predicate(company, user, "B")
+        where.append(visibility_sql)
+        params.extend(visibility_params)
         if search:
             like = f"%{search}%"
             where.append(
@@ -473,6 +617,7 @@ def get_budget_detail(feid: Any, bostamp: str, user) -> dict[str, Any]:
         bo_columns = _phc_columns(cursor, "BO")
         bo2_columns = _phc_columns(cursor, "BO2")
         bo3_columns = _phc_columns(cursor, "BO3")
+        visibility_sql, visibility_params = _budget_visibility_predicate(company, user, "B")
         header_rows = _fetch_rows(
             cursor,
             f"""
@@ -499,8 +644,9 @@ def get_budget_detail(feid: Any, bostamp: str, user) -> dict[str, Any]:
             LEFT JOIN dbo.BO2 B2 ON B2.BO2STAMP = B.BOSTAMP
             LEFT JOIN dbo.BO3 B3 ON B3.BO3STAMP = B.BOSTAMP
             WHERE B.BOSTAMP = ?
+              AND {visibility_sql}
             """,
-            (clean_stamp,),
+            (clean_stamp, *visibility_params),
         )
         if not header_rows:
             raise BudgetsNotFoundError("Orçamento não encontrado no PHC desta empresa.")
@@ -595,15 +741,18 @@ def get_budget_detail_by_number(feid: Any, number: Any, year: Any, user) -> dict
         raise BudgetsValidationError("Número de Devis inválido.") from exc
     document_year = _parse_year(year)
     with pyodbc.connect(_phc_conn_str(company["phc_db"], company.get("phc_server", "")), timeout=15) as conn:
+        cursor = conn.cursor()
+        visibility_sql, visibility_params = _budget_visibility_predicate(company, user, "B")
         rows = _fetch_rows(
-            conn.cursor(),
-            """
-            SELECT TOP 1 BOSTAMP
-            FROM dbo.BO
-            WHERE NDOS = 115 AND OBRANO = ? AND BOANO = ?
-            ORDER BY BOSTAMP DESC
+            cursor,
+            f"""
+            SELECT TOP 1 B.BOSTAMP
+            FROM dbo.BO B
+            WHERE B.NDOS = 115 AND B.OBRANO = ? AND B.BOANO = ?
+              AND {visibility_sql}
+            ORDER BY B.BOSTAMP DESC
             """,
-            (document_number, document_year),
+            (document_number, document_year, *visibility_params),
         )
     if not rows:
         raise BudgetsNotFoundError("Devis não encontrado no PHC desta empresa.")
@@ -1027,6 +1176,7 @@ def get_budget_line_oci(feid: Any, bistamp: Any, user) -> dict[str, Any]:
         cursor = conn.cursor()
         bi_columns = _phc_columns(cursor, "BI")
         bi2_columns = _phc_columns(cursor, "BI2")
+        visibility_sql, visibility_params = _budget_visibility_predicate(company, user, "B")
         line_rows = _fetch_rows(
             cursor,
             f"""
@@ -1048,10 +1198,12 @@ def get_budget_line_oci(feid: Any, bistamp: Any, user) -> dict[str, Any]:
                 {_optional_column(bi2_columns, 'I2', 'U_APROVA', 'U_APROVA', '0')},
                 {_optional_column(bi2_columns, 'I2', 'U_DESAPRO', 'U_DESAPRO', '0')}
             FROM dbo.BI I
+            INNER JOIN dbo.BO B ON B.BOSTAMP = I.BOSTAMP
             LEFT JOIN dbo.BI2 I2 ON I2.BI2STAMP = I.BISTAMP
             WHERE I.BISTAMP = ?
+              AND {visibility_sql}
             """,
-            (clean_stamp,),
+            (clean_stamp, *visibility_params),
         )
         if not line_rows:
             raise BudgetsNotFoundError("Linha do orçamento não encontrada no PHC desta empresa.")
@@ -1265,7 +1417,8 @@ def _write_client(cursor, number: Any, establishment: Any) -> dict[str, Any]:
         cursor,
         """
         SELECT TOP 1 CLSTAMP, NO, ESTAB, NOME, NCONT, MORADA, LOCAL, CODPOST, ZONA,
-               TELEFONE, CONTACTO, EMAIL, VENDEDOR, VENDNM, PNCONT, PAIS
+               TELEFONE, CONTACTO, EMAIL, VENDEDOR, VENDNM, PNCONT, PAIS,
+               COBRANCA, TPSTAMP, TPDESC, LANG
         FROM dbo.CL WITH (UPDLOCK, HOLDLOCK)
         WHERE NO = ? AND ESTAB = ? AND ISNULL(INACTIVO, 0) = 0
         """,
@@ -1355,18 +1508,29 @@ def save_budget(payload: dict[str, Any], user) -> dict[str, Any]:
                 boano = dataobra.year
                 obrano = _next_budget_number(cursor, ndos, boano)
             else:
+                visibility_sql, visibility_params = _budget_visibility_predicate(company, user, "B")
                 rows = _fetch_rows(
                     cursor,
-                    """
-                    SELECT BOSTAMP, NDOS, NMDOS, OBRANO, BOANO, USRDATA, USRHORA
-                    FROM dbo.BO WITH (UPDLOCK, HOLDLOCK)
-                    WHERE BOSTAMP = ?
+                    f"""
+                    SELECT B.BOSTAMP, B.NDOS, B.NMDOS, B.OBRANO, B.BOANO,
+                           B.USRDATA, B.USRHORA, B.APROVADO, B.FECHADA,
+                           ISNULL(B2.ADJUDICADO, 0) AS ADJUDICADO,
+                           ISNULL(B2.ANULADO, 0) AS ANULADO
+                    FROM dbo.BO B WITH (UPDLOCK, HOLDLOCK)
+                    LEFT JOIN dbo.BO2 B2 WITH (UPDLOCK, HOLDLOCK)
+                           ON B2.BO2STAMP = B.BOSTAMP
+                    WHERE B.BOSTAMP = ?
+                      AND {visibility_sql}
                     """,
-                    (clean_bostamp,),
+                    (clean_bostamp, *visibility_params),
                 )
                 if not rows:
                     raise BudgetsNotFoundError("O orçamento já não existe no PHC desta empresa.")
                 existing_header = rows[0]
+                if not _budget_is_in_preparation(existing_header):
+                    raise BudgetsConflictError(
+                        "O orçamento já não está em preparação e não pode ser alterado."
+                    )
                 current_revision = _revision_token(existing_header.get("USRDATA"), existing_header.get("USRHORA"))
                 requested_revision = _text_value(header.get("revision"))
                 if not requested_revision or requested_revision != current_revision:
@@ -1454,7 +1618,7 @@ def save_budget(payload: dict[str, Any], user) -> dict[str, Any]:
                 designation = _limited(raw_line.get("designation"), bi_lengths, "design")
                 description = _limited(raw_line.get("description") or designation, bi_lengths, "dgeral")
                 quantity = _decimal(raw_line.get("quantity")).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
-                unit_price = _decimal(raw_line.get("unit_price")).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
+                unit_price = _write_money(raw_line.get("unit_price"))
                 discount_1 = _decimal(raw_line.get("discount_1"))
                 discount_2 = _decimal(raw_line.get("discount_2"))
                 variant = _bool_value(raw_line.get("variant"))
@@ -1465,16 +1629,14 @@ def save_budget(payload: dict[str, Any], user) -> dict[str, Any]:
                 factor = (Decimal("1") - discount_1 / Decimal("100")) * (
                     Decimal("1") - discount_2 / Decimal("100")
                 )
-                total = (unit_price * quantity * factor).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
-                technical_unit_cost = _decimal(
+                total = _write_money(unit_price * quantity * factor)
+                technical_unit_cost = _write_money(
                     raw_line.get("_technical_unit_cost")
                     if raw_line.get("_technical_unit_cost") is not None
                     else raw_line.get("unit_cost")
-                ).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
-                stored_unit_cost = Decimal("0") if excluded else technical_unit_cost
-                stored_cost_total = (stored_unit_cost * quantity).quantize(
-                    Decimal("0.000001"), rounding=ROUND_HALF_UP
                 )
+                stored_unit_cost = Decimal("0") if excluded else technical_unit_cost
+                stored_cost_total = _write_money(stored_unit_cost * quantity)
                 vat_code = int(_number_value(raw_line.get("vat_table")))
                 if vat_code <= 0:
                     vat_code = article_taxes.get(reference.upper(), default_tax_code)
@@ -1516,9 +1678,14 @@ def save_budget(payload: dict[str, Any], user) -> dict[str, Any]:
                     }
                 )
 
-            total_deb = sum((line["total"] for line in prepared_lines), Decimal("0"))
-            total_cost = sum((line["cost_total"] for line in prepared_lines), Decimal("0"))
-            margin_value = total_deb - total_cost
+            for totals in tax_totals.values():
+                totals["base"] = _write_money(totals["base"])
+                totals["iva"] = _write_money(totals["iva"])
+            total_deb = _write_money(sum((line["total"] for line in prepared_lines), Decimal("0")))
+            total_cost = _write_money(sum((line["cost_total"] for line in prepared_lines), Decimal("0")))
+            total_quantity = sum((line["quantity"] for line in prepared_lines), Decimal("0"))
+            total_vat = _write_money(sum((row["iva"] for row in tax_totals.values()), Decimal("0")))
+            margin_value = _write_money(total_deb - total_cost)
             margin_percentage = (
                 margin_value / total_deb * Decimal("100") if total_deb else Decimal("0")
             )
@@ -1554,7 +1721,15 @@ def save_budget(payload: dict[str, Any], user) -> dict[str, Any]:
                 "moeda": currency,
                 "etotaldeb": total_deb,
                 "totaldeb": _phc_value(total_deb),
+                "sdeb4": _phc_value(total_deb),
+                "esdeb4": total_deb,
+                "sqtt14": total_quantity,
+                "bo_2tvall": _phc_value(total_deb),
+                "ebo_2tvall": total_deb,
+                "bo_totp2": _phc_value(total_deb),
+                "ebo_totp2": total_deb,
                 "ecusto": total_cost,
+                "custo": _phc_value(total_cost),
                 "u_emargem": margin_value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP),
                 "u_margem": margin_percentage.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP),
                 "usrinis": user_inis,
@@ -1569,6 +1744,12 @@ def save_budget(payload: dict[str, Any], user) -> dict[str, Any]:
                         "datafecho": PHC_ZERO_DATE,
                         "fechada": 0,
                         "aprovado": 0,
+                        "ocupacao": int(_number_value(selected_series.get("occupation"))),
+                        "memissao": currency,
+                        "cobranca": _limited(client.get("COBRANCA"), bo_lengths, "cobranca"),
+                        "tpstamp": _limited(client.get("TPSTAMP"), bo_lengths, "tpstamp"),
+                        "tpdesc": _limited(client.get("TPDESC"), bo_lengths, "tpdesc"),
+                        "lang": _limited(client.get("LANG"), bo_lengths, "lang"),
                         "ousrinis": user_inis,
                         "ousrdata": audit_date,
                         "ousrhora": audit_time,
@@ -1595,6 +1776,7 @@ def save_budget(payload: dict[str, Any], user) -> dict[str, Any]:
                 "bo2stamp": bostamp,
                 "processo": _limited(header.get("process"), bo2_lengths, "processo"),
                 "area": _limited(header.get("area"), bo2_lengths, "area"),
+                "armazem": int(_number_value(selected_series.get("warehouse"))) or 1,
                 "morada": _limited(client.get("MORADA"), bo2_lengths, "morada"),
                 "local": _limited(client.get("LOCAL"), bo2_lengths, "local"),
                 "codpost": _limited(client.get("CODPOST"), bo2_lengths, "codpost"),
@@ -1602,6 +1784,7 @@ def save_budget(payload: dict[str, Any], user) -> dict[str, Any]:
                 "telefone": _limited(client.get("TELEFONE"), bo2_lengths, "telefone"),
                 "contacto": _limited(client.get("CONTACTO"), bo2_lengths, "contacto"),
                 "email": _limited(client.get("EMAIL"), bo2_lengths, "email"),
+                "etotalciva": (total_deb + total_vat).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP),
                 "usrinis": user_inis,
                 "usrdata": now_sql,
                 "usrhora": audit_time,
@@ -1612,6 +1795,11 @@ def save_budget(payload: dict[str, Any], user) -> dict[str, Any]:
                         "adjudicado": 0,
                         "orcamento": 0,
                         "anulado": 0,
+                        "autotipo": 1,
+                        "pdtipo": 1,
+                        "tiposaft": _limited(selected_series.get("saft_type"), bo2_lengths, "tiposaft"),
+                        "idserie": _limited(selected_series.get("series_id"), bo2_lengths, "idserie"),
+                        "carga": _limited("N/Instalações", bo2_lengths, "carga"),
                         "ousrinis": user_inis,
                         "ousrdata": now_sql,
                         "ousrhora": audit_time,
@@ -1648,8 +1836,8 @@ def save_budget(payload: dict[str, Any], user) -> dict[str, Any]:
                     _phc_insert(cursor, "BO3", bo3_values)
 
             cursor.execute("DELETE FROM dbo.BOT WHERE BOSTAMP = ?", bostamp)
-            for code, rate in sorted(tax_rates.items()):
-                totals = tax_totals.get(code, {"base": Decimal("0"), "iva": Decimal("0")})
+            for code, totals in sorted(tax_totals.items()):
+                rate = totals.get("rate", Decimal("0"))
                 _phc_insert(
                     cursor,
                     "BOT",
@@ -1707,10 +1895,14 @@ def save_budget(payload: dict[str, Any], user) -> dict[str, Any]:
                     "iva": prepared["vat_rate"],
                     "tabiva": prepared["vat_code"],
                     "ivaincl": 0,
-                    "armazem": 1,
+                    "armazem": int(_number_value(selected_series.get("warehouse"))) or 1,
+                    "stipo": 4,
                     "no": customer_number,
                     "estab": customer_establishment,
                     "nome": customer_name,
+                    "serie": attention,
+                    "rdata": dataobra,
+                    "obranome": work_locality,
                     "morada": _limited(client.get("MORADA"), bi_lengths, "morada"),
                     "local": _limited(client.get("LOCAL"), bi_lengths, "local"),
                     "codpost": _limited(client.get("CODPOST"), bi_lengths, "codpost"),
@@ -1786,8 +1978,8 @@ def save_budget(payload: dict[str, Any], user) -> dict[str, Any]:
                 cursor.execute("DELETE FROM dbo.OCI WHERE BISTAMP = ?", bistamp)
                 if prepared["has_technical"]:
                     for oci_index, row in enumerate(prepared["technical_rows"], start=1):
-                        purchase_price = _decimal(row.get("purchase_price"))
-                        cost_per_unit = _decimal(row.get("cost_per_unit"))
+                        purchase_price = _write_money(row.get("purchase_price"))
+                        cost_per_unit = _write_money(row.get("cost_per_unit"))
                         component_quantity = cost_per_unit / purchase_price if purchase_price else Decimal("0")
                         if not cost_per_unit and purchase_price:
                             component_quantity = _decimal(row.get("quantity"))
@@ -1803,12 +1995,12 @@ def save_budget(payload: dict[str, Any], user) -> dict[str, Any]:
                                 "familia": _limited(row.get("family"), oci_lengths, "familia"),
                                 "armazem": 1,
                                 "qtt": component_quantity,
-                                "pcusto": _decimal(row.get("base_purchase_price")),
+                                "pcusto": _write_money(row.get("base_purchase_price")),
                                 "epcusto": purchase_price,
                                 "unidade": _limited(row.get("unit"), oci_lengths, "unidade"),
                                 "qtttotal": component_quantity * prepared["quantity"],
                                 "nivel": 0,
-                                "u_forfait": _decimal(row.get("forfait")),
+                                "u_forfait": _write_money(row.get("forfait")),
                                 "u_area": _decimal(row.get("area")),
                                 "u_espess": _decimal(row.get("thickness")),
                                 "u_volume": _decimal(row.get("volume")),
@@ -1817,7 +2009,7 @@ def save_budget(payload: dict[str, Any], user) -> dict[str, Any]:
                                 "u_coef": _decimal(row.get("coefficient")),
                                 "u_formula": _limited(row.get("formula"), oci_lengths, "u_formula"),
                                 "u_design": _limited(row.get("designation"), oci_lengths, "u_design"),
-                                "u_pvenda": _decimal(row.get("sale_price")),
+                                "u_pvenda": _write_money(row.get("sale_price")),
                                 "ousrinis": user_inis,
                                 "ousrdata": audit_date,
                                 "ousrhora": audit_time,
@@ -1837,7 +2029,7 @@ def save_budget(payload: dict[str, Any], user) -> dict[str, Any]:
                             "design": "Frais d´etude",
                             "armazem": 1,
                             "qtt": 1,
-                            "epcusto": Decimal("0.1"),
+                            "epcusto": Decimal("0.10"),
                             "qtttotal": prepared["quantity"],
                             "ousrinis": user_inis,
                             "ousrdata": audit_date,
@@ -1857,13 +2049,11 @@ def save_budget(payload: dict[str, Any], user) -> dict[str, Any]:
             conn.rollback()
             raise
 
-    detail = get_budget_detail(payload.get("feid"), bostamp, user)
     return {
         "created": creating,
         "bostamp": bostamp,
         "number": obrano,
         "year": boano,
-        "detail": detail,
     }
 
 

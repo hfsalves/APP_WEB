@@ -77,7 +77,9 @@ def _origin_phc_db_hint(origin: str) -> str:
 def _origin_phc_process_prefix(origin: str, database_name: str = "") -> str:
     key = _norm(origin)
     db_key = _norm(database_name)
-    if key.startswith("INTERSOL") or "FRANCE" in key or db_key.endswith("FR"):
+    if key.startswith("INTERSOL") or db_key == "INTERSOL":
+        return "IS"
+    if "FRANCE" in key or db_key.endswith("FR"):
         return "FR"
     if "ALLEMAGNE" in key or "ALEMANHA" in key or key.endswith("DE") or db_key.endswith("DE"):
         return "DE"
@@ -396,7 +398,7 @@ calc AS (
 final AS (
     SELECT
         C.*,
-        ((C.PROD - C.AJUST) - C.RG - C.RFT - C.AUTRET - C.PRORATA) AS BASE_NET
+        ((C.PROD - C.AJUST) + C.ACOMPTE - C.RG - C.RFT - C.AUTRET - C.PRORATA) AS BASE_NET
     FROM calc C
 )
 SELECT
@@ -415,7 +417,7 @@ SELECT
     CAST(F.AUTRET * F.SGN AS decimal(19,2)) AS autret,
     F.TVAP AS tvap,
     CAST(ROUND(F.BASE_NET * F.TVAP / 100.0, 2) * F.SGN AS decimal(19,2)) AS tvaval,
-    CAST((F.BASE_NET + ROUND(F.BASE_NET * F.TVAP / 100.0, 2)) * F.SGN AS decimal(19,2)) AS totalttc,
+    CAST((F.BASE_NET - F.ACOMPTE + ROUND(F.BASE_NET * F.TVAP / 100.0, 2)) * F.SGN AS decimal(19,2)) AS totalttc,
     CAST(0 AS decimal(19,2)) AS descfinanceiro,
     CAST(CASE WHEN INV.FTSTAMP IS NULL THEN 0 ELSE 1 END AS bit) AS faturado,
     ISNULL(INV.FTSTAMP, '') AS ftstamp,
@@ -547,8 +549,8 @@ SELECT
     CAST(RFT AS decimal(19,2)) AS retfintrav,
     CAST(AUTRET AS decimal(19,2)) AS autret,
     TVAP AS tvap,
-    CAST(ROUND(((PROD - AJUST) - RG - RFT - AUTRET - PRORATA) * TVAP / 100.0, 2) AS decimal(19,2)) AS tvaval,
-    CAST(((PROD - AJUST) - RG - RFT - AUTRET - PRORATA) + ROUND(((PROD - AJUST) - RG - RFT - AUTRET - PRORATA) * TVAP / 100.0, 2) AS decimal(19,2)) AS totalttc,
+    CAST(ROUND(((PROD - AJUST) + ACOMPTE - RG - RFT - AUTRET - PRORATA) * TVAP / 100.0, 2) AS decimal(19,2)) AS tvaval,
+    CAST(((PROD - AJUST) - RG - RFT - AUTRET - PRORATA) + ROUND(((PROD - AJUST) + ACOMPTE - RG - RFT - AUTRET - PRORATA) * TVAP / 100.0, 2) AS decimal(19,2)) AS totalttc,
     CAST(0 AS decimal(19,2)) AS descfinanceiro,
     CAST(1 AS bit) AS faturado,
     FTSTAMP AS ftstamp,

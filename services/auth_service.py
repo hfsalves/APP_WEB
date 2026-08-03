@@ -43,6 +43,7 @@ BASE_USER_COLUMNS = [
     "CLNO",
     "CLESTAB",
     "CLNOME",
+    "VENDEDOR",
 ]
 
 OPTIONAL_USER_COLUMNS = [
@@ -222,6 +223,7 @@ def _normalize_user_row(row: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any
     normalized.setdefault("IS_ACTIVE", True)
     normalized.setdefault("INATIVO", 0)
     normalized.setdefault("CLESTAB", 0)
+    normalized.setdefault("VENDEDOR", 0)
     return normalized
 
 

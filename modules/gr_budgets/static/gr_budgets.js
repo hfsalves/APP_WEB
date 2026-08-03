@@ -5,6 +5,12 @@
   if (!root) return;
 
   const apiBase = '/api/gr_orcamentos';
+  const tr = (key, vars) => (typeof window.t === 'function' ? window.t(key, vars) : key);
+  const languageTag = window.SZ_LANGUAGE_TAG || 'pt-PT';
+
+  function plural(oneKey, otherKey, count) {
+    return tr(Number(count) === 1 ? oneKey : otherKey, { count });
+  }
   const elements = {
     company: document.getElementById('budgetCompany'),
     series: document.getElementById('budgetSeries'),
@@ -16,7 +22,9 @@
     next: document.getElementById('budgetNext'),
     printBudget: document.getElementById('budgetPrint'),
     newBudget: document.getElementById('budgetNew'),
+    editBudget: document.getElementById('budgetEdit'),
     cancelEdit: document.getElementById('budgetCancelEdit'),
+    saveBudget: document.getElementById('budgetSave'),
     resultCount: document.getElementById('budgetResultCount'),
     error: document.getElementById('budgetError'),
     empty: document.getElementById('budgetEmpty'),
@@ -121,14 +129,19 @@
     requestVersion: 0
   };
 
-  const numberFormatter = new Intl.NumberFormat('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const lineAmountFormatter = new Intl.NumberFormat('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
-  const quantityFormatter = new Intl.NumberFormat('pt-PT', { minimumFractionDigits: 0, maximumFractionDigits: 4 });
-  const percentFormatter = new Intl.NumberFormat('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const numberFormatter = new Intl.NumberFormat(languageTag, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const lineAmountFormatter = new Intl.NumberFormat(languageTag, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const quantityFormatter = new Intl.NumberFormat(languageTag, { minimumFractionDigits: 0, maximumFractionDigits: 4 });
+  const percentFormatter = new Intl.NumberFormat(languageTag, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const newDocumentValue = '__new_budget__';
 
   function isEditing() {
     return state.mode !== 'view';
+  }
+
+  function budgetInPreparation() {
+    const header = state.detail && state.detail.header;
+    return Boolean(header && !header.approved && !header.awarded && !header.cancelled);
   }
 
   function selectedBudgetStamp() {
@@ -137,11 +150,12 @@
   }
 
   function budgetPdfUrl() {
-    const feid = String(elements.company.value || '').trim();
+    const selectedFeid = String(elements.company.value || '').trim();
+    const detailFeid = String(state.detail?.company?.feid || '').trim();
     const bostamp = selectedBudgetStamp();
-    if (!feid || !bostamp) return '';
+    if (!selectedFeid || !detailFeid || selectedFeid !== detailFeid || !bostamp) return '';
     const url = new URL(`${apiBase}/orcamento/${encodeURIComponent(bostamp)}/pdf`, window.location.origin);
-    url.searchParams.set('feid', feid);
+    url.searchParams.set('feid', detailFeid);
     url.searchParams.set('style', 'modern');
     return url.toString();
   }
@@ -150,13 +164,13 @@
     if (isEditing() || state.loadingCount || !state.detail) return;
     const url = budgetPdfUrl();
     if (!url) {
-      showError('Selecione uma empresa e um orçamento guardado antes de imprimir.');
+      showError(tr('gr_budgets.error.pdf_missing_selection'));
       return;
     }
     showError('');
     const printWindow = window.open(url, '_blank');
     if (!printWindow) {
-      showError('O navegador bloqueou a janela do PDF. Autorize pop-ups para imprimir o orçamento.');
+      showError(tr('gr_budgets.error.pdf_popup_blocked'));
       return;
     }
     printWindow.opener = null;
@@ -192,7 +206,21 @@
     let payload = {};
     try { payload = await response.json(); } catch (_) { payload = {}; }
     if (!response.ok || payload.ok === false) {
-      throw new Error(payload.error || `Não foi possível carregar os dados (${response.status}).`);
+      throw new Error(payload.error || tr('gr_budgets.error.load_data', { status: response.status }));
+    }
+    return payload;
+  }
+
+  async function postJson(path, body) {
+    const response = await fetch(apiBase + path, {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify(body || {})
+    });
+    let payload = {};
+    try { payload = await response.json(); } catch (_) { payload = {}; }
+    if (!response.ok || payload.ok === false) {
+      throw new Error(payload.error || tr('gr_budgets.error.save_budget', { status: response.status }));
     }
     return payload;
   }
@@ -221,7 +249,7 @@
         || state.companies[0];
       setOptions(elements.company, state.companies, 'feid', (row) => row.name || row.phc_db, selected && selected.feid);
       if (!selected) {
-        renderNoResults('Não existem empresas PHC configuradas para este utilizador.');
+        renderNoResults(tr('gr_budgets.error.no_companies'));
         return;
       }
       await loadSeries();
@@ -256,7 +284,7 @@
       renderSalespeople();
       setOptions(elements.series, state.series, 'ndos', (row) => `${row.name} · ${row.ndos}`, seriesPayload.default_ndos);
       if (!state.series.length) {
-        renderNoResults('Esta empresa não tem séries de orçamento com OCI configuradas no PHC.');
+        renderNoResults(tr('gr_budgets.error.series_unavailable'));
         return;
       }
       await loadBudgets();
@@ -288,10 +316,10 @@
         elements.document,
         state.budgets,
         'bostamp',
-        (row) => `${row.series} ${row.number} · ${row.client_name || 'Sem cliente'}${row.work_name ? ` — ${row.work_name}` : ''}`,
+        (row) => `${row.series} ${row.number} · ${row.client_name || tr('gr_budgets.label.no_client')}${row.work_name ? ` — ${row.work_name}` : ''}`,
         selected && selected.bostamp
       );
-      elements.resultCount.textContent = `${state.budgets.length} ${state.budgets.length === 1 ? 'orçamento' : 'orçamentos'}`;
+      elements.resultCount.textContent = plural('gr_budgets.count.budget_one', 'gr_budgets.count.budget_other', state.budgets.length);
       updateNavigation();
       if (!selected) {
         renderNoResults();
@@ -330,9 +358,9 @@
     elements.content.hidden = true;
     elements.empty.hidden = false;
     const strong = elements.empty.querySelector('strong');
-    if (strong) strong.textContent = message || 'Não existem orçamentos para os filtros selecionados.';
+    if (strong) strong.textContent = message || tr('gr_budgets.empty.title');
     elements.document.replaceChildren();
-    elements.resultCount.textContent = '0 orçamentos';
+    elements.resultCount.textContent = tr('gr_budgets.count.budget_other', { count: 0 });
     updateNavigation();
   }
 
@@ -349,28 +377,47 @@
     elements.salesperson.replaceChildren();
     const emptyOption = document.createElement('option');
     emptyOption.value = '';
-    emptyOption.textContent = 'Sem comercial';
+    emptyOption.textContent = tr('gr_budgets.label.no_salesperson');
     elements.salesperson.appendChild(emptyOption);
     state.salespeople.forEach((row) => {
       const option = document.createElement('option');
       option.value = String(row.number || '');
-      option.textContent = `${row.name || row.number}${row.inactive ? ' · inativo' : ''}`;
+      option.textContent = `${row.name || row.number}${row.inactive ? ` · ${tr('gr_budgets.client.inactive')}` : ''}`;
       elements.salesperson.appendChild(option);
     });
     const wanted = String(selectedNumber || '');
     if (wanted && !Array.from(elements.salesperson.options).some((option) => option.value === wanted)) {
       const option = document.createElement('option');
       option.value = wanted;
-      option.textContent = selectedName || `Comercial ${wanted}`;
+      option.textContent = selectedName || tr('gr_budgets.label.salesperson_fallback', { number: wanted });
       elements.salesperson.appendChild(option);
     }
     elements.salesperson.value = wanted;
   }
 
+  function syncEditableHeaderToState() {
+    if (!state.detail) return;
+    const header = state.detail.header || {};
+    const salespersonNumber = Number(elements.salesperson.value || 0);
+    const salesperson = state.salespeople.find((row) => Number(row.number || 0) === salespersonNumber);
+    state.detail.header = {
+      ...header,
+      client_name: elements.clientSearch.value.trim(),
+      client_number: Number(elements.clientNumber.value || 0),
+      establishment: Number(elements.clientEstablishment.value || 0),
+      work_name: elements.workInput.value.trim(),
+      locality: elements.localityInput.value.trim(),
+      date: elements.dateInput.value,
+      salesperson_number: salespersonNumber,
+      salesperson: salesperson ? salesperson.name : '',
+      attention: elements.attentionInput.value.trim()
+    };
+  }
+
   function money(value, currency) {
     const code = currency || 'EUR';
     try {
-      return new Intl.NumberFormat('pt-PT', { style: 'currency', currency: code }).format(Number(value || 0));
+      return new Intl.NumberFormat(languageTag, { style: 'currency', currency: code }).format(Number(value || 0));
     } catch (_) {
       return `${numberFormatter.format(Number(value || 0))} ${code}`;
     }
@@ -384,8 +431,8 @@
       const token = segment.trim();
       const match = token.match(/^(\d+)(.*)$/);
       return match
-        ? { kind: 0, number: Number.parseInt(match[1], 10), suffix: match[2].trim().toLocaleLowerCase('pt') }
-        : { kind: 1, number: 0, suffix: token.toLocaleLowerCase('pt') };
+        ? { kind: 0, number: Number.parseInt(match[1], 10), suffix: match[2].trim().toLocaleLowerCase(languageTag) }
+        : { kind: 1, number: 0, suffix: token.toLocaleLowerCase(languageTag) };
     });
   }
 
@@ -400,7 +447,7 @@
       const rightSegment = rightPath[index];
       if (leftSegment.kind !== rightSegment.kind) return leftSegment.kind - rightSegment.kind;
       if (leftSegment.number !== rightSegment.number) return leftSegment.number - rightSegment.number;
-      const suffixOrder = leftSegment.suffix.localeCompare(rightSegment.suffix, 'pt', { numeric: true });
+      const suffixOrder = leftSegment.suffix.localeCompare(rightSegment.suffix, languageTag, { numeric: true });
       if (suffixOrder) return suffixOrder;
     }
     const orderDifference = finiteNumber(left && left.order) - finiteNumber(right && right.order);
@@ -417,13 +464,16 @@
     elements.empty.hidden = true;
     elements.content.hidden = false;
 
-    text('budgetDocumentEyebrow', `Dossier interno · ${header.series || 'Orçamento'}`);
+    text('budgetDocumentEyebrow', tr('gr_budgets.document.dossier_series', { series: header.series || tr('gr_budgets.label.budget') }));
     setInputValue(elements.clientSearch, header.client_name);
     setInputValue(elements.clientNumber, header.client_number);
     setInputValue(elements.clientEstablishment, header.establishment);
     elements.clientMeta.textContent = header.client_number
-      ? `Cliente n.º ${header.client_number}${header.establishment ? ` / ${header.establishment}` : ''}`
-      : 'Cliente não selecionado';
+      ? tr(
+        header.establishment ? 'gr_budgets.client.label_number_establishment' : 'gr_budgets.client.label_number',
+        { number: header.client_number, establishment: header.establishment }
+      )
+      : tr('gr_budgets.client.meta_unselected');
     setInputValue(elements.workInput, header.work_name);
     setInputValue(elements.localityInput, header.locality || header.place);
     setInputValue(elements.dateInput, header.date);
@@ -437,7 +487,7 @@
       .classList.toggle('is-threshold-alert', Number(totals.margin_percentage || 0) < 10);
     document.getElementById('budgetProfit').closest('.gr-budget-total')
       .classList.toggle('is-threshold-alert', Number(totals.profit || 0) < 1000);
-    text('budgetLineCount', `${lines.length} ${lines.length === 1 ? 'linha' : 'linhas'} · BI + BI2`);
+    text('budgetLineCount', `${plural('gr_budgets.count.line_one', 'gr_budgets.count.line_other', lines.length)} · BI + BI2`);
 
     renderStatuses(header);
     renderLines(lines, header.currency, totals);
@@ -445,12 +495,12 @@
 
   function renderStatuses(header) {
     const statuses = [];
-    if (header._draft) statuses.push(['warning', 'fa-pen', 'Novo em edição']);
-    if (!header._draft && isEditing()) statuses.push(['warning', 'fa-pen', 'Em edição']);
-    if (!header._draft && header.cancelled) statuses.push(['danger', 'fa-ban', 'Anulado']);
-    if (!header._draft && header.approved) statuses.push(['success', 'fa-circle-check', 'Aprovado']);
-    if (!header._draft && header.awarded) statuses.push(['info', 'fa-trophy', 'Adjudicado']);
-    if (!statuses.length) statuses.push(['warning', 'fa-clock', 'Em preparação']);
+    if (header._draft) statuses.push(['warning', 'fa-pen', tr('gr_budgets.status.new_editing')]);
+    if (!header._draft && isEditing()) statuses.push(['warning', 'fa-pen', tr('gr_budgets.status.editing')]);
+    if (!header._draft && header.cancelled) statuses.push(['danger', 'fa-ban', tr('gr_budgets.status.cancelled')]);
+    if (!header._draft && header.approved) statuses.push(['success', 'fa-circle-check', tr('gr_budgets.status.approved')]);
+    if (!header._draft && header.awarded) statuses.push(['info', 'fa-trophy', tr('gr_budgets.status.awarded')]);
+    if (!statuses.length) statuses.push(['warning', 'fa-clock', tr('gr_budgets.status.preparation')]);
     document.getElementById('budgetStatus').innerHTML = statuses.map(([kind, icon, label]) =>
       `<span class="sz_badge sz_badge_${kind}"><i class="fa-solid ${icon}"></i>${escapeHtml(label)}</span>`
     ).join('');
@@ -496,12 +546,16 @@
     setInputValue(elements.clientNumber, row.number);
     setInputValue(elements.clientEstablishment, row.establishment);
     elements.clientMeta.textContent = row.number
-      ? `Cliente n.º ${row.number}${row.establishment ? ` / ${row.establishment}` : ''}`
-      : 'Cliente selecionado';
+      ? tr(
+        row.establishment ? 'gr_budgets.client.label_number_establishment' : 'gr_budgets.client.label_number',
+        { number: row.number, establishment: row.establishment }
+      )
+      : tr('gr_budgets.client.meta_selected');
     if (row.contact) setInputValue(elements.attentionInput, row.contact);
     if (row.salesperson_number) {
       renderSalespeople(row.salesperson_number, row.salesperson);
     }
+    syncEditableHeaderToState();
     closeClientLookup();
     elements.clientSearch.focus();
   }
@@ -510,7 +564,7 @@
     state.clientRows = Array.isArray(rows) ? rows : [];
     elements.clientResults.replaceChildren();
     if (!state.clientRows.length) {
-      renderClientMessage('Sem resultados');
+      renderClientMessage(tr('gr_budgets.label.no_results'));
       return;
     }
     state.clientRows.forEach((row, index) => {
@@ -519,12 +573,12 @@
       button.className = 'sz_table_lookup_item';
       const title = document.createElement('span');
       title.className = 'sz_table_lookup_item_label';
-      title.textContent = row.name || `Cliente ${row.number}`;
+      title.textContent = row.name || tr('gr_budgets.label.client_fallback', { number: row.number });
       const meta = document.createElement('span');
       meta.className = 'sz_table_lookup_item_value';
       meta.textContent = [
-        row.number ? `N.º ${row.number}` : '',
-        row.vat_number ? `NIF ${row.vat_number}` : '',
+        row.number ? tr('gr_budgets.client.number_short', { number: row.number }) : '',
+        row.vat_number ? tr('gr_budgets.client.vat_number', { number: row.vat_number }) : '',
         row.locality || ''
       ].filter(Boolean).join(' · ');
       button.append(title, meta);
@@ -552,26 +606,26 @@
     }
     state.clientSearchTimer = window.setTimeout(async () => {
       const version = ++state.clientRequestVersion;
-      renderClientMessage('A procurar…');
+      renderClientMessage(tr('gr_budgets.client.searching'));
       try {
         const payload = await getJson('/clientes', { feid: elements.company.value, q: query });
         if (version !== state.clientRequestVersion) return;
         renderClientRows(payload.rows || []);
       } catch (error) {
         if (version !== state.clientRequestVersion) return;
-        renderClientMessage(error.message || 'Erro na pesquisa', true);
+        renderClientMessage(error.message || tr('gr_budgets.error.search'), true);
       }
     }, 250);
   }
 
   function renderLines(lines, currency, totals) {
     elements.lines.innerHTML = lines.map((line, index) => {
-      const title = line.designation || line.description || 'Linha sem designação';
+      const title = line.designation || line.description || tr('gr_budgets.line.no_designation');
       const secondary = line.description && line.description !== line.designation ? line.description : '';
       const plusValue = isPlusValue(line.reference);
       const technicalControl = plusValue
         ? '<span class="sz_text_muted">—</span>'
-        : `<button type="button" class="sz_button sz_button_ghost gr-budget-technical-button" data-technical-line="${index}" aria-label="Abrir detalhe técnico da linha ${escapeHtml(line.item_label || line.item || index + 1)}" title="Detalhe técnico (OCI)">+</button>`;
+        : `<button type="button" class="sz_button sz_button_ghost gr-budget-technical-button" data-technical-line="${index}" aria-label="${escapeHtml(tr('gr_budgets.action.technical_line_aria', { line: line.item_label || line.item || index + 1 }))}" title="${escapeHtml(tr('gr_budgets.action.technical_detail_title'))}">+</button>`;
       return `<tr class="sz_table_row${plusValue ? ' is-plus-value' : ''}">
         <td class="gr-budget-num">${escapeHtml(line.item_label || line.item || index + 1)}</td>
         <td>${escapeHtml(line.reference || '—')}</td>
@@ -588,7 +642,7 @@
       </tr>`;
     }).join('');
     elements.linesFooter.innerHTML = `<tr>
-      <td colspan="7">Totais · ${escapeHtml(lines.length)} linhas</td>
+      <td colspan="7">${escapeHtml(tr(lines.length === 1 ? 'gr_budgets.total.row_one' : 'gr_budgets.total.rows', { count: lines.length }))}</td>
       <td class="gr-budget-num">${escapeHtml(money(totals.total, currency))}</td>
       <td></td>
       <td class="gr-budget-num">${escapeHtml(money(totals.cost, currency))}</td>
@@ -623,10 +677,22 @@
     return Number.isFinite(number) ? number : (fallback == null ? 0 : fallback);
   }
 
+  function roundMoney(value) {
+    const number = finiteNumber(value);
+    const rounded = Math.round((Math.abs(number) + Number.EPSILON) * 100) / 100;
+    return number < 0 ? -rounded : rounded;
+  }
+
   function setNumericInput(element, value, decimals) {
     const number = Number(value || 0);
     if (!element) return;
-    element.value = Number.isFinite(number) ? number.toFixed(decimals == null ? 4 : decimals).replace(/\.?0+$/, '') : '0';
+    const precision = decimals == null ? 4 : decimals;
+    if (!Number.isFinite(number)) {
+      element.value = precision === 2 ? '0.00' : '0';
+      return;
+    }
+    const formatted = number.toFixed(precision);
+    element.value = precision === 2 ? formatted : formatted.replace(/\.?0+$/, '');
   }
 
   function setCostDisplay(element, value) {
@@ -781,8 +847,8 @@
     const options = componentOptions();
     const family = (options.componentFamilies || []).find((row) => row.reference === state.componentFamily);
     const articles = componentArticlesForFamily(state.componentFamily);
-    elements.componentFamilyTitle.textContent = family ? family.name : 'Artigos';
-    elements.componentArticleCount.textContent = `${articles.length} ${articles.length === 1 ? 'artigo' : 'artigos'}`;
+    elements.componentFamilyTitle.textContent = family ? family.name : tr('gr_budgets.component.articles');
+    elements.componentArticleCount.textContent = plural('gr_budgets.count.article_one', 'gr_budgets.count.article_other', articles.length);
     if (!articles.some((row) => row.stamp === state.componentStamp)) state.componentStamp = '';
     elements.componentArticles.innerHTML = articles.length ? articles.map((article) => {
       const selected = article.stamp === state.componentStamp ? ' is-selected' : '';
@@ -793,7 +859,7 @@
         <td class="gr-budget-num">${lineAmountFormatter.format(Number(article.purchase_price || 0))}</td>
         <td>${escapeHtml(article.formula || '—')}</td>
       </tr>`;
-    }).join('') : '<tr><td colspan="5" class="sz_text_muted">Esta família não tem artigos disponíveis para o ouvrage selecionado.</td></tr>';
+    }).join('') : `<tr><td colspan="5" class="sz_text_muted">${escapeHtml(tr('gr_budgets.component.empty_family'))}</td></tr>`;
     updateComponentSelection();
   }
 
@@ -806,7 +872,7 @@
     elements.componentConfirm.disabled = !article;
     elements.componentSelection.textContent = article
       ? `${article.reference} · ${article.designation}`
-      : 'Selecione um artigo.';
+      : tr('gr_budgets.component.select_article');
     elements.componentArticles.querySelectorAll('[data-component-stamp]').forEach((row) => {
       const selected = row.dataset.componentStamp === state.componentStamp;
       row.classList.toggle('is-selected', selected);
@@ -822,7 +888,7 @@
   function openComponentPicker(familyReference) {
     const families = componentOptions().componentFamilies || [];
     if (!families.length) {
-      showOciError('Não existem famílias de componentes configuradas para esta empresa.');
+      showOciError(tr('gr_budgets.error.no_component_families'));
       return;
     }
     const requestedFamily = typeof familyReference === 'string'
@@ -851,8 +917,8 @@
       designation: article.designation || '',
       source_designation: article.designation || '',
       formula: article.formula || '',
-      purchase_price: Number(article.purchase_price || 0),
-      forfait: Number(article.forfait || 0),
+      purchase_price: roundMoney(article.purchase_price),
+      forfait: roundMoney(article.forfait),
       unit: article.unit || '',
       is_plus_value: isPlusValue(article.reference)
     };
@@ -869,7 +935,7 @@
 
   function formulaOptions(selectedValue) {
     const formulas = (state.technicalOptions && state.technicalOptions.formulas) || [];
-    return ['<option value="">Sem fórmula</option>'].concat(formulas.map((row) => {
+    return [`<option value="">${escapeHtml(tr('gr_budgets.formula.none'))}</option>`].concat(formulas.map((row) => {
       const selected = String(row.name) === String(selectedValue || '') ? ' selected' : '';
       return `<option value="${escapeHtml(row.name)}"${selected}>${escapeHtml(row.name)}</option>`;
     })).join('');
@@ -898,8 +964,8 @@
     return `<tr class="sz_table_row${plusValue ? ' is-plus-value' : ''}" data-oci-stamp="${escapeHtml(row.stamp || '')}" data-oci-family="${escapeHtml(row.family || '')}" data-oci-reference="${escapeHtml(row.reference || '')}" data-oci-quantity="${escapeHtml(row.quantity == null ? 1 : row.quantity)}" data-oci-total-quantity="${escapeHtml(row.total_quantity || 0)}" data-oci-source-designation="${escapeHtml(sourceDesignation)}" data-oci-plus-value="${plusValue ? '1' : '0'}">
       <td data-oci-cell="designation"><input class="sz_input" data-oci-field="designation" value="${escapeHtml(row.designation || '')}" maxlength="220"></td>
       <td data-oci-cell="formula"><select class="sz_select" data-oci-field="formula">${formulaOptions(row.formula)}</select></td>
-      <td data-oci-cell="purchase_price"><input class="sz_input gr-budget-number-input" data-oci-field="purchase_price" type="number" min="0" step="0.0001" value="${escapeHtml(row.purchase_price || 0)}"></td>
-      <td data-oci-cell="forfait"><input class="sz_input gr-budget-number-input" data-oci-field="forfait" type="number" min="0" step="0.01" value="${escapeHtml(row.forfait || 0)}"></td>
+      <td data-oci-cell="purchase_price"><input class="sz_input gr-budget-number-input" data-oci-field="purchase_price" type="number" min="0" step="0.01" value="${escapeHtml(roundMoney(row.purchase_price).toFixed(2))}"></td>
+      <td data-oci-cell="forfait"><input class="sz_input gr-budget-number-input" data-oci-field="forfait" type="number" min="0" step="0.01" value="${escapeHtml(roundMoney(row.forfait).toFixed(2))}"></td>
       <td data-oci-cell="area"><input class="sz_input gr-budget-number-input" data-oci-field="area" type="number" min="0" step="0.01" value="${escapeHtml(row.area || 0)}" readonly></td>
       <td data-oci-cell="thickness"><input class="sz_input gr-budget-number-input" data-oci-field="thickness" type="number" min="0" step="0.001" value="${escapeHtml(row.thickness || 0)}" readonly></td>
       <td data-oci-cell="volume"><input class="sz_input gr-budget-number-input" data-oci-field="volume" type="number" min="0" step="0.001" value="${escapeHtml(row.volume || 0)}" readonly></td>
@@ -908,14 +974,14 @@
       <td data-oci-cell="coefficient"><input class="sz_input gr-budget-number-input" data-oci-field="coefficient" type="number" min="0" step="0.0001" value="${escapeHtml(row.coefficient || 0)}"></td>
       <td data-oci-cell="cost"><input class="sz_input gr-budget-number-input" data-oci-cost data-last-valid-cost="${initialCost > 0 ? escapeHtml(initialCost) : ''}" type="text" inputmode="decimal" readonly value="${escapeHtml(numberFormatter.format(initialCost))}"></td>
       <td data-oci-cell="unit">${unitControl}</td>
-      <td><button type="button" class="sz_button sz_button_ghost gr-budget-oci-delete" data-oci-delete title="Remover componente" aria-label="Remover componente"><i class="fa-solid fa-trash-can" aria-hidden="true"></i></button></td>
+      <td><button type="button" class="sz_button sz_button_ghost gr-budget-oci-delete" data-oci-delete title="${escapeHtml(tr('gr_budgets.action.remove_component'))}" aria-label="${escapeHtml(tr('gr_budgets.action.remove_component'))}"><i class="fa-solid fa-trash-can" aria-hidden="true"></i></button></td>
     </tr>`;
   }
 
   function renderOciRows(rows) {
     const safeRows = Array.isArray(rows) ? rows : [];
     elements.ociRows.innerHTML = safeRows.map(ociRowMarkup).join('');
-    text('budgetOciRowCount', `${safeRows.length} ${safeRows.length === 1 ? 'linha' : 'linhas'} · OCI`);
+    text('budgetOciRowCount', plural('gr_budgets.count.oci_line_one', 'gr_budgets.count.oci_line_other', safeRows.length));
     elements.ociRows.querySelectorAll('tr').forEach(updateOciRowFormulaState);
     recalculateOci();
     renderOciFamilySidebar();
@@ -926,7 +992,7 @@
     const appendedRow = elements.ociRows.lastElementChild;
     if (appendedRow) updateOciRowFormulaState(appendedRow);
     const rowCount = elements.ociRows.querySelectorAll('tr').length;
-    text('budgetOciRowCount', `${rowCount} ${rowCount === 1 ? 'linha' : 'linhas'} · OCI`);
+    text('budgetOciRowCount', plural('gr_budgets.count.oci_line_one', 'gr_budgets.count.oci_line_other', rowCount));
     recalculateOci();
     renderOciFamilySidebar();
     return appendedRow;
@@ -950,8 +1016,8 @@
       reference: ociRowValue(row, 'reference'),
       designation: ociRowValue(row, 'designation'),
       formula: ociRowValue(row, 'formula'),
-      purchase_price: ociRowValue(row, 'purchase_price'),
-      forfait: ociRowValue(row, 'forfait'),
+      purchase_price: roundMoney(ociRowValue(row, 'purchase_price')),
+      forfait: roundMoney(ociRowValue(row, 'forfait')),
       area: ociRowValue(row, 'area'),
       thickness: ociRowValue(row, 'thickness'),
       volume: ociRowValue(row, 'volume'),
@@ -960,7 +1026,7 @@
       coefficient: ociRowValue(row, 'coefficient'),
       quantity: finiteNumber(row.dataset.ociQuantity, 1),
       total_quantity: finiteNumber(row.dataset.ociTotalQuantity),
-      cost_per_unit: numericInput(row.querySelector('[data-oci-cost]')),
+      cost_per_unit: roundMoney(numericInput(row.querySelector('[data-oci-cost]'))),
       unit: ociRowValue(row, 'unit'),
       source_designation: row.dataset.ociSourceDesignation || ociRowValue(row, 'designation'),
       is_plus_value: row.dataset.ociPlusValue === '1'
@@ -994,7 +1060,7 @@
 
   function calculateBaseOciRowCost(row) {
     const area = finiteNumber(row.area);
-    const purchasePrice = finiteNumber(row.purchase_price);
+    const purchasePrice = roundMoney(row.purchase_price);
     const thickness = finiteNumber(row.thickness);
     const weight = finiteNumber(row.weight);
     const consumption = finiteNumber(row.consumption);
@@ -1055,7 +1121,7 @@
     if (!elements.ociSimultaneous.checked) return baseCost * area < forfait ? forfait / area : baseCost;
 
     const family = normalizedCode(row.family);
-    const purchasePrice = finiteNumber(row.purchase_price);
+    const purchasePrice = roundMoney(row.purchase_price);
     if (family === 'APPROBETON') {
       const sharedVolume = finiteNumber(totals.m3sim);
       if (sharedVolume > 0 && purchasePrice * sharedVolume < forfait) {
@@ -1111,23 +1177,23 @@
       if (tableRow.dataset.ociPlusValue === '1') return sum;
       return sum + numericInput(tableRow.querySelector('[data-oci-cost]'));
     }, 0.1);
-    purchasePrice = finiteNumber(purchasePrice, 0.1);
+    purchasePrice = roundMoney(finiteNumber(purchasePrice, 0.1));
 
     const prorata = Math.min(99.99, Math.max(0, numericInput(elements.ociProrata)));
-    const purchaseTotal = purchasePrice * surface;
-    let salePrice = numericInput(elements.ociSalePrice);
+    const purchaseTotal = roundMoney(purchasePrice * surface);
+    let salePrice = roundMoney(numericInput(elements.ociSalePrice));
     if (!state.ociPriceLocked) {
       const targetMargin = Math.min(99.99, Math.max(-999.99, Number(state.ociTargetMargin || 0)));
       const marginFactor = 1 - targetMargin / 100;
       const prorataFactor = 1 - prorata / 100;
-      salePrice = marginFactor > 0 && prorataFactor > 0 ? purchasePrice / marginFactor / prorataFactor : 0;
-      setNumericInput(elements.ociSalePrice, salePrice, 4);
+      salePrice = roundMoney(marginFactor > 0 && prorataFactor > 0 ? purchasePrice / marginFactor / prorataFactor : 0);
+      setNumericInput(elements.ociSalePrice, salePrice, 2);
     }
-    const saleTotal = salePrice * surface * (1 - prorata / 100);
-    const marginUnit = salePrice - purchasePrice;
-    const marginTotal = saleTotal - purchaseTotal;
+    const saleTotal = roundMoney(salePrice * surface * (1 - prorata / 100));
+    const marginUnit = roundMoney(salePrice - purchasePrice);
+    const marginTotal = roundMoney(saleTotal - purchaseTotal);
     const marginPercentage = saleTotal ? marginTotal / saleTotal * 100 : 0;
-    setNumericInput(elements.ociPurchasePrice, purchasePrice, 4);
+    setNumericInput(elements.ociPurchasePrice, purchasePrice, 2);
     setNumericInput(elements.ociPurchaseTotal, purchaseTotal, 2);
     setNumericInput(elements.ociSaleTotal, saleTotal, 2);
     setNumericInput(elements.ociMarginUnit, marginUnit, 4);
@@ -1137,14 +1203,15 @@
     updatePriceDriver();
 
     const rowCount = elements.ociRows.querySelectorAll('tr').length;
-    elements.ociFooter.innerHTML = `<tr><td colspan="10">Totais · ${rowCount} ${rowCount === 1 ? 'linha' : 'linhas'} OCI · inclui 0,10 de frais d'étude</td><td class="gr-budget-num">${lineAmountFormatter.format(purchasePrice)}</td><td></td><td></td></tr>`;
+    const linesLabel = tr(rowCount === 1 ? 'gr_budgets.label.line_singular' : 'gr_budgets.label.line_plural');
+    elements.ociFooter.innerHTML = `<tr><td colspan="10">${escapeHtml(tr('gr_budgets.total.oci', { count: rowCount, lines: linesLabel }))}</td><td class="gr-budget-num">${lineAmountFormatter.format(purchasePrice)}</td><td></td><td></td></tr>`;
   }
 
   function collectSingleOciRow(row) {
     return {
       formula: ociRowValue(row, 'formula'),
-      purchase_price: ociRowValue(row, 'purchase_price'),
-      forfait: ociRowValue(row, 'forfait'),
+      purchase_price: roundMoney(ociRowValue(row, 'purchase_price')),
+      forfait: roundMoney(ociRowValue(row, 'forfait')),
       area: ociRowValue(row, 'area'),
       thickness: ociRowValue(row, 'thickness'),
       volume: ociRowValue(row, 'volume'),
@@ -1165,7 +1232,7 @@
     elements.ociOuvrage.replaceChildren();
     const empty = document.createElement('option');
     empty.value = '';
-    empty.textContent = 'Selecionar tipo de ouvrage';
+    empty.textContent = tr('gr_budgets.label.select_ouvrage_type');
     elements.ociOuvrage.appendChild(empty);
     ouvrages.forEach((row) => {
       const option = document.createElement('option');
@@ -1191,7 +1258,7 @@
     setNumericInput(elements.ociSurface, line.surface == null ? line.quantity : line.surface, 4);
     setInputValue(elements.ociUnit, line.unit || 'm²');
     setNumericInput(elements.ociThickness, line.thickness, 4);
-    setNumericInput(elements.ociSalePrice, line.unit_price, 4);
+    setNumericInput(elements.ociSalePrice, line.unit_price, 2);
     setNumericInput(elements.ociProrata, Number(line.discount_2 || 0) > 0 ? line.discount_2 : budgetProrata(), 2);
     state.ociPriceLocked = newLine ? true : Boolean(line.blocked_price || !Number(line.margin_percentage || 0));
     state.ociTargetMargin = Number(line.margin_percentage || 0);
@@ -1201,10 +1268,12 @@
     elements.ociBlockedPrice.checked = Boolean(line.blocked_price);
     elements.ociPump.checked = Boolean(line.pump);
     elements.ociLabour.checked = Boolean(line.labour);
-    elements.ociMode.textContent = newLine ? 'Nova linha' : `Linha ${line.item || '—'}`;
+    elements.ociMode.textContent = newLine
+      ? tr('gr_budgets.action.new_line')
+      : tr('gr_budgets.label.line_number', { number: line.item || '—' });
     elements.ociMode.className = `sz_badge ${newLine ? 'sz_badge_warning' : 'sz_badge_info'}`;
     const budgetHeader = (state.detail && state.detail.header) || {};
-    elements.ociSubtitle.textContent = `${budgetHeader.series || 'Orçamento'} ${budgetHeader.number || 'novo'} · ${line.reference || 'Sem referência'}${line.designation ? ` — ${line.designation}` : ''}`;
+    elements.ociSubtitle.textContent = `${budgetHeader.series || tr('gr_budgets.label.budget')} ${budgetHeader.number || tr('gr_budgets.label.budget_new')} · ${line.reference || tr('gr_budgets.label.no_reference')}${line.designation ? ` — ${line.designation}` : ''}`;
     updateOciPositionsTrigger();
     showOciError('');
     renderOciRows(rows);
@@ -1230,14 +1299,14 @@
     const lines = (state.detail && state.detail.lines) || [];
     const count = lines.length;
     elements.ociPositions.hidden = count <= 1;
-    elements.ociPositionsCount.textContent = `${count} ${count === 1 ? 'posição' : 'posições'}`;
+    elements.ociPositionsCount.textContent = plural('gr_budgets.count.position_one', 'gr_budgets.count.position_other', count);
   }
 
   function positionCardMarkup(line, index, currency) {
     const label = positionLabel(line, index);
     const current = isCurrentOciPosition(line, index);
     const subposition = label.includes('.');
-    const description = line.description || line.designation || 'Posição sem descrição';
+    const description = line.description || line.designation || tr('gr_budgets.label.position_without_description');
     const quantity = Number(line.surface == null ? line.quantity || 0 : line.surface);
     const thickness = Number(line.thickness || 0);
     const volume = Number(line.volume == null ? quantity * thickness : line.volume);
@@ -1249,12 +1318,19 @@
       : line._technical_profit);
     const marginPercentage = Number(line.margin_percentage || 0);
     const classes = `${current ? ' is-current' : ''}${subposition ? ' is-subposition' : ''}`;
-    const stateLabel = current ? 'Posição atual' : (subposition ? 'Subposição' : 'Posição');
+    const stateLabel = current
+      ? tr('gr_budgets.label.position_current')
+      : (subposition ? tr('gr_budgets.label.subposition') : tr('gr_budgets.label.position'));
     return `<button type="button" class="gr-budget-position-card${classes}" data-position-line="${index}" title="${stateLabel} ${escapeHtml(label)}"${current ? ' aria-current="true"' : ''}>
       <span class="gr-budget-position-number">${escapeHtml(label)}</span>
       <span class="gr-budget-position-card-content">
         <span class="gr-budget-position-description">${escapeHtml(description)}</span>
-        <span class="gr-budget-position-quantity">Qtd.: ${quantityFormatter.format(quantity)} ${escapeHtml(unit)} × ${quantityFormatter.format(thickness)} m = ${quantityFormatter.format(volume)} m³</span>
+        <span class="gr-budget-position-quantity">${escapeHtml(tr('gr_budgets.label.position_quantity', {
+          quantity: quantityFormatter.format(quantity),
+          unit,
+          thickness: quantityFormatter.format(thickness),
+          volume: quantityFormatter.format(volume)
+        }))}</span>
       </span>
       <span class="gr-budget-position-card-metrics">
         <span><small>PA:</small><strong>${escapeHtml(money(cost, currency))}</strong></span>
@@ -1268,7 +1344,11 @@
     const lines = (state.detail && state.detail.lines) || [];
     const currency = (state.detail && state.detail.header && state.detail.header.currency) || 'EUR';
     const indexedLines = lines.map((line, index) => ({ line, index })).sort((left, right) => compareBudgetLines(left.line, right.line));
-    elements.positionPickerSubtitle.textContent = `${lines.length} ${lines.length === 1 ? 'posição disponível' : 'posições disponíveis'} · selecione a posição que pretende abrir.`;
+    elements.positionPickerSubtitle.textContent = plural(
+      'gr_budgets.count.position_available_one',
+      'gr_budgets.count.position_available_other',
+      lines.length
+    );
     elements.positionCards.innerHTML = indexedLines.map(({ line, index }) => positionCardMarkup(line, index, currency)).join('');
   }
 
@@ -1308,7 +1388,7 @@
       reference: targetLine.reference || ''
     };
     closePositionPicker();
-    elements.positionSwitchText.textContent = `Pretende gravar a posição atual antes de mudar para a posição ${state.pendingPositionTarget.label}?`;
+    elements.positionSwitchText.textContent = tr('gr_budgets.confirm.change_position_question', { position: state.pendingPositionTarget.label });
     elements.positionSwitchConfirm.classList.add('sz_is_open');
     elements.positionSwitchConfirm.setAttribute('aria-hidden', 'false');
     elements.positionSwitchSave.focus();
@@ -1342,6 +1422,7 @@
 
   async function openOci(lineIndex, newLine) {
     if (!state.detail || state.loadingCount || state.ociContext) return;
+    syncEditableHeaderToState();
     showLoading(true);
     showError('');
     try {
@@ -1385,9 +1466,9 @@
   function recalculateBudgetDraftTotals() {
     const lines = (state.detail && state.detail.lines) || [];
     const included = lines.filter((line) => !line.variant && !line.option);
-    const total = included.reduce((sum, line) => sum + Number(line.total || 0), 0);
-    const cost = included.reduce((sum, line) => sum + Number(line.cost_total || 0), 0);
-    const profit = total - cost;
+    const total = roundMoney(included.reduce((sum, line) => sum + Number(line.total || 0), 0));
+    const cost = roundMoney(included.reduce((sum, line) => sum + Number(line.cost_total || 0), 0));
+    const profit = roundMoney(total - cost);
     state.detail.totals = {
       total,
       cost,
@@ -1399,34 +1480,38 @@
 
   function saveOciLine() {
     if (!state.ociContext) return false;
+    if (!budgetInPreparation()) {
+      showOciError(tr('gr_budgets.error.budget_not_in_preparation'));
+      return false;
+    }
     const reference = elements.ociReference.value.trim();
     const designation = elements.ociDesignation.value.trim();
     const descriptionInput = elements.ociDescription.value.trim();
     const position = Math.max(1, Math.trunc(numericInput(elements.ociPosition)));
     const surface = numericInput(elements.ociSurface);
     if (!reference) {
-      showOciError('Selecione um tipo de ouvrage ou indique a referência da linha.');
+      showOciError(tr('gr_budgets.error.detail_line_reference_required'));
       elements.ociOuvrage.focus();
       return false;
     }
     if (!designation) {
-      showOciError('Indique a designação da linha.');
+      showOciError(tr('gr_budgets.error.detail_line_designation_required'));
       elements.ociDesignation.focus();
       return false;
     }
     if (surface <= 0) {
-      showOciError('A surface deve ser superior a zero.');
+      showOciError(tr('gr_budgets.error.detail_line_surface_positive'));
       elements.ociSurface.focus();
       return false;
     }
 
     recalculateOci();
     const rows = collectOciRows();
-    const purchasePrice = numericInput(elements.ociPurchasePrice);
-    const salePrice = numericInput(elements.ociSalePrice);
-    const costTotal = numericInput(elements.ociPurchaseTotal);
-    const saleTotal = numericInput(elements.ociSaleTotal);
-    const profit = numericInput(elements.ociMarginTotal);
+    const purchasePrice = roundMoney(numericInput(elements.ociPurchasePrice));
+    const salePrice = roundMoney(numericInput(elements.ociSalePrice));
+    const costTotal = roundMoney(numericInput(elements.ociPurchaseTotal));
+    const saleTotal = roundMoney(numericInput(elements.ociSaleTotal));
+    const profit = roundMoney(numericInput(elements.ociMarginTotal));
     const prorata = Math.min(99.99, Math.max(0, numericInput(elements.ociProrata)));
     const thickness = numericInput(elements.ociThickness);
     const description = descriptionInput || `${designation} - Epaisseur ${Math.round(thickness * 100)} cm`;
@@ -1494,6 +1579,7 @@
         reference: row.reference,
         designation: row.designation,
         description: row.designation,
+        family: row.family,
         quantity: 0,
         surface: 0,
         unit: row.unit,
@@ -1501,7 +1587,7 @@
         volume: 0,
         unit_cost: 0,
         cost_total: 0,
-        unit_price: Number(row.purchase_price || 0),
+        unit_price: roundMoney(row.purchase_price),
         total: 0,
         margin_per_unit: 0,
         margin_value: 0,
@@ -1515,14 +1601,17 @@
         pump: false,
         labour: false,
         pro_rata: false,
+        u_formula: row.formula,
+        coefficient: Number(row.coefficient || 0),
+        consumption: Number(row.consumption || 0),
         _parent_bistamp: line.bistamp
       });
     });
     state.detail.lines.forEach((candidate) => {
       candidate.discount_2 = prorata;
       if (candidate.variant || candidate.option || isPlusValue(candidate.reference)) return;
-      candidate.total = Number(candidate.unit_price || 0) * Number(candidate.quantity || 0) * (1 - prorata / 100);
-      candidate.profit = Number(candidate.total || 0) - Number(candidate.cost_total || 0);
+      candidate.total = roundMoney(Number(candidate.unit_price || 0) * Number(candidate.quantity || 0) * (1 - prorata / 100));
+      candidate.profit = roundMoney(Number(candidate.total || 0) - Number(candidate.cost_total || 0));
       candidate.margin_value = candidate.profit;
       candidate.margin_percentage = candidate.total ? candidate.profit / candidate.total * 100 : 0;
     });
@@ -1554,9 +1643,13 @@
     elements.printBudget.disabled = navigationLocked || !state.detail || !selectedBudgetStamp() || !elements.company.value;
     elements.newBudget.hidden = editing;
     elements.newBudget.disabled = busy || !elements.company.value || !elements.series.value;
+    elements.editBudget.hidden = editing || !budgetInPreparation() || !selectedBudgetStamp();
+    elements.editBudget.disabled = busy || !state.detail;
     elements.cancelEdit.hidden = !editing;
     elements.cancelEdit.disabled = busy;
-    elements.addLine.disabled = busy || !state.detail;
+    elements.saveBudget.hidden = !editing;
+    elements.saveBudget.disabled = busy || !state.detail;
+    elements.addLine.disabled = busy || !state.detail || !budgetInPreparation();
 
     [elements.clientSearch, elements.workInput, elements.localityInput, elements.dateInput, elements.attentionInput]
       .forEach((input) => {
@@ -1586,11 +1679,11 @@
     const seriesName = (selectedSeries && selectedSeries.name) || 'Devis';
     const draftOption = document.createElement('option');
     draftOption.value = newDocumentValue;
-    draftOption.textContent = `Novo ${seriesName} · por guardar`;
+    draftOption.textContent = tr('gr_budgets.document.new_draft', { series: seriesName });
     draftOption.dataset.draft = 'true';
     elements.document.appendChild(draftOption);
     elements.document.value = newDocumentValue;
-    elements.resultCount.textContent = 'Novo orçamento';
+    elements.resultCount.textContent = tr('gr_budgets.document.new_label');
 
     const draft = {
       header: {
@@ -1613,6 +1706,77 @@
     elements.clientSearch.focus();
   }
 
+  function startEditBudget() {
+    if (isEditing() || state.loadingCount || !selectedBudgetStamp() || !budgetInPreparation()) return;
+    state.returnStamp = selectedBudgetStamp();
+    state.mode = 'edit';
+    syncEditableHeaderToState();
+    renderStatuses(state.detail.header || {});
+    updateInteractionState();
+    elements.clientSearch.focus();
+  }
+
+  function budgetWritePayload() {
+    const currentHeader = (state.detail && state.detail.header) || {};
+    const lines = ((state.detail && state.detail.lines) || []).map((line) => {
+      const technicalRows = Array.isArray(line._ociRows)
+        ? line._ociRows
+        : (Array.isArray(line.technical_lines) ? line.technical_lines : []);
+      return { ...line, technical_lines: technicalRows };
+    });
+    return {
+      feid: elements.company.value,
+      bostamp: currentHeader._draft ? '' : (currentHeader.bostamp || selectedBudgetStamp()),
+      ndos: Number(elements.series.value || currentHeader.ndos || 0),
+      header: {
+        bostamp: currentHeader.bostamp || '',
+        revision: currentHeader.revision || '',
+        client_number: Number(elements.clientNumber.value || 0),
+        establishment: Number(elements.clientEstablishment.value || 0),
+        work_name: elements.workInput.value.trim(),
+        locality: elements.localityInput.value.trim(),
+        date: elements.dateInput.value,
+        salesperson_number: Number(elements.salesperson.value || 0),
+        attention: elements.attentionInput.value.trim(),
+        currency: currentHeader.currency || 'EUR',
+        process: currentHeader.process || '',
+        area: currentHeader.area || '',
+        cost_center: currentHeader.cost_center || ''
+      },
+      lines
+    };
+  }
+
+  async function saveBudget() {
+    if (!isEditing() || state.loadingCount || !state.detail) return;
+    if (!Number(elements.clientNumber.value || 0)) {
+      showError(tr('gr_budgets.error.client_required'));
+      elements.clientSearch.focus();
+      return;
+    }
+    if (!elements.dateInput.value) {
+      showError(tr('gr_budgets.error.date_required'));
+      elements.dateInput.focus();
+      return;
+    }
+    showLoading(true);
+    showError('');
+    try {
+      const saved = await postJson('/orcamento', budgetWritePayload());
+      state.mode = 'view';
+      state.returnStamp = '';
+      state.ociCache.clear();
+      elements.document.querySelectorAll('[data-draft="true"]').forEach((option) => option.remove());
+      if (saved.year) elements.year.value = String(saved.year);
+      updateInteractionState();
+      await loadBudgets(saved.bostamp);
+    } catch (error) {
+      showError(error.message);
+    } finally {
+      showLoading(false);
+    }
+  }
+
   function cancelEdit() {
     if (!isEditing()) return;
     const returnStamp = state.returnStamp;
@@ -1621,7 +1785,7 @@
     state.ociCache.clear();
     closeClientLookup();
     elements.document.querySelectorAll('[data-draft="true"]').forEach((option) => option.remove());
-    elements.resultCount.textContent = `${state.budgets.length} ${state.budgets.length === 1 ? 'orçamento' : 'orçamentos'}`;
+    elements.resultCount.textContent = plural('gr_budgets.count.budget_one', 'gr_budgets.count.budget_other', state.budgets.length);
     if (returnStamp && state.budgets.some((row) => row.bostamp === returnStamp)) {
       elements.document.value = returnStamp;
       updateInteractionState();
@@ -1665,14 +1829,22 @@
   elements.next.addEventListener('click', () => moveSelection(1));
   elements.printBudget.addEventListener('click', printBudget);
   elements.newBudget.addEventListener('click', startNewBudget);
+  elements.editBudget.addEventListener('click', startEditBudget);
   elements.cancelEdit.addEventListener('click', cancelEdit);
+  elements.saveBudget.addEventListener('click', saveBudget);
   elements.clientSearch.addEventListener('input', () => {
     if (!isEditing()) return;
     setInputValue(elements.clientNumber, '');
     setInputValue(elements.clientEstablishment, '');
-    elements.clientMeta.textContent = elements.clientSearch.value.trim() ? 'Selecione um cliente da lista' : 'Cliente não selecionado';
+    elements.clientMeta.textContent = elements.clientSearch.value.trim()
+      ? tr('gr_budgets.client.select_from_list')
+      : tr('gr_budgets.client.meta_unselected');
+    syncEditableHeaderToState();
     scheduleClientSearch();
   });
+  [elements.workInput, elements.localityInput, elements.dateInput, elements.attentionInput]
+    .forEach((input) => input.addEventListener('input', syncEditableHeaderToState));
+  elements.salesperson.addEventListener('change', syncEditableHeaderToState);
   elements.clientSearch.addEventListener('focus', () => {
     if (!isEditing()) return;
     if (elements.clientSearch.value.trim()) scheduleClientSearch();
@@ -1755,7 +1927,7 @@
     if (!button) return;
     button.closest('tr').remove();
     const count = elements.ociRows.querySelectorAll('tr').length;
-    text('budgetOciRowCount', `${count} ${count === 1 ? 'linha' : 'linhas'} · OCI`);
+    text('budgetOciRowCount', plural('gr_budgets.count.oci_line_one', 'gr_budgets.count.oci_line_other', count));
     recalculateOci();
     renderOciFamilySidebar();
   });
@@ -1773,6 +1945,9 @@
   });
   elements.ociRows.addEventListener('change', (event) => {
     const row = event.target.closest('tr');
+    if (event.target.matches('[data-oci-field="purchase_price"], [data-oci-field="forfait"]')) {
+      setNumericInput(event.target, numericInput(event.target), 2);
+    }
     if (row) updateOciRowFormulaState(row);
     recalculateOci();
   });
@@ -1782,6 +1957,10 @@
   elements.ociThickness.addEventListener('change', syncOciDimensions);
   elements.ociSalePrice.addEventListener('input', () => {
     state.ociPriceLocked = true;
+    recalculateOci();
+  });
+  elements.ociSalePrice.addEventListener('change', () => {
+    setNumericInput(elements.ociSalePrice, numericInput(elements.ociSalePrice), 2);
     recalculateOci();
   });
   elements.ociMarginPercent.addEventListener('input', () => {
@@ -1803,7 +1982,7 @@
     setInputValue(elements.ociDescription, ouvrage.designation);
     setInputValue(elements.ociUnit, ouvrage.unit || 'm²');
     if (!numericInput(elements.ociSalePrice) && ouvrage.sale_price) {
-      setNumericInput(elements.ociSalePrice, ouvrage.sale_price, 4);
+      setNumericInput(elements.ociSalePrice, ouvrage.sale_price, 2);
     }
     recalculateOci();
     renderOciFamilySidebar();

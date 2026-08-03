@@ -252,6 +252,7 @@ class US(UserMixin, db.Model):
     CLNO     = db.Column(db.Integer, nullable=True)
     CLESTAB  = db.Column(db.Integer, nullable=True)
     CLNOME   = db.Column(db.String(120), nullable=True)
+    VENDEDOR = db.Column(db.Integer, nullable=False, default=0)
 
     def check_password(self, plaintext):
         from services.auth_service import verify_password_hash
