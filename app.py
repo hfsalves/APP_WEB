@@ -654,6 +654,9 @@ def create_app():
     from modules.gr_client_measurements.routes import bp as gr_client_measurements_bp
     app.register_blueprint(gr_client_measurements_bp)
 
+    from modules.gr_budgets.routes import bp as gr_budgets_bp
+    app.register_blueprint(gr_budgets_bp)
+
     register_pricing(app)
 
     @app.cli.command('process-email-queue')
@@ -43294,6 +43297,50 @@ Guest SPA"""
     @login_required
     def profile():
         return render_template('profile.html', user=current_user, page_title=translate('profile.title'))
+
+    @app.route('/manuais')
+    @login_required
+    def manuals():
+        available_manuals = [
+            {
+                'title': 'Autos de Medição de Clientes',
+                'description': 'Criação, consulta e retenções nos autos de medição.',
+                'pt_url': url_for('manual_view', language='pt'),
+                'fr_url': url_for('manual_view', language='fr'),
+            },
+        ]
+        return render_template('manuals.html', manuals=available_manuals)
+
+    @app.route('/manuais/autos-medicao-clientes/<language>')
+    @login_required
+    def manual_view(language):
+        manuals_by_language = {
+            'pt': {
+                'title': 'Autos de Medição de Clientes',
+                'file': 'Processo/Autos de Medição de Clientes/pt/guia.html',
+            },
+            'fr': {
+                'title': 'Situations de travaux clients',
+                'file': 'Processo/Autos de Medição de Clientes/fr/guide.html',
+            },
+        }
+        manual = manuals_by_language.get(language)
+        if manual is None:
+            abort(404)
+        manual = {
+            **manual,
+            'language': language,
+            'pt_url': url_for('manual_view', language='pt'),
+            'fr_url': url_for('manual_view', language='fr'),
+            'file_url': url_for('manuals_file', filename=manual['file']),
+        }
+        return render_template('manual_view.html', manual=manual)
+
+    @app.route('/manuais/ficheiro/<path:filename>')
+    @login_required
+    def manuals_file(filename):
+        manuals_root = os.path.join(app.root_path, 'Manuais')
+        return send_from_directory(manuals_root, filename, max_age=0, conditional=True)
 
 
     @app.route('/api/profile/change_password', methods=['POST'])

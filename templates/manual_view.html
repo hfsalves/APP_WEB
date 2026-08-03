@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}{{ manual.title }} · Manuais{% endblock %}
+
+{% block content %}
+<div class="sz_page manual-view-page">
+  <div class="sz_page_container">
+    <header class="sz_contextbar sz_page_contextbar manual-view-contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_page_title">{{ manual.title }}</div>
+        <div class="sz_breadcrumbs">AJUDA / MANUAIS</div>
+      </div>
+      <div class="manual-view-actions">
+        <a class="sz_button sz_button_secondary" href="{{ url_for('manuals') }}"><i class="fa-solid fa-arrow-left"></i><span>Manuais</span></a>
+        <a class="manual-language-link{% if manual.language == 'pt' %} is-active{% endif %}" href="{{ manual.pt_url }}" lang="pt-PT" title="Abrir em português"><span aria-hidden="true">🇵🇹</span><span>PT</span></a>
+        <a class="manual-language-link{% if manual.language == 'fr' %} is-active{% endif %}" href="{{ manual.fr_url }}" lang="fr" title="Ouvrir en français"><span aria-hidden="true">🇫🇷</span><span>FR</span></a>
+      </div>
+    </header>
+    <section class="sz_page_body manual-view-body">
+      <iframe class="manual-view-frame" src="{{ manual.file_url }}" title="{{ manual.title }}" loading="eager"></iframe>
+    </section>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_head %}
+{{ super() }}
+<style>
+  .manual-view-contextbar { align-items: center; }
+  .manual-view-actions { display: flex; align-items: center; gap: .5rem; }
+  .manual-language-link { display: inline-flex; align-items: center; gap: .4rem; min-height: var(--sz-button-height); padding: 0 .75rem; border: 1px solid var(--sz-color-border); border-radius: var(--sz-radius-sm); color: var(--sz-color-text); font-weight: 800; text-decoration: none; }
+  .manual-language-link:hover, .manual-language-link:focus-visible { border-color: var(--sz-color-primary); color: var(--sz-color-primary); }
+  .manual-view-body { overflow: hidden; }
+  .manual-view-frame { display: block; width: 100%; height: 100%; min-height: 0; border: 1px solid var(--sz-color-border); border-radius: var(--sz-radius-md); background: var(--sz-color-surface); }
+  .manual-language-link.is-active { border-color: var(--sz-color-primary); background: color-mix(in srgb, var(--sz-color-primary) 12%, transparent); color: var(--sz-color-primary); }
+  @media (max-width: 640px) { .manual-view-contextbar { align-items: stretch; } .manual-view-actions { flex-wrap: wrap; } }
+</style>
+{% endblock %}

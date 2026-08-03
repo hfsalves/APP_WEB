@@ -2560,3 +2560,1839 @@ Press CTRL+C to quit
 127.0.0.1 - - [31/Jul/2026 12:36:22] "GET /api/processamento_mensal/drilldown?stamp=1CF2821E-1513-4C96-9E6A-6&type=imputacoes HTTP/1.1" 200 -
 127.0.0.1 - - [31/Jul/2026 12:38:04] "POST /api/processamento_mensal/calcular HTTP/1.1" 200 -
 127.0.0.1 - - [31/Jul/2026 12:38:19] "GET /api/processamento_mensal/drilldown?stamp=1CF2821E-1513-4C96-9E6A-6&type=imputacoes HTTP/1.1" 200 -
+[2026-07-31 16:34:10,622] ERROR in app: Erro ao preparar metadados do Dashboard Links.
+Traceback (most recent call last):
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 145, in __init__
+    self._dbapi_connection = engine.raw_connection()
+                             ~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 3297, in raw_connection
+    return self.pool.connect()
+           ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 449, in connect
+    return _ConnectionFairy._checkout(self)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 1264, in _checkout
+    fairy = _ConnectionRecord.checkout(pool)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 713, in checkout
+    rec = pool._do_get()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/impl.py", line 179, in _do_get
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/impl.py", line 177, in _do_get
+    return self._create_connection()
+           ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 390, in _create_connection
+    return _ConnectionRecord(self)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 675, in __init__
+    self.__connect()
+    ~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 901, in __connect
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 897, in __connect
+    self.dbapi_connection = connection = pool._invoke_creator(self)
+                                         ~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/create.py", line 646, in connect
+    return dialect.connect(*cargs, **cparams)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 625, in connect
+    return self.loaded_dbapi.connect(*cargs, **cparams)  # type: ignore[no-any-return]  # NOQA: E501
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+pyodbc.OperationalError: ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 764, in create_app
+    ensure_dashboard_links_schema()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/services/dashboard_links_service.py", line 336, in ensure_dashboard_links_schema
+    db.session.execute(text("""
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^
+        IF OBJECT_ID('dbo.DBW', 'U') IS NULL
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<19 lines>...
+        END
+        ^^^
+    """))
+    ^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/scoping.py", line 779, in execute
+    return self._proxied.execute(
+           ~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2365, in execute
+    return self._execute_internal(
+           ~~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2241, in _execute_internal
+    conn = self._connection_for_bind(bind)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2110, in _connection_for_bind
+    return trans._connection_for_bind(engine, execution_options)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<string>", line 2, in _connection_for_bind
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/state_changes.py", line 139, in _go
+    ret_value = fn(self, *arg, **kw)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 1189, in _connection_for_bind
+    conn = bind.connect()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 3273, in connect
+    return self._connection_cls(self)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 147, in __init__
+    Connection._handle_dbapi_exception_noconnection(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        err, dialect, engine
+        ^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 2436, in _handle_dbapi_exception_noconnection
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 145, in __init__
+    self._dbapi_connection = engine.raw_connection()
+                             ~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 3297, in raw_connection
+    return self.pool.connect()
+           ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 449, in connect
+    return _ConnectionFairy._checkout(self)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 1264, in _checkout
+    fairy = _ConnectionRecord.checkout(pool)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 713, in checkout
+    rec = pool._do_get()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/impl.py", line 179, in _do_get
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/impl.py", line 177, in _do_get
+    return self._create_connection()
+           ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 390, in _create_connection
+    return _ConnectionRecord(self)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 675, in __init__
+    self.__connect()
+    ~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 901, in __connect
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 897, in __connect
+    self.dbapi_connection = connection = pool._invoke_creator(self)
+                                         ~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/create.py", line 646, in connect
+    return dialect.connect(*cargs, **cparams)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 625, in connect
+    return self.loaded_dbapi.connect(*cargs, **cparams)  # type: ignore[no-any-return]  # NOQA: E501
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+sqlalchemy.exc.OperationalError: (pyodbc.OperationalError) ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+ * Serving Flask app 'app:app'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://192.168.1.184:8001
+Press CTRL+C to quit
+[2026-07-31 16:42:04,438] ERROR in app: Erro ao atualizar configuração multiidioma a partir de PARA.
+Traceback (most recent call last):
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 145, in __init__
+    self._dbapi_connection = engine.raw_connection()
+                             ~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 3297, in raw_connection
+    return self.pool.connect()
+           ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 449, in connect
+    return _ConnectionFairy._checkout(self)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 1264, in _checkout
+    fairy = _ConnectionRecord.checkout(pool)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 713, in checkout
+    rec = pool._do_get()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/impl.py", line 179, in _do_get
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/impl.py", line 177, in _do_get
+    return self._create_connection()
+           ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 390, in _create_connection
+    return _ConnectionRecord(self)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 675, in __init__
+    self.__connect()
+    ~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 901, in __connect
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 897, in __connect
+    self.dbapi_connection = connection = pool._invoke_creator(self)
+                                         ~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/create.py", line 646, in connect
+    return dialect.connect(*cargs, **cparams)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 625, in connect
+    return self.loaded_dbapi.connect(*cargs, **cparams)  # type: ignore[no-any-return]  # NOQA: E501
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+pyodbc.OperationalError: ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 730, in _reload_i18n_runtime_from_params
+    para_values = _load_para_map()
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 696, in _load_para_map
+    rows = db.session.execute(text("""
+           ~~~~~~~~~~~~~~~~~~^^^^^^^^^
+        SELECT PARAMETRO, TIPO, CVALOR, DVALOR, NVALOR, LVALOR
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        FROM dbo.PARA
+        ^^^^^^^^^^^^^
+    """)).mappings().all()
+    ^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/scoping.py", line 779, in execute
+    return self._proxied.execute(
+           ~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2365, in execute
+    return self._execute_internal(
+           ~~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2241, in _execute_internal
+    conn = self._connection_for_bind(bind)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2110, in _connection_for_bind
+    return trans._connection_for_bind(engine, execution_options)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<string>", line 2, in _connection_for_bind
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/state_changes.py", line 139, in _go
+    ret_value = fn(self, *arg, **kw)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 1189, in _connection_for_bind
+    conn = bind.connect()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 3273, in connect
+    return self._connection_cls(self)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 147, in __init__
+    Connection._handle_dbapi_exception_noconnection(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        err, dialect, engine
+        ^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 2436, in _handle_dbapi_exception_noconnection
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 145, in __init__
+    self._dbapi_connection = engine.raw_connection()
+                             ~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 3297, in raw_connection
+    return self.pool.connect()
+           ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 449, in connect
+    return _ConnectionFairy._checkout(self)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 1264, in _checkout
+    fairy = _ConnectionRecord.checkout(pool)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 713, in checkout
+    rec = pool._do_get()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/impl.py", line 179, in _do_get
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/impl.py", line 177, in _do_get
+    return self._create_connection()
+           ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 390, in _create_connection
+    return _ConnectionRecord(self)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 675, in __init__
+    self.__connect()
+    ~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 901, in __connect
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 897, in __connect
+    self.dbapi_connection = connection = pool._invoke_creator(self)
+                                         ~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/create.py", line 646, in connect
+    return dialect.connect(*cargs, **cparams)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 625, in connect
+    return self.loaded_dbapi.connect(*cargs, **cparams)  # type: ignore[no-any-return]  # NOQA: E501
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+sqlalchemy.exc.OperationalError: (pyodbc.OperationalError) ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+[2026-07-31 16:42:19,554] ERROR in app: Exception on / [GET]
+Traceback (most recent call last):
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 145, in __init__
+    self._dbapi_connection = engine.raw_connection()
+                             ~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 3297, in raw_connection
+    return self.pool.connect()
+           ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 449, in connect
+    return _ConnectionFairy._checkout(self)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 1264, in _checkout
+    fairy = _ConnectionRecord.checkout(pool)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 713, in checkout
+    rec = pool._do_get()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/impl.py", line 179, in _do_get
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/impl.py", line 177, in _do_get
+    return self._create_connection()
+           ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 390, in _create_connection
+    return _ConnectionRecord(self)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 675, in __init__
+    self.__connect()
+    ~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 901, in __connect
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 897, in __connect
+    self.dbapi_connection = connection = pool._invoke_creator(self)
+                                         ~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/create.py", line 646, in connect
+    return dialect.connect(*cargs, **cparams)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 625, in connect
+    return self.loaded_dbapi.connect(*cargs, **cparams)  # type: ignore[no-any-return]  # NOQA: E501
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+pyodbc.OperationalError: ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 915, in full_dispatch_request
+    rv = self.preprocess_request()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 1291, in preprocess_request
+    rv = self.ensure_sync(before_func)()
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 845, in _resolve_i18n_request_language
+    _resolve_i18n_runtime_for_request()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 817, in _resolve_i18n_runtime_for_request
+    _clear_current_user_language_when_i18n_disabled()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 778, in _clear_current_user_language_when_i18n_disabled
+    if i18n_enabled(app) or not getattr(current_user, 'is_authenticated', False):
+                                ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/werkzeug/local.py", line 318, in __get__
+    obj = instance._get_current_object()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/werkzeug/local.py", line 526, in _get_current_object
+    return get_name(local())
+                    ~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask_login/utils.py", line 25, in <lambda>
+    current_user = LocalProxy(lambda: _get_user())
+                                      ~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask_login/utils.py", line 370, in _get_user
+    current_app.login_manager._load_user()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask_login/login_manager.py", line 364, in _load_user
+    user = self._user_callback(user_id)
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 2772, in load_user
+    row = get_user_by_stamp(db.session, user_stamp)
+  File "/Users/hugoalves/Projects/APP_WEB/services/auth_service.py", line 242, in get_user_by_stamp
+    selectable = _selectable_user_columns(session)
+  File "/Users/hugoalves/Projects/APP_WEB/services/auth_service.py", line 203, in _selectable_user_columns
+    available = get_table_columns(session, "US")
+  File "/Users/hugoalves/Projects/APP_WEB/services/auth_service.py", line 109, in get_table_columns
+    rows = session.execute(
+           ~~~~~~~~~~~~~~~^
+        text(
+        ^^^^^
+    ...<6 lines>...
+        {"object_name": f"dbo.{table_name}"},
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ).scalars().all()
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/scoping.py", line 779, in execute
+    return self._proxied.execute(
+           ~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2365, in execute
+    return self._execute_internal(
+           ~~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2241, in _execute_internal
+    conn = self._connection_for_bind(bind)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2110, in _connection_for_bind
+    return trans._connection_for_bind(engine, execution_options)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<string>", line 2, in _connection_for_bind
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/state_changes.py", line 139, in _go
+    ret_value = fn(self, *arg, **kw)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 1189, in _connection_for_bind
+    conn = bind.connect()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 3273, in connect
+    return self._connection_cls(self)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 147, in __init__
+    Connection._handle_dbapi_exception_noconnection(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        err, dialect, engine
+        ^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 2436, in _handle_dbapi_exception_noconnection
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 145, in __init__
+    self._dbapi_connection = engine.raw_connection()
+                             ~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 3297, in raw_connection
+    return self.pool.connect()
+           ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 449, in connect
+    return _ConnectionFairy._checkout(self)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 1264, in _checkout
+    fairy = _ConnectionRecord.checkout(pool)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 713, in checkout
+    rec = pool._do_get()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/impl.py", line 179, in _do_get
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/impl.py", line 177, in _do_get
+    return self._create_connection()
+           ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 390, in _create_connection
+    return _ConnectionRecord(self)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 675, in __init__
+    self.__connect()
+    ~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 901, in __connect
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 897, in __connect
+    self.dbapi_connection = connection = pool._invoke_creator(self)
+                                         ~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/create.py", line 646, in connect
+    return dialect.connect(*cargs, **cparams)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 625, in connect
+    return self.loaded_dbapi.connect(*cargs, **cparams)  # type: ignore[no-any-return]  # NOQA: E501
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+sqlalchemy.exc.OperationalError: (pyodbc.OperationalError) ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+127.0.0.1 - - [31/Jul/2026 16:42:19] "GET / HTTP/1.1" 500 -
+[2026-07-31 16:42:34,684] ERROR in app: Erro ao atualizar configuração multiidioma a partir de PARA.
+Traceback (most recent call last):
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 145, in __init__
+    self._dbapi_connection = engine.raw_connection()
+                             ~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 3297, in raw_connection
+    return self.pool.connect()
+           ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 449, in connect
+    return _ConnectionFairy._checkout(self)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 1264, in _checkout
+    fairy = _ConnectionRecord.checkout(pool)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 713, in checkout
+    rec = pool._do_get()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/impl.py", line 179, in _do_get
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/impl.py", line 177, in _do_get
+    return self._create_connection()
+           ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 390, in _create_connection
+    return _ConnectionRecord(self)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 675, in __init__
+    self.__connect()
+    ~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 901, in __connect
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 897, in __connect
+    self.dbapi_connection = connection = pool._invoke_creator(self)
+                                         ~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/create.py", line 646, in connect
+    return dialect.connect(*cargs, **cparams)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 625, in connect
+    return self.loaded_dbapi.connect(*cargs, **cparams)  # type: ignore[no-any-return]  # NOQA: E501
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+pyodbc.OperationalError: ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 730, in _reload_i18n_runtime_from_params
+    para_values = _load_para_map()
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 696, in _load_para_map
+    rows = db.session.execute(text("""
+           ~~~~~~~~~~~~~~~~~~^^^^^^^^^
+        SELECT PARAMETRO, TIPO, CVALOR, DVALOR, NVALOR, LVALOR
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        FROM dbo.PARA
+        ^^^^^^^^^^^^^
+    """)).mappings().all()
+    ^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/scoping.py", line 779, in execute
+    return self._proxied.execute(
+           ~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2365, in execute
+    return self._execute_internal(
+           ~~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2241, in _execute_internal
+    conn = self._connection_for_bind(bind)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2110, in _connection_for_bind
+    return trans._connection_for_bind(engine, execution_options)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<string>", line 2, in _connection_for_bind
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/state_changes.py", line 139, in _go
+    ret_value = fn(self, *arg, **kw)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 1189, in _connection_for_bind
+    conn = bind.connect()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 3273, in connect
+    return self._connection_cls(self)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 147, in __init__
+    Connection._handle_dbapi_exception_noconnection(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        err, dialect, engine
+        ^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 2436, in _handle_dbapi_exception_noconnection
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 145, in __init__
+    self._dbapi_connection = engine.raw_connection()
+                             ~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 3297, in raw_connection
+    return self.pool.connect()
+           ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 449, in connect
+    return _ConnectionFairy._checkout(self)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 1264, in _checkout
+    fairy = _ConnectionRecord.checkout(pool)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 713, in checkout
+    rec = pool._do_get()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/impl.py", line 179, in _do_get
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/impl.py", line 177, in _do_get
+    return self._create_connection()
+           ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 390, in _create_connection
+    return _ConnectionRecord(self)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 675, in __init__
+    self.__connect()
+    ~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 901, in __connect
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 897, in __connect
+    self.dbapi_connection = connection = pool._invoke_creator(self)
+                                         ~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/create.py", line 646, in connect
+    return dialect.connect(*cargs, **cparams)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 625, in connect
+    return self.loaded_dbapi.connect(*cargs, **cparams)  # type: ignore[no-any-return]  # NOQA: E501
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+sqlalchemy.exc.OperationalError: (pyodbc.OperationalError) ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+[2026-07-31 16:42:35,691] ERROR in app: Erro ao atualizar configuração multiidioma a partir de PARA.
+Traceback (most recent call last):
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 145, in __init__
+    self._dbapi_connection = engine.raw_connection()
+                             ~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 3297, in raw_connection
+    return self.pool.connect()
+           ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 449, in connect
+    return _ConnectionFairy._checkout(self)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 1264, in _checkout
+    fairy = _ConnectionRecord.checkout(pool)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 713, in checkout
+    rec = pool._do_get()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/impl.py", line 179, in _do_get
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/impl.py", line 177, in _do_get
+    return self._create_connection()
+           ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 390, in _create_connection
+    return _ConnectionRecord(self)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 675, in __init__
+    self.__connect()
+    ~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 901, in __connect
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 897, in __connect
+    self.dbapi_connection = connection = pool._invoke_creator(self)
+                                         ~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/create.py", line 646, in connect
+    return dialect.connect(*cargs, **cparams)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 625, in connect
+    return self.loaded_dbapi.connect(*cargs, **cparams)  # type: ignore[no-any-return]  # NOQA: E501
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+pyodbc.OperationalError: ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 730, in _reload_i18n_runtime_from_params
+    para_values = _load_para_map()
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 696, in _load_para_map
+    rows = db.session.execute(text("""
+           ~~~~~~~~~~~~~~~~~~^^^^^^^^^
+        SELECT PARAMETRO, TIPO, CVALOR, DVALOR, NVALOR, LVALOR
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        FROM dbo.PARA
+        ^^^^^^^^^^^^^
+    """)).mappings().all()
+    ^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/scoping.py", line 779, in execute
+    return self._proxied.execute(
+           ~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2365, in execute
+    return self._execute_internal(
+           ~~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2241, in _execute_internal
+    conn = self._connection_for_bind(bind)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2110, in _connection_for_bind
+    return trans._connection_for_bind(engine, execution_options)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<string>", line 2, in _connection_for_bind
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/state_changes.py", line 139, in _go
+    ret_value = fn(self, *arg, **kw)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 1189, in _connection_for_bind
+    conn = bind.connect()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 3273, in connect
+    return self._connection_cls(self)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 147, in __init__
+    Connection._handle_dbapi_exception_noconnection(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        err, dialect, engine
+        ^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 2436, in _handle_dbapi_exception_noconnection
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 145, in __init__
+    self._dbapi_connection = engine.raw_connection()
+                             ~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 3297, in raw_connection
+    return self.pool.connect()
+           ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 449, in connect
+    return _ConnectionFairy._checkout(self)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 1264, in _checkout
+    fairy = _ConnectionRecord.checkout(pool)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 713, in checkout
+    rec = pool._do_get()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/impl.py", line 179, in _do_get
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/impl.py", line 177, in _do_get
+    return self._create_connection()
+           ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 390, in _create_connection
+    return _ConnectionRecord(self)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 675, in __init__
+    self.__connect()
+    ~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 901, in __connect
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 897, in __connect
+    self.dbapi_connection = connection = pool._invoke_creator(self)
+                                         ~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/create.py", line 646, in connect
+    return dialect.connect(*cargs, **cparams)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 625, in connect
+    return self.loaded_dbapi.connect(*cargs, **cparams)  # type: ignore[no-any-return]  # NOQA: E501
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+sqlalchemy.exc.OperationalError: (pyodbc.OperationalError) ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+[2026-07-31 16:42:49,800] ERROR in app: Exception on / [GET]
+Traceback (most recent call last):
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 145, in __init__
+    self._dbapi_connection = engine.raw_connection()
+                             ~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 3297, in raw_connection
+    return self.pool.connect()
+           ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 449, in connect
+    return _ConnectionFairy._checkout(self)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 1264, in _checkout
+    fairy = _ConnectionRecord.checkout(pool)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 713, in checkout
+    rec = pool._do_get()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/impl.py", line 179, in _do_get
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/impl.py", line 177, in _do_get
+    return self._create_connection()
+           ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 390, in _create_connection
+    return _ConnectionRecord(self)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 675, in __init__
+    self.__connect()
+    ~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 901, in __connect
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 897, in __connect
+    self.dbapi_connection = connection = pool._invoke_creator(self)
+                                         ~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/create.py", line 646, in connect
+    return dialect.connect(*cargs, **cparams)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 625, in connect
+    return self.loaded_dbapi.connect(*cargs, **cparams)  # type: ignore[no-any-return]  # NOQA: E501
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+pyodbc.OperationalError: ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 915, in full_dispatch_request
+    rv = self.preprocess_request()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 1291, in preprocess_request
+    rv = self.ensure_sync(before_func)()
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 845, in _resolve_i18n_request_language
+    _resolve_i18n_runtime_for_request()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 817, in _resolve_i18n_runtime_for_request
+    _clear_current_user_language_when_i18n_disabled()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 778, in _clear_current_user_language_when_i18n_disabled
+    if i18n_enabled(app) or not getattr(current_user, 'is_authenticated', False):
+                                ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/werkzeug/local.py", line 318, in __get__
+    obj = instance._get_current_object()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/werkzeug/local.py", line 526, in _get_current_object
+    return get_name(local())
+                    ~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask_login/utils.py", line 25, in <lambda>
+    current_user = LocalProxy(lambda: _get_user())
+                                      ~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask_login/utils.py", line 370, in _get_user
+    current_app.login_manager._load_user()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask_login/login_manager.py", line 364, in _load_user
+    user = self._user_callback(user_id)
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 2772, in load_user
+    row = get_user_by_stamp(db.session, user_stamp)
+  File "/Users/hugoalves/Projects/APP_WEB/services/auth_service.py", line 242, in get_user_by_stamp
+    selectable = _selectable_user_columns(session)
+  File "/Users/hugoalves/Projects/APP_WEB/services/auth_service.py", line 203, in _selectable_user_columns
+    available = get_table_columns(session, "US")
+  File "/Users/hugoalves/Projects/APP_WEB/services/auth_service.py", line 109, in get_table_columns
+    rows = session.execute(
+           ~~~~~~~~~~~~~~~^
+        text(
+        ^^^^^
+    ...<6 lines>...
+        {"object_name": f"dbo.{table_name}"},
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ).scalars().all()
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/scoping.py", line 779, in execute
+    return self._proxied.execute(
+           ~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2365, in execute
+    return self._execute_internal(
+           ~~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2241, in _execute_internal
+    conn = self._connection_for_bind(bind)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2110, in _connection_for_bind
+    return trans._connection_for_bind(engine, execution_options)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<string>", line 2, in _connection_for_bind
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/state_changes.py", line 139, in _go
+    ret_value = fn(self, *arg, **kw)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 1189, in _connection_for_bind
+    conn = bind.connect()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 3273, in connect
+    return self._connection_cls(self)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 147, in __init__
+    Connection._handle_dbapi_exception_noconnection(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        err, dialect, engine
+        ^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 2436, in _handle_dbapi_exception_noconnection
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 145, in __init__
+    self._dbapi_connection = engine.raw_connection()
+                             ~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 3297, in raw_connection
+    return self.pool.connect()
+           ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 449, in connect
+    return _ConnectionFairy._checkout(self)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 1264, in _checkout
+    fairy = _ConnectionRecord.checkout(pool)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 713, in checkout
+    rec = pool._do_get()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/impl.py", line 179, in _do_get
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/impl.py", line 177, in _do_get
+    return self._create_connection()
+           ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 390, in _create_connection
+    return _ConnectionRecord(self)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 675, in __init__
+    self.__connect()
+    ~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 901, in __connect
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 897, in __connect
+    self.dbapi_connection = connection = pool._invoke_creator(self)
+                                         ~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/create.py", line 646, in connect
+    return dialect.connect(*cargs, **cparams)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 625, in connect
+    return self.loaded_dbapi.connect(*cargs, **cparams)  # type: ignore[no-any-return]  # NOQA: E501
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+sqlalchemy.exc.OperationalError: (pyodbc.OperationalError) ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+127.0.0.1 - - [31/Jul/2026 16:42:49] "GET / HTTP/1.1" 500 -
+[2026-07-31 16:42:50,810] ERROR in app: Exception on /service-worker.js [GET]
+Traceback (most recent call last):
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 145, in __init__
+    self._dbapi_connection = engine.raw_connection()
+                             ~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 3297, in raw_connection
+    return self.pool.connect()
+           ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 449, in connect
+    return _ConnectionFairy._checkout(self)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 1264, in _checkout
+    fairy = _ConnectionRecord.checkout(pool)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 713, in checkout
+    rec = pool._do_get()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/impl.py", line 179, in _do_get
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/impl.py", line 177, in _do_get
+    return self._create_connection()
+           ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 390, in _create_connection
+    return _ConnectionRecord(self)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 675, in __init__
+    self.__connect()
+    ~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 901, in __connect
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 897, in __connect
+    self.dbapi_connection = connection = pool._invoke_creator(self)
+                                         ~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/create.py", line 646, in connect
+    return dialect.connect(*cargs, **cparams)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 625, in connect
+    return self.loaded_dbapi.connect(*cargs, **cparams)  # type: ignore[no-any-return]  # NOQA: E501
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+pyodbc.OperationalError: ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 915, in full_dispatch_request
+    rv = self.preprocess_request()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 1291, in preprocess_request
+    rv = self.ensure_sync(before_func)()
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 845, in _resolve_i18n_request_language
+    _resolve_i18n_runtime_for_request()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 817, in _resolve_i18n_runtime_for_request
+    _clear_current_user_language_when_i18n_disabled()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 778, in _clear_current_user_language_when_i18n_disabled
+    if i18n_enabled(app) or not getattr(current_user, 'is_authenticated', False):
+                                ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/werkzeug/local.py", line 318, in __get__
+    obj = instance._get_current_object()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/werkzeug/local.py", line 526, in _get_current_object
+    return get_name(local())
+                    ~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask_login/utils.py", line 25, in <lambda>
+    current_user = LocalProxy(lambda: _get_user())
+                                      ~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask_login/utils.py", line 370, in _get_user
+    current_app.login_manager._load_user()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask_login/login_manager.py", line 364, in _load_user
+    user = self._user_callback(user_id)
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 2772, in load_user
+    row = get_user_by_stamp(db.session, user_stamp)
+  File "/Users/hugoalves/Projects/APP_WEB/services/auth_service.py", line 242, in get_user_by_stamp
+    selectable = _selectable_user_columns(session)
+  File "/Users/hugoalves/Projects/APP_WEB/services/auth_service.py", line 203, in _selectable_user_columns
+    available = get_table_columns(session, "US")
+  File "/Users/hugoalves/Projects/APP_WEB/services/auth_service.py", line 109, in get_table_columns
+    rows = session.execute(
+           ~~~~~~~~~~~~~~~^
+        text(
+        ^^^^^
+    ...<6 lines>...
+        {"object_name": f"dbo.{table_name}"},
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ).scalars().all()
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/scoping.py", line 779, in execute
+    return self._proxied.execute(
+           ~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2365, in execute
+    return self._execute_internal(
+           ~~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2241, in _execute_internal
+    conn = self._connection_for_bind(bind)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2110, in _connection_for_bind
+    return trans._connection_for_bind(engine, execution_options)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<string>", line 2, in _connection_for_bind
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/state_changes.py", line 139, in _go
+    ret_value = fn(self, *arg, **kw)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 1189, in _connection_for_bind
+    conn = bind.connect()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 3273, in connect
+    return self._connection_cls(self)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 147, in __init__
+    Connection._handle_dbapi_exception_noconnection(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        err, dialect, engine
+        ^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 2436, in _handle_dbapi_exception_noconnection
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 145, in __init__
+    self._dbapi_connection = engine.raw_connection()
+                             ~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 3297, in raw_connection
+    return self.pool.connect()
+           ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 449, in connect
+    return _ConnectionFairy._checkout(self)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 1264, in _checkout
+    fairy = _ConnectionRecord.checkout(pool)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 713, in checkout
+    rec = pool._do_get()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/impl.py", line 179, in _do_get
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/impl.py", line 177, in _do_get
+    return self._create_connection()
+           ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 390, in _create_connection
+    return _ConnectionRecord(self)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 675, in __init__
+    self.__connect()
+    ~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 901, in __connect
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 897, in __connect
+    self.dbapi_connection = connection = pool._invoke_creator(self)
+                                         ~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/create.py", line 646, in connect
+    return dialect.connect(*cargs, **cparams)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 625, in connect
+    return self.loaded_dbapi.connect(*cargs, **cparams)  # type: ignore[no-any-return]  # NOQA: E501
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+sqlalchemy.exc.OperationalError: (pyodbc.OperationalError) ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+127.0.0.1 - - [31/Jul/2026 16:42:50] "GET /service-worker.js HTTP/1.1" 500 -
+[2026-07-31 16:43:05,040] ERROR in app: Erro ao atualizar configuração multiidioma a partir de PARA.
+Traceback (most recent call last):
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 145, in __init__
+    self._dbapi_connection = engine.raw_connection()
+                             ~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 3297, in raw_connection
+    return self.pool.connect()
+           ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 449, in connect
+    return _ConnectionFairy._checkout(self)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 1264, in _checkout
+    fairy = _ConnectionRecord.checkout(pool)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 713, in checkout
+    rec = pool._do_get()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/impl.py", line 179, in _do_get
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/impl.py", line 177, in _do_get
+    return self._create_connection()
+           ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 390, in _create_connection
+    return _ConnectionRecord(self)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 675, in __init__
+    self.__connect()
+    ~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 901, in __connect
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 897, in __connect
+    self.dbapi_connection = connection = pool._invoke_creator(self)
+                                         ~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/create.py", line 646, in connect
+    return dialect.connect(*cargs, **cparams)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 625, in connect
+    return self.loaded_dbapi.connect(*cargs, **cparams)  # type: ignore[no-any-return]  # NOQA: E501
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+pyodbc.OperationalError: ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 730, in _reload_i18n_runtime_from_params
+    para_values = _load_para_map()
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 696, in _load_para_map
+    rows = db.session.execute(text("""
+           ~~~~~~~~~~~~~~~~~~^^^^^^^^^
+        SELECT PARAMETRO, TIPO, CVALOR, DVALOR, NVALOR, LVALOR
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        FROM dbo.PARA
+        ^^^^^^^^^^^^^
+    """)).mappings().all()
+    ^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/scoping.py", line 779, in execute
+    return self._proxied.execute(
+           ~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2365, in execute
+    return self._execute_internal(
+           ~~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2241, in _execute_internal
+    conn = self._connection_for_bind(bind)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2110, in _connection_for_bind
+    return trans._connection_for_bind(engine, execution_options)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<string>", line 2, in _connection_for_bind
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/state_changes.py", line 139, in _go
+    ret_value = fn(self, *arg, **kw)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 1189, in _connection_for_bind
+    conn = bind.connect()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 3273, in connect
+    return self._connection_cls(self)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 147, in __init__
+    Connection._handle_dbapi_exception_noconnection(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        err, dialect, engine
+        ^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 2436, in _handle_dbapi_exception_noconnection
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 145, in __init__
+    self._dbapi_connection = engine.raw_connection()
+                             ~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 3297, in raw_connection
+    return self.pool.connect()
+           ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 449, in connect
+    return _ConnectionFairy._checkout(self)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 1264, in _checkout
+    fairy = _ConnectionRecord.checkout(pool)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 713, in checkout
+    rec = pool._do_get()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/impl.py", line 179, in _do_get
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/impl.py", line 177, in _do_get
+    return self._create_connection()
+           ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 390, in _create_connection
+    return _ConnectionRecord(self)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 675, in __init__
+    self.__connect()
+    ~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 901, in __connect
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 897, in __connect
+    self.dbapi_connection = connection = pool._invoke_creator(self)
+                                         ~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/create.py", line 646, in connect
+    return dialect.connect(*cargs, **cparams)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 625, in connect
+    return self.loaded_dbapi.connect(*cargs, **cparams)  # type: ignore[no-any-return]  # NOQA: E501
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+sqlalchemy.exc.OperationalError: (pyodbc.OperationalError) ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+[2026-07-31 16:43:06,584] ERROR in app: Erro ao atualizar configuração multiidioma a partir de PARA.
+Traceback (most recent call last):
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 145, in __init__
+    self._dbapi_connection = engine.raw_connection()
+                             ~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 3297, in raw_connection
+    return self.pool.connect()
+           ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 449, in connect
+    return _ConnectionFairy._checkout(self)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 1264, in _checkout
+    fairy = _ConnectionRecord.checkout(pool)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 713, in checkout
+    rec = pool._do_get()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/impl.py", line 179, in _do_get
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/impl.py", line 177, in _do_get
+    return self._create_connection()
+           ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 390, in _create_connection
+    return _ConnectionRecord(self)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 675, in __init__
+    self.__connect()
+    ~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 901, in __connect
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 897, in __connect
+    self.dbapi_connection = connection = pool._invoke_creator(self)
+                                         ~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/create.py", line 646, in connect
+    return dialect.connect(*cargs, **cparams)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 625, in connect
+    return self.loaded_dbapi.connect(*cargs, **cparams)  # type: ignore[no-any-return]  # NOQA: E501
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+pyodbc.OperationalError: ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 730, in _reload_i18n_runtime_from_params
+    para_values = _load_para_map()
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 696, in _load_para_map
+    rows = db.session.execute(text("""
+           ~~~~~~~~~~~~~~~~~~^^^^^^^^^
+        SELECT PARAMETRO, TIPO, CVALOR, DVALOR, NVALOR, LVALOR
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        FROM dbo.PARA
+        ^^^^^^^^^^^^^
+    """)).mappings().all()
+    ^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/scoping.py", line 779, in execute
+    return self._proxied.execute(
+           ~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2365, in execute
+    return self._execute_internal(
+           ~~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2241, in _execute_internal
+    conn = self._connection_for_bind(bind)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2110, in _connection_for_bind
+    return trans._connection_for_bind(engine, execution_options)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<string>", line 2, in _connection_for_bind
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/state_changes.py", line 139, in _go
+    ret_value = fn(self, *arg, **kw)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 1189, in _connection_for_bind
+    conn = bind.connect()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 3273, in connect
+    return self._connection_cls(self)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 147, in __init__
+    Connection._handle_dbapi_exception_noconnection(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        err, dialect, engine
+        ^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 2436, in _handle_dbapi_exception_noconnection
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 145, in __init__
+    self._dbapi_connection = engine.raw_connection()
+                             ~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 3297, in raw_connection
+    return self.pool.connect()
+           ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 449, in connect
+    return _ConnectionFairy._checkout(self)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 1264, in _checkout
+    fairy = _ConnectionRecord.checkout(pool)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 713, in checkout
+    rec = pool._do_get()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/impl.py", line 179, in _do_get
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/impl.py", line 177, in _do_get
+    return self._create_connection()
+           ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 390, in _create_connection
+    return _ConnectionRecord(self)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 675, in __init__
+    self.__connect()
+    ~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 901, in __connect
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 897, in __connect
+    self.dbapi_connection = connection = pool._invoke_creator(self)
+                                         ~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/create.py", line 646, in connect
+    return dialect.connect(*cargs, **cparams)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 625, in connect
+    return self.loaded_dbapi.connect(*cargs, **cparams)  # type: ignore[no-any-return]  # NOQA: E501
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+sqlalchemy.exc.OperationalError: (pyodbc.OperationalError) ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+[2026-07-31 16:43:20,160] ERROR in app: Exception on /favicon.ico [GET]
+Traceback (most recent call last):
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 145, in __init__
+    self._dbapi_connection = engine.raw_connection()
+                             ~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 3297, in raw_connection
+    return self.pool.connect()
+           ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 449, in connect
+    return _ConnectionFairy._checkout(self)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 1264, in _checkout
+    fairy = _ConnectionRecord.checkout(pool)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 713, in checkout
+    rec = pool._do_get()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/impl.py", line 179, in _do_get
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/impl.py", line 177, in _do_get
+    return self._create_connection()
+           ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 390, in _create_connection
+    return _ConnectionRecord(self)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 675, in __init__
+    self.__connect()
+    ~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 901, in __connect
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 897, in __connect
+    self.dbapi_connection = connection = pool._invoke_creator(self)
+                                         ~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/create.py", line 646, in connect
+    return dialect.connect(*cargs, **cparams)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 625, in connect
+    return self.loaded_dbapi.connect(*cargs, **cparams)  # type: ignore[no-any-return]  # NOQA: E501
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+pyodbc.OperationalError: ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 915, in full_dispatch_request
+    rv = self.preprocess_request()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 1291, in preprocess_request
+    rv = self.ensure_sync(before_func)()
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 845, in _resolve_i18n_request_language
+    _resolve_i18n_runtime_for_request()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 817, in _resolve_i18n_runtime_for_request
+    _clear_current_user_language_when_i18n_disabled()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 778, in _clear_current_user_language_when_i18n_disabled
+    if i18n_enabled(app) or not getattr(current_user, 'is_authenticated', False):
+                                ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/werkzeug/local.py", line 318, in __get__
+    obj = instance._get_current_object()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/werkzeug/local.py", line 526, in _get_current_object
+    return get_name(local())
+                    ~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask_login/utils.py", line 25, in <lambda>
+    current_user = LocalProxy(lambda: _get_user())
+                                      ~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask_login/utils.py", line 370, in _get_user
+    current_app.login_manager._load_user()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask_login/login_manager.py", line 364, in _load_user
+    user = self._user_callback(user_id)
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 2772, in load_user
+    row = get_user_by_stamp(db.session, user_stamp)
+  File "/Users/hugoalves/Projects/APP_WEB/services/auth_service.py", line 242, in get_user_by_stamp
+    selectable = _selectable_user_columns(session)
+  File "/Users/hugoalves/Projects/APP_WEB/services/auth_service.py", line 203, in _selectable_user_columns
+    available = get_table_columns(session, "US")
+  File "/Users/hugoalves/Projects/APP_WEB/services/auth_service.py", line 109, in get_table_columns
+    rows = session.execute(
+           ~~~~~~~~~~~~~~~^
+        text(
+        ^^^^^
+    ...<6 lines>...
+        {"object_name": f"dbo.{table_name}"},
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ).scalars().all()
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/scoping.py", line 779, in execute
+    return self._proxied.execute(
+           ~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2365, in execute
+    return self._execute_internal(
+           ~~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2241, in _execute_internal
+    conn = self._connection_for_bind(bind)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2110, in _connection_for_bind
+    return trans._connection_for_bind(engine, execution_options)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<string>", line 2, in _connection_for_bind
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/state_changes.py", line 139, in _go
+    ret_value = fn(self, *arg, **kw)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 1189, in _connection_for_bind
+    conn = bind.connect()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 3273, in connect
+    return self._connection_cls(self)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 147, in __init__
+    Connection._handle_dbapi_exception_noconnection(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        err, dialect, engine
+        ^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 2436, in _handle_dbapi_exception_noconnection
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 145, in __init__
+    self._dbapi_connection = engine.raw_connection()
+                             ~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 3297, in raw_connection
+    return self.pool.connect()
+           ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 449, in connect
+    return _ConnectionFairy._checkout(self)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 1264, in _checkout
+    fairy = _ConnectionRecord.checkout(pool)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 713, in checkout
+    rec = pool._do_get()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/impl.py", line 179, in _do_get
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/impl.py", line 177, in _do_get
+    return self._create_connection()
+           ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 390, in _create_connection
+    return _ConnectionRecord(self)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 675, in __init__
+    self.__connect()
+    ~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 901, in __connect
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 897, in __connect
+    self.dbapi_connection = connection = pool._invoke_creator(self)
+                                         ~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/create.py", line 646, in connect
+    return dialect.connect(*cargs, **cparams)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 625, in connect
+    return self.loaded_dbapi.connect(*cargs, **cparams)  # type: ignore[no-any-return]  # NOQA: E501
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+sqlalchemy.exc.OperationalError: (pyodbc.OperationalError) ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+127.0.0.1 - - [31/Jul/2026 16:43:20] "GET /favicon.ico HTTP/1.1" 500 -
+[2026-07-31 16:43:21,705] ERROR in app: Exception on /service-worker.js [GET]
+Traceback (most recent call last):
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 145, in __init__
+    self._dbapi_connection = engine.raw_connection()
+                             ~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 3297, in raw_connection
+    return self.pool.connect()
+           ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 449, in connect
+    return _ConnectionFairy._checkout(self)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 1264, in _checkout
+    fairy = _ConnectionRecord.checkout(pool)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 713, in checkout
+    rec = pool._do_get()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/impl.py", line 179, in _do_get
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/impl.py", line 177, in _do_get
+    return self._create_connection()
+           ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 390, in _create_connection
+    return _ConnectionRecord(self)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 675, in __init__
+    self.__connect()
+    ~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 901, in __connect
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 897, in __connect
+    self.dbapi_connection = connection = pool._invoke_creator(self)
+                                         ~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/create.py", line 646, in connect
+    return dialect.connect(*cargs, **cparams)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 625, in connect
+    return self.loaded_dbapi.connect(*cargs, **cparams)  # type: ignore[no-any-return]  # NOQA: E501
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+pyodbc.OperationalError: ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 915, in full_dispatch_request
+    rv = self.preprocess_request()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 1291, in preprocess_request
+    rv = self.ensure_sync(before_func)()
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 845, in _resolve_i18n_request_language
+    _resolve_i18n_runtime_for_request()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 817, in _resolve_i18n_runtime_for_request
+    _clear_current_user_language_when_i18n_disabled()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 778, in _clear_current_user_language_when_i18n_disabled
+    if i18n_enabled(app) or not getattr(current_user, 'is_authenticated', False):
+                                ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/werkzeug/local.py", line 318, in __get__
+    obj = instance._get_current_object()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/werkzeug/local.py", line 526, in _get_current_object
+    return get_name(local())
+                    ~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask_login/utils.py", line 25, in <lambda>
+    current_user = LocalProxy(lambda: _get_user())
+                                      ~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask_login/utils.py", line 370, in _get_user
+    current_app.login_manager._load_user()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask_login/login_manager.py", line 364, in _load_user
+    user = self._user_callback(user_id)
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 2772, in load_user
+    row = get_user_by_stamp(db.session, user_stamp)
+  File "/Users/hugoalves/Projects/APP_WEB/services/auth_service.py", line 242, in get_user_by_stamp
+    selectable = _selectable_user_columns(session)
+  File "/Users/hugoalves/Projects/APP_WEB/services/auth_service.py", line 203, in _selectable_user_columns
+    available = get_table_columns(session, "US")
+  File "/Users/hugoalves/Projects/APP_WEB/services/auth_service.py", line 109, in get_table_columns
+    rows = session.execute(
+           ~~~~~~~~~~~~~~~^
+        text(
+        ^^^^^
+    ...<6 lines>...
+        {"object_name": f"dbo.{table_name}"},
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ).scalars().all()
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/scoping.py", line 779, in execute
+    return self._proxied.execute(
+           ~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2365, in execute
+    return self._execute_internal(
+           ~~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2241, in _execute_internal
+    conn = self._connection_for_bind(bind)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2110, in _connection_for_bind
+    return trans._connection_for_bind(engine, execution_options)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<string>", line 2, in _connection_for_bind
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/state_changes.py", line 139, in _go
+    ret_value = fn(self, *arg, **kw)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 1189, in _connection_for_bind
+    conn = bind.connect()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 3273, in connect
+    return self._connection_cls(self)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 147, in __init__
+    Connection._handle_dbapi_exception_noconnection(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        err, dialect, engine
+        ^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 2436, in _handle_dbapi_exception_noconnection
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 145, in __init__
+    self._dbapi_connection = engine.raw_connection()
+                             ~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 3297, in raw_connection
+    return self.pool.connect()
+           ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 449, in connect
+    return _ConnectionFairy._checkout(self)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 1264, in _checkout
+    fairy = _ConnectionRecord.checkout(pool)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 713, in checkout
+    rec = pool._do_get()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/impl.py", line 179, in _do_get
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/impl.py", line 177, in _do_get
+    return self._create_connection()
+           ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 390, in _create_connection
+    return _ConnectionRecord(self)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 675, in __init__
+    self.__connect()
+    ~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 901, in __connect
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/pool/base.py", line 897, in __connect
+    self.dbapi_connection = connection = pool._invoke_creator(self)
+                                         ~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/create.py", line 646, in connect
+    return dialect.connect(*cargs, **cparams)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 625, in connect
+    return self.loaded_dbapi.connect(*cargs, **cparams)  # type: ignore[no-any-return]  # NOQA: E501
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+sqlalchemy.exc.OperationalError: (pyodbc.OperationalError) ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+127.0.0.1 - - [31/Jul/2026 16:43:21] "GET /service-worker.js HTTP/1.1" 500 -
+127.0.0.1 - - [03/Aug/2026 09:28:04] "GET /autos_clientes HTTP/1.1" 302 -
+127.0.0.1 - - [03/Aug/2026 09:28:07] "GET /autos_clientes HTTP/1.1" 302 -
+127.0.0.1 - - [03/Aug/2026 09:28:07] "GET /login?next=/autos_clientes HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 09:28:07] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 09:28:07] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 09:28:07] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 09:28:07] "GET /static/js/push.js?v=1785512035 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 09:28:07] "GET /static/images/icon-512.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 09:32:42] "GET /autos_clientes HTTP/1.1" 302 -
+127.0.0.1 - - [03/Aug/2026 09:32:42] "GET /login?next=/autos_clientes HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 09:32:42] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 09:32:42] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 09:32:42] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 09:32:42] "GET /static/js/push.js?v=1785512035 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 09:32:42] "GET /autos_clientes HTTP/1.1" 302 -
+127.0.0.1 - - [03/Aug/2026 09:32:42] "GET /login?next=/autos_clientes HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 09:32:42] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 09:32:42] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 09:32:42] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 09:32:42] "GET /static/js/push.js?v=1785512035 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 09:32:42] "GET /static/images/icon-512.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 09:32:53] "POST /login?next=/autos_clientes HTTP/1.1" 302 -
+127.0.0.1 - - [03/Aug/2026 09:32:54] "GET /autos_clientes HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 09:32:55] "GET /autos_clientes HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 09:32:55] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 09:32:55] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 09:32:55] "GET /gr_subcontractor_measurements/static/autos_subempreitada.css HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 09:32:55] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 09:32:55] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 09:32:55] "GET /gr_subcontractor_measurements/static/autos_subempreitada.js?v=1785512035 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 09:32:55] "GET /static/js/push.js?v=1785512035 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 09:32:55] "GET /service-worker.js HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 09:32:56] "GET /api/gr_autos_clientes/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 09:32:56] "GET /api/gr_autos_clientes/contratos?feid=2&data_inicio=2026-01-01&data_fim=2026-08-03&only_open=1 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 09:45:06] "GET /autos_clientes HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 09:45:06] "GET /gr_subcontractor_measurements/static/autos_subempreitada.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 09:45:06] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 09:45:06] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 09:45:06] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 09:45:06] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 09:45:06] "GET /static/js/push.js?v=1785512035 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 09:45:06] "GET /gr_subcontractor_measurements/static/autos_subempreitada.js?v=1785512035 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 09:45:06] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 09:45:06] "GET /api/gr_autos_clientes/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 09:45:07] "GET /api/gr_autos_clientes/contratos?feid=2&data_inicio=2026-01-01&data_fim=2026-08-03&only_open=1 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 09:45:08] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 09:45:40] "GET /autos_clientes HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 09:45:40] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 09:45:40] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 09:45:40] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 09:45:40] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 09:45:40] "GET /gr_subcontractor_measurements/static/autos_subempreitada.css HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 09:45:40] "GET /static/js/push.js?v=1785512035 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 09:45:40] "GET /gr_subcontractor_measurements/static/autos_subempreitada.js?v=1785512035 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 09:45:40] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 09:45:41] "GET /api/gr_autos_clientes/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 09:45:41] "GET /api/gr_autos_clientes/contratos?feid=2&data_inicio=2026-01-01&data_fim=2026-08-03&only_open=1 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 09:45:42] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 09:49:31] "GET /autos_clientes HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 09:49:31] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 09:49:31] "GET /gr_subcontractor_measurements/static/autos_subempreitada.css HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 09:49:31] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 09:49:31] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 09:49:31] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 09:49:31] "GET /static/js/push.js?v=1785512035 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 09:49:31] "GET /gr_subcontractor_measurements/static/autos_subempreitada.js?v=1785512035 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 09:49:31] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 09:49:31] "GET /api/gr_autos_clientes/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 09:49:31] "GET /api/gr_autos_clientes/contratos?feid=2&data_inicio=2026-01-01&data_fim=2026-08-03&only_open=1 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 09:49:32] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 09:49:45] "GET /autos_clientes HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 09:49:45] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 09:49:45] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 09:49:45] "GET /gr_subcontractor_measurements/static/autos_subempreitada.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 09:49:45] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 09:49:45] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 09:49:45] "GET /gr_subcontractor_measurements/static/autos_subempreitada.js?v=1785512035 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 09:49:45] "GET /static/js/push.js?v=1785512035 HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 09:49:45] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 09:49:46] "GET /api/gr_autos_clientes/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 09:49:46] "GET /api/gr_autos_clientes/contratos?feid=2&data_inicio=2026-01-01&data_fim=2026-08-03&only_open=1 HTTP/1.1" 200 -
+127.0.0.1 - - [03/Aug/2026 09:49:47] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Aug/2026 09:56:15] "GET / HTTP/1.1" 302 -
+127.0.0.1 - - [03/Aug/2026 09:56:15] "GET /orcamentos HTTP/1.1" 404 -
+/opt/homebrew/opt/python@3.13/bin/python3.13: No module named flask

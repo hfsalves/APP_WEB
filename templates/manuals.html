@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Manuais de utilizador{% endblock %}
+
+{% block content %}
+<div class="sz_page manuals-page">
+  <div class="sz_page_container">
+    <header class="sz_contextbar sz_page_contextbar manuals-contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_page_title">Manuais de utilizador</div>
+        <div class="sz_breadcrumbs">AJUDA / MANUAIS</div>
+      </div>
+    </header>
+
+    <section class="sz_page_body manuals-body" aria-label="Lista de manuais disponíveis">
+      <div class="manuals-intro">
+        Selecione o idioma para abrir o manual em HTML.
+      </div>
+      <div class="sz_panel manuals-list">
+        {% for manual in manuals %}
+        <article class="manual-row">
+          <div class="manual-row-icon" aria-hidden="true"><i class="fa-solid fa-book-open"></i></div>
+          <div class="manual-row-copy">
+            <h2>{{ manual.title }}</h2>
+            <p>{{ manual.description }}</p>
+          </div>
+          <div class="manual-row-languages" aria-label="Idiomas disponíveis">
+            <a class="manual-language-link" href="{{ manual.pt_url }}" lang="pt-PT" title="Abrir em português">
+              <span class="manual-flag" aria-hidden="true">🇵🇹</span><span>PT</span>
+            </a>
+            <a class="manual-language-link" href="{{ manual.fr_url }}" lang="fr" title="Ouvrir en français">
+              <span class="manual-flag" aria-hidden="true">🇫🇷</span><span>FR</span>
+            </a>
+          </div>
+        </article>
+        {% endfor %}
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_head %}
+{{ super() }}
+<style>
+  .manuals-contextbar { align-items: center; }
+  .manuals-body { display: flex; flex-direction: column; gap: 1rem; }
+  .manuals-intro { color: var(--sz-color-text-secondary); }
+  .manuals-list { padding: 0; overflow: hidden; }
+  .manual-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 1rem; align-items: center; padding: 1rem 1.25rem; }
+  .manual-row + .manual-row { border-top: 1px solid var(--sz-color-border); }
+  .manual-row-icon { display: grid; width: 2.5rem; height: 2.5rem; place-items: center; border-radius: var(--sz-radius-sm); background: color-mix(in srgb, var(--sz-color-primary) 12%, transparent); color: var(--sz-color-primary); }
+  .manual-row-copy h2 { margin: 0; color: var(--sz-color-text); font-size: var(--sz-font-size-lg); }
+  .manual-row-copy p { margin: .2rem 0 0; color: var(--sz-color-text-muted); }
+  .manual-row-languages { display: flex; gap: .5rem; }
+  .manual-language-link { display: inline-flex; align-items: center; gap: .4rem; min-height: var(--sz-button-height); padding: 0 .75rem; border: 1px solid var(--sz-color-border); border-radius: var(--sz-radius-sm); color: var(--sz-color-text); font-weight: 800; text-decoration: none; }
+  .manual-language-link:hover, .manual-language-link:focus-visible { border-color: var(--sz-color-primary); background: color-mix(in srgb, var(--sz-color-primary) 10%, transparent); color: var(--sz-color-primary); }
+  .manual-flag { font-size: 1.15rem; line-height: 1; }
+  @media (max-width: 640px) { .manual-row { grid-template-columns: auto minmax(0, 1fr); } .manual-row-languages { grid-column: 2; } }
+</style>
+{% endblock %}

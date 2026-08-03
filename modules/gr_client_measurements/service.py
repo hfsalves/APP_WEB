@@ -889,6 +889,7 @@ def _prepare_measurement_lines(
 ) -> list[dict[str, Any]]:
     prepared: list[dict[str, Any]] = []
     seen: set[str] = set()
+    payload_by_source: dict[str, dict[str, Any]] = {}
     tolerance = Decimal("0.0001")
 
     for item in payload_lines:
@@ -900,7 +901,11 @@ def _prepare_measurement_lines(
         source = source_lines.get(source_key)
         if not source:
             raise ClientMeasurementsValidationError(f"Linha de orcamento invalida ({source_bistamp}).")
+        payload_by_source[source_key] = item
 
+    has_measurement = False
+    for source_key, source in source_lines.items():
+        item = payload_by_source.get(source_key, {})
         budget_qty = _decimal(source.get("QTT"))
         budget_value = _decimal(source.get("ETTDEB"))
         unit_price = _decimal(source.get("EDEBITO"))
@@ -924,20 +929,26 @@ def _prepare_measurement_lines(
             elif unit_price and amount_hint > 0:
                 qty = (amount_hint / unit_price).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
         if qty <= 0:
-            continue
+            qty = Decimal("0.0000")
         if qty > remaining_qty + tolerance:
             raise ClientMeasurementsValidationError("Uma das linhas mede acima da quantidade pendente.")
 
-        amount_raw = qty * unit_price if unit_price else Decimal("0")
-        if not amount_raw and budget_qty:
-            amount_raw = budget_value * qty / budget_qty
-        if not amount_raw:
-            amount_raw = _decimal(item.get("value"))
+        amount_raw = Decimal("0")
+        if qty > 0:
+            amount_raw = qty * unit_price if unit_price else Decimal("0")
+            if not amount_raw and budget_qty:
+                amount_raw = budget_value * qty / budget_qty
+            if not amount_raw:
+                amount_raw = _decimal(item.get("value"))
         amount = amount_raw.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         if amount > remaining_value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP) + Decimal("0.01"):
             raise ClientMeasurementsValidationError("Uma das linhas mede acima do valor pendente.")
         if amount <= 0:
-            continue
+            qty = Decimal("0.0000")
+            amount_raw = Decimal("0")
+            amount = Decimal("0.00")
+        else:
+            has_measurement = True
 
         current_percent = Decimal("0")
         prior_percent = Decimal("0")
@@ -955,7 +966,7 @@ def _prepare_measurement_lines(
             {
                 "bistamp": _new_stamp(),
                 "source": source,
-                "source_bistamp": _text_value(source.get("BISTAMP")) or source_bistamp,
+                "source_bistamp": _text_value(source.get("BISTAMP")),
                 "qty": qty,
                 "amount": amount,
                 "amount_raw": amount_raw.quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP),
@@ -972,7 +983,7 @@ def _prepare_measurement_lines(
             }
         )
 
-    if not prepared:
+    if not has_measurement:
         raise ClientMeasurementsValidationError("Indique pelo menos uma linha com quantidade a medir.")
     return prepared
 

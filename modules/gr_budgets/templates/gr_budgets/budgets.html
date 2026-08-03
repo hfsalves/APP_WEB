@@ -1,0 +1,267 @@
+{% extends "base.html" %}
+
+{% block title %}Orçamentos · GR360{% endblock %}
+
+{% block extra_head %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('gr_budgets.static', filename='gr_budgets.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="sz_page gr-budget-page" id="grBudgetApp" data-preferred-database="HSOLS_FR">
+  <div class="sz_page_container gr-budget-shell">
+    <header class="sz_contextbar sz_page_contextbar gr-budget-contextbar">
+      <div class="sz_contextbar_left">
+        <h1 class="sz_page_title">Orçamentos</h1>
+        <div class="sz_breadcrumbs">GR360 / ORÇAMENTAÇÃO</div>
+        <p class="sz_page_subtitle">Consulta dos dossiers internos de orçamento no PHC.</p>
+      </div>
+      <div class="sz_contextbar_right gr-budget-context-actions">
+        <div class="gr-budget-filters">
+          <label class="sz_field gr-budget-filter-company">
+            <span class="sz_label">Empresa</span>
+            <select id="budgetCompany" class="sz_select" aria-label="Empresa"></select>
+          </label>
+          <label class="sz_field">
+            <span class="sz_label">Série</span>
+            <select id="budgetSeries" class="sz_select" aria-label="Série"></select>
+          </label>
+          <label class="sz_field gr-budget-filter-year">
+            <span class="sz_label">Ano</span>
+            <input id="budgetYear" class="sz_input" type="number" min="1900" max="2200" inputmode="numeric">
+          </label>
+          <label class="sz_field gr-budget-filter-search">
+            <span class="sz_label">Pesquisar</span>
+            <span class="gr-budget-search-wrap">
+              <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+              <input id="budgetSearch" class="sz_input" type="search" placeholder="N.º, cliente, obra ou localidade">
+            </span>
+          </label>
+          <button id="budgetRefresh" type="button" class="sz_button sz_button_secondary gr-budget-refresh" title="Atualizar dados">
+            <i class="fa-solid fa-rotate"></i>
+            <span>Atualizar</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="sz_page_body gr-budget-body" aria-live="polite">
+      <div id="budgetError" class="gr-budget-alert" role="alert" hidden></div>
+
+      <section class="sz_panel gr-budget-navigator" aria-label="Navegação entre orçamentos">
+        <div class="gr-budget-document-meta">
+          <span class="sz_caption">Dossier</span>
+          <strong id="budgetResultCount" class="sz_text_sm">A carregar…</strong>
+        </div>
+        <select id="budgetDocument" class="sz_select gr-budget-document-select" aria-label="Selecionar orçamento"></select>
+        <div class="gr-budget-nav-buttons">
+          <button id="budgetPrevious" type="button" class="sz_button sz_button_secondary gr-budget-icon-button" title="Orçamento anterior" aria-label="Orçamento anterior">
+            <i class="fa-solid fa-chevron-left"></i>
+          </button>
+          <button id="budgetNext" type="button" class="sz_button sz_button_secondary gr-budget-icon-button" title="Orçamento seguinte" aria-label="Orçamento seguinte">
+            <i class="fa-solid fa-chevron-right"></i>
+          </button>
+        </div>
+      </section>
+
+      <section id="budgetEmpty" class="sz_panel gr-budget-empty" hidden>
+        <i class="fa-regular fa-folder-open" aria-hidden="true"></i>
+        <strong class="sz_h4">Não existem orçamentos para os filtros selecionados.</strong>
+        <span class="sz_text_muted">Altere a série, o ano ou a pesquisa.</span>
+      </section>
+
+      <div id="budgetContent" class="gr-budget-content" hidden>
+        <section class="sz_section gr-budget-document-card">
+          <div class="sz_section_header gr-budget-document-header">
+            <div class="gr-budget-document-copy">
+              <span class="sz_caption" id="budgetDocumentEyebrow">Dossier interno</span>
+              <h2 class="sz_h2" id="budgetDocumentTitle">—</h2>
+              <p class="sz_text_muted" id="budgetDocumentSubtitle">—</p>
+            </div>
+            <div id="budgetStatus" class="gr-budget-statuses"></div>
+          </div>
+
+          <div class="sz_section_body gr-budget-document-body">
+            <div class="gr-budget-detail-layout">
+              <div class="gr-budget-data-grid">
+                <div class="gr-budget-field gr-budget-field-wide">
+                  <span class="sz_caption">Cliente</span>
+                  <strong id="budgetClient" class="sz_text_sm">—</strong>
+                  <small id="budgetClientNumber" class="sz_text_muted"></small>
+                </div>
+                <div class="gr-budget-field gr-budget-field-wide">
+                  <span class="sz_caption">Nome da obra</span>
+                  <strong id="budgetWork" class="sz_text_sm">—</strong>
+                </div>
+                <div class="gr-budget-field">
+                  <span class="sz_caption">Localidade</span>
+                  <strong id="budgetLocality" class="sz_text_sm">—</strong>
+                </div>
+                <div class="gr-budget-field">
+                  <span class="sz_caption">Data</span>
+                  <strong id="budgetDate" class="sz_text_sm">—</strong>
+                </div>
+                <div class="gr-budget-field">
+                  <span class="sz_caption">Comercial</span>
+                  <strong id="budgetSalesperson" class="sz_text_sm">—</strong>
+                </div>
+                <div class="gr-budget-field">
+                  <span class="sz_caption">Equipa</span>
+                  <strong id="budgetTeam" class="sz_text_sm">—</strong>
+                </div>
+                <div class="gr-budget-field">
+                  <span class="sz_caption">A/C</span>
+                  <strong id="budgetAttention" class="sz_text_sm">—</strong>
+                </div>
+                <div class="gr-budget-field">
+                  <span class="sz_caption">Área</span>
+                  <strong id="budgetArea" class="sz_text_sm">—</strong>
+                </div>
+                <div class="gr-budget-field">
+                  <span class="sz_caption">Processo</span>
+                  <strong id="budgetProcess" class="sz_text_sm">—</strong>
+                </div>
+                <div class="gr-budget-field">
+                  <span class="sz_caption">Centro de custo</span>
+                  <strong id="budgetCostCenter" class="sz_text_sm">—</strong>
+                </div>
+                <div class="gr-budget-field">
+                  <span class="sz_caption">Moeda</span>
+                  <strong id="budgetCurrency" class="sz_text_sm">—</strong>
+                </div>
+                <div class="gr-budget-field">
+                  <span class="sz_caption">Email</span>
+                  <strong id="budgetEmail" class="sz_text_sm">—</strong>
+                </div>
+                <div class="gr-budget-field">
+                  <span class="sz_caption">Telefone</span>
+                  <strong id="budgetPhone" class="sz_text_sm">—</strong>
+                </div>
+                <div class="gr-budget-field">
+                  <span class="sz_caption">Referência</span>
+                  <strong id="budgetReference" class="sz_text_sm">—</strong>
+                </div>
+              </div>
+
+              <aside class="gr-budget-totals" aria-label="Totais do orçamento">
+                <div class="sz_sidebar_section gr-budget-total gr-budget-total-primary">
+                  <span class="sz_sidebar_title">Total preço</span>
+                  <strong id="budgetTotal" class="sz_sidebar_value">—</strong>
+                </div>
+                <div class="sz_sidebar_section gr-budget-total">
+                  <span class="sz_sidebar_title">Custo total</span>
+                  <strong id="budgetCost" class="sz_sidebar_value">—</strong>
+                </div>
+                <div class="sz_sidebar_section gr-budget-total">
+                  <span class="sz_sidebar_title">Margem</span>
+                  <strong id="budgetMargin" class="sz_sidebar_value">—</strong>
+                </div>
+                <div class="sz_sidebar_section gr-budget-total">
+                  <span class="sz_sidebar_title">Lucro</span>
+                  <strong id="budgetProfit" class="sz_sidebar_value">—</strong>
+                </div>
+              </aside>
+            </div>
+          </div>
+        </section>
+
+        <section class="sz_section gr-budget-lines-card">
+          <div class="sz_section_header gr-budget-section-heading">
+            <div>
+              <h3 class="sz_h3">Linhas do orçamento</h3>
+              <p id="budgetLineCount" class="sz_text_muted">0 linhas · BI + BI2</p>
+            </div>
+            <div class="gr-budget-legend sz_text_muted">
+              <span class="gr-budget-plus-demo">+</span>
+              <span>Detalhe técnico da linha</span>
+            </div>
+          </div>
+          <div class="sz_table_host gr-budget-table-host">
+            <table class="sz_table sz_table_compact gr-budget-table">
+              <thead class="sz_table_head">
+                <tr>
+                  <th class="gr-budget-col-item">Item</th>
+                  <th>Referência</th>
+                  <th class="gr-budget-col-description">Designação</th>
+                  <th class="gr-budget-num">Desc.1</th>
+                  <th class="gr-budget-num">Desc.2</th>
+                  <th class="gr-budget-num">Preço</th>
+                  <th class="gr-budget-num">Total</th>
+                  <th class="gr-budget-num">Taxa IVA</th>
+                  <th class="gr-budget-num">Qtd.</th>
+                  <th class="gr-budget-num">Custo total</th>
+                  <th class="gr-budget-num">IVA</th>
+                  <th class="gr-budget-num">Espessura</th>
+                  <th class="gr-budget-check">Variante</th>
+                  <th class="gr-budget-check">PV bloq.</th>
+                  <th class="gr-budget-check">Bomba</th>
+                  <th class="gr-budget-check">Técnica</th>
+                  <th class="gr-budget-check">MO</th>
+                  <th class="gr-budget-check">Opção</th>
+                  <th class="gr-budget-check">Pro</th>
+                  <th class="gr-budget-check">Simultanée</th>
+                  <th class="gr-budget-num">Margem</th>
+                  <th class="gr-budget-num">Lucro</th>
+                </tr>
+              </thead>
+              <tbody id="budgetLines"></tbody>
+              <tfoot id="budgetLinesFooter"></tfoot>
+            </table>
+          </div>
+        </section>
+
+        <section class="sz_section gr-budget-footer-card">
+          <div class="sz_section_header">
+            <h3 class="sz_h3">Condições e observações</h3>
+          </div>
+          <div class="sz_section_body gr-budget-footer-grid">
+            <div class="gr-budget-footer-field">
+              <span class="sz_caption">Pagamento</span>
+              <strong id="budgetPayment" class="sz_text_sm">—</strong>
+            </div>
+            <div class="gr-budget-footer-field gr-budget-footer-notes">
+              <span class="sz_caption">Observações</span>
+              <strong id="budgetObservations" class="sz_text_sm">—</strong>
+            </div>
+            <div class="gr-budget-footer-field" id="budgetCancellationWrap" hidden>
+              <span class="sz_caption">Motivo de anulação</span>
+              <strong id="budgetCancellation" class="sz_text_sm">—</strong>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div id="budgetLoading" class="sz_panel gr-budget-loading" hidden>
+        <span class="gr-budget-spinner" aria-hidden="true"></span>
+        <span class="sz_text_sm">A carregar orçamento do PHC…</span>
+      </div>
+    </main>
+  </div>
+
+  <div id="technicalDetailDialog" class="sz_modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="technicalDetailTitle">
+    <div class="sz_panel gr-budget-dialog-panel">
+      <div class="sz_modal_header gr-budget-dialog-header">
+        <div>
+          <span class="sz_caption">Próxima fase</span>
+          <h3 class="sz_modal_title" id="technicalDetailTitle">Detalhe técnico da linha</h3>
+        </div>
+        <button type="button" class="sz_button sz_button_ghost gr-budget-icon-button" data-technical-close aria-label="Fechar">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="sz_modal_body">
+        <p id="technicalDetailLine" class="sz_text">—</p>
+        <p class="sz_text_muted">Este acesso já fica associado à linha BI. A estrutura OCI e as fórmulas de cálculo serão ligadas aqui na fase seguinte.</p>
+      </div>
+      <div class="sz_modal_footer">
+        <button type="button" class="sz_button sz_button_primary" data-technical-close>Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script src="{{ url_for('gr_budgets.static', filename='gr_budgets.js') }}" defer></script>
+{% endblock %}
