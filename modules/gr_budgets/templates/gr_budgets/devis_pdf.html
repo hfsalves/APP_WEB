@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>Devis N° {{ document.header.number }}</title>
+  <style>
+    @page { size: A4; margin: 33mm 17mm 29mm; @top-center { content: element(continuedHeader); } @bottom-center { content: element(footer); } }
+    @page:first { margin-top: 10mm; @top-center { content: none; } }
+    @page general-terms { size: A4; margin: 5mm 5mm 7mm; @top-center { content: none; } @bottom-center { content: none; } }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: #111; font-family: Arial, Helvetica, sans-serif; font-size: 8pt; }
+    .footer { position: running(footer); width: 100%; border-top: .45pt solid #222; color: #888; font-size: 6.2pt; line-height: 1.3; padding-top: 3mm; }
+    .footer .legal { text-align: center; margin-bottom: 2mm; } .footer .branches { display: grid; grid-template-columns: 1.05fr 1.05fr 1fr; gap: 7mm; }
+    .continued-header { position: running(continuedHeader); width: 176mm; font-size: 7.6pt; }
+    .continued-title { text-align: right; border-bottom: .5pt solid #222; font-size: 12.5pt; font-weight: 700; padding-bottom: .5mm; }
+    .continued-grid { display: grid; grid-template-columns: .85fr 1.65fr .55fr; gap: 4mm; padding: 1.2mm 1mm 0; }
+    .continued-grid + .continued-grid { grid-template-columns: 1fr 1.6fr; padding-top: .7mm; }
+    .continued-header .sub { color: #777; font-size: 6pt; font-style: italic; }
+    .doc-head { display: grid; grid-template-columns: 58% 42%; min-height: 42mm; }
+    .company { display: grid; grid-template-columns: 31mm 1fr; column-gap: 4mm; align-items: start; padding: 0; line-height: 1.28; } .company-logo { display: block; max-width: 31mm; max-height: 16mm; width: auto; height: auto; margin: 0; object-fit: contain; object-position: left top; } .company-details strong { font-size: 10.5pt; } .company-details .muted { color: #777; }
+    .doc-info { text-align: right; } .doc-title { border-bottom: .5pt solid #111; display: inline-block; font-size: 13.5pt; font-weight: 700; padding: 0 8mm 0 7mm; }
+    .page-label { font-size: 6.3pt; margin-top: 1mm; } .status { color: #e11; font-size: 20pt; font-weight: 700; margin-top: 13mm; }
+    .meta { border-bottom: .5pt solid #222; padding: 2.5mm 1mm 2mm; display: grid; grid-template-columns: 1fr 1.55fr .58fr; gap: 4mm; }
+    .meta.second { grid-template-columns: .85fr 1.18fr 1.2fr; padding-top: 1.5mm; } .meta .label { font-size: 8.5pt; } .meta .sub { color: #777; font-size: 6.3pt; font-style: italic; }
+    .meta strong { font-size: 9pt; }
+    .address-meta { display: grid; grid-template-columns: 17mm 1fr; column-gap: 1mm; align-items: start; }
+    .address-lines { line-height: 1.2; }
+    .items { width: 100%; border-collapse: collapse; table-layout: fixed; } .items thead { display: table-header-group; }
+    .items th { border-bottom: .8pt solid #111; padding: 1mm 1mm .5mm; font-size: 7.8pt; text-align: left; } .items th.num, .items td.num { text-align: right; }
+    .items th .sub { display: block; color: #777; font-size: 6.2pt; font-style: italic; font-weight: normal; margin-top: .5mm; }
+    .items td { vertical-align: top; padding: 4mm 1mm 0; } .col-item { width: 7%; text-align: right; font-weight: bold; } .col-desc { width: 53%; } .col-q { width: 12%; } .col-unit { width: 5%; } .col-price { width: 11%; } .col-total { width: 12%; }
+    .article-group { break-inside: avoid; page-break-inside: avoid; } .article-title { font-size: 9pt; font-weight: 700; line-height: 1.3; } .technical-description { margin: 2mm 0 0 7mm; font-style: italic; line-height: 1.42; } .technical-description div { break-inside: avoid; }
+    .plus-row td { padding-top: 0; } .plus-value { margin: 3.5mm 1mm 1mm 7mm; border: .5pt solid #888; border-radius: 1.5mm; padding: 2mm 3mm; display: grid; grid-template-columns: 1fr 24mm 10mm 22mm; column-gap: 2mm; align-items: start; font-style: italic; } .plus-value .name { font-weight: bold; color: #555; } .plus-value .num { text-align: right; }
+    .totals-zone { break-inside: avoid; page-break-inside: avoid; }
+    .totals { margin-top: 1mm; margin-left: auto; width: 50%; border-collapse: collapse; break-inside: avoid; page-break-inside: avoid; } .totals td { padding: 1.5mm 1mm; text-align: right; } .totals tr:first-child td { border-top: .7pt solid #111; } .totals .label { font-size: 9pt; } .totals .sub { color: #777; font-size: 6.2pt; font-style: italic; } .totals .strong { font-size: 10pt; font-weight: 700; }
+    .pro-rata { break-inside: avoid; border-top: .7pt solid #111; border-bottom: .45pt solid #111; margin-top: 4mm; padding: 4mm 1mm 14mm 8%; display: grid; grid-template-columns: 1fr 17mm 9mm 22mm; gap: 2mm; font-size: 9pt; } .pro-rata .num { text-align: right; }
+    .signature { break-inside: avoid; margin-top: 62mm; width: 43%; text-align: center; } .signature .line { border-top: .6pt solid #111; padding-top: 2mm; font-weight: 700; font-size: 9pt; } .signature p { font-size: 6.3pt; font-style: italic; line-height: 1.6; }
+    .general-terms-page { page: general-terms; break-before: page; page-break-before: always; color: #55585d; font-family: Arial, Helvetica, sans-serif; font-size: 5.25pt; line-height: 1.1; }
+    .general-terms-header { height: 20mm; display: grid; grid-template-columns: 35mm 1fr; column-gap: 4mm; align-items: center; }
+    .general-terms-logo { display: block; width: auto; height: auto; max-width: 31mm; max-height: 14mm; margin-left: 2mm; object-fit: contain; object-position: left center; }
+    .general-terms-title { color: #fff; background: #303236; border-left: 2.5mm solid #d32632; border-radius: 1.5mm; padding: 3.2mm 4mm; text-align: center; font-size: 11.2pt; font-weight: 700; letter-spacing: .12pt; }
+    .general-terms-columns { column-count: 3; column-fill: balance; column-gap: 5mm; column-rule: .35pt solid #d8d9db; padding-top: 2mm; }
+    .general-terms-column { display: contents; }
+    .general-terms-article { margin: 0 0 2.4mm; }
+    .general-terms-article h2 { break-after: avoid; page-break-after: avoid; color: #303236; background: #f1f1f2; border-left: 1.5pt solid #d32632; border-radius: 0 .7mm .7mm 0; margin: 0 0 .8mm; padding: .65mm .9mm; font-size: 5.9pt; line-height: 1.08; font-weight: 700; }
+    .general-terms-article p { margin: 0 .8mm; text-align: justify; hyphens: auto; orphans: 3; widows: 3; }
+    .general-terms-article .term-subtitle { color: #3f4247; font-weight: 700; }
+    .general-terms-signature { break-inside: avoid; page-break-inside: avoid; height: 25mm; margin: 3mm .8mm 0; border-left: 1.8pt solid #d32632; border-radius: 0 1mm 1mm 0; background: #f1f1f2; padding: 3mm; display: flex; flex-direction: column; justify-content: flex-end; text-align: center; }
+    .general-terms-signature .sign-line { border-top: .4pt solid #8b8e93; color: #303236; padding-top: 1.5mm; font-size: 6.5pt; font-weight: 700; }
+    .general-terms-bottom-line { display: none; }
+    {% if theme == "modern" %}
+    body.theme-modern { color: #303236; }
+    .theme-modern .footer { width: 176mm; border-top: 1.2pt solid #d32632; color: #6a6d72; padding-top: 2.5mm; }
+    .theme-modern .footer .legal { color: #46494e; font-weight: 600; }
+    .theme-modern .continued-title { color: #303236; border-bottom: 1.4pt solid #d32632; letter-spacing: .15pt; }
+    .theme-modern .continued-header .sub { color: #8b8e93; }
+    .theme-modern .doc-head { grid-template-columns: 57% 43%; min-height: 39mm; border-top: 0; padding-top: 4mm; }
+    .theme-modern .company { grid-template-columns: 31mm 1fr; column-gap: 5mm; line-height: 1.38; }
+    .theme-modern .company-logo { max-height: 17mm; }
+    .theme-modern .company-details strong { color: #303236; font-size: 10.8pt; letter-spacing: .15pt; }
+    .theme-modern .company-details .muted { color: #7d8085; }
+    .theme-modern .doc-info { background: #303236; color: #fff; border-left: 2.5mm solid #d32632; border-radius: 1.6mm; min-height: 29mm; padding: 3.5mm 4mm; }
+    .theme-modern.is-approved .doc-head { min-height: 29mm; }
+    .theme-modern.is-approved .doc-info { align-self: start; min-height: 0; padding: 3mm 4mm 2.5mm; }
+    .theme-modern .doc-title { display: block; border: 0; font-size: 15pt; padding: 0; letter-spacing: .2pt; }
+    .theme-modern .page-label { color: #d0d1d3; letter-spacing: .8pt; }
+    .theme-modern .status { display: inline-block; color: #9f1d27; background: #fff0f1; border: .45pt solid #f2b9bd; border-radius: 1.4mm; font-size: 10.5pt; letter-spacing: .4pt; margin-top: 6mm; padding: 1.5mm 3mm; }
+    .theme-modern .meta { background: #f3f3f3; border: 0; border-left: 1.8pt solid #d32632; margin-top: 2mm; padding: 2.2mm 2.5mm; border-radius: 0 1.2mm 1.2mm 0; }
+    .theme-modern .meta.second { grid-template-columns: 34mm 55mm 1fr; gap: 3mm; background: #f8f8f8; border-left-color: #abadb0; margin-top: 1mm; padding-top: 2.2mm; }
+    .theme-modern .meta .label { color: #55585d; font-size: 7.8pt; font-weight: 600; }
+    .theme-modern .meta .sub { color: #929498; }
+    .theme-modern .items { margin-top: 2.5mm; }
+    .theme-modern .items th { color: #fff; background: #3a3d42; border-bottom: 0; padding: 1.7mm 1.2mm 1.2mm; }
+    .theme-modern .items th:first-child { border-radius: 1.2mm 0 0 1.2mm; }
+    .theme-modern .items th:last-child { border-radius: 0 1.2mm 1.2mm 0; }
+    .theme-modern .items th .sub { color: #d0d1d3; }
+    .theme-modern .items td { padding-top: 4.2mm; }
+    .theme-modern .article-group > tr:first-child > td { border-top: .35pt solid #dedede; }
+    .theme-modern .article-group:first-of-type > tr:first-child > td { border-top: 0; }
+    .theme-modern .article-title { color: #303236; letter-spacing: .05pt; }
+    .theme-modern .technical-description { color: #56595e; }
+    .theme-modern .plus-value { color: #484b50; background: #f5f5f5; border: 0; border-left: 2.2pt solid #d32632; border-radius: 0 1.5mm 1.5mm 0; padding: 2.5mm 3mm; }
+    .theme-modern .plus-value .name { color: #9f1d27; text-transform: uppercase; font-size: 7.2pt; letter-spacing: .5pt; }
+    .theme-modern .totals-zone { background: #f4f4f4; border-top: 2pt solid #d32632; border-radius: 0 0 1.5mm 1.5mm; margin-top: 4mm; padding: 2mm 3mm 3mm; }
+    .theme-modern .totals { width: 55%; margin-top: 0; }
+    .theme-modern .totals tr:first-child td { border-top: 0; }
+    .theme-modern .totals td { padding: 1.7mm 2mm; }
+    .theme-modern .grand-totals tr:last-child td { color: #fff; background: #303236; padding-top: 2mm; padding-bottom: 2mm; }
+    .theme-modern .pro-rata { background: #fff; border: .45pt solid #d8d8d8; border-left: 1.8pt solid #d32632; margin: 2mm 0; padding: 3mm 2mm 3mm 8%; }
+    .theme-modern .totals-bottom { display: grid; grid-template-columns: 43% 55%; gap: 2%; align-items: end; margin-top: 2mm; }
+    .theme-modern .grand-totals-wrap { width: 100%; align-self: end; }
+    .theme-modern .grand-totals-wrap .grand-totals { width: 100%; margin: 0; }
+    .theme-modern .signature-in-totals { width: auto; min-height: 36mm; margin: 0; padding: 3mm; color: #3f4247; background: #fff; border-radius: 1.2mm; display: flex; flex-direction: column; justify-content: flex-end; }
+    .theme-modern .signature-in-totals .line { border-top: 0; padding-top: 0; }
+    .theme-modern .signature-in-totals p { margin: 1.5mm 0 0; }
+    {% endif %}
+  </style>
+</head>
+<body class="theme-{{ theme }}{% if approved %} is-approved{% else %} is-unapproved{% endif %}">
+  <div class="footer"><div class="legal">N° TVA Intracom.: {{ company.vat }} &nbsp;&nbsp;&nbsp; N° Siret : {{ company.siret }} &nbsp;&nbsp;&nbsp; Capital Social : {{ company.capital }}</div><div class="branches"><div><strong>GR 360 Flooring Systems</strong><br>{{ company.address }}<br>{{ company.postal_city }}</div><div>FRANCE : HSOLS France<br>ALLEMAGNE : HSOLS Industriefussboden<br>PORTUGAL : BetãoConcept</div><div>ESPAGNE : MG SOLERAS Industriales<br>MAROC : HSOLS Sarlau<br>SUISSE : HSOLS Schweiz</div></div></div>
+  <div class="continued-header">
+    <div class="continued-title">Devis N° {{ document.header.number }}</div>
+    <div class="continued-grid"><div>N° Client: &nbsp; {{ document.header.client_number }}<div class="sub">Client Nr.:</div></div><div>Client: &nbsp; <strong>{{ document.header.client_name }}</strong><div class="sub">Client:</div></div><div>Date: &nbsp; {{ fmt_date(document.header.date) }}<div class="sub">Date:</div></div></div>
+    <div class="continued-grid"><div>Chargé d’Affaires: &nbsp; {{ document.header.salesperson }}<div class="sub">Salesman:</div></div><div>Chantier: &nbsp; {{ document.header.work_name }}{% if document.header.locality %} | {{ document.header.locality }}{% endif %}<div class="sub">Construction Site:</div></div></div>
+  </div>
+  <div class="doc-head">
+    <div class="company">{% if logo and logo.b64 %}<img class="company-logo" alt="{{ company.name }}" src="data:{{ logo.mime }};base64,{{ logo.b64 }}">{% endif %}<div class="company-details"><strong>{{ company.name }}</strong><br>{{ company.address }}<br>{{ company.postal_city }}<br>{{ company.phone }}<br><span class="muted">E-mail:</span> {{ company.email }}</div></div>
+    <div class="doc-info"><div class="doc-title">Devis N° {{ document.header.number }}</div><div class="page-label">ORIGINAL</div>{% if not approved %}<div class="status">NON APPROUVÉ</div>{% endif %}</div>
+  </div>
+  <div class="meta"><div><span class="label">Chargé d’Affaires:</span> {{ document.header.salesperson }}<div class="sub">Salesman:</div></div><div><span class="label">Chantier:</span> {{ document.header.work_name }}{% if document.header.locality %} | {{ document.header.locality }}{% endif %}<div class="sub">Construction Site:</div></div><div><span class="label">Date:</span> {{ fmt_date(document.header.date) }}<div class="sub">Date:</div></div></div>
+  <div class="meta second"><div><span class="label">N° Client:</span> {{ document.header.client_number }}<div class="sub">Client Nr.:</div></div><div><span class="label">Client:</span> <strong>{{ document.header.client_name }}</strong><div class="sub">Client:</div></div><div class="address-meta"><div><span class="label">Adresse:</span><div class="sub">Address:</div></div><div class="address-lines">{{ document.header.address }}{% if document.header.postal_code or document.header.place %}<br>{{ document.header.postal_code }} {{ document.header.place }}{% endif %}</div></div></div>
+  <table class="items"><thead><tr><th class="col-item">Article<span class="sub">Item</span></th><th class="col-desc">Designation<span class="sub">Description</span></th><th class="col-q num">Qté.<span class="sub">Qty</span></th><th class="col-unit">Un.<span class="sub">Un.</span></th><th class="col-price num">P.U.H.T<span class="sub">Unit Price</span></th><th class="col-total num">Total H.T.<span class="sub">Net Amount</span></th></tr></thead>
+  {% for article in document.articles %}<tbody class="article-group"><tr><td class="col-item">{{ article.item_label }}</td><td class="col-desc"><div class="article-title">{{ article.designation }}</div>{% if article.technical_lines %}<div class="technical-description">{% for technical in article.technical_lines %}<div>{{ technical.designation }}</div>{% endfor %}</div>{% endif %}</td><td class="col-q num">{{ fmt_quantity(article.quantity) }}</td><td class="col-unit">{{ article.unit }}</td><td class="col-price num">{{ fmt_money(article.unit_price) }}</td><td class="col-total num">{{ fmt_money(article.total) }}</td></tr>{% for pv in article.plus_values %}<tr class="plus-row"><td></td><td colspan="5"><div class="plus-value"><div><span class="name">{{ pv.adjustment_label or "PLUS-VALUE" }}</span><br>{{ pv.description or pv.designation }}</div><div class="num">{{ fmt_quantity(article.quantity) }}</div><div>{{ article.unit }}</div><div class="num">{{ fmt_money(pv.unit_price) }}</div></div></td></tr>{% endfor %}</tbody>{% endfor %}
+  </table>
+  <div class="totals-zone">
+    <table class="totals"><tr><td class="label">Total HT :<div class="sub">Amount:</div></td><td class="strong">{{ fmt_money(document.totals.commercial_total) }}</td></tr></table>
+    {% for line in document.pro_rata %}<div class="pro-rata"><div><strong>PRORATA{% if line.discount_1 %} ({{ fmt_money(line.discount_1) }}%){% endif %}</strong></div><div class="num">{{ fmt_quantity(line.quantity) }}</div><div>{{ line.unit }}</div><div class="num">{{ fmt_money(line.total) }}</div></div>{% endfor %}
+    <div class="totals-bottom">
+      {% if theme == "modern" %}<div class="signature signature-in-totals"><div class="line">Signature</div><p>l'acceptation du devis par le Client vaut acceptation,<br>compréhension et lecture des CGVE jointes.</p></div>{% endif %}
+      <div class="grand-totals-wrap"><table class="totals grand-totals"><tr><td class="label">Total HT NET:<div class="sub">Net Amount:</div></td><td class="strong">{{ fmt_money(document.totals.net_total) }}</td></tr>{% for tax in document.vat_rows %}<tr><td class="label">TVA:<div class="sub">VAT: {{ fmt_money(tax.rate) }}%</div></td><td>{{ fmt_money(tax.amount) }}</td></tr>{% endfor %}<tr><td class="label strong">TOTAL TTC:</td><td class="strong">{{ fmt_money(document.totals.gross_total) }}</td></tr></table></div>
+    </div>
+  </div>
+  {% if theme == "classic" %}<div class="signature"><div class="line">Signature</div><p>l'acceptation du devis par le Client vaut acceptation,<br>compréhension et lecture des CGVE jointes.</p></div>{% endif %}
+  {% include "gr_budgets/conditions_generales.html" %}
+</body></html>

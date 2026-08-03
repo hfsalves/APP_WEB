@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from flask import Blueprint, jsonify, render_template, request
+from flask import Blueprint, Response, jsonify, render_template, request
 from flask_login import current_user, login_required
 
 from models import Acessos, db
@@ -9,10 +9,17 @@ from modules.gr_subcontractor_measurements.service import SubcontractorMeasureme
 from .service import (
     BudgetsError,
     get_budget_detail,
+    get_budget_detail_by_number,
+    get_budget_line_oci,
+    get_budget_salespeople,
     get_budget_series,
+    get_budget_technical_options,
     list_budgets,
+    render_budget_pdf_html,
     list_companies_for_user,
+    search_budget_clients,
 )
+from services.ft_pdf_service import generate_ft_pdf_bytes, generate_ft_pdf_bytes_xhtml2pdf
 
 
 bp = Blueprint(
@@ -87,6 +94,68 @@ def api_series():
         return _handle_error(exc)
 
 
+@bp.route("/api/gr_orcamentos/comerciais")
+@login_required
+def api_salespeople():
+    if not _has_acl():
+        return _forbidden()
+    try:
+        return jsonify({"ok": True, **get_budget_salespeople(request.args.get("feid"), current_user)})
+    except Exception as exc:
+        return _handle_error(exc)
+
+
+@bp.route("/api/gr_orcamentos/clientes")
+@login_required
+def api_clients():
+    if not _has_acl():
+        return _forbidden()
+    try:
+        return jsonify(
+            {
+                "ok": True,
+                **search_budget_clients(
+                    request.args.get("feid"),
+                    request.args.get("q") or "",
+                    current_user,
+                ),
+            }
+        )
+    except Exception as exc:
+        return _handle_error(exc)
+
+
+@bp.route("/api/gr_orcamentos/opcoes-tecnicas")
+@login_required
+def api_technical_options():
+    if not _has_acl():
+        return _forbidden()
+    try:
+        return jsonify({"ok": True, **get_budget_technical_options(request.args.get("feid"), current_user)})
+    except Exception as exc:
+        return _handle_error(exc)
+
+
+@bp.route("/api/gr_orcamentos/oci")
+@login_required
+def api_line_oci():
+    if not _has_acl():
+        return _forbidden()
+    try:
+        return jsonify(
+            {
+                "ok": True,
+                **get_budget_line_oci(
+                    request.args.get("feid"),
+                    request.args.get("bistamp") or "",
+                    current_user,
+                ),
+            }
+        )
+    except Exception as exc:
+        return _handle_error(exc)
+
+
 @bp.route("/api/gr_orcamentos/orcamentos")
 @login_required
 def api_budgets():
@@ -117,3 +186,73 @@ def api_budget_detail():
     except Exception as exc:
         return _handle_error(exc)
 
+
+@bp.route("/api/gr_orcamentos/orcamento/<bostamp>/pdf/html")
+@login_required
+def api_budget_pdf_html(bostamp):
+    if not _has_acl():
+        return _forbidden()
+    try:
+        detail = get_budget_detail(request.args.get("feid"), bostamp, current_user)
+        return Response(
+            render_budget_pdf_html(detail, request.args.get("style")),
+            content_type="text/html; charset=utf-8",
+            headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"},
+        )
+    except Exception as exc:
+        return _handle_error(exc)
+
+
+@bp.route("/api/gr_orcamentos/orcamento/<bostamp>/pdf")
+@login_required
+def api_budget_pdf(bostamp):
+    if not _has_acl():
+        return _forbidden()
+    try:
+        detail = get_budget_detail(request.args.get("feid"), bostamp, current_user)
+        html = render_budget_pdf_html(detail, request.args.get("style"))
+        try:
+            pdf_bytes = generate_ft_pdf_bytes(html)
+            engine = "weasy/chrome"
+        except Exception:
+            pdf_bytes = generate_ft_pdf_bytes_xhtml2pdf(html)
+            engine = "xhtml2pdf-fallback"
+        number = int((detail.get("header") or {}).get("number") or 0)
+        return Response(
+            pdf_bytes,
+            content_type="application/pdf",
+            headers={
+                "Content-Disposition": f'inline; filename="Devis_{number or bostamp}.pdf"',
+                "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+                "X-PDF-Engine": engine,
+            },
+        )
+    except Exception as exc:
+        return _handle_error(exc)
+
+
+@bp.route("/api/gr_orcamentos/devis/<int:number>/pdf")
+@login_required
+def api_budget_pdf_by_number(number):
+    if not _has_acl():
+        return _forbidden()
+    try:
+        detail = get_budget_detail_by_number(request.args.get("feid"), number, request.args.get("year"), current_user)
+        html = render_budget_pdf_html(detail, request.args.get("style"))
+        try:
+            pdf_bytes = generate_ft_pdf_bytes(html)
+            engine = "weasy/chrome"
+        except Exception:
+            pdf_bytes = generate_ft_pdf_bytes_xhtml2pdf(html)
+            engine = "xhtml2pdf-fallback"
+        return Response(
+            pdf_bytes,
+            content_type="application/pdf",
+            headers={
+                "Content-Disposition": f'inline; filename="Devis_{number}.pdf"',
+                "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+                "X-PDF-Engine": engine,
+            },
+        )
+    except Exception as exc:
+        return _handle_error(exc)

@@ -308,8 +308,10 @@ def build_qr_base64(payload: str) -> str:
     return base64.b64encode(buf.getvalue()).decode("ascii")
 
 
-def build_logo_payload(rel_path: str = "static/images/guestspa.png") -> dict:
-    fallback_path = "static/images/guestspa.png"
+def build_logo_payload(
+    rel_path: str = "static/images/guestspa.png",
+    fallback_path: str = "static/images/guestspa.png",
+) -> dict:
     mime_map = {
         ".png": "image/png",
         ".jpg": "image/jpeg",

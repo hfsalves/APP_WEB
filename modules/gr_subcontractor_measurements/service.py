@@ -1326,7 +1326,7 @@ def create_measurement_auto(payload: dict[str, Any], user) -> dict[str, Any]:
                     "ref": _text_value(source.get("REF")),
                     "design": _text_value(source.get("DESIGN"))[:60],
                     "qtt": line["qty"],
-                    "qtt2": line["qty"],
+                    "qtt2": Decimal("0"),
                     "unidade": _text_value(source.get("UNIDADE")),
                     "pu": source.get("PU") if source.get("PU") is not None else _phc_value(line["unit_price"]),
                     "debito": source.get("DEBITO") if source.get("DEBITO") is not None else _phc_value(line["unit_price"]),
