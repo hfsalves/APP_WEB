@@ -61,6 +61,7 @@ class BudgetPdfTests(unittest.TestCase):
         for i, (designation, quantity, price, total) in enumerate(specs, 1):
             line = self._line(str(i), "DTI", total, quantity=quantity, price=price)
             line["designation"] = designation
+            line["description"] = designation
             lines.append(line)
         technical = {
             "1": ["Bande de désolidarisation périphérique - épaisseur 1cm", "Film Polyane type 200 microns", "Protection des murs et des poteaux", "Armatures de renfort au niveau des angles rentrants", "JOINT DE CONSTRUCTION SINUSOIDAL", "C 30/37 - XF1 - CEM III - S4", "DURCISSEUR A BASE DE CORINDON", "Finition lissée", "Fibres métalliques BEKAERT à raison de 40 kg/m3", "Protection contre dessication rapide béton par produit cure", "Contrôle béton par un laboratoire indépendant", "COFFRAGE DE RIVES COMPRIS CORNIERES DE RIVES"],
@@ -98,6 +99,20 @@ class BudgetPdfTests(unittest.TestCase):
         self.assertEqual(document["totals"]["net_total"], 1069623.24)
         self.assertEqual(document["totals"]["vat_total"], 213924.65)
         self.assertEqual(document["totals"]["gross_total"], 1283547.89)
+
+    def test_main_item_description_prefers_bi_dgeral(self):
+        detail = self._detail_1415()
+        detail["lines"][0]["designation"] = "BI.DESIGN - catálogo"
+        detail["lines"][0]["description"] = "BI.DGERAL - descrição comercial impressa"
+
+        document = budget_print_payload(detail)
+        self.assertEqual(document["articles"][0]["designation"], "BI.DGERAL - descrição comercial impressa")
+
+        app = Flask(__name__, template_folder="../modules/gr_budgets/templates")
+        with app.app_context():
+            html = render_budget_pdf_html(detail)
+        self.assertIn("BI.DGERAL - descrição comercial impressa", html)
+        self.assertNotIn("BI.DESIGN - catálogo", html)
 
     def test_mvl_prints_as_moins_value_and_pvl_as_plus_value(self):
         detail = self._detail_1415()

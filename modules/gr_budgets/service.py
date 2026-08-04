@@ -991,6 +991,9 @@ def budget_print_payload(detail: dict[str, Any]) -> dict[str, Any]:
             pro_rata.append(line)
             continue
         article = dict(line)
+        # The commercial description printed on a budget is the snapshot kept
+        # in BI.DGERAL. BI.DESIGN is only the catalogue/designation fallback.
+        article["designation"] = _text_value(article.get("description")) or _text_value(article.get("designation"))
         if "ZZ" in {
             _text_value(article.get("reference")).upper(),
             _text_value(article.get("item_label")).upper(),
