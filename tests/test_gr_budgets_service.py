@@ -4,6 +4,7 @@ import unittest
 from unittest.mock import patch
 
 from modules.gr_budgets.service import (
+    _article_designation_expression,
     _client_payload,
     _budget_is_in_preparation,
     _budget_visibility_predicate,
@@ -21,6 +22,7 @@ from modules.gr_budgets.service import (
     _plus_value_payload,
     _salesperson_payload,
     _totals_payload,
+    _uses_portuguese_component_designations,
     _revision_token,
     _series_name_key,
     _series_rows,
@@ -276,6 +278,40 @@ class BudgetPayloadTests(unittest.TestCase):
         self.assertEqual(family["article_count"], 3)
         self.assertEqual(component["purchase_price"], 2.0)
         self.assertEqual(component["formula"], "PRIX FIXE")
+
+    def test_betaoconcept_uses_portuguese_article_designations(self):
+        company = {"name": "BetãoConcept", "phc_db": "HSOLS_PT"}
+        columns = {"design", "lang1", "langdes1", "lang2", "langdes2"}
+
+        expression = _article_designation_expression(company, columns)
+
+        self.assertTrue(_uses_portuguese_component_designations(company))
+        self.assertIn("S.[LANG1]", expression)
+        self.assertIn("S.[LANGDES1]", expression)
+        # PHC stores this value as "Portugais" in HSOLS_PT, while older
+        # records may contain "Portugues". Both must resolve to LANGDESn.
+        self.assertIn("LIKE 'PORTUG%'", expression)
+        self.assertTrue(expression.endswith(", S.[DESIGN])"))
+
+    def test_other_companies_keep_the_standard_article_designation(self):
+        company = {"name": "H Solutions France", "phc_db": "HSOLS_FR"}
+        columns = {"design", "lang1", "langdes1"}
+
+        self.assertFalse(_uses_portuguese_component_designations(company))
+        self.assertEqual(_article_designation_expression(company, columns), "S.[DESIGN]")
+
+    def test_existing_oci_row_prefers_resolved_article_designation(self):
+        row = _oci_payload(
+            {
+                "OCISTAMP": "OCI1",
+                "REF": "COMP1",
+                "ARTICLE_DESIGN": "Descrição portuguesa",
+                "U_DESIGN": "Description française",
+                "DESIGN": "Description française",
+            }
+        )
+
+        self.assertEqual(row["designation"], "Descrição portuguesa")
 
     def test_maps_plus_value_bi_as_technical_grid_row(self):
         row = _plus_value_payload(

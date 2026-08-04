@@ -1,64 +1,464 @@
 {% extends "base.html" %}
-{% block title %}Configura&ccedil;&atilde;o de Escalas{% endblock %}
+{% block title %}Configuração de Escalas{% endblock %}
 
 {% block content %}
-<div class="card">
-  <div class="card-body">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-      <h5 class="m-0">Escalas</h5>
-      <button class="btn btn-primary" id="btnAddEscala"><i class="fa-solid fa-plus me-1"></i>Nova Escala</button>
-    </div>
-    <div class="table-responsive" id="escTableWrap">
-      <table class="table table-sm align-middle" id="escTable">
-        <thead id="escHead"></thead>
-        <tbody id="escBody"></tbody>
-      </table>
-    </div>
+<div class="sz_page escalas-page">
+  <div class="sz_page_container escalas-container">
+    <header class="sz_contextbar sz_page_contextbar escalas-contextbar">
+      <div class="sz_contextbar_left escalas-contextbar-left">
+        <div class="sz_breadcrumbs">Configuração</div>
+        <div class="sz_page_title">Escalas</div>
+        <div class="sz_page_subtitle">Calendário de folgas por padrão e utilizadores associados.</div>
+      </div>
+      <div class="sz_contextbar_right escalas-contextbar-right">
+        <div class="escalas-stat">
+          <span>Escalas</span>
+          <strong id="escTotalEscalas">0</strong>
+        </div>
+        <div class="escalas-stat">
+          <span>Utilizadores</span>
+          <strong id="escTotalUsers">0</strong>
+        </div>
+        <button class="sz_button sz_button_primary" id="btnAddEscala" type="button">
+          <i class="fa-solid fa-plus"></i>
+          <span>Nova Escala</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="sz_page_body escalas-body">
+      <section class="sz_panel escalas-panel">
+        <div class="escalas-toolbar">
+          <div>
+            <div class="escalas-section-title">Mapa de escalas</div>
+            <div class="sz_text_muted">Clique num dia para alternar folga.</div>
+          </div>
+          <div class="escalas-legend" aria-label="Legenda">
+            <span><i class="escalas-legend-dot work"></i> Trabalho</span>
+            <span><i class="escalas-legend-dot off"></i> Folga</span>
+            <span><i class="escalas-legend-dot weekend"></i> Fim de semana</span>
+          </div>
+        </div>
+
+        <div class="sz_table_wrap escalas-table-wrap" id="escTableWrap">
+          <table class="sz_table escalas-table" id="escTable">
+            <thead class="sz_table_head" id="escHead"></thead>
+            <tbody id="escBody">
+              <tr>
+                <td class="sz_table_cell escalas-empty" colspan="3">A carregar...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
   </div>
 </div>
 
-<!-- Modal nova escala -->
-<div class="modal fade" id="escModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Nova Escala</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
-      </div>
-      <div class="modal-body">
-        <div class="mb-3">
-          <label class="form-label">Nome da escala</label>
-          <input type="text" class="form-control" id="escNome" placeholder="Ex.: Semanal A" />
+<div class="modal fade escalas-modal" id="escModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content sz_panel">
+      <div class="modal-header sz_modal_header">
+        <div>
+          <h5 class="modal-title sz_modal_title">Nova Escala</h5>
+          <div class="sz_text_muted">Cria o padrão e depois marca os dias de folga na grelha.</div>
         </div>
-        <div class="mb-2">
-          <label class="form-label">N&uacute;mero de dias</label>
-          <input type="number" min="1" max="366" class="form-control" id="escDias" value="7" />
-        </div>
+        <button type="button" class="sz_button sz_button_ghost escalas-close-btn" data-bs-dismiss="modal" aria-label="Fechar">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
       </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-cancel" data-bs-dismiss="modal">Cancelar</button>
-        <button type="button" class="btn btn-primary" id="escSave">Gravar</button>
+      <div class="modal-body sz_modal_body">
+        <label class="sz_field" for="escNome">
+          <span class="sz_label">Nome da escala</span>
+          <input type="text" class="sz_input" id="escNome" placeholder="Ex.: Semanal A">
+        </label>
+        <label class="sz_field" for="escDias">
+          <span class="sz_label">Número de dias</span>
+          <input type="number" min="1" max="366" class="sz_input" id="escDias" value="7">
+        </label>
+      </div>
+      <div class="modal-footer sz_modal_footer">
+        <button type="button" class="sz_button sz_button_ghost" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="sz_button sz_button_primary" id="escSave">
+          <i class="fa-solid fa-floppy-disk"></i>
+          <span>Gravar</span>
+        </button>
       </div>
     </div>
   </div>
 </div>
 
 <style>
-  .esc-day { width: 28px; text-align: center; cursor: pointer; }
-  .esc-day.disabled { background: #f8f9fa; cursor: default; }
-  .esc-day.folga { background: #fee2e2; color: #b91c1c; font-weight: 600; }
-  .esc-actions { white-space: nowrap; }
-  /* Header day letters */
-  .wd-head { display:block; font-size:.7rem; color:#6c757d; font-weight:600; line-height:1; }
-  /* Vertical lines */
-  #escTable { border-collapse: separate; border-spacing: 0; }
-  #escTable thead th, #escTable tbody td { border-right:1px solid #e5e7eb; }
-  #escTable thead th:first-child, #escTable tbody td:first-child { border-left:1px solid #e5e7eb; }
-  #escTable thead th:last-child, #escTable tbody td:last-child { border-right:0; }
-  #escTable thead th { border-bottom:1px solid #e5e7eb; }
-  /* Weekend columns */
-  #escTable thead th.sat-col, #escTable tbody td.sat-col { background:#f8fafc; }
-  #escTable thead th.sun-col, #escTable tbody td.sun-col { background:#fff7ed; }
+  .escalas-page {
+    min-height: 100%;
+    background: var(--sz-color-bg-main);
+    color: var(--sz-color-text);
+  }
+
+  .escalas-container {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: var(--sz-space-3);
+  }
+
+  .escalas-contextbar-left {
+    flex: 1 1 420px;
+    min-width: 260px;
+  }
+
+  .escalas-contextbar-right {
+    flex: 0 0 auto;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: var(--sz-space-2);
+  }
+
+  .escalas-stat {
+    display: grid;
+    gap: 0.1rem;
+    min-width: 7.5rem;
+    padding: 0.55rem 0.75rem;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-sm);
+    background: color-mix(in srgb, var(--sz-color-surface) 92%, var(--sz-color-primary));
+  }
+
+  .escalas-stat span {
+    color: var(--sz-color-text-muted);
+    font-size: var(--sz-font-size-xs);
+    font-weight: var(--sz-font-weight-semibold);
+    text-transform: uppercase;
+  }
+
+  .escalas-stat strong {
+    color: var(--sz-color-text);
+    font-size: var(--sz-font-size-lg);
+    line-height: 1;
+  }
+
+  .escalas-body,
+  .escalas-panel {
+    min-height: 0;
+  }
+
+  .escalas-panel {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    overflow: hidden;
+  }
+
+  .escalas-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sz-space-3);
+    padding: var(--sz-space-3);
+    border-bottom: 1px solid var(--sz-color-border);
+  }
+
+  .escalas-section-title {
+    color: var(--sz-color-text);
+    font-weight: var(--sz-font-weight-semibold);
+  }
+
+  .escalas-legend {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--sz-space-2);
+    flex-wrap: wrap;
+    color: var(--sz-color-text-muted);
+    font-size: var(--sz-font-size-xs);
+  }
+
+  .escalas-legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  .escalas-legend-dot {
+    width: 0.75rem;
+    height: 0.75rem;
+    border-radius: 999px;
+    border: 1px solid var(--sz-color-border);
+    background: var(--sz-color-surface-alt);
+  }
+
+  .escalas-legend-dot.work {
+    background: color-mix(in srgb, var(--sz-color-success) 16%, var(--sz-color-surface));
+    border-color: color-mix(in srgb, var(--sz-color-success) 50%, var(--sz-color-border));
+  }
+
+  .escalas-legend-dot.off {
+    background: color-mix(in srgb, var(--sz-color-danger) 16%, var(--sz-color-surface));
+    border-color: color-mix(in srgb, var(--sz-color-danger) 55%, var(--sz-color-border));
+  }
+
+  .escalas-legend-dot.weekend {
+    background: color-mix(in srgb, var(--sz-color-warning) 14%, var(--sz-color-surface));
+    border-color: color-mix(in srgb, var(--sz-color-warning) 48%, var(--sz-color-border));
+  }
+
+  .escalas-table-wrap {
+    min-height: 0;
+    overflow: auto;
+  }
+
+  .escalas-table {
+    min-width: max-content;
+    border-collapse: separate;
+    border-spacing: 0;
+    background: var(--sz-color-surface);
+  }
+
+  .escalas-table th,
+  .escalas-table td {
+    border-right: 1px solid var(--sz-color-border);
+    border-bottom: 1px solid var(--sz-color-border);
+    color: var(--sz-color-text);
+  }
+
+  .escalas-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: var(--sz-color-surface-alt) !important;
+    color: var(--sz-color-text-secondary) !important;
+    text-align: center;
+    font-size: var(--sz-font-size-xs);
+    letter-spacing: 0;
+    text-transform: none;
+  }
+
+  .escalas-table thead tr:nth-child(2) th {
+    top: 2rem;
+  }
+
+  .escalas-name-head,
+  .escalas-name-cell {
+    position: sticky;
+    left: 0;
+    z-index: 4;
+    min-width: 18rem;
+    max-width: 18rem;
+    background: var(--sz-color-surface) !important;
+  }
+
+  .escalas-name-head {
+    z-index: 5;
+    background: var(--sz-color-surface-alt) !important;
+    text-align: left !important;
+  }
+
+  .escalas-name-main {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sz-space-2);
+    margin-bottom: 0.35rem;
+  }
+
+  .escalas-name-title {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--sz-color-text);
+    font-weight: var(--sz-font-weight-semibold);
+  }
+
+  .escalas-count-badge {
+    flex: 0 0 auto;
+    padding: 0.1rem 0.45rem;
+    border: 1px solid var(--sz-color-border);
+    border-radius: 999px;
+    color: var(--sz-color-text-muted);
+    background: var(--sz-color-surface-alt);
+    font-size: var(--sz-font-size-xs);
+  }
+
+  .escalas-users {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    flex-wrap: wrap;
+  }
+
+  .escalas-user-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    min-width: 0;
+    max-width: 7.6rem;
+    padding: 0.12rem 0.45rem 0.12rem 0.25rem;
+    border: 1px solid var(--sz-color-border);
+    border-radius: 999px;
+    color: var(--sz-color-text-secondary);
+    background: color-mix(in srgb, var(--sz-color-surface-alt) 84%, var(--sz-color-primary));
+    font-size: var(--sz-font-size-xs);
+  }
+
+  .escalas-user-chip span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .escalas-user-dot {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 999px;
+    background: var(--sz-color-primary);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, #fff 35%, transparent);
+  }
+
+  .escalas-users-empty {
+    color: var(--sz-color-text-muted);
+    font-size: var(--sz-font-size-xs);
+  }
+
+  .escalas-day {
+    position: relative;
+    width: 2.25rem;
+    height: 2.05rem;
+    min-width: 2.25rem;
+    padding: 0 !important;
+    text-align: center;
+    vertical-align: middle;
+    cursor: pointer;
+    background: color-mix(in srgb, var(--sz-color-success) 8%, var(--sz-color-surface)) !important;
+    color: var(--sz-color-text-secondary) !important;
+    font-size: var(--sz-font-size-xs);
+    font-weight: var(--sz-font-weight-semibold);
+  }
+
+  .escalas-day:hover {
+    background: color-mix(in srgb, var(--sz-color-primary) 16%, var(--sz-color-surface)) !important;
+  }
+
+  .escalas-day.disabled {
+    cursor: default;
+    color: var(--sz-color-text-muted) !important;
+    background: color-mix(in srgb, var(--sz-color-surface-alt) 72%, transparent) !important;
+  }
+
+  .escalas-day.folga {
+    background: color-mix(in srgb, var(--sz-color-danger) 15%, var(--sz-color-surface)) !important;
+  }
+
+  .escalas-off-icon {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.32rem;
+    height: 1.32rem;
+    border: 1px solid color-mix(in srgb, var(--sz-color-danger) 58%, var(--sz-color-border));
+    border-radius: 999px;
+    color: var(--sz-color-danger);
+    background: color-mix(in srgb, var(--sz-color-danger) 12%, var(--sz-color-surface));
+    font-size: 0.68rem;
+    line-height: 1;
+    transform: translate(-50%, -50%);
+  }
+
+  .escalas-day.sat-col,
+  .escalas-table thead th.sat-col {
+    background: color-mix(in srgb, var(--sz-color-primary) 8%, var(--sz-color-surface)) !important;
+  }
+
+  .escalas-day.sun-col,
+  .escalas-table thead th.sun-col {
+    background: color-mix(in srgb, var(--sz-color-warning) 11%, var(--sz-color-surface)) !important;
+  }
+
+  .escalas-day.sat-col.folga,
+  .escalas-day.sun-col.folga {
+    background: color-mix(in srgb, var(--sz-color-danger) 18%, var(--sz-color-surface)) !important;
+  }
+
+  .escalas-actions {
+    position: sticky;
+    right: 0;
+    z-index: 4;
+    min-width: 3.4rem;
+    background: var(--sz-color-surface) !important;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  .escalas-actions-head {
+    position: sticky;
+    right: 0;
+    z-index: 5;
+    background: var(--sz-color-surface-alt) !important;
+  }
+
+  .escalas-icon-btn,
+  .escalas-close-btn {
+    width: var(--sz-button-height);
+    min-width: var(--sz-button-height);
+    padding-inline: 0;
+  }
+
+  .escalas-delete-btn {
+    color: var(--sz-color-danger);
+    border-color: color-mix(in srgb, var(--sz-color-danger) 48%, var(--sz-color-border));
+  }
+
+  .escalas-delete-btn:hover,
+  .escalas-delete-btn:focus-visible {
+    color: var(--sz-color-danger);
+    background: color-mix(in srgb, var(--sz-color-danger) 12%, transparent);
+    border-color: color-mix(in srgb, var(--sz-color-danger) 70%, var(--sz-color-border));
+  }
+
+  .wd-head {
+    display: block;
+    color: var(--sz-color-text-muted);
+    font-size: 0.68rem;
+    font-weight: var(--sz-font-weight-semibold);
+    line-height: 1;
+  }
+
+  .escalas-empty {
+    padding: var(--sz-space-4) !important;
+    text-align: center;
+    color: var(--sz-color-text-muted) !important;
+  }
+
+  .escalas-modal .modal-content {
+    color: var(--sz-color-text);
+    background: var(--sz-color-surface);
+  }
+
+  @media (max-width: 900px) {
+    .escalas-contextbar {
+      align-items: stretch;
+    }
+
+    .escalas-contextbar-left,
+    .escalas-contextbar-right,
+    .escalas-contextbar-right .sz_button {
+      width: 100%;
+      max-width: none;
+    }
+
+    .escalas-stat {
+      flex: 1 1 8rem;
+    }
+
+    .escalas-toolbar {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+  }
 </style>
 {% endblock %}
 
@@ -67,104 +467,203 @@
   let ESC_DATA = [];
   let MAX_DIAS = 0;
 
-  async function fetchEscalas(){
+  function escHtml(value) {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function safeColor(value) {
+    const color = String(value || '').trim();
+    return /^#[0-9a-f]{3,8}$/i.test(color) ? color : '';
+  }
+
+  function setStats() {
+    const totalEscalas = document.getElementById('escTotalEscalas');
+    const totalUsers = document.getElementById('escTotalUsers');
+    const userCount = ESC_DATA.reduce((sum, row) => sum + (Array.isArray(row.users) ? row.users.length : 0), 0);
+    if (totalEscalas) totalEscalas.textContent = String(ESC_DATA.length);
+    if (totalUsers) totalUsers.textContent = String(userCount);
+  }
+
+  async function fetchEscalas() {
+    const body = document.getElementById('escBody');
+    if (body) {
+      body.innerHTML = '<tr><td class="sz_table_cell escalas-empty" colspan="3">A carregar...</td></tr>';
+    }
     const res = await fetch('/api/escalas');
     const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || 'Erro ao carregar escalas');
     ESC_DATA = data.rows || [];
-    MAX_DIAS = Number(data.max_dias||0);
+    MAX_DIAS = Number(data.max_dias || 0);
     renderTable();
   }
 
-  function renderTable(){
-    const head = document.getElementById('escHead');
-    const body = document.getElementById('escBody');
-    // build head (two rows: letters + numbers)
-    const letters = ['S','T','Q','Q','S','S','D'];
-    const lettersRow = '<tr><th rowspan="2" style="min-width:220px;">Escala</th>'
-      + Array.from({length:MAX_DIAS}, (_,i)=>{
-          const dow = i % 7; const wk = dow>=5 ? (dow===5?' sat-col':' sun-col') : '';
-          return `<th class="text-center${wk}"><span class="wd-head">${letters[dow]}</span></th>`;
-        }).join('')
-      + '<th class="esc-actions" rowspan="2"></th></tr>';
-    const numsRow = '<tr>'
-      + Array.from({length:MAX_DIAS}, (_,i)=>{
-          const dow = i % 7; const wk = dow>=5 ? (dow===5?' sat-col':' sun-col') : '';
-          return `<th class="text-center${wk}" title="Dia ${i+1}">${i+1}</th>`;
-        }).join('')
-      + '</tr>';
-    head.innerHTML = lettersRow + numsRow;
-    // build rows
-    body.innerHTML = ESC_DATA.map(row=>{
-      const total = Number(row.total_dias||0);
-      const dias = row.dias || {};
-      const cells = Array.from({length:MAX_DIAS}, (_,i)=>{
-        const d=i+1; const active = d<=total; const folga = active && Number(dias[d]||0)===1;
-        const dow = (d-1) % 7; const wk = dow>=5 ? (dow===5?' sat-col':' sun-col') : '';
-        const cls = (!active? 'esc-day disabled' : ('esc-day'+(folga?' folga':''))) + wk;
-        const label = folga? 'F' : '';
-        return `<td class="${cls}" data-id="${row.id}" data-dia="${d}">${label}</td>`;
-      }).join('');
-      const actions = `<td class="esc-actions text-end"><button class="btn btn-sm btn-outline-danger esc-del" data-id="${row.id}"><i class="fa-solid fa-trash-can"></i></button></td>`;
-      return `<tr><td><strong>${row.escala}</strong></td>${cells}${actions}</tr>`;
+  function renderUsers(users) {
+    if (!Array.isArray(users) || !users.length) {
+      return '<span class="escalas-users-empty">Sem utilizadores ativos</span>';
+    }
+    return users.map((user) => {
+      const color = safeColor(user.cor);
+      const style = color ? ` style="background:${escHtml(color)}"` : '';
+      const label = user.nome || user.login || '';
+      const title = user.login && user.login !== label ? `${label} (${user.login})` : label;
+      return `<span class="escalas-user-chip" title="${escHtml(title)}"><i class="escalas-user-dot"${style}></i><span>${escHtml(label)}</span></span>`;
     }).join('');
   }
 
-  async function createEscala(nome, dias){
-    const res = await fetch('/api/escalas', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ escala:nome, dias }) });
-    const data = await res.json();
-    if(!(data && data.ok)) throw new Error(data && data.error ? data.error : 'Erro ao gravar escala');
+  function renderTable() {
+    const head = document.getElementById('escHead');
+    const body = document.getElementById('escBody');
+    setStats();
+    if (!head || !body) return;
+    if (!ESC_DATA.length) {
+      head.innerHTML = '';
+      body.innerHTML = '<tr><td class="sz_table_cell escalas-empty" colspan="3">Sem escalas configuradas.</td></tr>';
+      return;
+    }
+
+    const letters = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'];
+    const lettersRow = '<tr><th class="escalas-name-head" rowspan="2">Escala e utilizadores</th>'
+      + Array.from({ length: MAX_DIAS }, (_, i) => {
+        const dow = i % 7;
+        const wk = dow >= 5 ? (dow === 5 ? ' sat-col' : ' sun-col') : '';
+        return `<th class="${wk}"><span class="wd-head">${letters[dow]}</span></th>`;
+      }).join('')
+      + '<th class="escalas-actions-head" rowspan="2"></th></tr>';
+    const numsRow = '<tr>'
+      + Array.from({ length: MAX_DIAS }, (_, i) => {
+        const dow = i % 7;
+        const wk = dow >= 5 ? (dow === 5 ? ' sat-col' : ' sun-col') : '';
+        return `<th class="${wk}" title="Dia ${i + 1}">${i + 1}</th>`;
+      }).join('')
+      + '</tr>';
+    head.innerHTML = lettersRow + numsRow;
+
+    body.innerHTML = ESC_DATA.map((row) => {
+      const total = Number(row.total_dias || 0);
+      const dias = row.dias || {};
+      const users = Array.isArray(row.users) ? row.users : [];
+      const cells = Array.from({ length: MAX_DIAS }, (_, i) => {
+        const d = i + 1;
+        const active = d <= total;
+        const folga = active && Number(dias[d] || 0) === 1;
+        const dow = (d - 1) % 7;
+        const wk = dow >= 5 ? (dow === 5 ? ' sat-col' : ' sun-col') : '';
+        const cls = `escalas-day${active ? '' : ' disabled'}${folga ? ' folga' : ''}${wk}`;
+        const label = folga ? '<span class="escalas-off-icon" aria-hidden="true"><i class="fa-solid fa-moon"></i></span>' : '';
+        const title = active ? `${escHtml(row.escala)} · dia ${d}${folga ? ' · folga' : ''}` : 'Fora do padrão desta escala';
+        return `<td class="${cls}" data-id="${escHtml(row.id)}" data-dia="${d}" title="${title}">${label}</td>`;
+      }).join('');
+      const actions = `<td class="sz_table_cell escalas-actions"><button class="sz_button sz_button_ghost escalas-icon-btn escalas-delete-btn esc-del" type="button" data-id="${escHtml(row.id)}" title="Eliminar escala" aria-label="Eliminar escala"><i class="fa-solid fa-trash-can"></i></button></td>`;
+      return `
+        <tr class="sz_table_row">
+          <td class="sz_table_cell escalas-name-cell">
+            <div class="escalas-name-main">
+              <span class="escalas-name-title" title="${escHtml(row.escala || '')}">${escHtml(row.escala || '')}</span>
+              <span class="escalas-count-badge">${users.length}</span>
+            </div>
+            <div class="escalas-users">${renderUsers(users)}</div>
+          </td>
+          ${cells}
+          ${actions}
+        </tr>`;
+    }).join('');
   }
 
-  async function deleteEscala(id){
-    const res = await fetch(`/api/escalas/${encodeURIComponent(id)}`, { method:'DELETE' });
+  async function createEscala(nome, dias) {
+    const res = await fetch('/api/escalas', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ escala: nome, dias })
+    });
     const data = await res.json();
-    if(!(data && data.ok)) throw new Error(data && data.error ? data.error : 'Erro ao eliminar');
+    if (!(data && data.ok)) throw new Error(data && data.error ? data.error : 'Erro ao gravar escala');
   }
 
-  async function toggleDia(id, dia){
-    const res = await fetch(`/api/escalas/${encodeURIComponent(id)}/toggle`, { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ dia }) });
+  async function deleteEscala(id) {
+    const res = await fetch(`/api/escalas/${encodeURIComponent(id)}`, { method: 'DELETE' });
     const data = await res.json();
-    if(!(data && data.ok)) throw new Error(data && data.error ? data.error : 'Erro ao atualizar');
-    return Number(data.folga||0);
+    if (!(data && data.ok)) throw new Error(data && data.error ? data.error : 'Erro ao eliminar');
   }
 
-  document.addEventListener('DOMContentLoaded', ()=>{
-    fetchEscalas();
+  async function toggleDia(id, dia) {
+    const res = await fetch(`/api/escalas/${encodeURIComponent(id)}/toggle`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dia })
+    });
+    const data = await res.json();
+    if (!(data && data.ok)) throw new Error(data && data.error ? data.error : 'Erro ao atualizar');
+    return Number(data.folga || 0);
+  }
 
-    document.getElementById('btnAddEscala').addEventListener('click', ()=>{
+  document.addEventListener('DOMContentLoaded', () => {
+    fetchEscalas().catch((error) => {
+      const body = document.getElementById('escBody');
+      if (body) {
+        body.innerHTML = `<tr><td class="sz_table_cell escalas-empty" colspan="3">${escHtml(error.message || 'Erro ao carregar escalas.')}</td></tr>`;
+      }
+    });
+
+    document.getElementById('btnAddEscala')?.addEventListener('click', () => {
       const el = document.getElementById('escModal');
-      if(window.bootstrap && el){ bootstrap.Modal.getOrCreateInstance(el).show(); }
+      if (window.bootstrap && el) bootstrap.Modal.getOrCreateInstance(el).show();
     });
 
-    document.getElementById('escSave').addEventListener('click', async ()=>{
-      const nome = (document.getElementById('escNome').value||'').trim();
-      const dias = Number(document.getElementById('escDias').value||0);
-      if(!nome || !dias){ alert('Indique o nome e o número de dias.'); return; }
-      try{
-        await createEscala(nome, dias);
-        bootstrap.Modal.getOrCreateInstance(document.getElementById('escModal')).hide();
-        document.getElementById('escNome').value='';
-        document.getElementById('escDias').value='7';
-        await fetchEscalas();
-      }catch(e){ alert(e.message||'Erro a gravar'); }
-    });
-
-    document.getElementById('escBody').addEventListener('click', async (ev)=>{
-      const del = ev.target.closest('.esc-del');
-      if(del){
-        const id = del.dataset.id; if(!id) return;
-        if(!confirm('Eliminar esta escala?')) return;
-        try{ await deleteEscala(id); await fetchEscalas(); }catch(e){ alert(e.message||'Erro a eliminar'); }
+    document.getElementById('escSave')?.addEventListener('click', async () => {
+      const nome = (document.getElementById('escNome')?.value || '').trim();
+      const dias = Number(document.getElementById('escDias')?.value || 0);
+      if (!nome || !dias) {
+        alert('Indique o nome e o número de dias.');
         return;
       }
-      const cell = ev.target.closest('.esc-day');
-      if(!cell || cell.classList.contains('disabled')) return;
-      const id = cell.dataset.id; const dia = Number(cell.dataset.dia||0);
-      try{
+      try {
+        await createEscala(nome, dias);
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('escModal')).hide();
+        document.getElementById('escNome').value = '';
+        document.getElementById('escDias').value = '7';
+        await fetchEscalas();
+      } catch (e) {
+        alert(e.message || 'Erro a gravar');
+      }
+    });
+
+    document.getElementById('escBody')?.addEventListener('click', async (ev) => {
+      const del = ev.target.closest('.esc-del');
+      if (del) {
+        const id = del.dataset.id;
+        if (!id) return;
+        if (!confirm('Eliminar esta escala?')) return;
+        try {
+          await deleteEscala(id);
+          await fetchEscalas();
+        } catch (e) {
+          alert(e.message || 'Erro a eliminar');
+        }
+        return;
+      }
+      const cell = ev.target.closest('.escalas-day');
+      if (!cell || cell.classList.contains('disabled')) return;
+      const id = cell.dataset.id;
+      const dia = Number(cell.dataset.dia || 0);
+      try {
         const newVal = await toggleDia(id, dia);
-        if(newVal===1){ cell.classList.add('folga'); cell.textContent='F'; }
-        else { cell.classList.remove('folga'); cell.textContent=''; }
-      }catch(e){ alert(e.message||'Erro a atualizar'); }
+        if (newVal === 1) {
+          cell.classList.add('folga');
+          cell.innerHTML = '<span class="escalas-off-icon" aria-hidden="true"><i class="fa-solid fa-moon"></i></span>';
+          cell.title = `${cell.title.replace(' · folga', '')} · folga`;
+        } else {
+          cell.classList.remove('folga');
+          cell.textContent = '';
+          cell.title = cell.title.replace(' · folga', '');
+        }
+      } catch (e) {
+        alert(e.message || 'Erro a atualizar');
+      }
     });
   });
 </script>

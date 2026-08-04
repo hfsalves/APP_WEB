@@ -781,11 +781,12 @@ def _normalise_write_values(table, table_name: str, values: dict) -> dict:
         if column is None:
             continue
         if isinstance(column.type, (Numeric, Float)):
-            normalized[name] = _to_decimal_for_write(value, name)
+            decimal_value = _to_decimal_for_write(value, name)
+            normalized[name] = Decimal(0) if decimal_value is None and column.nullable is False else decimal_value
         elif isinstance(column.type, (Integer, SmallInteger, BigInteger)):
             decimal_value = _to_decimal_for_write(value, name)
             if decimal_value is None:
-                normalized[name] = None
+                normalized[name] = 0 if column.nullable is False else None
             elif decimal_value != decimal_value.to_integral_value():
                 raise ValueError(f'O campo "{name}" deve conter um número inteiro.')
             else:

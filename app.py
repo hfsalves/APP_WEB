@@ -42973,16 +42973,39 @@ Guest SPA"""
                 for r in rows:
                     es_id, nome, dia, folga = r[0], r[1], int(r[2] or 0), int(r[3] or 0)
                     if es_id not in escalas:
-                        escalas[es_id] = { 'id': es_id, 'escala': nome, 'dias': {}, 'max_dia': 0 }
+                        escalas[es_id] = { 'id': es_id, 'escala': nome, 'dias': {}, 'max_dia': 0, 'users': [] }
                     if dia:
                         escalas[es_id]['dias'][dia] = folga
                         if dia > escalas[es_id]['max_dia']:
                             escalas[es_id]['max_dia'] = dia
+                user_rows = db.session.execute(text("""
+                    SELECT
+                        LTRIM(RTRIM(ISNULL(ESCALA, ''))) AS ESCALA,
+                        LTRIM(RTRIM(ISNULL(LOGIN, ''))) AS LOGIN,
+                        LTRIM(RTRIM(ISNULL(NOME, LOGIN))) AS NOME,
+                        LTRIM(RTRIM(ISNULL(COR, ''))) AS COR
+                    FROM dbo.US
+                    WHERE ISNULL(INATIVO, 0) = 0
+                      AND ISNULL(USCLIENTE, 0) = 0
+                      AND LTRIM(RTRIM(ISNULL(ESCALA, ''))) <> ''
+                    ORDER BY LTRIM(RTRIM(ISNULL(ESCALA, ''))), LTRIM(RTRIM(ISNULL(NOME, LOGIN))), LTRIM(RTRIM(ISNULL(LOGIN, '')))
+                """)).mappings().all()
+                users_by_escala = {}
+                for user_row in user_rows:
+                    escala_nome = str(user_row.get('ESCALA') or '').strip()
+                    if not escala_nome:
+                        continue
+                    users_by_escala.setdefault(escala_nome.upper(), []).append({
+                        'login': str(user_row.get('LOGIN') or '').strip(),
+                        'nome': str(user_row.get('NOME') or user_row.get('LOGIN') or '').strip(),
+                        'cor': str(user_row.get('COR') or '').strip(),
+                    })
                 items = []
                 max_dias = 0
                 for es in escalas.values():
                     max_dias = max(max_dias, es['max_dia'])
-                    items.append({ 'id': es['id'], 'escala': es['escala'], 'dias': es['dias'], 'total_dias': es['max_dia'] })
+                    es['users'] = users_by_escala.get(str(es['escala'] or '').strip().upper(), [])
+                    items.append({ 'id': es['id'], 'escala': es['escala'], 'dias': es['dias'], 'total_dias': es['max_dia'], 'users': es['users'] })
                 return jsonify({ 'rows': items, 'max_dias': max_dias })
 
             # POST (create): { escala, dias }

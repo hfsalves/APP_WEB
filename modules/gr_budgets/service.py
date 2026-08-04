@@ -220,6 +220,61 @@ def _optional_first_column(
     return f"{default_sql} AS [{result_alias}]"
 
 
+def _uses_portuguese_component_designations(company: dict[str, Any]) -> bool:
+    """Betaoconcept keeps the component catalogue in PHC's Portuguese descriptions."""
+    database_key = _series_name_key(company.get("phc_db")).replace(" ", "")
+    company_key = _series_name_key(company.get("name")).replace(" ", "")
+    return database_key == "hsols_pt" or "betaoconcept" in company_key
+
+
+def _article_designation_expression(
+    company: dict[str, Any],
+    columns: set[str],
+    table_alias: str = "S",
+    fallback_sql: str | None = None,
+) -> str:
+    """Return the PHC article designation required by the selected company.
+
+    PHC stores article translations in five LANGn/LANGDESn pairs on ST.  Only
+    Betaoconcept must force Portuguese here; every other company keeps the
+    standard ST.DESIGN behaviour. Missing columns or translations always fall
+    back to the supplied designation.
+    """
+    fallback = fallback_sql or f"{table_alias}.[DESIGN]"
+    if not _uses_portuguese_component_designations(company):
+        return fallback
+
+    language_pairs = [
+        (f"LANG{index}", f"LANGDES{index}")
+        for index in range(1, 6)
+        if f"lang{index}" in columns and f"langdes{index}" in columns
+    ]
+    if not language_pairs:
+        return fallback
+
+    portuguese_cases = "\n".join(
+        f"""WHEN (
+                        UPPER(LTRIM(RTRIM(ISNULL({table_alias}.[{language_column}], ''))))
+                            COLLATE Latin1_General_CI_AI LIKE 'PORTUG%'
+                        OR REPLACE(REPLACE(
+                            UPPER(LTRIM(RTRIM(ISNULL({table_alias}.[{language_column}], '')))),
+                            '-', ''), '_', '') COLLATE Latin1_General_CI_AI IN ('PT', 'PTPT')
+                    )
+                    THEN NULLIF(LTRIM(RTRIM(ISNULL({table_alias}.[{designation_column}], ''))), '')"""
+        for language_column, designation_column in language_pairs
+    )
+    return f"COALESCE(CASE\n{portuguese_cases}\nEND, {fallback})"
+
+
+def _oci_designation_fallback(columns: set[str], table_alias: str = "O") -> str:
+    if "u_design" in columns:
+        return (
+            f"COALESCE(NULLIF(LTRIM(RTRIM(ISNULL({table_alias}.[U_DESIGN], ''))), ''), "
+            f"{table_alias}.[DESIGN])"
+        )
+    return f"{table_alias}.[DESIGN]"
+
+
 def _e1_payload(row: dict[str, Any]) -> dict[str, Any]:
     return {
         "name": _text_value(row.get("COMPANY_NAME")),
@@ -683,6 +738,18 @@ def get_budget_detail(feid: Any, bostamp: str, user) -> dict[str, Any]:
         oci_columns = _phc_columns(cursor, "OCI")
         oci_rows = []
         if oci_columns:
+            use_portuguese_designation = _uses_portuguese_component_designations(company)
+            st_columns = _phc_columns(cursor, "ST") if use_portuguese_designation else set()
+            article_join_sql = """
+                LEFT JOIN dbo.ST S
+                       ON LTRIM(RTRIM(ISNULL(S.REF, ''))) = LTRIM(RTRIM(ISNULL(O.REF, '')))
+            """ if use_portuguese_designation else ""
+            oci_designation_sql = _article_designation_expression(
+                company,
+                st_columns,
+                "S",
+                _oci_designation_fallback(oci_columns, "O"),
+            )
             oci_rows = _fetch_rows(
                 cursor,
                 f"""
@@ -699,9 +766,11 @@ def get_budget_detail(feid: Any, bostamp: str, user) -> dict[str, Any]:
                     {_optional_column(oci_columns, 'O', 'U_COEF', 'U_COEF', '0')},
                     {_optional_column(oci_columns, 'O', 'U_FORMULA', 'U_FORMULA', "''")},
                     {_optional_column(oci_columns, 'O', 'U_DESIGN', 'U_DESIGN', "''")},
-                    {_optional_column(oci_columns, 'O', 'U_PVENDA', 'U_PVENDA', '0')}
+                    {_optional_column(oci_columns, 'O', 'U_PVENDA', 'U_PVENDA', '0')},
+                    {oci_designation_sql} AS [ARTICLE_DESIGN]
                 FROM dbo.OCI O
                 INNER JOIN dbo.BI I ON I.BISTAMP = O.BISTAMP
+                {article_join_sql}
                 LEFT JOIN dbo.STFAMI F
                        ON LTRIM(RTRIM(ISNULL(F.REF, ''))) = LTRIM(RTRIM(ISNULL(O.FAMILIA, '')))
                 WHERE I.BOSTAMP = ?
@@ -1025,6 +1094,7 @@ def get_budget_technical_options(feid: Any, user) -> dict[str, Any]:
         if not {"ref", "nome", "txtqlook"}.issubset(stfami_columns):
             raise BudgetsError("A tabela STFAMI não tem a configuração necessária para selecionar componentes.")
         active_filter = "AND ISNULL(S.INACTIVO, 0) = 0" if "inactivo" in st_columns else ""
+        component_designation_sql = _article_designation_expression(company, st_columns, "S")
         ouvrage_rows = _fetch_rows(
             cursor,
             f"""
@@ -1070,7 +1140,7 @@ def get_budget_technical_options(feid: Any, user) -> dict[str, Any]:
             SELECT
                 S.STSTAMP,
                 S.REF,
-                S.DESIGN,
+                {component_designation_sql} AS DESIGN,
                 S.FAMILIA,
                 S.UNIDADE,
                 S.EPV1,
@@ -1211,6 +1281,18 @@ def get_budget_line_oci(feid: Any, bistamp: Any, user) -> dict[str, Any]:
         oci_columns = _phc_columns(cursor, "OCI")
         if not oci_columns:
             raise BudgetsError("A tabela OCI não existe no PHC desta empresa.")
+        use_portuguese_designation = _uses_portuguese_component_designations(company)
+        st_columns = _phc_columns(cursor, "ST") if use_portuguese_designation else set()
+        article_join_sql = """
+            LEFT JOIN dbo.ST S
+                   ON LTRIM(RTRIM(ISNULL(S.REF, ''))) = LTRIM(RTRIM(ISNULL(O.REF, '')))
+        """ if use_portuguese_designation else ""
+        oci_designation_sql = _article_designation_expression(
+            company,
+            st_columns,
+            "S",
+            _oci_designation_fallback(oci_columns, "O"),
+        )
         oci_rows = _fetch_rows(
             cursor,
             f"""
@@ -1227,8 +1309,10 @@ def get_budget_line_oci(feid: Any, bistamp: Any, user) -> dict[str, Any]:
                 {_optional_column(oci_columns, 'O', 'U_COEF', 'U_COEF', '0')},
                 {_optional_column(oci_columns, 'O', 'U_FORMULA', 'U_FORMULA', "''")},
                 {_optional_column(oci_columns, 'O', 'U_DESIGN', 'U_DESIGN', "''")},
-                {_optional_column(oci_columns, 'O', 'U_PVENDA', 'U_PVENDA', '0')}
+                {_optional_column(oci_columns, 'O', 'U_PVENDA', 'U_PVENDA', '0')},
+                {oci_designation_sql} AS [ARTICLE_DESIGN]
             FROM dbo.OCI O
+            {article_join_sql}
             LEFT JOIN dbo.STFAMI F
                    ON LTRIM(RTRIM(ISNULL(F.REF, ''))) = LTRIM(RTRIM(ISNULL(O.FAMILIA, '')))
             WHERE O.BISTAMP = ?
@@ -1273,7 +1357,11 @@ def _oci_payload(row: dict[str, Any]) -> dict[str, Any]:
         "budget_stamp": _text_value(row.get("BOSTAMP")),
         "line_stamp": _text_value(row.get("BISTAMP")),
         "reference": _text_value(row.get("REF")),
-        "designation": _text_value(row.get("U_DESIGN")) or _text_value(row.get("DESIGN")),
+        "designation": (
+            _text_value(row.get("ARTICLE_DESIGN"))
+            or _text_value(row.get("U_DESIGN"))
+            or _text_value(row.get("DESIGN"))
+        ),
         "family": _text_value(row.get("FAMILIA")),
         "quantity": _qty(row.get("QTT")),
         "purchase_price": _qty(row.get("EPCUSTO")),
