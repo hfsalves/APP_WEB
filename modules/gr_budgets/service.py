@@ -761,18 +761,9 @@ def get_budget_detail(feid: Any, bostamp: str, user) -> dict[str, Any]:
         oci_columns = _phc_columns(cursor, "OCI")
         oci_rows = []
         if oci_columns:
-            use_portuguese_designation = _uses_portuguese_component_designations(company)
-            st_columns = _phc_columns(cursor, "ST") if use_portuguese_designation else set()
-            article_join_sql = """
-                LEFT JOIN dbo.ST S
-                       ON LTRIM(RTRIM(ISNULL(S.REF, ''))) = LTRIM(RTRIM(ISNULL(O.REF, '')))
-            """ if use_portuguese_designation else ""
-            oci_designation_sql = _article_designation_expression(
-                company,
-                st_columns,
-                "S",
-                _oci_designation_fallback(oci_columns, "O"),
-            )
+            # OCI.U_DESIGN is the technical snapshot authored for the budget.
+            # Do not replace it with an ST catalogue translation at print time.
+            oci_designation_sql = _oci_designation_fallback(oci_columns, "O")
             oci_rows = _fetch_rows(
                 cursor,
                 f"""
@@ -793,7 +784,6 @@ def get_budget_detail(feid: Any, bostamp: str, user) -> dict[str, Any]:
                     {oci_designation_sql} AS [ARTICLE_DESIGN]
                 FROM dbo.OCI O
                 INNER JOIN dbo.BI I ON I.BISTAMP = O.BISTAMP
-                {article_join_sql}
                 LEFT JOIN dbo.STFAMI F
                        ON LTRIM(RTRIM(ISNULL(F.REF, ''))) = LTRIM(RTRIM(ISNULL(O.FAMILIA, '')))
                 WHERE I.BOSTAMP = ?
@@ -1603,18 +1593,7 @@ def get_budget_line_oci(feid: Any, bistamp: Any, user) -> dict[str, Any]:
         oci_columns = _phc_columns(cursor, "OCI")
         if not oci_columns:
             raise BudgetsError("A tabela OCI não existe no PHC desta empresa.")
-        use_portuguese_designation = _uses_portuguese_component_designations(company)
-        st_columns = _phc_columns(cursor, "ST") if use_portuguese_designation else set()
-        article_join_sql = """
-            LEFT JOIN dbo.ST S
-                   ON LTRIM(RTRIM(ISNULL(S.REF, ''))) = LTRIM(RTRIM(ISNULL(O.REF, '')))
-        """ if use_portuguese_designation else ""
-        oci_designation_sql = _article_designation_expression(
-            company,
-            st_columns,
-            "S",
-            _oci_designation_fallback(oci_columns, "O"),
-        )
+        oci_designation_sql = _oci_designation_fallback(oci_columns, "O")
         oci_rows = _fetch_rows(
             cursor,
             f"""
@@ -1630,12 +1609,11 @@ def get_budget_line_oci(feid: Any, bistamp: Any, user) -> dict[str, Any]:
                 {_optional_column(oci_columns, 'O', 'U_CONSUMO', 'U_CONSUMO', '0')},
                 {_optional_column(oci_columns, 'O', 'U_COEF', 'U_COEF', '0')},
                 {_optional_column(oci_columns, 'O', 'U_FORMULA', 'U_FORMULA', "''")},
-                {_optional_column(oci_columns, 'O', 'U_DESIGN', 'U_DESIGN', "''")},
-                {_optional_column(oci_columns, 'O', 'U_PVENDA', 'U_PVENDA', '0')},
-                {oci_designation_sql} AS [ARTICLE_DESIGN]
-            FROM dbo.OCI O
-            {article_join_sql}
-            LEFT JOIN dbo.STFAMI F
+                    {_optional_column(oci_columns, 'O', 'U_DESIGN', 'U_DESIGN', "''")},
+                    {_optional_column(oci_columns, 'O', 'U_PVENDA', 'U_PVENDA', '0')},
+                    {oci_designation_sql} AS [ARTICLE_DESIGN]
+                FROM dbo.OCI O
+                LEFT JOIN dbo.STFAMI F
                    ON LTRIM(RTRIM(ISNULL(F.REF, ''))) = LTRIM(RTRIM(ISNULL(O.FAMILIA, '')))
             WHERE O.BISTAMP = ?
               AND LTRIM(RTRIM(ISNULL(O.REF, ''))) <> 'XZ'
@@ -1680,8 +1658,7 @@ def _oci_payload(row: dict[str, Any]) -> dict[str, Any]:
         "line_stamp": _text_value(row.get("BISTAMP")),
         "reference": _text_value(row.get("REF")),
         "designation": (
-            _text_value(row.get("ARTICLE_DESIGN"))
-            or _text_value(row.get("U_DESIGN"))
+            _text_value(row.get("U_DESIGN"))
             or _text_value(row.get("DESIGN"))
         ),
         "family": _text_value(row.get("FAMILIA")),

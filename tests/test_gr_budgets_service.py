@@ -319,18 +319,18 @@ class BudgetPayloadTests(unittest.TestCase):
         self.assertFalse(_uses_portuguese_component_designations(company))
         self.assertEqual(_article_designation_expression(company, columns), "S.[DESIGN]")
 
-    def test_existing_oci_row_prefers_resolved_article_designation(self):
+    def test_existing_oci_row_prefers_its_own_technical_designation(self):
         row = _oci_payload(
             {
                 "OCISTAMP": "OCI1",
                 "REF": "COMP1",
-                "ARTICLE_DESIGN": "Descrição portuguesa",
-                "U_DESIGN": "Description française",
+                "ARTICLE_DESIGN": "Tradução de catálogo que não deve substituir a OCI",
+                "U_DESIGN": "Descrição técnica da OCI",
                 "DESIGN": "Description française",
             }
         )
 
-        self.assertEqual(row["designation"], "Descrição portuguesa")
+        self.assertEqual(row["designation"], "Descrição técnica da OCI")
 
     def test_maps_plus_value_bi_as_technical_grid_row(self):
         row = _plus_value_payload(
