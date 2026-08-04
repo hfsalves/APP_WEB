@@ -139,9 +139,9 @@
     return state.mode !== 'view';
   }
 
-  function budgetInPreparation() {
+  function budgetCanBeEdited() {
     const header = state.detail && state.detail.header;
-    return Boolean(header && !header.approved && !header.awarded && !header.cancelled);
+    return Boolean(header && !header.closed && !header.awarded && !header.cancelled);
   }
 
   function selectedBudgetStamp() {
@@ -498,6 +498,7 @@
     if (header._draft) statuses.push(['warning', 'fa-pen', tr('gr_budgets.status.new_editing')]);
     if (!header._draft && isEditing()) statuses.push(['warning', 'fa-pen', tr('gr_budgets.status.editing')]);
     if (!header._draft && header.cancelled) statuses.push(['danger', 'fa-ban', tr('gr_budgets.status.cancelled')]);
+    if (!header._draft && header.closed) statuses.push(['danger', 'fa-lock', tr('gr_budgets.status.closed')]);
     if (!header._draft && header.approved) statuses.push(['success', 'fa-circle-check', tr('gr_budgets.status.approved')]);
     if (!header._draft && header.awarded) statuses.push(['info', 'fa-trophy', tr('gr_budgets.status.awarded')]);
     if (!statuses.length) statuses.push(['warning', 'fa-clock', tr('gr_budgets.status.preparation')]);
@@ -655,12 +656,9 @@
     return JSON.parse(JSON.stringify(value == null ? null : value));
   }
 
-  function numericInput(element) {
-    if (!element) return 0;
-    if (typeof element.valueAsNumber === 'number' && Number.isFinite(element.valueAsNumber)) {
-      return element.valueAsNumber;
-    }
-    let raw = String(element.value == null ? '' : element.value).trim().replace(/[\s\u00a0]/g, '');
+  function parseLocalizedNumber(rawValue) {
+    let raw = String(rawValue == null ? '' : rawValue).trim().replace(/[\s\u00a0\u202f]/g, '');
+    if (!raw) return null;
     if (raw.includes(',') && raw.includes('.')) {
       raw = raw.lastIndexOf(',') > raw.lastIndexOf('.')
         ? raw.replaceAll('.', '').replace(',', '.')
@@ -669,7 +667,27 @@
       raw = raw.replace(',', '.');
     }
     const value = Number.parseFloat(raw);
-    return Number.isFinite(value) ? value : 0;
+    return Number.isFinite(value) ? value : null;
+  }
+
+  function numericInput(element) {
+    if (!element) return 0;
+    if (typeof element.valueAsNumber === 'number' && Number.isFinite(element.valueAsNumber)) {
+      return element.valueAsNumber;
+    }
+    const value = parseLocalizedNumber(element.value);
+    return value == null ? 0 : value;
+  }
+
+  function ociNumericInput(element) {
+    if (!element) return 0;
+    const parsed = parseLocalizedNumber(element.value);
+    if (parsed != null) {
+      element.dataset.lastValidValue = String(parsed);
+      return parsed;
+    }
+    const remembered = parseLocalizedNumber(element.dataset.lastValidValue);
+    return remembered == null ? 0 : remembered;
   }
 
   function finiteNumber(value, fallback) {
@@ -693,6 +711,15 @@
     }
     const formatted = number.toFixed(precision);
     element.value = precision === 2 ? formatted : formatted.replace(/\.?0+$/, '');
+  }
+
+  function commitOciNumericInputs() {
+    elements.ociRows.querySelectorAll('[data-oci-numeric]').forEach((input) => {
+      const precision = Number.parseInt(input.dataset.ociPrecision || '4', 10);
+      const value = ociNumericInput(input);
+      setNumericInput(input, value, Number.isFinite(precision) ? precision : 4);
+      input.dataset.lastValidValue = String(value);
+    });
   }
 
   function setCostDisplay(element, value) {
@@ -767,6 +794,7 @@
       source_designation: '',
       formula: '',
       purchase_price: 0,
+      base_purchase_price: 0,
       forfait: 0,
       area: surface,
       thickness,
@@ -918,6 +946,7 @@
       source_designation: article.designation || '',
       formula: article.formula || '',
       purchase_price: roundMoney(article.purchase_price),
+      base_purchase_price: roundMoney(article.base_purchase_price),
       forfait: roundMoney(article.forfait),
       unit: article.unit || '',
       is_plus_value: isPlusValue(article.reference)
@@ -961,17 +990,17 @@
     const unitControl = plusValue
       ? `<select class="sz_select" data-oci-field="unit">${unitOptions(row.unit)}</select>`
       : `<input class="sz_input" data-oci-field="unit" value="${escapeHtml(row.unit || '')}" maxlength="4" readonly>`;
-    return `<tr class="sz_table_row${plusValue ? ' is-plus-value' : ''}" data-oci-stamp="${escapeHtml(row.stamp || '')}" data-oci-family="${escapeHtml(row.family || '')}" data-oci-reference="${escapeHtml(row.reference || '')}" data-oci-quantity="${escapeHtml(row.quantity == null ? 1 : row.quantity)}" data-oci-total-quantity="${escapeHtml(row.total_quantity || 0)}" data-oci-source-designation="${escapeHtml(sourceDesignation)}" data-oci-plus-value="${plusValue ? '1' : '0'}">
+    return `<tr class="sz_table_row${plusValue ? ' is-plus-value' : ''}" data-oci-stamp="${escapeHtml(row.stamp || '')}" data-oci-family="${escapeHtml(row.family || '')}" data-oci-reference="${escapeHtml(row.reference || '')}" data-oci-quantity="${escapeHtml(row.quantity == null ? 1 : row.quantity)}" data-oci-total-quantity="${escapeHtml(row.total_quantity || 0)}" data-oci-base-purchase-price="${escapeHtml(roundMoney(row.base_purchase_price || 0))}" data-oci-source-designation="${escapeHtml(sourceDesignation)}" data-oci-plus-value="${plusValue ? '1' : '0'}">
       <td data-oci-cell="designation"><input class="sz_input" data-oci-field="designation" value="${escapeHtml(row.designation || '')}" maxlength="220"></td>
       <td data-oci-cell="formula"><select class="sz_select" data-oci-field="formula">${formulaOptions(row.formula)}</select></td>
-      <td data-oci-cell="purchase_price"><input class="sz_input gr-budget-number-input" data-oci-field="purchase_price" type="number" min="0" step="0.01" value="${escapeHtml(roundMoney(row.purchase_price).toFixed(2))}"></td>
-      <td data-oci-cell="forfait"><input class="sz_input gr-budget-number-input" data-oci-field="forfait" type="number" min="0" step="0.01" value="${escapeHtml(roundMoney(row.forfait).toFixed(2))}"></td>
+      <td data-oci-cell="purchase_price"><input class="sz_input gr-budget-number-input" data-oci-field="purchase_price" data-oci-numeric data-oci-precision="2" data-last-valid-value="${escapeHtml(roundMoney(row.purchase_price || 0))}" type="text" inputmode="decimal" autocomplete="off" value="${escapeHtml(roundMoney(row.purchase_price).toFixed(2))}"></td>
+      <td data-oci-cell="forfait"><input class="sz_input gr-budget-number-input" data-oci-field="forfait" data-oci-numeric data-oci-precision="2" data-last-valid-value="${escapeHtml(roundMoney(row.forfait || 0))}" type="text" inputmode="decimal" autocomplete="off" value="${escapeHtml(roundMoney(row.forfait).toFixed(2))}"></td>
       <td data-oci-cell="area"><input class="sz_input gr-budget-number-input" data-oci-field="area" type="number" min="0" step="0.01" value="${escapeHtml(row.area || 0)}" readonly></td>
       <td data-oci-cell="thickness"><input class="sz_input gr-budget-number-input" data-oci-field="thickness" type="number" min="0" step="0.001" value="${escapeHtml(row.thickness || 0)}" readonly></td>
       <td data-oci-cell="volume"><input class="sz_input gr-budget-number-input" data-oci-field="volume" type="number" min="0" step="0.001" value="${escapeHtml(row.volume || 0)}" readonly></td>
-      <td data-oci-cell="weight"><input class="sz_input gr-budget-number-input" data-oci-field="weight" type="number" min="0" step="0.01" value="${escapeHtml(row.weight || 0)}"></td>
-      <td data-oci-cell="consumption"><input class="sz_input gr-budget-number-input" data-oci-field="consumption" type="number" min="0" step="0.0001" value="${escapeHtml(row.consumption || 0)}"></td>
-      <td data-oci-cell="coefficient"><input class="sz_input gr-budget-number-input" data-oci-field="coefficient" type="number" min="0" step="0.0001" value="${escapeHtml(row.coefficient || 0)}"></td>
+      <td data-oci-cell="weight"><input class="sz_input gr-budget-number-input" data-oci-field="weight" data-oci-numeric data-oci-precision="2" data-last-valid-value="${escapeHtml(finiteNumber(row.weight))}" type="text" inputmode="decimal" autocomplete="off" value="${escapeHtml(row.weight || 0)}"></td>
+      <td data-oci-cell="consumption"><input class="sz_input gr-budget-number-input" data-oci-field="consumption" data-oci-numeric data-oci-precision="4" data-last-valid-value="${escapeHtml(finiteNumber(row.consumption))}" type="text" inputmode="decimal" autocomplete="off" value="${escapeHtml(row.consumption || 0)}"></td>
+      <td data-oci-cell="coefficient"><input class="sz_input gr-budget-number-input" data-oci-field="coefficient" data-oci-numeric data-oci-precision="4" data-last-valid-value="${escapeHtml(finiteNumber(row.coefficient))}" type="text" inputmode="decimal" autocomplete="off" value="${escapeHtml(row.coefficient || 0)}"></td>
       <td data-oci-cell="cost"><input class="sz_input gr-budget-number-input" data-oci-cost data-last-valid-cost="${initialCost > 0 ? escapeHtml(initialCost) : ''}" type="text" inputmode="decimal" readonly value="${escapeHtml(numberFormatter.format(initialCost))}"></td>
       <td data-oci-cell="unit">${unitControl}</td>
       <td><button type="button" class="sz_button sz_button_ghost gr-budget-oci-delete" data-oci-delete title="${escapeHtml(tr('gr_budgets.action.remove_component'))}" aria-label="${escapeHtml(tr('gr_budgets.action.remove_component'))}"><i class="fa-solid fa-trash-can" aria-hidden="true"></i></button></td>
@@ -1005,6 +1034,7 @@
       if (field === 'reference') return row.dataset.ociReference || '';
       return '';
     }
+    if (input.matches('[data-oci-numeric]')) return ociNumericInput(input);
     if (input.type === 'number') return numericInput(input);
     return input.value.trim();
   }
@@ -1017,6 +1047,8 @@
       designation: ociRowValue(row, 'designation'),
       formula: ociRowValue(row, 'formula'),
       purchase_price: roundMoney(ociRowValue(row, 'purchase_price')),
+      purchase_price_text: row.querySelector('[data-oci-field="purchase_price"]')?.value || '',
+      base_purchase_price: roundMoney(row.dataset.ociBasePurchasePrice),
       forfait: roundMoney(ociRowValue(row, 'forfait')),
       area: ociRowValue(row, 'area'),
       thickness: ociRowValue(row, 'thickness'),
@@ -1480,8 +1512,8 @@
 
   function saveOciLine() {
     if (!state.ociContext) return false;
-    if (!budgetInPreparation()) {
-      showOciError(tr('gr_budgets.error.budget_not_in_preparation'));
+    if (!budgetCanBeEdited()) {
+      showOciError(tr('gr_budgets.error.budget_locked'));
       return false;
     }
     const reference = elements.ociReference.value.trim();
@@ -1505,6 +1537,7 @@
       return false;
     }
 
+    commitOciNumericInputs();
     recalculateOci();
     const rows = collectOciRows();
     const purchasePrice = roundMoney(numericInput(elements.ociPurchasePrice));
@@ -1643,13 +1676,13 @@
     elements.printBudget.disabled = navigationLocked || !state.detail || !selectedBudgetStamp() || !elements.company.value;
     elements.newBudget.hidden = editing;
     elements.newBudget.disabled = busy || !elements.company.value || !elements.series.value;
-    elements.editBudget.hidden = editing || !budgetInPreparation() || !selectedBudgetStamp();
+    elements.editBudget.hidden = editing || !budgetCanBeEdited() || !selectedBudgetStamp();
     elements.editBudget.disabled = busy || !state.detail;
     elements.cancelEdit.hidden = !editing;
     elements.cancelEdit.disabled = busy;
     elements.saveBudget.hidden = !editing;
     elements.saveBudget.disabled = busy || !state.detail;
-    elements.addLine.disabled = busy || !state.detail || !budgetInPreparation();
+    elements.addLine.disabled = busy || !state.detail || !budgetCanBeEdited();
 
     [elements.clientSearch, elements.workInput, elements.localityInput, elements.dateInput, elements.attentionInput]
       .forEach((input) => {
@@ -1707,7 +1740,7 @@
   }
 
   function startEditBudget() {
-    if (isEditing() || state.loadingCount || !selectedBudgetStamp() || !budgetInPreparation()) return;
+    if (isEditing() || state.loadingCount || !selectedBudgetStamp() || !budgetCanBeEdited()) return;
     state.returnStamp = selectedBudgetStamp();
     state.mode = 'edit';
     syncEditableHeaderToState();
@@ -1934,6 +1967,7 @@
   elements.ociRows.addEventListener('input', (event) => {
     const row = event.target.closest('tr');
     if (!row) return;
+    if (event.target.matches('[data-oci-numeric]')) ociNumericInput(event.target);
     if (event.target.matches('[data-oci-field="weight"]')) {
       const source = row.dataset.ociSourceDesignation || '';
       if (source.includes('...')) {
@@ -1946,7 +1980,7 @@
   elements.ociRows.addEventListener('change', (event) => {
     const row = event.target.closest('tr');
     if (event.target.matches('[data-oci-field="purchase_price"], [data-oci-field="forfait"]')) {
-      setNumericInput(event.target, numericInput(event.target), 2);
+      setNumericInput(event.target, ociNumericInput(event.target), 2);
     }
     if (row) updateOciRowFormulaState(row);
     recalculateOci();

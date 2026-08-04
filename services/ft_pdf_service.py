@@ -457,7 +457,7 @@ def render_ft_pdf_html(ft: dict, fi_rows: list[dict], fe: dict, qr_b64: str, at_
     )
 
 
-def generate_ft_pdf_bytes(html: str) -> bytes:
+def generate_ft_pdf_bytes(html: str, return_engine: bool = False) -> bytes | tuple[bytes, str]:
     engine_errors = []
     dll_dirs = os.environ.get("WEASYPRINT_DLL_DIRECTORIES", "").strip()
     if dll_dirs and hasattr(os, "add_dll_directory"):
@@ -470,7 +470,8 @@ def generate_ft_pdf_bytes(html: str) -> bytes:
                     pass
     try:
         from weasyprint import HTML
-        return HTML(string=html, base_url=current_app.root_path).write_pdf()
+        pdf_bytes = HTML(string=html, base_url=current_app.root_path).write_pdf()
+        return (pdf_bytes, "weasyprint") if return_engine else pdf_bytes
     except Exception as e:
         engine_errors.append(f"WeasyPrint: {e}")
 
@@ -517,7 +518,8 @@ def generate_ft_pdf_bytes(html: str) -> bytes:
                             for _ in range(4):
                                 if os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0:
                                     with open(pdf_path, "rb") as pf:
-                                        return pf.read()
+                                        pdf_bytes = pf.read()
+                                        return (pdf_bytes, "browser") if return_engine else pdf_bytes
                                 time.sleep(0.25)
                             stderr_txt = (run.stderr or b"").decode("utf-8", errors="ignore").strip()
                             stdout_txt = (run.stdout or b"").decode("utf-8", errors="ignore").strip()

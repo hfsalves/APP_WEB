@@ -158,6 +158,14 @@ def _budget_is_in_preparation(row: dict[str, Any]) -> bool:
     )
 
 
+def _budget_can_be_edited(row: dict[str, Any]) -> bool:
+    """Approved budgets may be reopened; terminal business states may not."""
+    return not any(
+        _bool_value(row.get(field))
+        for field in ("FECHADA", "ADJUDICADO", "ANULADO")
+    )
+
+
 def _business_date_iso(value: Any) -> str:
     parsed = value.date() if isinstance(value, datetime) else value
     if isinstance(parsed, date) and parsed.year <= 1900:
@@ -177,6 +185,19 @@ def _percent(value: Any) -> float:
 
 def _write_money(value: Any) -> Decimal:
     return _decimal(value).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
+def _write_oci_purchase_price(row: dict[str, Any]) -> Decimal:
+    """Prefer the normalized text still visible in the OCI input.
+
+    Keeping this second representation prevents a stale numeric value in the
+    browser state from silently replacing the price the user just entered.
+    Older clients do not send it and continue to use ``purchase_price``.
+    """
+    visible_value = row.get("purchase_price_text")
+    if visible_value is not None and _text_value(visible_value):
+        return _write_money(visible_value)
+    return _write_money(row.get("purchase_price"))
 
 
 def _item_path(value: Any) -> tuple[tuple[int, int, str], ...]:
@@ -608,6 +629,7 @@ def list_budgets(filters: dict[str, Any], user) -> dict[str, Any]:
                 B.ETOTALDEB,
                 B.ECUSTO,
                 B.APROVADO,
+                B.FECHADA,
                 B2.PROCESSO,
                 B2.AREA,
                 B2.ADJUDICADO,
@@ -655,6 +677,7 @@ def _budget_summary(row: dict[str, Any], company: dict[str, Any]) -> dict[str, A
         "total": _money(row.get("ETOTALDEB")),
         "cost": _money(row.get("ECUSTO")),
         "approved": _bool_value(row.get("APROVADO")),
+        "closed": _bool_value(row.get("FECHADA")),
         "awarded": _bool_value(row.get("ADJUDICADO")),
         "cancelled": _bool_value(row.get("ANULADO")),
         "line_count": int(_number_value(row.get("LINE_COUNT"))),
@@ -680,7 +703,7 @@ def get_budget_detail(feid: Any, bostamp: str, user) -> dict[str, Any]:
                 B.BOSTAMP, B.NMDOS, B.NDOS, B.OBRANO, B.BOANO, B.DATAOBRA,
                 B.NO, B.ESTAB, B.NOME, B.TRAB1, B.OBRANOME, B.LOCAL, B.MORADA,
                 B.CODPOST, B.VENDEDOR, B.VENDNM, B.SERIE, B.ZONA, B.NOPAT,
-                B.MOEDA, B.ETOTALDEB, B.ECUSTO, B.APROVADO, B.OBS, B.FREF,
+                B.MOEDA, B.ETOTALDEB, B.ECUSTO, B.APROVADO, B.FECHADA, B.OBS, B.FREF,
                 B.CCUSTO, B.COBRANCA, B.TECNICO, B.TECNNM,
                 B.USRDATA AS BO_USRDATA, B.USRHORA AS BO_USRHORA,
                 {_optional_column(bo_columns, 'B', 'U_MARGEM', 'U_MARGEM', '0')},
@@ -945,6 +968,7 @@ def _vat_payload(row: dict[str, Any]) -> dict[str, Any]:
 
 def budget_print_payload(detail: dict[str, Any]) -> dict[str, Any]:
     """Transform a raw Devis detail into its client-facing print model."""
+    language = _budget_print_language(detail.get("company") or {})
     primary: list[dict[str, Any]] = []
     children: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for line in detail.get("lines") or []:
@@ -953,7 +977,10 @@ def budget_print_payload(detail: dict[str, Any]) -> dict[str, Any]:
         is_plus_value = reference in {"PVL", "MVL"}
         if is_plus_value and "." in item:
             adjustment = dict(line)
-            adjustment["adjustment_label"] = "MOINS-VALUE" if reference == "MVL" else "PLUS-VALUE"
+            if language == "pt":
+                adjustment["adjustment_label"] = "MENOR-VALIA" if reference == "MVL" else "MAIOR-VALIA"
+            else:
+                adjustment["adjustment_label"] = "MOINS-VALUE" if reference == "MVL" else "PLUS-VALUE"
             children[item.split(".", 1)[0]].append(adjustment)
         else:
             primary.append(line)
@@ -964,17 +991,35 @@ def budget_print_payload(detail: dict[str, Any]) -> dict[str, Any]:
             pro_rata.append(line)
             continue
         article = dict(line)
+        if "ZZ" in {
+            _text_value(article.get("reference")).upper(),
+            _text_value(article.get("item_label")).upper(),
+        }:
+            article["designation"] = "DESCONTO" if language == "pt" else "ESCOMPTE"
         article["plus_values"] = children.get(str(line.get("item_label") or "").strip(), [])
         article["technical_lines"] = list(line.get("technical_lines") or [])
+        article["display_total"] = _budget_line_display_total(article)
         articles.append(article)
 
-    commercial_total = sum((_decimal(row.get("total")) for row in articles), Decimal("0"))
+    priced_articles = [row for row in articles if not row.get("option") and not row.get("variant")]
+    discount_articles = [
+        row
+        for row in priced_articles
+        if "ZZ" in {
+            _text_value(row.get("reference")).upper(),
+            _text_value(row.get("item_label")).upper(),
+        }
+    ]
+    goods_articles = [row for row in priced_articles if row not in discount_articles]
+    goods_total = sum((_decimal(row.get("total")) for row in goods_articles), Decimal("0"))
+    discount_total = sum((_decimal(row.get("total")) for row in discount_articles), Decimal("0"))
+    commercial_total = goods_total + discount_total
     pro_rata_total = sum((_decimal(row.get("total")) for row in pro_rata), Decimal("0"))
     net_total = commercial_total + pro_rata_total
     vat_rows = [row for row in detail.get("vat_rows") or [] if _decimal(row.get("amount"))]
     if not vat_rows:
         bases: dict[Decimal, Decimal] = defaultdict(lambda: Decimal("0"))
-        for row in [*articles, *pro_rata]:
+        for row in [*priced_articles, *pro_rata]:
             bases[_decimal(row.get("vat_rate"))] += _decimal(row.get("total"))
         vat_rows = [
             {"rate": _percent(rate), "taxable_amount": _money(base), "amount": _money(base * rate / 100), "table": 0}
@@ -983,11 +1028,26 @@ def budget_print_payload(detail: dict[str, Any]) -> dict[str, Any]:
     vat_total = sum((_decimal(row.get("amount")) for row in vat_rows), Decimal("0"))
     return {
         "company": detail.get("company") or {}, "header": detail.get("header") or {},
+        "language": language,
         "articles": articles, "pro_rata": pro_rata, "vat_rows": vat_rows,
-        "totals": {"commercial_total": _money(commercial_total), "pro_rata_total": _money(pro_rata_total),
+        "options": [row for row in articles if row.get("option")],
+        "variants": [row for row in articles if row.get("variant") and not row.get("option")],
+        "totals": {"goods_total": _money(goods_total), "discount_total": _money(discount_total),
+                   "commercial_total": _money(commercial_total), "pro_rata_total": _money(pro_rata_total),
                    "net_total": _money(net_total), "vat_total": _money(vat_total),
                    "gross_total": _money(net_total + vat_total)},
     }
+
+
+def _budget_line_display_total(line: dict[str, Any]) -> Decimal:
+    stored_total = _decimal(line.get("total"))
+    if stored_total or not (line.get("option") or line.get("variant")):
+        return stored_total
+    # PHC commonly applies a 100% discount to option/variant rows so they do
+    # not contribute to the document total.  For the client printout we still
+    # need to show the commercial value of the alternative itself.
+    calculated = _decimal(line.get("quantity")) * _decimal(line.get("unit_price"))
+    return calculated.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
 def _format_fr_number(value: Any, decimals: int = 2) -> str:
@@ -1046,11 +1106,113 @@ def _budget_pdf_style(value: Any = "modern") -> str:
     return "classic" if _text_value(value).casefold() == "classic" else "modern"
 
 
-def render_budget_pdf_html(detail: dict[str, Any], style: Any = "modern") -> str:
-    """Render the A4 client printout. The caller is responsible for PDF conversion."""
-    document = budget_print_payload(detail)
-    header = document["header"]
-    company = document["company"]
+def _budget_print_language(company: dict[str, Any]) -> str:
+    return "pt" if _text_value(company.get("phc_db")).casefold() == "hsols_pt" else "fr"
+
+
+def _budget_print_labels(language: str) -> dict[str, str]:
+    if language == "pt":
+        return {
+            "document_title": "Orçamento N.º",
+            "original": "ORIGINAL",
+            "not_approved": "NÃO APROVADO",
+            "salesperson": "Vendedor:",
+            "salesperson_sub": "Salesman:",
+            "work": "Obra:",
+            "work_sub": "Construction Site:",
+            "date": "Data:",
+            "date_sub": "Date:",
+            "client_number": "N.º Cliente:",
+            "client_number_sub": "Client Nr.:",
+            "client": "Cliente:",
+            "client_sub": "Client:",
+            "address": "Morada:",
+            "address_sub": "Address:",
+            "item": "Artigo",
+            "item_sub": "Item",
+            "designation": "Designação",
+            "designation_sub": "Description",
+            "quantity": "Qtd.",
+            "quantity_sub": "Qty",
+            "unit": "Un.",
+            "unit_sub": "Un.",
+            "unit_price": "P. Unit.",
+            "unit_price_sub": "Unit Price",
+            "line_total": "Total",
+            "line_total_sub": "Net Amount",
+            "amount_total": "Total:",
+            "amount_total_sub": "Total Goods:",
+            "pro_rata_total": "Prorata:",
+            "pro_rata_total_sub": "Prorata:",
+            "discounts": "Descontos:",
+            "discounts_sub": "Discounts:",
+            "net_total": "Total Líquido:",
+            "net_total_sub": "Net Amount:",
+            "vat": "IVA:",
+            "vat_sub": "VAT:",
+            "gross_total": "TOTAL:",
+            "signature": "Assinatura",
+            "signature_text": "A aceitação do orçamento pelo Cliente vale como aceitação, compreensão e leitura das CGVE anexas.",
+            "option": "OPÇÃO",
+            "variant": "ALTERNATIVA",
+            "options": "Opções",
+            "variants": "Alternativas",
+            "vat_footer": "N.º Contribuinte:",
+            "siret_footer": "N.º Siret:",
+            "capital_footer": "Capital Social:",
+        }
+    return {
+        "document_title": "Devis N°",
+        "original": "ORIGINAL",
+        "not_approved": "NON APPROUVÉ",
+        "salesperson": "Chargé d’Affaires:",
+        "salesperson_sub": "Salesman:",
+        "work": "Chantier:",
+        "work_sub": "Construction Site:",
+        "date": "Date:",
+        "date_sub": "Date:",
+        "client_number": "N° Client:",
+        "client_number_sub": "Client Nr.:",
+        "client": "Client:",
+        "client_sub": "Client:",
+        "address": "Adresse:",
+        "address_sub": "Address:",
+        "item": "Article",
+        "item_sub": "Item",
+        "designation": "Designation",
+        "designation_sub": "Description",
+        "quantity": "Qté.",
+        "quantity_sub": "Qty",
+        "unit": "Un.",
+        "unit_sub": "Un.",
+        "unit_price": "P.U.H.T",
+        "unit_price_sub": "Unit Price",
+        "line_total": "Total H.T.",
+        "line_total_sub": "Net Amount",
+        "amount_total": "Total HT :",
+        "amount_total_sub": "Amount:",
+        "pro_rata_total": "Prorata :",
+        "pro_rata_total_sub": "Prorata:",
+        "discounts": "Escomptes :",
+        "discounts_sub": "Discounts:",
+        "net_total": "Total HT NET:",
+        "net_total_sub": "Net Amount:",
+        "vat": "TVA:",
+        "vat_sub": "VAT:",
+        "gross_total": "TOTAL TTC:",
+        "signature": "Signature",
+        "signature_text": "l'acceptation du devis par le Client vaut acceptation, compréhension et lecture des CGVE jointes.",
+        "option": "OPTION",
+        "variant": "VARIANTE",
+        "options": "Options",
+        "variants": "Variantes",
+        "vat_footer": "N° TVA Intracom.:",
+        "siret_footer": "N° Siret :",
+        "capital_footer": "Capital Social :",
+    }
+
+
+def _budget_company_meta(company: dict[str, Any]) -> dict[str, str]:
     e1 = company.get("e1") or {}
     company_name = _text_value(e1.get("name")) or _text_value(company.get("name"))
     postal_code = _text_value(e1.get("postal_code"))
@@ -1058,7 +1220,7 @@ def render_budget_pdf_html(detail: dict[str, Any], style: Any = "modern") -> str
     postal_city = postal_code if city and city.casefold() in postal_code.casefold() else " ".join(
         part for part in (postal_code, city) if part
     )
-    company_meta = {
+    return {
         "name": company_name.upper(),
         "address": _text_value(e1.get("address")),
         "postal_city": postal_city,
@@ -1068,6 +1230,19 @@ def render_budget_pdf_html(detail: dict[str, Any], style: Any = "modern") -> str
         "siret": _format_grouped_identifier(e1.get("siret"), (3, 3, 3, 5)),
         "capital": _format_company_capital(e1.get("capital")),
     }
+
+
+def render_budget_pdf_html(
+    detail: dict[str, Any],
+    style: Any = "modern",
+    suppress_running: bool = False,
+) -> str:
+    """Render the A4 client printout. The caller is responsible for PDF conversion."""
+    document = budget_print_payload(detail)
+    header = document["header"]
+    company = document["company"]
+    print_language = document["language"]
+    company_meta = _budget_company_meta(company)
     from services.ft_pdf_service import build_logo_payload
 
     return render_template(
@@ -1077,10 +1252,154 @@ def render_budget_pdf_html(detail: dict[str, Any], style: Any = "modern") -> str
         logo=build_logo_payload(_text_value(company.get("logo_path")), fallback_path=""),
         approved=bool(header.get("approved")),
         theme=_budget_pdf_style(style),
+        print_language=print_language,
+        labels=_budget_print_labels(print_language),
+        suppress_running=bool(suppress_running),
         fmt_money=_format_fr_number,
         fmt_quantity=_format_fr_quantity,
         fmt_date=_format_fr_date,
     )
+
+
+def decorate_budget_browser_pdf(pdf_bytes: bytes, detail: dict[str, Any]) -> bytes:
+    """Add repeating budget furniture when the browser is the PDF engine.
+
+    Chromium does not support CSS running elements. The HTML hides those
+    elements for Chromium, and this pass draws them into the reserved page
+    margins without touching the general-terms page.
+    """
+    import io
+
+    from pypdf import PdfReader, PdfWriter
+    from reportlab.lib.colors import HexColor
+    from reportlab.pdfbase.pdfmetrics import stringWidth
+    from reportlab.pdfgen import canvas
+
+    source = PdfReader(io.BytesIO(pdf_bytes))
+    pages = list(source.pages)
+    if not pages:
+        return pdf_bytes
+
+    terms_start = next(
+        (
+            index
+            for index, page in enumerate(pages)
+            if "condicoes gerais de venda" in _series_name_key(page.extract_text())
+            or "conditions generales de vente" in _series_name_key(page.extract_text())
+        ),
+        len(pages) - 1 if len(pages) > 1 else len(pages),
+    )
+    document = budget_print_payload(detail)
+    header = document["header"]
+    company = _budget_company_meta(document["company"])
+    labels = _budget_print_labels(document["language"])
+    millimetre = 72 / 25.4
+    red = HexColor("#d32632")
+    dark = HexColor("#303236")
+    muted = HexColor("#77797d")
+
+    def fitted(value: Any, font: str, size: float, max_width: float) -> str:
+        text = _text_value(value)
+        if stringWidth(text, font, size) <= max_width:
+            return text
+        suffix = "..."
+        while text and stringWidth(text + suffix, font, size) > max_width:
+            text = text[:-1]
+        return text.rstrip() + suffix if text else suffix
+
+    def labelled(c, x: float, y: float, label: str, value: Any, width: float, bold_value: bool = False):
+        size = 7.6
+        c.setFillColor(dark)
+        c.setFont("Helvetica", size)
+        c.drawString(x, y, label)
+        label_width = stringWidth(label, "Helvetica", size) + 3
+        value_font = "Helvetica-Bold" if bold_value else "Helvetica"
+        c.setFont(value_font, size)
+        c.drawString(x + label_width, y, fitted(value, value_font, size, max(8, width - label_width)))
+
+    def sublabel(c, x: float, y: float, value: str):
+        c.setFillColor(muted)
+        c.setFont("Helvetica-Oblique", 5.8)
+        c.drawString(x, y, value)
+
+    def draw_header(c, width: float, height: float):
+        left = 17 * millimetre
+        right = width - left
+        title_y = height - 8.5 * millimetre
+        c.setFillColor(dark)
+        c.setFont("Helvetica-Bold", 12.5)
+        c.drawRightString(right, title_y, f"{labels['document_title']} {int(header.get('number') or 0)}")
+        c.setStrokeColor(red)
+        c.setLineWidth(1.2)
+        c.line(left, height - 11.8 * millimetre, right, height - 11.8 * millimetre)
+
+        first_y = height - 18.2 * millimetre
+        col1, col2, col3 = left + 1 * millimetre, left + 50 * millimetre, left + 143 * millimetre
+        labelled(c, col1, first_y, labels["client_number"] + " ", header.get("client_number"), 47 * millimetre)
+        labelled(c, col2, first_y, labels["client"] + " ", header.get("client_name"), 91 * millimetre, True)
+        labelled(c, col3, first_y, labels["date"] + " ", _format_fr_date(header.get("date")), 32 * millimetre)
+        sublabel(c, col1, first_y - 3.2 * millimetre, labels["client_number_sub"])
+        sublabel(c, col2, first_y - 3.2 * millimetre, labels["client_sub"])
+        sublabel(c, col3, first_y - 3.2 * millimetre, labels["date_sub"])
+
+        second_y = height - 27.2 * millimetre
+        labelled(c, col1, second_y, labels["salesperson"] + " ", header.get("salesperson"), 68 * millimetre)
+        work = _text_value(header.get("work_name"))
+        locality = _text_value(header.get("locality"))
+        if locality:
+            work = f"{work} | {locality}" if work else locality
+        labelled(c, left + 73 * millimetre, second_y, labels["work"] + " ", work, 102 * millimetre)
+        sublabel(c, col1, second_y - 3.2 * millimetre, labels["salesperson_sub"])
+        sublabel(c, left + 73 * millimetre, second_y - 3.2 * millimetre, labels["work_sub"])
+
+    def draw_footer(c, width: float):
+        left = 17 * millimetre
+        right = width - left
+        c.setStrokeColor(red)
+        c.setLineWidth(1.2)
+        c.line(left, 25 * millimetre, right, 25 * millimetre)
+        c.setFillColor(HexColor("#46494e"))
+        c.setFont("Helvetica-Bold", 6.2)
+        legal = (
+            f"{labels['vat_footer']} {company['vat']}    "
+            + (f"{labels['siret_footer']} {company['siret']}    " if company["siret"] else "")
+            + f"{labels['capital_footer']} {company['capital']}"
+        )
+        c.drawCentredString(width / 2, 20.5 * millimetre, fitted(legal, "Helvetica-Bold", 6.2, 176 * millimetre))
+
+        columns = (
+            (left, ("GR 360 Flooring Systems", company["address"], company["postal_city"])),
+            (left + 63 * millimetre, ("FRANCE : HSOLS France", "ALLEMAGNE : HSOLS Industriefussboden", "PORTUGAL : BetãoConcept")),
+            (left + 127 * millimetre, ("ESPAGNE : MG SOLERAS Industriales", "MAROC : HSOLS Sarlau", "SUISSE : HSOLS Schweiz")),
+        )
+        for x, lines in columns:
+            y = 15.5 * millimetre
+            for line_index, line in enumerate(lines):
+                font = "Helvetica-Bold" if x == left and line_index == 0 else "Helvetica"
+                c.setFont(font, 6.2)
+                c.setFillColor(muted)
+                c.drawString(x, y, fitted(line, font, 6.2, 54 * millimetre))
+                y -= 3.1 * millimetre
+
+    writer = PdfWriter()
+    for index, page in enumerate(pages):
+        if index < terms_start:
+            width = float(page.mediabox.width)
+            height = float(page.mediabox.height)
+            overlay_stream = io.BytesIO()
+            overlay_canvas = canvas.Canvas(overlay_stream, pagesize=(width, height))
+            if index > 0:
+                draw_header(overlay_canvas, width, height)
+            draw_footer(overlay_canvas, width)
+            overlay_canvas.save()
+            overlay_page = PdfReader(io.BytesIO(overlay_stream.getvalue())).pages[0]
+            page.merge_page(overlay_page, over=True)
+        writer.add_page(page)
+    if source.metadata:
+        writer.add_metadata({key: value for key, value in source.metadata.items() if isinstance(value, str)})
+    output = io.BytesIO()
+    writer.write(output)
+    return output.getvalue()
 
 
 def get_budget_technical_options(feid: Any, user) -> dict[str, Any]:
@@ -1615,9 +1934,9 @@ def save_budget(payload: dict[str, Any], user) -> dict[str, Any]:
                 if not rows:
                     raise BudgetsNotFoundError("O orçamento já não existe no PHC desta empresa.")
                 existing_header = rows[0]
-                if not _budget_is_in_preparation(existing_header):
+                if not _budget_can_be_edited(existing_header):
                     raise BudgetsConflictError(
-                        "O orçamento já não está em preparação e não pode ser alterado."
+                        "O orçamento está fechado, adjudicado ou anulado e não pode ser alterado."
                     )
                 current_revision = _revision_token(existing_header.get("USRDATA"), existing_header.get("USRHORA"))
                 requested_revision = _text_value(header.get("revision"))
@@ -1820,6 +2139,9 @@ def save_budget(payload: dict[str, Any], user) -> dict[str, Any]:
                 "custo": _phc_value(total_cost),
                 "u_emargem": margin_value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP),
                 "u_margem": margin_percentage.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP),
+                # Any update, including one to an approved budget, reopens the
+                # document and requires a fresh approval in PHC.
+                "aprovado": 0,
                 "usrinis": user_inis,
                 "usrdata": audit_date,
                 "usrhora": audit_time,
@@ -1897,6 +2219,8 @@ def save_budget(payload: dict[str, Any], user) -> dict[str, Any]:
                 "bo3stamp": bostamp,
                 "codpais": country_code,
                 "descpais": country_name,
+                "u_aprovdat": PHC_ZERO_DATE,
+                "u_aprovusr": "",
                 "usrinis": user_inis,
                 "usrdata": audit_date,
                 "usrhora": audit_time,
@@ -2044,6 +2368,10 @@ def save_budget(payload: dict[str, Any], user) -> dict[str, Any]:
                     "telefone": _limited(client.get("TELEFONE"), bi2_lengths, "telefone"),
                     "contacto": _limited(client.get("CONTACTO"), bi2_lengths, "contacto"),
                     "email": _limited(client.get("EMAIL"), bi2_lengths, "email"),
+                    "u_aprova": 0,
+                    "u_desapro": 0,
+                    "u_dtaprova": PHC_ZERO_DATE,
+                    "u_respons": "",
                     "usrinis": user_inis,
                     "usrdata": now_sql,
                     "usrhora": audit_time,
@@ -2066,7 +2394,7 @@ def save_budget(payload: dict[str, Any], user) -> dict[str, Any]:
                 cursor.execute("DELETE FROM dbo.OCI WHERE BISTAMP = ?", bistamp)
                 if prepared["has_technical"]:
                     for oci_index, row in enumerate(prepared["technical_rows"], start=1):
-                        purchase_price = _write_money(row.get("purchase_price"))
+                        purchase_price = _write_oci_purchase_price(row)
                         cost_per_unit = _write_money(row.get("cost_per_unit"))
                         component_quantity = cost_per_unit / purchase_price if purchase_price else Decimal("0")
                         if not cost_per_unit and purchase_price:

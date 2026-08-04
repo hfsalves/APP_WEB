@@ -1,8 +1,8 @@
 <!doctype html>
-<html lang="fr">
+<html lang="{{ print_language }}">
 <head>
   <meta charset="utf-8">
-  <title>Devis N° {{ document.header.number }}</title>
+  <title>{{ labels.document_title }} {{ document.header.number }}</title>
   <style>
     @page { size: A4; margin: 33mm 17mm 29mm; @top-center { content: element(continuedHeader); } @bottom-center { content: element(footer); } }
     @page:first { margin-top: 10mm; @top-center { content: none; } }
@@ -30,11 +30,25 @@
     .items th .sub { display: block; color: #777; font-size: 6.2pt; font-style: italic; font-weight: normal; margin-top: .5mm; }
     .items td { vertical-align: top; padding: 4mm 1mm 0; } .col-item { width: 7%; text-align: right; font-weight: bold; } .col-desc { width: 53%; } .col-q { width: 12%; } .col-unit { width: 5%; } .col-price { width: 11%; } .col-total { width: 12%; }
     .article-group { break-inside: avoid; page-break-inside: avoid; } .article-title { font-size: 9pt; font-weight: 700; line-height: 1.3; } .technical-description { margin: 2mm 0 0 7mm; font-style: italic; line-height: 1.42; } .technical-description div { break-inside: avoid; }
+    .article-kind { display: inline-block; color: #9f1d27; font-size: 6.6pt; font-weight: 700; letter-spacing: .45pt; margin: 0 1.5mm .7mm 0; text-transform: uppercase; }
     .plus-row td { padding-top: 0; } .plus-value { margin: 3.5mm 1mm 1mm 7mm; border: .5pt solid #888; border-radius: 1.5mm; padding: 2mm 3mm; display: grid; grid-template-columns: 1fr 24mm 10mm 22mm; column-gap: 2mm; align-items: start; font-style: italic; } .plus-value .name { font-weight: bold; color: #555; } .plus-value .num { text-align: right; }
     .totals-zone { break-inside: avoid; page-break-inside: avoid; }
     .totals { margin-top: 1mm; margin-left: auto; width: 50%; border-collapse: collapse; break-inside: avoid; page-break-inside: avoid; } .totals td { padding: 1.5mm 1mm; text-align: right; } .totals tr:first-child td { border-top: .7pt solid #111; } .totals .label { font-size: 9pt; } .totals .sub { color: #777; font-size: 6.2pt; font-style: italic; } .totals .strong { font-size: 10pt; font-weight: 700; }
+    .totals-overview { display: grid; grid-template-columns: .82fr 1fr 1fr 1.12fr; border-bottom: .45pt solid #c9c9c9; }
+    .total-stat { display: grid; grid-template-columns: 1fr auto; gap: 2mm; align-items: center; min-width: 0; padding: 2mm 2.5mm; }
+    .total-stat + .total-stat { border-left: .35pt solid #d7d7d7; }
+    .total-stat .label { text-align: right; font-size: 8pt; }
+    .total-stat .sub { color: #888; font-size: 5.8pt; font-style: italic; }
+    .total-stat .value { text-align: right; font-size: 9pt; font-weight: 700; white-space: nowrap; }
     .pro-rata { break-inside: avoid; border-top: .7pt solid #111; border-bottom: .45pt solid #111; margin-top: 4mm; padding: 4mm 1mm 14mm 8%; display: grid; grid-template-columns: 1fr 17mm 9mm 22mm; gap: 2mm; font-size: 9pt; } .pro-rata .num { text-align: right; }
     .signature { break-inside: avoid; margin-top: 62mm; width: 43%; text-align: center; } .signature .line { border-top: .6pt solid #111; padding-top: 2mm; font-weight: 700; font-size: 9pt; } .signature p { font-size: 6.3pt; font-style: italic; line-height: 1.6; }
+    .commercial-choices { margin-top: 5mm; break-before: auto; }
+    .choice-section { margin-top: 3mm; }
+    .choice-title { border-bottom: .6pt solid #777; padding: 0 1mm 1.2mm; color: #303236; font-size: 9pt; font-weight: 700; }
+    .choice-row { display: grid; grid-template-columns: 9mm 1fr 30mm; gap: 2mm; align-items: baseline; break-inside: avoid; page-break-inside: avoid; padding: 1.8mm 2mm 1.5mm; border-bottom: .35pt solid #ddd; }
+    .choice-item { text-align: right; font-weight: 700; }
+    .choice-designation { font-weight: 600; }
+    .choice-value { text-align: right; font-weight: 700; white-space: nowrap; }
     .general-terms-page { page: general-terms; break-before: page; page-break-before: always; color: #55585d; font-family: Arial, Helvetica, sans-serif; font-size: 5.25pt; line-height: 1.1; }
     .general-terms-header { height: 20mm; display: grid; grid-template-columns: 35mm 1fr; column-gap: 4mm; align-items: center; }
     .general-terms-logo { display: block; width: auto; height: auto; max-width: 31mm; max-height: 14mm; margin-left: 2mm; object-fit: contain; object-position: left center; }
@@ -48,6 +62,13 @@
     .general-terms-signature { break-inside: avoid; page-break-inside: avoid; height: 25mm; margin: 3mm .8mm 0; border-left: 1.8pt solid #d32632; border-radius: 0 1mm 1mm 0; background: #f1f1f2; padding: 3mm; display: flex; flex-direction: column; justify-content: flex-end; text-align: center; }
     .general-terms-signature .sign-line { border-top: .4pt solid #8b8e93; color: #303236; padding-top: 1.5mm; font-size: 6.5pt; font-weight: 700; }
     .general-terms-bottom-line { display: none; }
+    /* Chrome does not implement running elements/margin boxes. Without this
+       fallback it lays the footer and continuation header out before page 1. */
+    @supports not (position: running(footer)) {
+      .footer, .continued-header { display: none !important; }
+    }
+    .suppress-running-elements .footer,
+    .suppress-running-elements .continued-header { display: none !important; }
     {% if theme == "modern" %}
     body.theme-modern { color: #303236; }
     .theme-modern .footer { width: 176mm; border-top: 1.2pt solid #d32632; color: #6a6d72; padding-top: 2.5mm; }
@@ -82,6 +103,7 @@
     .theme-modern .plus-value { color: #484b50; background: #f5f5f5; border: 0; border-left: 2.2pt solid #d32632; border-radius: 0 1.5mm 1.5mm 0; padding: 2.5mm 3mm; }
     .theme-modern .plus-value .name { color: #9f1d27; text-transform: uppercase; font-size: 7.2pt; letter-spacing: .5pt; }
     .theme-modern .totals-zone { background: #f4f4f4; border-top: 2pt solid #d32632; border-radius: 0 0 1.5mm 1.5mm; margin-top: 4mm; padding: 2mm 3mm 3mm; }
+    .theme-modern .totals-overview { background: #fff; border: .45pt solid #dedede; border-left: 1.8pt solid #d32632; }
     .theme-modern .totals { width: 55%; margin-top: 0; }
     .theme-modern .totals tr:first-child td { border-top: 0; }
     .theme-modern .totals td { padding: 1.7mm 2mm; }
@@ -93,33 +115,43 @@
     .theme-modern .signature-in-totals { width: auto; min-height: 36mm; margin: 0; padding: 3mm; color: #3f4247; background: #fff; border-radius: 1.2mm; display: flex; flex-direction: column; justify-content: flex-end; }
     .theme-modern .signature-in-totals .line { border-top: 0; padding-top: 0; }
     .theme-modern .signature-in-totals p { margin: 1.5mm 0 0; }
+    .theme-modern .choice-title { border-bottom: 1.1pt solid #8b8e93; }
+    .theme-modern .choice-row { border-bottom-color: #dedede; }
     {% endif %}
   </style>
 </head>
-<body class="theme-{{ theme }}{% if approved %} is-approved{% else %} is-unapproved{% endif %}">
-  <div class="footer"><div class="legal">N° TVA Intracom.: {{ company.vat }} &nbsp;&nbsp;&nbsp; N° Siret : {{ company.siret }} &nbsp;&nbsp;&nbsp; Capital Social : {{ company.capital }}</div><div class="branches"><div><strong>GR 360 Flooring Systems</strong><br>{{ company.address }}<br>{{ company.postal_city }}</div><div>FRANCE : HSOLS France<br>ALLEMAGNE : HSOLS Industriefussboden<br>PORTUGAL : BetãoConcept</div><div>ESPAGNE : MG SOLERAS Industriales<br>MAROC : HSOLS Sarlau<br>SUISSE : HSOLS Schweiz</div></div></div>
+<body class="theme-{{ theme }}{% if approved %} is-approved{% else %} is-unapproved{% endif %}{% if suppress_running %} suppress-running-elements{% endif %}">
+  <div class="footer"><div class="legal">{{ labels.vat_footer }} {{ company.vat }}{% if company.siret %} &nbsp;&nbsp;&nbsp; {{ labels.siret_footer }} {{ company.siret }}{% endif %} &nbsp;&nbsp;&nbsp; {{ labels.capital_footer }} {{ company.capital }}</div><div class="branches"><div><strong>GR 360 Flooring Systems</strong><br>{{ company.address }}<br>{{ company.postal_city }}</div><div>FRANCE : HSOLS France<br>ALLEMAGNE : HSOLS Industriefussboden<br>PORTUGAL : BetãoConcept</div><div>ESPAGNE : MG SOLERAS Industriales<br>MAROC : HSOLS Sarlau<br>SUISSE : HSOLS Schweiz</div></div></div>
   <div class="continued-header">
-    <div class="continued-title">Devis N° {{ document.header.number }}</div>
-    <div class="continued-grid"><div>N° Client: &nbsp; {{ document.header.client_number }}<div class="sub">Client Nr.:</div></div><div>Client: &nbsp; <strong>{{ document.header.client_name }}</strong><div class="sub">Client:</div></div><div>Date: &nbsp; {{ fmt_date(document.header.date) }}<div class="sub">Date:</div></div></div>
-    <div class="continued-grid"><div>Chargé d’Affaires: &nbsp; {{ document.header.salesperson }}<div class="sub">Salesman:</div></div><div>Chantier: &nbsp; {{ document.header.work_name }}{% if document.header.locality %} | {{ document.header.locality }}{% endif %}<div class="sub">Construction Site:</div></div></div>
+    <div class="continued-title">{{ labels.document_title }} {{ document.header.number }}</div>
+    <div class="continued-grid"><div>{{ labels.client_number }} &nbsp; {{ document.header.client_number }}<div class="sub">{{ labels.client_number_sub }}</div></div><div>{{ labels.client }} &nbsp; <strong>{{ document.header.client_name }}</strong><div class="sub">{{ labels.client_sub }}</div></div><div>{{ labels.date }} &nbsp; {{ fmt_date(document.header.date) }}<div class="sub">{{ labels.date_sub }}</div></div></div>
+    <div class="continued-grid"><div>{{ labels.salesperson }} &nbsp; {{ document.header.salesperson }}<div class="sub">{{ labels.salesperson_sub }}</div></div><div>{{ labels.work }} &nbsp; {{ document.header.work_name }}{% if document.header.locality %} | {{ document.header.locality }}{% endif %}<div class="sub">{{ labels.work_sub }}</div></div></div>
   </div>
   <div class="doc-head">
     <div class="company">{% if logo and logo.b64 %}<img class="company-logo" alt="{{ company.name }}" src="data:{{ logo.mime }};base64,{{ logo.b64 }}">{% endif %}<div class="company-details"><strong>{{ company.name }}</strong><br>{{ company.address }}<br>{{ company.postal_city }}<br>{{ company.phone }}<br><span class="muted">E-mail:</span> {{ company.email }}</div></div>
-    <div class="doc-info"><div class="doc-title">Devis N° {{ document.header.number }}</div><div class="page-label">ORIGINAL</div>{% if not approved %}<div class="status">NON APPROUVÉ</div>{% endif %}</div>
+    <div class="doc-info"><div class="doc-title">{{ labels.document_title }} {{ document.header.number }}</div><div class="page-label">{{ labels.original }}</div>{% if not approved %}<div class="status">{{ labels.not_approved }}</div>{% endif %}</div>
   </div>
-  <div class="meta"><div><span class="label">Chargé d’Affaires:</span> {{ document.header.salesperson }}<div class="sub">Salesman:</div></div><div><span class="label">Chantier:</span> {{ document.header.work_name }}{% if document.header.locality %} | {{ document.header.locality }}{% endif %}<div class="sub">Construction Site:</div></div><div><span class="label">Date:</span> {{ fmt_date(document.header.date) }}<div class="sub">Date:</div></div></div>
-  <div class="meta second"><div><span class="label">N° Client:</span> {{ document.header.client_number }}<div class="sub">Client Nr.:</div></div><div><span class="label">Client:</span> <strong>{{ document.header.client_name }}</strong><div class="sub">Client:</div></div><div class="address-meta"><div><span class="label">Adresse:</span><div class="sub">Address:</div></div><div class="address-lines">{{ document.header.address }}{% if document.header.postal_code or document.header.place %}<br>{{ document.header.postal_code }} {{ document.header.place }}{% endif %}</div></div></div>
-  <table class="items"><thead><tr><th class="col-item">Article<span class="sub">Item</span></th><th class="col-desc">Designation<span class="sub">Description</span></th><th class="col-q num">Qté.<span class="sub">Qty</span></th><th class="col-unit">Un.<span class="sub">Un.</span></th><th class="col-price num">P.U.H.T<span class="sub">Unit Price</span></th><th class="col-total num">Total H.T.<span class="sub">Net Amount</span></th></tr></thead>
-  {% for article in document.articles %}<tbody class="article-group"><tr><td class="col-item">{{ article.item_label }}</td><td class="col-desc"><div class="article-title">{{ article.designation }}</div>{% if article.technical_lines %}<div class="technical-description">{% for technical in article.technical_lines %}<div>{{ technical.designation }}</div>{% endfor %}</div>{% endif %}</td><td class="col-q num">{{ fmt_quantity(article.quantity) }}</td><td class="col-unit">{{ article.unit }}</td><td class="col-price num">{{ fmt_money(article.unit_price) }}</td><td class="col-total num">{{ fmt_money(article.total) }}</td></tr>{% for pv in article.plus_values %}<tr class="plus-row"><td></td><td colspan="5"><div class="plus-value"><div><span class="name">{{ pv.adjustment_label or "PLUS-VALUE" }}</span><br>{{ pv.description or pv.designation }}</div><div class="num">{{ fmt_quantity(article.quantity) }}</div><div>{{ article.unit }}</div><div class="num">{{ fmt_money(pv.unit_price) }}</div></div></td></tr>{% endfor %}</tbody>{% endfor %}
+  <div class="meta"><div><span class="label">{{ labels.salesperson }}</span> {{ document.header.salesperson }}<div class="sub">{{ labels.salesperson_sub }}</div></div><div><span class="label">{{ labels.work }}</span> {{ document.header.work_name }}{% if document.header.locality %} | {{ document.header.locality }}{% endif %}<div class="sub">{{ labels.work_sub }}</div></div><div><span class="label">{{ labels.date }}</span> {{ fmt_date(document.header.date) }}<div class="sub">{{ labels.date_sub }}</div></div></div>
+  <div class="meta second"><div><span class="label">{{ labels.client_number }}</span> {{ document.header.client_number }}<div class="sub">{{ labels.client_number_sub }}</div></div><div><span class="label">{{ labels.client }}</span> <strong>{{ document.header.client_name }}</strong><div class="sub">{{ labels.client_sub }}</div></div><div class="address-meta"><div><span class="label">{{ labels.address }}</span><div class="sub">{{ labels.address_sub }}</div></div><div class="address-lines">{{ document.header.address }}{% if document.header.postal_code or document.header.place %}<br>{{ document.header.postal_code }} {{ document.header.place }}{% endif %}</div></div></div>
+  <table class="items"><thead><tr><th class="col-item">{{ labels.item }}<span class="sub">{{ labels.item_sub }}</span></th><th class="col-desc">{{ labels.designation }}<span class="sub">{{ labels.designation_sub }}</span></th><th class="col-q num">{{ labels.quantity }}<span class="sub">{{ labels.quantity_sub }}</span></th><th class="col-unit">{{ labels.unit }}<span class="sub">{{ labels.unit_sub }}</span></th><th class="col-price num">{{ labels.unit_price }}<span class="sub">{{ labels.unit_price_sub }}</span></th><th class="col-total num">{{ labels.line_total }}<span class="sub">{{ labels.line_total_sub }}</span></th></tr></thead>
+  {% for article in document.articles %}<tbody class="article-group"><tr><td class="col-item">{{ article.item_label }}</td><td class="col-desc">{% if article.option %}<span class="article-kind">{{ labels.option }}</span>{% endif %}{% if article.variant %}<span class="article-kind">{{ labels.variant }}</span>{% endif %}<div class="article-title">{{ article.designation }}</div>{% if article.technical_lines %}<div class="technical-description">{% for technical in article.technical_lines %}<div>{{ technical.designation }}</div>{% endfor %}</div>{% endif %}</td><td class="col-q num">{{ fmt_quantity(article.quantity) }}</td><td class="col-unit">{{ article.unit }}</td><td class="col-price num">{{ fmt_money(article.unit_price) }}</td><td class="col-total num">{{ fmt_money(article.display_total) }}</td></tr>{% for pv in article.plus_values %}<tr class="plus-row"><td></td><td colspan="5"><div class="plus-value"><div><span class="name">{{ pv.adjustment_label }}</span><br>{{ pv.description or pv.designation }}</div><div class="num">{{ fmt_quantity(article.quantity) }}</div><div>{{ article.unit }}</div><div class="num">{{ fmt_money(pv.unit_price) }}</div></div></td></tr>{% endfor %}</tbody>{% endfor %}
   </table>
   <div class="totals-zone">
-    <table class="totals"><tr><td class="label">Total HT :<div class="sub">Amount:</div></td><td class="strong">{{ fmt_money(document.totals.commercial_total) }}</td></tr></table>
-    {% for line in document.pro_rata %}<div class="pro-rata"><div><strong>PRORATA{% if line.discount_1 %} ({{ fmt_money(line.discount_1) }}%){% endif %}</strong></div><div class="num">{{ fmt_quantity(line.quantity) }}</div><div>{{ line.unit }}</div><div class="num">{{ fmt_money(line.total) }}</div></div>{% endfor %}
+    <div class="totals-overview">
+      <div class="total-stat"><div class="label">{{ labels.pro_rata_total }}<div class="sub">{{ labels.pro_rata_total_sub }}</div></div><div class="value">{{ fmt_money(document.totals.pro_rata_total) }}</div></div>
+      <div class="total-stat"><div class="label">{{ labels.amount_total }}<div class="sub">{{ labels.amount_total_sub }}</div></div><div class="value">{{ fmt_money(document.totals.goods_total) }}</div></div>
+      <div class="total-stat"><div class="label">{{ labels.discounts }}<div class="sub">{{ labels.discounts_sub }}</div></div><div class="value">{{ fmt_money(document.totals.discount_total) }}</div></div>
+      <div class="total-stat"><div class="label">{{ labels.net_total }}<div class="sub">{{ labels.net_total_sub }}</div></div><div class="value">{{ fmt_money(document.totals.net_total) }}</div></div>
+    </div>
     <div class="totals-bottom">
-      {% if theme == "modern" %}<div class="signature signature-in-totals"><div class="line">Signature</div><p>l'acceptation du devis par le Client vaut acceptation,<br>compréhension et lecture des CGVE jointes.</p></div>{% endif %}
-      <div class="grand-totals-wrap"><table class="totals grand-totals"><tr><td class="label">Total HT NET:<div class="sub">Net Amount:</div></td><td class="strong">{{ fmt_money(document.totals.net_total) }}</td></tr>{% for tax in document.vat_rows %}<tr><td class="label">TVA:<div class="sub">VAT: {{ fmt_money(tax.rate) }}%</div></td><td>{{ fmt_money(tax.amount) }}</td></tr>{% endfor %}<tr><td class="label strong">TOTAL TTC:</td><td class="strong">{{ fmt_money(document.totals.gross_total) }}</td></tr></table></div>
+      {% if theme == "modern" %}<div class="signature signature-in-totals"><div class="line">{{ labels.signature }}</div><p>{{ labels.signature_text }}</p></div>{% endif %}
+      <div class="grand-totals-wrap"><table class="totals grand-totals">{% for tax in document.vat_rows %}<tr><td class="label">{{ labels.vat }}<div class="sub">{{ labels.vat_sub }} {{ fmt_money(tax.rate) }}%</div></td><td>{{ fmt_money(tax.amount) }}</td></tr>{% endfor %}<tr><td class="label strong">{{ labels.gross_total }}</td><td class="strong">{{ fmt_money(document.totals.gross_total) }}</td></tr></table></div>
     </div>
   </div>
-  {% if theme == "classic" %}<div class="signature"><div class="line">Signature</div><p>l'acceptation du devis par le Client vaut acceptation,<br>compréhension et lecture des CGVE jointes.</p></div>{% endif %}
-  {% include "gr_budgets/conditions_generales.html" %}
+  {% if document.options or document.variants %}<div class="commercial-choices">
+    {% if document.options %}<section class="choice-section"><div class="choice-title">{{ labels.options }}</div>{% for article in document.options %}<div class="choice-row"><div class="choice-item">{{ article.item_label }}</div><div class="choice-designation">{{ article.designation }}</div><div class="choice-value">{{ fmt_money(article.display_total) }}</div></div>{% endfor %}</section>{% endif %}
+    {% if document.variants %}<section class="choice-section"><div class="choice-title">{{ labels.variants }}</div>{% for article in document.variants %}<div class="choice-row"><div class="choice-item">{{ article.item_label }}</div><div class="choice-designation">{{ article.designation }}</div><div class="choice-value">{{ fmt_money(article.display_total) }}</div></div>{% endfor %}</section>{% endif %}
+  </div>{% endif %}
+  {% if theme == "classic" %}<div class="signature"><div class="line">{{ labels.signature }}</div><p>{{ labels.signature_text }}</p></div>{% endif %}
+  {% if print_language == "pt" %}{% include "gr_budgets/conditions_gerais_pt.html" %}{% else %}{% include "gr_budgets/conditions_generales.html" %}{% endif %}
 </body></html>

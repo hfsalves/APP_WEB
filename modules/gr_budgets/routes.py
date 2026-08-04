@@ -19,6 +19,7 @@ from .service import (
     get_budget_technical_options,
     list_budgets,
     render_budget_pdf_html,
+    decorate_budget_browser_pdf,
     save_budget,
     list_companies_for_user,
     search_budget_clients,
@@ -60,6 +61,7 @@ _BUDGET_ERROR_KEYS = {
     "Cabeçalho do orçamento inválido.": "gr_budgets.error.header_invalid",
     "Linhas do orçamento inválidas.": "gr_budgets.error.budget_lines_invalid",
     "O orçamento já não está em preparação e não pode ser alterado.": "gr_budgets.error.budget_not_in_preparation",
+    "O orçamento está fechado, adjudicado ou anulado e não pode ser alterado.": "gr_budgets.error.budget_locked",
     "O orçamento foi alterado por outro utilizador. Atualize os dados antes de voltar a gravar.": "gr_budgets.error.budget_stale",
     "Existem linhas duplicadas no orçamento.": "gr_budgets.error.budget_lines_duplicate",
 }
@@ -304,12 +306,15 @@ def api_budget_pdf(bostamp):
         return _forbidden()
     try:
         detail = get_budget_detail(request.args.get("feid"), bostamp, current_user)
-        html = render_budget_pdf_html(detail, request.args.get("style"))
+        style = request.args.get("style")
+        html = render_budget_pdf_html(detail, style)
         try:
-            pdf_bytes = generate_ft_pdf_bytes(html)
-            engine = "weasy/chrome"
+            pdf_bytes, engine = generate_ft_pdf_bytes(html, return_engine=True)
+            if engine == "browser":
+                pdf_bytes = decorate_budget_browser_pdf(pdf_bytes, detail)
         except Exception:
-            pdf_bytes = generate_ft_pdf_bytes_xhtml2pdf(html)
+            fallback_html = render_budget_pdf_html(detail, style, suppress_running=True)
+            pdf_bytes = generate_ft_pdf_bytes_xhtml2pdf(fallback_html)
             engine = "xhtml2pdf-fallback"
         number = int((detail.get("header") or {}).get("number") or 0)
         return Response(
@@ -332,12 +337,15 @@ def api_budget_pdf_by_number(number):
         return _forbidden()
     try:
         detail = get_budget_detail_by_number(request.args.get("feid"), number, request.args.get("year"), current_user)
-        html = render_budget_pdf_html(detail, request.args.get("style"))
+        style = request.args.get("style")
+        html = render_budget_pdf_html(detail, style)
         try:
-            pdf_bytes = generate_ft_pdf_bytes(html)
-            engine = "weasy/chrome"
+            pdf_bytes, engine = generate_ft_pdf_bytes(html, return_engine=True)
+            if engine == "browser":
+                pdf_bytes = decorate_budget_browser_pdf(pdf_bytes, detail)
         except Exception:
-            pdf_bytes = generate_ft_pdf_bytes_xhtml2pdf(html)
+            fallback_html = render_budget_pdf_html(detail, style, suppress_running=True)
+            pdf_bytes = generate_ft_pdf_bytes_xhtml2pdf(fallback_html)
             engine = "xhtml2pdf-fallback"
         return Response(
             pdf_bytes,

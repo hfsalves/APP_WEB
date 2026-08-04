@@ -12,6 +12,7 @@ from modules.gr_budgets.service import (
     _company_logo_path,
     _vat_payload,
     budget_print_payload,
+    decorate_budget_browser_pdf,
     render_budget_pdf_html,
 )
 
@@ -91,6 +92,8 @@ class BudgetPdfTests(unittest.TestCase):
         self.assertEqual(len(document["articles"][0]["plus_values"]), 1)
         self.assertEqual(document["articles"][0]["technical_lines"][0]["designation"], "Bande de désolidarisation périphérique - épaisseur 1cm")
         self.assertEqual(document["totals"]["commercial_total"], 1048650.24)
+        self.assertEqual(document["totals"]["goods_total"], 1048650.24)
+        self.assertEqual(document["totals"]["discount_total"], 0)
         self.assertEqual(document["totals"]["pro_rata_total"], 20973.00)
         self.assertEqual(document["totals"]["net_total"], 1069623.24)
         self.assertEqual(document["totals"]["vat_total"], 213924.65)
@@ -121,6 +124,82 @@ class BudgetPdfTests(unittest.TestCase):
         self.assertIn(">PLUS-VALUE</span>", html)
         self.assertIn(">MOINS-VALUE</span>", html)
 
+    def test_portuguese_company_uses_portuguese_labels_terms_and_adjustments(self):
+        detail = self._detail_1415()
+        detail["company"]["phc_db"] = "HSOLS_PT"
+        detail["lines"].insert(
+            2,
+            self._line(
+                "1.2",
+                "MVL",
+                "-4154.49",
+                quantity="18063",
+                price="-0.23",
+                description="MENOR VALIA DE TESTE",
+            ),
+        )
+        detail["lines"].append(self._line("8", "OPT", "0", quantity="10", price="12", option=True))
+        detail["lines"].append(
+            self._line("9", "VAR", "0", quantity="5", price="10", variant=True, discount_1=Decimal("100"))
+        )
+
+        document = budget_print_payload(detail)
+        self.assertEqual(document["language"], "pt")
+        self.assertEqual(
+            [row["adjustment_label"] for row in document["articles"][0]["plus_values"]],
+            ["MAIOR-VALIA", "MENOR-VALIA"],
+        )
+        self.assertEqual(document["articles"][-2]["display_total"], Decimal("120.00"))
+        self.assertEqual(document["articles"][-1]["display_total"], Decimal("50.00"))
+        self.assertEqual([row["item_label"] for row in document["options"]], ["8"])
+        self.assertEqual([row["item_label"] for row in document["variants"]], ["9"])
+        self.assertEqual(document["totals"]["commercial_total"], 1048650.24)
+
+        app = Flask(__name__, template_folder="../modules/gr_budgets/templates")
+        with app.app_context():
+            html = render_budget_pdf_html(detail)
+        self.assertIn("Orçamento N.º 1415", html)
+        self.assertIn("NÃO APROVADO", html)
+        self.assertIn("Vendedor:", html)
+        self.assertIn("Morada:", html)
+        self.assertIn(">OPÇÃO</span>", html)
+        self.assertIn(">ALTERNATIVA</span>", html)
+        self.assertIn("120,00", html)
+        self.assertIn("50,00", html)
+        self.assertIn("class=\"totals-overview\"", html)
+        self.assertIn("Descontos:", html)
+        self.assertIn("class=\"commercial-choices\"", html)
+        self.assertIn("<div class=\"choice-title\">Opções</div>", html)
+        self.assertIn("<div class=\"choice-title\">Alternativas</div>", html)
+        self.assertIn("CONDIÇÕES GERAIS DE VENDA E DE EXECUÇÃO", html)
+        self.assertIn("ARTIGO 17 - CLÁUSULA DE SALVAGUARDA", html)
+        self.assertNotIn("CONDITIONS GENERALES DE VENTE ET D´EXECUTION", html)
+
+    def test_zz_designation_is_localized_without_changing_its_value(self):
+        french_detail = self._detail_1415()
+        french_detail["lines"].append(self._line("8", "OPT", "0", quantity="2", price="75", option=True))
+        french_detail["lines"].append(self._line("9", "VAR", "0", quantity="3", price="50", variant=True))
+        french_detail["lines"].append(self._line("ZZ", "ZZ", "-250", quantity="-1", price="250"))
+        french_document = budget_print_payload(french_detail)
+        self.assertEqual(french_document["articles"][-1]["designation"], "ESCOMPTE")
+        self.assertEqual(french_document["articles"][-1]["total"], Decimal("-250"))
+        app = Flask(__name__, template_folder="../modules/gr_budgets/templates")
+        with app.app_context():
+            french_html = render_budget_pdf_html(french_detail)
+        self.assertIn("Escomptes :", french_html)
+        self.assertIn("<div class=\"choice-title\">Options</div>", french_html)
+        self.assertIn("<div class=\"choice-title\">Variantes</div>", french_html)
+
+        portuguese_detail = self._detail_1415()
+        portuguese_detail["company"]["phc_db"] = "HSOLS_PT"
+        portuguese_detail["lines"].append(self._line("ZZ", "", "-250", quantity="-1", price="250"))
+        portuguese_document = budget_print_payload(portuguese_detail)
+        self.assertEqual(portuguese_document["articles"][-1]["designation"], "DESCONTO")
+        self.assertEqual(portuguese_document["articles"][-1]["total"], Decimal("-250"))
+        self.assertEqual(portuguese_document["totals"]["goods_total"], 1048650.24)
+        self.assertEqual(portuguese_document["totals"]["discount_total"], -250.00)
+        self.assertEqual(portuguese_document["totals"]["commercial_total"], 1048400.24)
+
     def test_html_contains_the_print_model_values(self):
         app = Flask(__name__, template_folder="../modules/gr_budgets/templates")
         with app.app_context():
@@ -142,6 +221,8 @@ class BudgetPdfTests(unittest.TestCase):
         self.assertIn("class=\"totals-zone\"", html)
         self.assertIn("signature-in-totals", html)
         self.assertIn("class=\"general-terms-page\"", html)
+        self.assertIn("@supports not (position: running(footer))", html)
+        self.assertIn(".footer, .continued-header { display: none !important; }", html)
         self.assertIn("CONDITIONS GENERALES DE VENTE ET D´EXECUTION", html)
         self.assertIn("ARTICLE 17 - CLAUSE DE SAUVEGARDE", html)
         self.assertIn("page: general-terms", html)
@@ -178,15 +259,48 @@ class BudgetPdfTests(unittest.TestCase):
                     patch.object(budget_routes, "_has_acl", return_value=True), \
                     patch.object(budget_routes, "get_budget_detail", return_value=detail) as get_detail, \
                     patch.object(budget_routes, "render_budget_pdf_html", return_value="<html></html>") as render_html, \
-                    patch.object(budget_routes, "generate_ft_pdf_bytes", return_value=b"%PDF-test"):
+                    patch.object(
+                        budget_routes,
+                        "generate_ft_pdf_bytes",
+                        return_value=(b"%PDF-test", "weasyprint"),
+                    ) as generate_pdf:
                 response = budget_routes.api_budget_pdf.__wrapped__("BO-STAMP")
 
         get_detail.assert_called_once_with("7", "BO-STAMP", user)
         render_html.assert_called_once_with(detail, "modern")
+        generate_pdf.assert_called_once_with("<html></html>", return_engine=True)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.mimetype, "application/pdf")
         self.assertEqual(response.headers["Content-Disposition"], 'inline; filename="Devis_1516.pdf"')
         self.assertEqual(response.headers["Cache-Control"], "no-store, no-cache, must-revalidate, max-age=0")
+        self.assertEqual(response.headers["X-PDF-Engine"], "weasyprint")
+
+    def test_browser_pdf_decorator_skips_terms_and_repeats_quote_furniture(self):
+        import io
+
+        from pypdf import PdfReader
+        from reportlab.lib.pagesizes import A4
+        from reportlab.pdfgen import canvas
+
+        raw_stream = io.BytesIO()
+        raw_canvas = canvas.Canvas(raw_stream, pagesize=A4)
+        raw_canvas.drawString(72, 760, "QUOTE PAGE 1")
+        raw_canvas.showPage()
+        raw_canvas.drawString(72, 760, "QUOTE PAGE 2")
+        raw_canvas.showPage()
+        raw_canvas.drawString(72, 760, "CONDITIONS GENERALES DE VENTE ET D'EXECUTION")
+        raw_canvas.save()
+
+        decorated = decorate_budget_browser_pdf(raw_stream.getvalue(), self._detail_1415())
+        pages = PdfReader(io.BytesIO(decorated)).pages
+        page_text = [page.extract_text() or "" for page in pages]
+
+        self.assertEqual(len(pages), 3)
+        self.assertIn("GR 360 Flooring Systems", page_text[0])
+        self.assertNotIn("Devis N° 1415", page_text[0])
+        self.assertIn("Devis N° 1415", page_text[1])
+        self.assertIn("GR 360 Flooring Systems", page_text[1])
+        self.assertNotIn("GR 360 Flooring Systems", page_text[2])
 
     def test_company_logo_never_falls_back_to_another_fe_folder(self):
         with TemporaryDirectory() as directory:
@@ -262,6 +376,22 @@ class BudgetPdfTests(unittest.TestCase):
         self.assertIn("roundMoney(row.purchase_price).toFixed(2)", script)
         self.assertIn('id="budgetOciSalePrice"', template)
         self.assertIn('min="0" step="0.01"', template)
+
+    def test_oci_purchase_price_accepts_localized_decimals_and_is_committed_before_save(self):
+        root = Path(__file__).resolve().parents[1]
+        script = (root / "modules/gr_budgets/static/gr_budgets.js").read_text(encoding="utf-8")
+
+        self.assertIn("function parseLocalizedNumber(rawValue)", script)
+        self.assertIn('data-oci-field="purchase_price" data-oci-numeric', script)
+        self.assertIn('type="text" inputmode="decimal"', script)
+        self.assertIn("function commitOciNumericInputs()", script)
+        save_line = script.index("function saveOciLine()")
+        commit = script.index("commitOciNumericInputs();", save_line)
+        recalculate = script.index("recalculateOci();", commit)
+        collect = script.index("const rows = collectOciRows();", recalculate)
+        self.assertLess(commit, recalculate)
+        self.assertLess(recalculate, collect)
+        self.assertIn("base_purchase_price: roundMoney(row.dataset.ociBasePurchasePrice)", script)
 
     def test_save_endpoint_uses_write_acl_and_authenticated_user(self):
         app = Flask(__name__)

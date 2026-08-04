@@ -7,6 +7,7 @@ from modules.gr_budgets.service import (
     _article_designation_expression,
     _client_payload,
     _budget_is_in_preparation,
+    _budget_can_be_edited,
     _budget_visibility_predicate,
     _component_family_payload,
     _component_payload,
@@ -27,6 +28,7 @@ from modules.gr_budgets.service import (
     _series_name_key,
     _series_rows,
     _write_money,
+    _write_oci_purchase_price,
 )
 
 
@@ -46,6 +48,16 @@ class BudgetPayloadTests(unittest.TestCase):
         ]
 
         self.assertEqual(_pick_default_series(rows), 115)
+
+    def test_oci_purchase_price_prefers_the_normalized_visible_input(self):
+        self.assertEqual(
+            _write_oci_purchase_price({"purchase_price": 0, "purchase_price_text": "4,10"}),
+            Decimal("4.10"),
+        )
+        self.assertEqual(
+            _write_oci_purchase_price({"purchase_price": 7.239}),
+            Decimal("7.24"),
+        )
 
     def test_client_budget_series_name_filter_is_accent_insensitive(self):
         allowed = {"devis", "etude et execution", "devis perdu"}
@@ -171,11 +183,18 @@ class BudgetPayloadTests(unittest.TestCase):
         self.assertEqual(_write_money("4.105"), Decimal("4.11"))
         self.assertEqual(_write_money("4.104"), Decimal("4.10"))
 
-    def test_only_preparation_budgets_can_be_changed(self):
+    def test_preparation_state_excludes_approved_and_terminal_budgets(self):
         self.assertTrue(_budget_is_in_preparation({}))
         self.assertFalse(_budget_is_in_preparation({"APROVADO": True}))
         self.assertFalse(_budget_is_in_preparation({"ADJUDICADO": 1}))
         self.assertFalse(_budget_is_in_preparation({"ANULADO": "true"}))
+
+    def test_approved_budget_can_be_edited_but_terminal_states_cannot(self):
+        self.assertTrue(_budget_can_be_edited({"APROVADO": True}))
+        self.assertTrue(_budget_can_be_edited({}))
+        self.assertFalse(_budget_can_be_edited({"FECHADA": True}))
+        self.assertFalse(_budget_can_be_edited({"ADJUDICADO": 1}))
+        self.assertFalse(_budget_can_be_edited({"ANULADO": "true"}))
 
     def test_intersol_salespeople_10_to_14_only_see_their_own_devis(self):
         sql, params = _intersol_budget_visibility_predicate(12)
