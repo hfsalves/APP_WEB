@@ -192,6 +192,11 @@ def _has_column(cursor, table_name: str, column_name: str) -> bool:
     return cursor.fetchone() is not None
 
 
+def _has_table(cursor, table_name: str) -> bool:
+    cursor.execute("SELECT OBJECT_ID(?)", (f"dbo.{table_name}",))
+    return cursor.fetchone()[0] is not None
+
+
 def _with_uret_iva(sql: str, has_uret_iva: bool) -> str:
     if not has_uret_iva:
         return (
@@ -200,6 +205,47 @@ def _with_uret_iva(sql: str, has_uret_iva: bool) -> str:
         )
     expr = "CAST(ISNULL(U.IVA, 0) AS decimal(9,3))"
     return sql.replace("__URET_IVA_EXPR__", expr)
+
+
+def _with_optional_uret(sql: str, has_uret_table: bool, has_uret_iva: bool) -> str:
+    """Keep legacy PHC databases working when U_RET was never installed."""
+    resolved = _with_uret_iva(sql, has_uret_iva)
+    if has_uret_table:
+        return resolved
+
+    empty_uret = """uret AS (
+    SELECT
+        CAST(NULL AS varchar(25)) AS {stamp},
+        CAST(NULL AS decimal(9,3)) AS TVAP,
+        CAST(NULL AS decimal(19,2)) AS RG,
+        CAST(NULL AS decimal(19,2)) AS RFT,
+        CAST(NULL AS decimal(19,2)) AS PRORATA_RET,
+        CAST(NULL AS decimal(19,2)) AS AUTRET
+    WHERE 1 = 0
+)"""
+    if "uret_doc AS" in resolved:
+        replacement = (
+            empty_uret.format(stamp="BOSTAMP")
+            + ",\nuret_doc AS (\n"
+            + "    SELECT CAST(NULL AS varchar(25)) AS BOSTAMP, CAST(NULL AS int) AS URET_COUNT WHERE 1 = 0\n"
+            + "),\ntaxas AS ("
+        )
+        return re.sub(
+            r"uret AS \(\n.*?\n\),\nuret_doc AS \(\n.*?\n\),\ntaxas AS \(",
+            replacement,
+            resolved,
+            count=1,
+            flags=re.DOTALL,
+        )
+
+    replacement = empty_uret.format(stamp="FTSTAMP") + ",\ntaxas AS ("
+    return re.sub(
+        r"uret AS \(\n.*?\n\),\ntaxas AS \(",
+        replacement,
+        resolved,
+        count=1,
+        flags=re.DOTALL,
+    )
 
 
 ORCAMENTOS_SQL = """
@@ -582,10 +628,11 @@ def get_opc_phc_info(record_stamp: str) -> dict:
 
     with pyodbc.connect(conn_str, timeout=15) as conn:
         cursor = conn.cursor()
-        has_uret_iva = _has_column(cursor, "U_RET", "IVA")
+        has_uret_table = _has_table(cursor, "U_RET")
+        has_uret_iva = has_uret_table and _has_column(cursor, "U_RET", "IVA")
         orcamentos = _fetch_all(cursor, ORCAMENTOS_SQL, (phc_processo,))
-        autos = _fetch_all(cursor, _with_uret_iva(AUTOS_SQL, has_uret_iva), (phc_processo,))
-        autos.extend(_fetch_all(cursor, _with_uret_iva(FT_STANDALONE_SQL, has_uret_iva), (phc_processo,)))
+        autos = _fetch_all(cursor, _with_optional_uret(AUTOS_SQL, has_uret_table, has_uret_iva), (phc_processo,))
+        autos.extend(_fetch_all(cursor, _with_optional_uret(FT_STANDALONE_SQL, has_uret_table, has_uret_iva), (phc_processo,)))
         autos.sort(key=lambda item: (item.get("ordem") or 0, item.get("descricao") or "", item.get("iva_percentagem") or 0))
 
     return {

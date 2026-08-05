@@ -11544,3 +11544,39 @@ Press CTRL+C to quit
 127.0.0.1 - - [05/Aug/2026 11:49:18] "GET /service-worker.js HTTP/1.1" 304 -
 127.0.0.1 - - [05/Aug/2026 11:49:18] "GET /api/gr_orcamentos/orcamentos?feid=1&ndos=115&year=2026 HTTP/1.1" 200 -
 127.0.0.1 - - [05/Aug/2026 11:49:19] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=SIB26080529457,381000001 HTTP/1.1" 200 -
+ * Serving Flask app 'app:app'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://192.168.115.3:8001
+Press CTRL+C to quit
+127.0.0.1 - - [05/Aug/2026 12:04:04] "GET /generic/view/OPC HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 12:04:04] "GET /static/js/dynamic_list.js?v=1785927751 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 12:04:05] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 12:04:05] "GET /static/js/push.js?v=1785927751 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 12:04:05] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 12:04:05] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 12:04:05] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 12:04:05] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 12:04:05] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 12:04:06] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 12:04:07] "GET /generic/api/OPC?action=describe&include_screen_meta=1&menustamp=C662E899ECD4419F905CCBB86 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 12:04:07] "GET /generic/api/OPC HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 12:04:21] "GET /generic/opc_projetos_form/ES25011738980,310158237%20%20?menustamp=C662E899ECD4419F905CCBB86&return_to=/generic/view/OPC HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 12:04:21] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 12:04:21] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 12:04:21] "GET /static/css/opc_projetos_form.css?v=opc-containers-1 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 12:04:21] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 12:04:21] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 12:04:21] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 12:04:21] "GET /static/js/push.js?v=1785927751 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 12:04:21] "GET /static/js/dynamic_form.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 12:04:21] "GET /static/js/opc_projetos_form.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 12:04:21] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 12:04:21] "GET /generic/api/opc/ES25011738980,310158237%20%20/phc_info HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 12:04:21] "GET /generic/api/opc/ES25011738980,310158237%20%20/phc_info HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 12:04:23] "GET /generic/api/OPC?action=describe&menustamp=C662E899ECD4419F905CCBB86&include_screen_meta=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 12:04:23] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 12:04:23] "GET /generic/api/OPC/ES25011738980,310158237 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 12:04:23] "GET /api/anexos?table=OPC&rec=ES25011738980,310158237 HTTP/1.1" 200 -
