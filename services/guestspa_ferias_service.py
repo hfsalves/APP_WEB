@@ -363,9 +363,17 @@ def list_guestspa_ferias_aprovacao(week: Any = None, start_value: Any = None, en
     for year in range(start.year, end.year + 1):
         holidays.update(holiday_days(year))
     people = db.session.execute(text(f"""
-        SELECT NO, LTRIM(RTRIM(ISNULL(NOME, ''))) AS NOME
-        FROM {PHC_PREFIX}.[PE]
-        WHERE ISNULL(NO, 0) <> 0 AND ISNULL(STATUS, 1) <> 3
+        SELECT PE.NO, LTRIM(RTRIM(ISNULL(PE.NOME, ''))) AS NOME
+        FROM {PHC_PREFIX}.[PE] AS PE
+        INNER JOIN (
+            SELECT DISTINCT PENO
+            FROM dbo.US
+            WHERE ISNULL(PENO, 0) <> 0
+              AND ISNULL(INATIVO, 0) = 0
+              AND ISNULL(IS_ACTIVE, 1) = 1
+              AND ISNULL(USCLIENTE, 0) = 0
+        ) AS US ON US.PENO = PE.NO
+        WHERE ISNULL(PE.NO, 0) <> 0 AND ISNULL(PE.STATUS, 1) <> 3
         ORDER BY LTRIM(RTRIM(ISNULL(NOME, ''))), NO
     """)).mappings().all()
     request_rows = db.session.execute(text(f"""
