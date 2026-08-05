@@ -320,7 +320,9 @@ WITH doc AS (
             WHEN LTRIM(RTRIM(BO.MAQUINA)) = 'DGD' THEN 9999
             ELSE 100
         END AS ORDEM,
-        CASE WHEN BO.NDOS = 124 THEN -1 ELSE 1 END AS SGN
+        /* As linhas BI de uma nota de credito ja estao gravadas com sinal negativo.
+           Aplicar outro sinal aqui fazia a nota de credito entrar como valor positivo. */
+        CAST(1 AS int) AS SGN
     FROM BO
     JOIN BO2 ON BO2.BO2STAMP = BO.BOSTAMP
     WHERE BO.NDOS IN (118, 124)
@@ -607,6 +609,21 @@ ORDER BY ORDEM, FDATA, FTSTAMP, TVAP
 """
 
 
+FATURADO_TOTAL_SQL = """
+SELECT CAST(ISNULL(SUM(ISNULL(FT.ETOTAL, 0)), 0) AS decimal(19,2)) AS TOTAL_FATURADO
+FROM FT
+JOIN FT2 ON FT2.FT2STAMP = FT.FTSTAMP
+WHERE FT.NDOC IN (1, 4)
+  AND LTRIM(RTRIM(ISNULL(FT2.PROCESSO, ''))) = ?
+"""
+
+
+def _fetch_scalar(cursor, sql: str, params: tuple = ()) -> float:
+    cursor.execute(sql, params)
+    row = cursor.fetchone()
+    return _as_float(row[0] if row else 0)
+
+
 def get_opc_phc_info(record_stamp: str) -> dict:
     row = db.session.execute(text("""
         SELECT TOP 1
@@ -634,6 +651,7 @@ def get_opc_phc_info(record_stamp: str) -> dict:
         autos = _fetch_all(cursor, _with_optional_uret(AUTOS_SQL, has_uret_table, has_uret_iva), (phc_processo,))
         autos.extend(_fetch_all(cursor, _with_optional_uret(FT_STANDALONE_SQL, has_uret_table, has_uret_iva), (phc_processo,)))
         autos.sort(key=lambda item: (item.get("ordem") or 0, item.get("descricao") or "", item.get("iva_percentagem") or 0))
+        total_faturado = _fetch_scalar(cursor, FATURADO_TOTAL_SQL, (phc_processo,))
 
     return {
         "obra": {
@@ -651,4 +669,8 @@ def get_opc_phc_info(record_stamp: str) -> dict:
         },
         "orcamentos": orcamentos,
         "autos": autos,
+        # FT/FT2 e a fonte contabilistica dos documentos efetivamente emitidos.
+        # Um documento pode estar ligado a varias linhas/autos, pelo que o resumo
+        # nao deve resultar da soma dessas ligacoes.
+        "autos_total_faturado": total_faturado,
     }

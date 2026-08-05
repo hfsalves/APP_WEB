@@ -93,6 +93,10 @@
       orcamentos: totals(payload.orcamentos || []),
       autos: totals(payload.autos || []),
     };
+    const totalFaturado = Number(payload.autos_total_faturado);
+    if (Number.isFinite(totalFaturado)) {
+      groups.autos.total_iva = totalFaturado;
+    }
     root.querySelectorAll('[data-total]').forEach((el) => {
       const [group, key] = String(el.dataset.total || '').split('.');
       el.textContent = formatNumber(groups[group] ? groups[group][key] : 0);
