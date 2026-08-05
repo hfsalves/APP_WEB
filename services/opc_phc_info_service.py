@@ -700,13 +700,19 @@ def get_opc_phc_info(record_stamp: str) -> dict:
             continue
         # O resumo da obra tem de refletir o que foi faturado ao cliente, e nao o
         # valor original do auto. Isto tambem preserva o sinal das notas de credito.
+        producao_original = _as_float(auto.get("producao"))
+        ret_fim_original = _as_float(auto.get("ret_fim_trabalho"))
         auto["producao"] = valor_faturado
+        if producao_original and ret_fim_original:
+            # A retencao e uma percentagem do auto. Recalcula-se sobre o valor
+            # efetivamente faturado e conserva-se o sinal das notas de credito.
+            taxa_ret_fim = abs(ret_fim_original / producao_original)
+            auto["ret_fim_trabalho"] = round(valor_faturado * taxa_ret_fim, 2)
         base_liquida = (
             valor_faturado
             - _as_float(auto.get("ajustes"))
             + _as_float(auto.get("adiantamento"))
             - _as_float(auto.get("ret_garantia"))
-            - _as_float(auto.get("ret_fim_trabalho"))
             - _as_float(auto.get("outras_retencoes"))
             - _as_float(auto.get("prorata"))
         )
