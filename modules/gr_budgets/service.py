@@ -71,6 +71,14 @@ class BudgetsConflictError(BudgetsError):
     status_code = 409
 
 
+class BudgetsCreditLimitError(BudgetsValidationError):
+    status_code = 422
+
+    def __init__(self, message: str, credit: dict[str, Any]):
+        super().__init__(message)
+        self.credit = credit
+
+
 def _company_logo_path(
     festamp: Any,
     configured_path: Any,
@@ -453,8 +461,26 @@ def _series_rows(cursor) -> list[dict[str, Any]]:
 def get_budget_series(feid: Any, user) -> dict[str, Any]:
     company = _company_for_user(feid, user)
     with pyodbc.connect(_phc_conn_str(company["phc_db"], company.get("phc_server", "")), timeout=15) as conn:
-        rows = _series_rows(conn.cursor())
-    return {"company": company, "rows": rows, "default_ndos": _pick_default_series(rows)}
+        cursor = conn.cursor()
+        rows = _series_rows(cursor)
+        tax_rates = _tax_rate_rows(cursor)
+    return {
+        "company": company,
+        "rows": rows,
+        "default_ndos": _pick_default_series(rows),
+        "tax_rates": tax_rates,
+    }
+
+
+def _tax_rate_rows(cursor) -> list[dict[str, Any]]:
+    return [
+        {
+            "table": int(_number_value(row.get("tabiva"))),
+            "rate": _percent(row.get("taxaiva")),
+        }
+        for row in _phc_tax_rates(cursor)
+        if int(_number_value(row.get("tabiva"))) > 0
+    ]
 
 
 def get_budget_salespeople(feid: Any, user) -> dict[str, Any]:
@@ -503,9 +529,10 @@ def search_budget_clients(feid: Any, query: Any, user) -> dict[str, Any]:
     starts = f"{search}%"
     with pyodbc.connect(_phc_conn_str(company["phc_db"], company.get("phc_server", "")), timeout=15) as conn:
         cursor = conn.cursor()
+        client_columns = _phc_columns(cursor, "CL")
         rows = _fetch_rows(
             cursor,
-            """
+            f"""
             SELECT TOP 40
                 CLSTAMP,
                 NO,
@@ -517,7 +544,8 @@ def search_budget_clients(feid: Any, query: Any, user) -> dict[str, Any]:
                 EMAIL,
                 TELEFONE,
                 VENDEDOR,
-                VENDNM
+                VENDNM,
+                {_optional_column(client_columns, 'CL', 'TABIVA', 'VAT_TABLE', '0')}
             FROM dbo.CL CL
             WHERE ISNULL(INACTIVO, 0) = 0
               AND CL.ESTAB = 0
@@ -540,13 +568,20 @@ def search_budget_clients(feid: Any, query: Any, user) -> dict[str, Any]:
             """,
             (like, like, like, like, like, search, starts),
         )
+        tax_rates = {
+            int(_number_value(row.get("tabiva"))): _decimal(row.get("taxaiva"))
+            for row in _phc_tax_rates(cursor)
+            if int(_number_value(row.get("tabiva"))) > 0
+        }
     return {
         "company": company,
-        "rows": [_client_payload(row) for row in rows],
+        "rows": [_client_payload(row, tax_rates) for row in rows],
     }
 
 
-def _client_payload(row: dict[str, Any]) -> dict[str, Any]:
+def _client_payload(row: dict[str, Any], tax_rates: dict[int, Decimal] | None = None) -> dict[str, Any]:
+    vat_table = int(_number_value(row.get("VAT_TABLE") if row.get("VAT_TABLE") is not None else row.get("TABIVA")))
+    vat_rate = (tax_rates or {}).get(vat_table, Decimal("0"))
     return {
         "stamp": _text_value(row.get("CLSTAMP")),
         "number": int(_number_value(row.get("NO"))),
@@ -557,6 +592,8 @@ def _client_payload(row: dict[str, Any]) -> dict[str, Any]:
         "contact": _text_value(row.get("CONTACTO")),
         "email": _text_value(row.get("EMAIL")),
         "phone": _text_value(row.get("TELEFONE")),
+        "vat_table": vat_table,
+        "vat_rate": _percent(vat_rate),
         "salesperson_number": int(_number_value(row.get("VENDEDOR"))),
         "salesperson": _text_value(row.get("VENDNM")),
     }
@@ -795,6 +832,17 @@ def get_budget_detail(feid: Any, bostamp: str, user) -> dict[str, Any]:
         # BOT differs slightly between PHC versions. Fetch the complete tax rows,
         # then normalise known column names in _vat_payload.
         tax_rows = _fetch_rows(cursor, "SELECT T.* FROM dbo.BOT T WHERE T.BOSTAMP = ?", (clean_stamp,))
+        tax_rates = _tax_rate_rows(cursor)
+        client_tax_table = 0
+        cl_columns = _phc_columns(cursor, "CL")
+        if "tabiva" in cl_columns:
+            client_tax = _fetch_rows(
+                cursor,
+                "SELECT TOP 1 TABIVA FROM dbo.CL WHERE NO = ? AND ESTAB = ?",
+                (header_rows[0].get("NO"), header_rows[0].get("ESTAB")),
+            )
+            if client_tax:
+                client_tax_table = int(_number_value(client_tax[0].get("TABIVA")))
         company["e1"] = _load_e1_company(cursor)
 
     header = _header_payload(header_rows[0], company)
@@ -805,12 +853,16 @@ def get_budget_detail(feid: Any, bostamp: str, user) -> dict[str, Any]:
         oci_by_line[payload["line_stamp"]].append(payload)
     for line in lines:
         line["technical_lines"] = oci_by_line.get(line["bistamp"], [])
+    default_vat_table, default_vat_rate = _budget_default_vat(lines, tax_rates, client_tax_table)
+    header["default_vat_table"] = default_vat_table
+    header["default_vat_rate"] = _percent(default_vat_rate)
     return {
         "company": company,
         "header": header,
         "lines": lines,
         "totals": _totals_payload(header, lines),
         "vat_rows": [_vat_payload(row) for row in tax_rows],
+        "tax_rates": tax_rates,
     }
 
 
@@ -920,6 +972,42 @@ def _line_payload(row: dict[str, Any]) -> dict[str, Any]:
         "margin_value": _qty(profit),
         "profit": _qty(profit),
     }
+
+
+def _budget_default_vat(
+    lines: list[dict[str, Any]],
+    tax_rates: list[dict[str, Any]],
+    client_tax_table: Any = 0,
+) -> tuple[int, Decimal]:
+    """Choose the VAT inherited by a new position in an existing budget."""
+    rates: dict[int, Decimal] = {}
+    for row in tax_rates:
+        table = int(_number_value(row.get("table") if row.get("table") is not None else row.get("tabiva")))
+        rate = row.get("rate") if row.get("rate") is not None else row.get("taxaiva")
+        if table > 0:
+            rates[table] = _decimal(rate)
+    client_table = int(_number_value(client_tax_table))
+    if client_table in rates:
+        return client_table, rates[client_table]
+
+    # A client may have no default VAT table. In an existing dossier, inherit
+    # the table used by the largest taxable amount instead of creating a 0% line.
+    bases: dict[int, Decimal] = defaultdict(lambda: Decimal("0"))
+    occurrences: dict[int, int] = defaultdict(int)
+    for line in lines:
+        if _bool_value(line.get("variant")) or _bool_value(line.get("option")):
+            continue
+        table = int(_number_value(line.get("vat_table")))
+        if table not in rates:
+            continue
+        bases[table] += abs(_decimal(line.get("total")))
+        occurrences[table] += 1
+    if bases:
+        table = max(bases, key=lambda code: (bases[code], occurrences[code], -code))
+        return table, rates[table]
+
+    table = 2 if 2 in rates else next(iter(rates), 0)
+    return table, rates.get(table, Decimal("0"))
 
 
 def _totals_payload(header: dict[str, Any], lines: list[dict[str, Any]]) -> dict[str, Any]:
@@ -1800,12 +1888,14 @@ def _write_client(cursor, number: Any, establishment: Any) -> dict[str, Any]:
     customer_establishment = int(_number_value(establishment))
     if customer_number <= 0:
         raise BudgetsValidationError("Selecione um cliente válido.")
+    columns = _phc_columns(cursor, "CL")
     rows = _fetch_rows(
         cursor,
-        """
+        f"""
         SELECT TOP 1 CLSTAMP, NO, ESTAB, NOME, NCONT, MORADA, LOCAL, CODPOST, ZONA,
                TELEFONE, CONTACTO, EMAIL, VENDEDOR, VENDNM, PNCONT, PAIS,
-               COBRANCA, TPSTAMP, TPDESC, LANG
+               COBRANCA, TPSTAMP, TPDESC, LANG,
+               {_optional_column(columns, 'CL', 'TABIVA', 'VAT_TABLE', '0')}
         FROM dbo.CL WITH (UPDLOCK, HOLDLOCK)
         WHERE NO = ? AND ESTAB = ? AND ISNULL(INACTIVO, 0) = 0
         """,
@@ -1849,6 +1939,182 @@ def _write_country(cursor, client: dict[str, Any]) -> tuple[str, str]:
         (code, code),
     )
     return code, (_text_value(rows[0].get("NOME")) if rows else "")
+
+
+def _approval_credit_payload(row: dict[str, Any], document_total: Any) -> dict[str, Any]:
+    insurance = _write_money(row.get("U_SEGURO"))
+    credit_limit = _write_money(row.get("EPLAFOND"))
+    account_balance = _write_money(row.get("ESALDO"))
+    open_execution = _write_money(row.get("BO_ABERTO"))
+    budget_total = _write_money(document_total)
+    total_credit = _write_money(insurance + credit_limit)
+    open_total = _write_money(account_balance + open_execution)
+    available = _write_money(total_credit - open_total - budget_total)
+    return {
+        "insurance": float(insurance),
+        "credit_limit": float(credit_limit),
+        "total_credit": float(total_credit),
+        "account_balance": float(account_balance),
+        "open_execution": float(open_execution),
+        "budget_total": float(budget_total),
+        "open_total": float(open_total),
+        "available": float(available),
+    }
+
+
+def _approval_has_credit(credit: dict[str, Any], override_limit: Any = 0) -> bool:
+    available = _write_money(credit.get("available"))
+    required = _write_money(
+        _decimal(credit.get("open_total")) + _decimal(credit.get("budget_total"))
+    )
+    return available >= 0 or _write_money(override_limit) > required
+
+
+def _phc_user_identity(cursor, user) -> tuple[str, str]:
+    login = _text_value(getattr(user, "LOGIN", ""))
+    rows = _fetch_rows(
+        cursor,
+        """
+        SELECT TOP 1
+            LTRIM(RTRIM(ISNULL(USERCODE, ''))) AS USERCODE,
+            LTRIM(RTRIM(ISNULL(INICIAIS, ''))) AS INICIAIS
+        FROM dbo.US
+        WHERE UPPER(LTRIM(RTRIM(ISNULL(USERCODE, '')))) = UPPER(?)
+        ORDER BY ISNULL(INACTIVO, 0), USERNO
+        """,
+        (login,),
+    )
+    if not rows:
+        return login, _user_inis(user)
+    return _text_value(rows[0].get("USERCODE")) or login, _text_value(rows[0].get("INICIAIS")) or _user_inis(user)
+
+
+def _approval_override_limit(cursor, usercode: str) -> Decimal:
+    try:
+        rows = _fetch_rows(
+            cursor,
+            """
+            SELECT TOP 1 ISNULL(PLAFOND, 0) AS PLAFOND
+            FROM HSOLS_MASTER.dbo.U_APROPLAF
+            WHERE UPPER(LTRIM(RTRIM(ISNULL(USERCODE, '')))) = UPPER(?)
+            """,
+            (usercode,),
+        )
+    except pyodbc.Error:
+        return Decimal("0")
+    return _write_money(rows[0].get("PLAFOND")) if rows else Decimal("0")
+
+
+def set_budget_approval(feid: Any, bostamp: str, approved: bool, user) -> dict[str, Any]:
+    """Approve/unapprove a PHC Devis using the same credit rules as the PHC button."""
+    company = _company_for_user(feid, user)
+    clean_stamp = _text_value(bostamp)
+    if not clean_stamp:
+        raise BudgetsValidationError("Orçamento não indicado.")
+    target_approved = _bool_value(approved)
+    now_sql = datetime.now()
+    audit_date = now_sql.date()
+    audit_time = now_sql.strftime("%H:%M:%S")
+
+    with pyodbc.connect(_phc_conn_str(company["phc_db"], company.get("phc_server", "")), timeout=30) as conn:
+        conn.autocommit = False
+        cursor = conn.cursor()
+        try:
+            visibility_sql, visibility_params = _budget_visibility_predicate(company, user, "B")
+            rows = _fetch_rows(
+                cursor,
+                f"""
+                SELECT TOP 1
+                    B.BOSTAMP, B.NDOS, B.NMDOS, B.NO, B.ESTAB, B.ETOTALDEB,
+                    B.APROVADO, B.FECHADA,
+                    ISNULL(B2.ADJUDICADO, 0) AS ADJUDICADO,
+                    ISNULL(B2.ANULADO, 0) AS ANULADO
+                FROM dbo.BO B WITH (UPDLOCK, HOLDLOCK)
+                LEFT JOIN dbo.BO2 B2 WITH (UPDLOCK, HOLDLOCK)
+                       ON B2.BO2STAMP = B.BOSTAMP
+                WHERE B.BOSTAMP = ?
+                  AND {visibility_sql}
+                """,
+                (clean_stamp, *visibility_params),
+            )
+            if not rows:
+                raise BudgetsNotFoundError("Orçamento não encontrado no PHC desta empresa.")
+            budget = rows[0]
+            if _series_name_key(budget.get("NMDOS")) != "devis":
+                raise BudgetsValidationError("A aprovação só está disponível para dossiers Devis.")
+            if any(_bool_value(budget.get(field)) for field in ("FECHADA", "ADJUDICADO", "ANULADO")):
+                raise BudgetsValidationError("O orçamento está fechado, adjudicado ou anulado e não pode ser alterado.")
+            if target_approved == _bool_value(budget.get("APROVADO")):
+                conn.rollback()
+                return {"bostamp": clean_stamp, "approved": target_approved, "credit": None}
+
+            usercode, user_inis = _phc_user_identity(cursor, user)
+            credit: dict[str, Any] | None = None
+            if target_approved and not _bool_value(budget.get("APROVADO")):
+                credit_rows = _fetch_rows(
+                    cursor,
+                    """
+                    SELECT TOP 1
+                        ISNULL(C.U_SEGURO, 0) AS U_SEGURO,
+                        ISNULL(C.EPLAFOND, 0) AS EPLAFOND,
+                        ISNULL(C.ESALDO, 0) AS ESALDO,
+                        ISNULL(EXECUTION.BO_ABERTO, 0) AS BO_ABERTO
+                    FROM dbo.CL C
+                    OUTER APPLY (
+                        SELECT ROUND(ISNULL(SUM(
+                            CASE WHEN ISNULL(I.QTT, 0) - ISNULL(I.QTT2, 0) < 0 THEN 0
+                                 ELSE ISNULL(I.QTT, 0) - ISNULL(I.QTT2, 0) END
+                            * ISNULL(I.EDEBITO, 0)
+                        ), 0), 2) AS BO_ABERTO
+                        FROM dbo.BO E
+                        LEFT JOIN dbo.BI I ON I.BOSTAMP = E.BOSTAMP
+                        WHERE E.NO = C.NO
+                          AND E.ESTAB = C.ESTAB
+                          AND E.NDOS = 122
+                          AND ISNULL(E.FECHADA, 0) = 0
+                    ) EXECUTION
+                    WHERE C.NO = ? AND C.ESTAB = ?
+                    """,
+                    (int(_number_value(budget.get("NO"))), int(_number_value(budget.get("ESTAB")))),
+                )
+                if not credit_rows:
+                    raise BudgetsValidationError("O cliente do orçamento já não está disponível no PHC.")
+                credit = _approval_credit_payload(credit_rows[0], budget.get("ETOTALDEB"))
+                override_limit = _approval_override_limit(cursor, usercode)
+                credit["override_limit"] = float(override_limit)
+                if not _approval_has_credit(credit, override_limit):
+                    raise BudgetsCreditLimitError("Não existe plafond suficiente para aprovar este orçamento.", credit)
+
+            _phc_update(
+                cursor,
+                "BO",
+                {
+                    "aprovado": 1 if target_approved else 0,
+                    "usrinis": user_inis,
+                    "usrdata": audit_date,
+                    "usrhora": audit_time,
+                },
+                "BOSTAMP",
+                clean_stamp,
+            )
+            _phc_update(
+                cursor,
+                "BO3",
+                {
+                    "u_aprovdat": now_sql if target_approved else PHC_ZERO_DATE,
+                    "u_aprovusr": user_inis if target_approved else "",
+                    "usrdata": audit_date,
+                    "usrhora": audit_time,
+                },
+                "BO3STAMP",
+                clean_stamp,
+            )
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+
+    return {"bostamp": clean_stamp, "approved": target_approved, "credit": credit}
 
 
 def _line_technical_rows(line: dict[str, Any]) -> list[dict[str, Any]]:
@@ -1958,6 +2224,9 @@ def save_budget(payload: dict[str, Any], user) -> dict[str, Any]:
                 if int(_number_value(row.get("tabiva"))) > 0
             }
             default_tax_code = 2 if 2 in tax_rates else (next(iter(tax_rates), 0))
+            client_tax_code = int(_number_value(client.get("VAT_TABLE")))
+            if client_tax_code not in tax_rates:
+                client_tax_code = 0
 
             references = sorted(
                 {
@@ -2026,7 +2295,10 @@ def save_budget(payload: dict[str, Any], user) -> dict[str, Any]:
                 stored_cost_total = _write_money(stored_unit_cost * quantity)
                 vat_code = int(_number_value(raw_line.get("vat_table")))
                 if vat_code <= 0:
-                    vat_code = article_taxes.get(reference.upper(), default_tax_code)
+                    article_tax_code = article_taxes.get(reference.upper(), 0)
+                    vat_code = client_tax_code or (
+                        article_tax_code if article_tax_code in tax_rates else default_tax_code
+                    )
                 vat_rate = tax_rates.get(vat_code, _decimal(raw_line.get("vat_rate")))
                 if vat_code not in tax_totals:
                     tax_totals[vat_code] = {"base": Decimal("0"), "iva": Decimal("0"), "rate": vat_rate}
@@ -2454,6 +2726,7 @@ def save_budget(payload: dict[str, Any], user) -> dict[str, Any]:
 
 
 __all__ = [
+    "BudgetsCreditLimitError",
     "BudgetsError",
     "get_budget_detail",
     "get_budget_line_oci",
@@ -2463,5 +2736,6 @@ __all__ = [
     "list_budgets",
     "list_companies_for_user",
     "save_budget",
+    "set_budget_approval",
     "search_budget_clients",
 ]

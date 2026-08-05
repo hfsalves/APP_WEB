@@ -10684,3 +10684,863 @@ WARNING: This is a development server. Do not use it in a production deployment.
  * Running on http://192.168.1.184:8001
 Press CTRL+C to quit
 127.0.0.1 - - [04/Aug/2026 09:45:39] "GET /login HTTP/1.1" 200 -
+ * Serving Flask app 'app:app'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://192.168.115.3:8001
+Press CTRL+C to quit
+127.0.0.1 - - [05/Aug/2026 09:34:26] "GET / HTTP/1.1" 302 -
+127.0.0.1 - - [05/Aug/2026 09:40:46] "GET / HTTP/1.1" 302 -
+127.0.0.1 - - [05/Aug/2026 09:40:51] "GET /dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:40:51] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:40:51] "GET /static/js/dashboard.js?v=1785918854 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:40:51] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:40:51] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:40:51] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:40:51] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:40:51] "GET /static/js/push.js?v=1785918854 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:40:51] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:40:53] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:40:53] "GET /api/dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:40:53] "POST /api/widgets/COMPLIANCE_DATAS_30D/run HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:40:58] "POST /api/widgets/MAPA_GESTAO_GR_TOP_LUCRO/run HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:40:59] "POST /api/widgets/MAPA_GESTAO_GR_RESUMO/run HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:41:00] "POST /api/widgets/MAPA_GESTAO_GR_TOP_PREJUIZO/run HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:41:05] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:41:05] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:41:05] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:41:05] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:41:05] "GET /gr_budgets/static/gr_budgets.css?v=1785918854-money-2-decimals-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:41:05] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:41:05] "GET /static/js/push.js?v=1785918854 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:41:05] "GET /gr_budgets/static/gr_budgets.js?v=1785918854-oci-price-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:41:05] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:41:06] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:41:06] "GET /api/gr_orcamentos/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:41:07] "GET /api/gr_orcamentos/series?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:41:07] "GET /api/gr_orcamentos/comerciais?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:41:07] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:41:07] "GET /api/gr_orcamentos/orcamentos?feid=2&ndos=15&year=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:41:08] "GET /api/gr_orcamentos/orcamento?feid=2&bostamp=AM26021155802,630000002 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:41:46] "GET /api/gr_orcamentos/opcoes-tecnicas?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:41:47] "GET /api/gr_orcamentos/oci?feid=2&bistamp=AM26021155803,0710000-2 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:47:06] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:47:06] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:47:06] "GET /gr_budgets/static/gr_budgets.css?v=1785918854-money-2-decimals-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:47:06] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:47:06] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:47:06] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:47:06] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:47:06] "GET /static/js/push.js?v=1785918854 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:47:06] "GET /gr_budgets/static/gr_budgets.js?v=1785918854-oci-price-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:47:06] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:47:06] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:47:07] "GET /api/gr_orcamentos/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:47:07] "GET /api/gr_orcamentos/series?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:47:08] "GET /api/gr_orcamentos/comerciais?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:47:08] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:47:08] "GET /api/gr_orcamentos/orcamentos?feid=2&ndos=15&year=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:47:09] "GET /api/gr_orcamentos/orcamento?feid=2&bostamp=AM26021155802,630000002 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:49:38] "GET /api/gr_orcamentos/opcoes-tecnicas?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:49:38] "GET /api/gr_orcamentos/oci?feid=2&bistamp=AM26021155803,0710000-2 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:49:44] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:49:51] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:49:52] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:49:54] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:49:54] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:49:54] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:49:54] "GET /gr_budgets/static/gr_budgets.css?v=1785918854-money-2-decimals-1 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:49:54] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:49:54] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:49:54] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:49:55] "GET /static/js/push.js?v=1785918854 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:49:55] "GET /gr_budgets/static/gr_budgets.js?v=1785918854-oci-price-1 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:49:55] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:49:55] "GET /api/gr_orcamentos/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:49:56] "GET /api/gr_orcamentos/series?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:49:56] "GET /api/gr_orcamentos/comerciais?feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:49:56] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:49:56] "GET /api/gr_orcamentos/orcamentos?feid=2&ndos=15&year=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:49:58] "GET /api/gr_orcamentos/orcamento?feid=2&bostamp=AM26021155802,630000002 HTTP/1.1" 200 -
+ * Serving Flask app 'app:app'
+ * Debug mode: off
+Address already in use
+Port 8001 is in use by another program. Either identify and stop that program, or start the server with a different port.
+ * Serving Flask app 'app:app'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://192.168.115.3:8001
+Press CTRL+C to quit
+127.0.0.1 - - [05/Aug/2026 09:52:54] "GET /api/gr_orcamentos/orcamento/AM26021155802,630000002/pdf?feid=2&style=modern HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:52:56] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:53:04] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:53:04] "GET /gr_budgets/static/gr_budgets.css?v=1785919963-money-2-decimals-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:53:04] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:53:04] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:53:04] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:53:04] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:53:04] "GET /static/js/push.js?v=1785919963 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:53:04] "GET /gr_budgets/static/gr_budgets.js?v=1785919963-oci-price-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:53:05] "GET /api/gr_orcamentos/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:53:05] "GET /api/gr_orcamentos/series?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:53:05] "GET /api/gr_orcamentos/comerciais?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:53:05] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:53:06] "GET /api/gr_orcamentos/orcamentos?feid=1&ndos=115&year=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:53:08] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=SIB26080529457,381000001 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:53:16] "GET /api/gr_orcamentos/clientes?feid=1&q=CECIA+Groupe+IDEC HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:53:22] "GET /api/gr_orcamentos/comerciais?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:53:22] "GET /api/gr_orcamentos/series?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:53:23] "GET /api/gr_orcamentos/orcamentos?feid=1&ndos=115&year=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:53:24] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=SIB26080529457,381000001 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:53:33] "GET /api/gr_orcamentos/orcamento/SIB26080529457,381000001/pdf?feid=1&style=modern HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:53:35] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:53:46] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=SIB26080529457,381000001 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:53:49] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:53:49] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:53:49] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:53:49] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:53:49] "GET /gr_budgets/static/gr_budgets.css?v=1785919963-money-2-decimals-1 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:53:49] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:53:49] "GET /static/js/push.js?v=1785919963 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:53:49] "GET /gr_budgets/static/gr_budgets.js?v=1785919963-oci-price-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:53:49] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:53:50] "GET /api/gr_orcamentos/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:53:50] "GET /api/gr_orcamentos/series?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:53:50] "GET /api/gr_orcamentos/comerciais?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:53:51] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:53:51] "GET /api/gr_orcamentos/orcamentos?feid=1&ndos=115&year=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:53:52] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=SIB26080529457,381000001 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:54:07] "GET /api/gr_orcamentos/clientes?feid=1&q=CECIA+Groupe+IDEC HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:54:24] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=SIB26080529457,381000001 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:54:36] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:54:36] "GET /gr_budgets/static/gr_budgets.css?v=1785919963-money-2-decimals-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:54:36] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:54:36] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:54:36] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:54:36] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:54:36] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:54:36] "GET /gr_budgets/static/gr_budgets.js?v=1785919963-oci-price-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:54:36] "GET /static/js/push.js?v=1785919963 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:54:36] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:54:36] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:54:37] "GET /api/gr_orcamentos/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:54:37] "GET /api/gr_orcamentos/comerciais?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:54:38] "GET /api/gr_orcamentos/series?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:54:38] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 09:54:38] "GET /api/gr_orcamentos/orcamentos?feid=1&ndos=115&year=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:54:40] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=SIB26080529457,381000001 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:54:50] "GET /api/gr_orcamentos/clientes?feid=1&q=CECIA+Groupe+IDEC HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:54:54] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=SIB26080529457,381000001 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:57:46] "GET /api/gr_orcamentos/opcoes-tecnicas?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:57:47] "GET /api/gr_orcamentos/oci?feid=1&bistamp=SIB26080529457,813000001 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:58:14] "GET /api/gr_orcamentos/clientes?feid=1&q=CECIA+Groupe+IDEC HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 09:58:25] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=SIB26080529457,381000001 HTTP/1.1" 200 -
+ * Serving Flask app 'app:app'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://192.168.115.3:8001
+Press CTRL+C to quit
+127.0.0.1 - - [05/Aug/2026 10:05:15] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:05:15] "GET /gr_budgets/static/gr_budgets.css?v=1785920691-money-2-decimals-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:05:15] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:05:15] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:05:15] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:05:15] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:05:16] "GET /gr_budgets/static/gr_budgets.js?v=1785920691-duplicate-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:05:16] "GET /static/js/push.js?v=1785920691 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:05:16] "GET /api/gr_orcamentos/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:05:17] "GET /api/gr_orcamentos/series?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:05:17] "GET /api/gr_orcamentos/comerciais?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:05:17] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:05:18] "GET /api/gr_orcamentos/orcamentos?feid=1&ndos=115&year=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:05:19] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=SIB26080529457,381000001 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:06:34] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=SIB26080529457,381000001 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:08:43] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=SIB26080529457,381000001 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:08:46] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:08:46] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:08:46] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:08:46] "GET /gr_budgets/static/gr_budgets.css?v=1785920691-money-2-decimals-1 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:08:46] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:08:46] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:08:46] "GET /static/js/push.js?v=1785920691 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:08:46] "GET /gr_budgets/static/gr_budgets.js?v=1785920691-duplicate-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:08:46] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:08:47] "GET /api/gr_orcamentos/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:08:47] "GET /api/gr_orcamentos/comerciais?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:08:47] "GET /api/gr_orcamentos/series?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:08:48] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:08:48] "GET /api/gr_orcamentos/orcamentos?feid=1&ndos=115&year=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:08:49] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=SIB26080529457,381000001 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:09:03] "GET /api/gr_orcamentos/opcoes-tecnicas?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:10:48] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=SIB26080529457,381000001 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:10:49] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:11:24] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:11:24] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:11:24] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:11:24] "GET /gr_budgets/static/gr_budgets.css?v=1785920691-money-2-decimals-1 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:11:24] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:11:24] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:11:24] "GET /static/js/push.js?v=1785920691 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:11:24] "GET /gr_budgets/static/gr_budgets.js?v=1785920691-duplicate-1 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:11:25] "GET /api/gr_orcamentos/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:11:25] "GET /api/gr_orcamentos/series?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:11:25] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:11:26] "GET /api/gr_orcamentos/comerciais?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:11:26] "GET /api/gr_orcamentos/orcamentos?feid=1&ndos=115&year=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:11:28] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=SIB26080529457,381000001 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:12:57] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:12:57] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:12:57] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:12:57] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:12:57] "GET /gr_budgets/static/gr_budgets.css?v=1785920691-money-2-decimals-1 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:12:57] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:12:57] "GET /static/js/push.js?v=1785920691 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:12:57] "GET /gr_budgets/static/gr_budgets.js?v=1785920691-duplicate-1 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:12:57] "GET /api/gr_orcamentos/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:12:58] "GET /api/gr_orcamentos/comerciais?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:12:58] "GET /api/gr_orcamentos/series?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:12:58] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:12:59] "GET /api/gr_orcamentos/orcamentos?feid=1&ndos=115&year=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:13:00] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=SIB26080529457,381000001 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:15:37] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:15:37] "GET /gr_budgets/static/gr_budgets.css?v=1785920691-money-2-decimals-1 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:15:37] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:15:37] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:15:37] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:15:37] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:15:37] "GET /static/js/push.js?v=1785920691 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:15:37] "GET /gr_budgets/static/gr_budgets.js?v=1785920691-duplicate-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:15:37] "GET /api/gr_orcamentos/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:15:38] "GET /api/gr_orcamentos/comerciais?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:15:38] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:15:38] "GET /api/gr_orcamentos/series?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:15:39] "GET /api/gr_orcamentos/orcamentos?feid=1&ndos=115&year=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:15:40] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=SIB26080529457,381000001 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:20:17] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:20:17] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:20:17] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:20:17] "GET /gr_budgets/static/gr_budgets.css?v=1785920691-money-2-decimals-1 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:20:17] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:20:17] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:20:17] "GET /static/js/push.js?v=1785920691 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:20:17] "GET /gr_budgets/static/gr_budgets.js?v=1785920691-duplicate-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:20:17] "GET /api/gr_orcamentos/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:20:18] "GET /api/gr_orcamentos/series?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:20:18] "GET /api/gr_orcamentos/comerciais?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:20:18] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:20:19] "GET /api/gr_orcamentos/orcamentos?feid=1&ndos=115&year=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:20:20] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=SIB26080529457,381000001 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:21:12] "GET / HTTP/1.1" 302 -
+127.0.0.1 - - [05/Aug/2026 10:21:13] "GET /login?next=/ HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:21:13] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:21:13] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:21:13] "GET /static/js/ui.js HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:21:13] "GET /static/js/push.js?v=1785920691 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:21:13] "GET /static/images/icon-512.png HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:21:13] "GET /static/images/favicon.ico HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:21:23] "GET /api/gr_orcamentos/opcoes-tecnicas?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:21:24] "GET /api/gr_orcamentos/oci?feid=1&bistamp=SIB26080529457,813000001 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:21:31] "GET /api/gr_orcamentos/orcamentos?feid=1&ndos=115&year=2026&q=1545 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:21:35] "GET /api/gr_orcamentos/orcamentos?feid=1&ndos=115&year=2026&q=141 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:21:36] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=HG25092058387,208000002 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:21:39] "GET /api/gr_orcamentos/orcamentos?feid=1&ndos=115&year=2026&q=1415 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:21:40] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=HG25092058387,208000002 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:22:15] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=SIB26080529457,381000001 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:24:20] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=SIB26080529457,381000001 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:24:34] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:24:34] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:24:34] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:24:34] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:24:34] "GET /gr_budgets/static/gr_budgets.css?v=1785920691-money-2-decimals-1 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:24:34] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:24:34] "GET /static/js/push.js?v=1785920691 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:24:34] "GET /gr_budgets/static/gr_budgets.js?v=1785920691-duplicate-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:24:34] "GET /api/gr_orcamentos/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:24:35] "GET /api/gr_orcamentos/series?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:24:35] "GET /api/gr_orcamentos/comerciais?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:24:35] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:24:36] "GET /api/gr_orcamentos/orcamentos?feid=1&ndos=115&year=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:24:37] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=SIB26080529457,381000001 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:24:48] "GET /api/gr_orcamentos/opcoes-tecnicas?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:26:11] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=SIB26080529457,381000001 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:28:52] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:28:52] "GET /gr_budgets/static/gr_budgets.css?v=1785920691-money-2-decimals-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:28:52] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:28:52] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:28:52] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:28:52] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:28:52] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:28:52] "GET /static/js/push.js?v=1785920691 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:28:52] "GET /gr_budgets/static/gr_budgets.js?v=1785920691-duplicate-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:28:53] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:28:53] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:28:53] "GET /api/gr_orcamentos/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:28:54] "GET /api/gr_orcamentos/series?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:28:54] "GET /api/gr_orcamentos/comerciais?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:28:54] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:28:55] "GET /api/gr_orcamentos/orcamentos?feid=1&ndos=115&year=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:28:56] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=SIB26080529457,381000001 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:29:05] "GET /api/gr_orcamentos/opcoes-tecnicas?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:29:06] "GET /api/gr_orcamentos/oci?feid=1&bistamp=SIB26080529457,813000001 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:29:26] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=SIB26080529457,381000001 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:33:12] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:33:13] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:33:13] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:33:13] "GET /gr_budgets/static/gr_budgets.css?v=1785920691-money-2-decimals-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:33:13] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:33:13] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:33:13] "GET /static/js/push.js?v=1785920691 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:33:13] "GET /gr_budgets/static/gr_budgets.js?v=1785920691-duplicate-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:33:13] "GET /api/gr_orcamentos/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:33:14] "GET /api/gr_orcamentos/comerciais?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:33:14] "GET /api/gr_orcamentos/series?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:33:14] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:33:15] "GET /api/gr_orcamentos/orcamentos?feid=1&ndos=115&year=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:33:16] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=SIB26080529457,381000001 HTTP/1.1" 200 -
+ * Serving Flask app 'app:app'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://192.168.115.3:8001
+Press CTRL+C to quit
+127.0.0.1 - - [05/Aug/2026 10:34:52] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:34:52] "GET /gr_budgets/static/gr_budgets.css?v=1785922477-duplicate-confirm-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:34:52] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:34:52] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:34:52] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:34:52] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:34:52] "GET /gr_budgets/static/gr_budgets.js?v=1785922477-duplicate-confirm-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:34:52] "GET /static/js/push.js?v=1785922477 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:34:53] "GET /api/gr_orcamentos/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:34:54] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:34:54] "GET /api/gr_orcamentos/comerciais?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:34:54] "GET /api/gr_orcamentos/series?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:34:55] "GET /api/gr_orcamentos/orcamentos?feid=1&ndos=115&year=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:34:57] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=SIB26080529457,381000001 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:35:23] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=SIB26080529457,381000001 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:38:50] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:38:50] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:38:50] "GET /gr_budgets/static/gr_budgets.css?v=1785922477-duplicate-confirm-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:38:50] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:38:50] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:38:50] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:38:50] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:38:50] "GET /static/js/push.js?v=1785922477 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:38:50] "GET /gr_budgets/static/gr_budgets.js?v=1785922477-duplicate-confirm-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:38:50] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:38:50] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:38:52] "GET /service-worker.js HTTP/1.1" 304 -
+ * Serving Flask app 'app:app'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://192.168.115.3:8001
+Press CTRL+C to quit
+127.0.0.1 - - [05/Aug/2026 10:39:16] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:39:16] "GET /gr_budgets/static/gr_budgets.css?v=1785922743-actions-menu-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:39:16] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:39:16] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:39:16] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:39:16] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:39:16] "GET /static/js/push.js?v=1785922743 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:39:16] "GET /gr_budgets/static/gr_budgets.js?v=1785922743-actions-menu-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:39:17] "GET /api/gr_orcamentos/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:39:18] "GET /api/gr_orcamentos/series?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:39:18] "GET /api/gr_orcamentos/comerciais?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:39:18] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:39:18] "GET /api/gr_orcamentos/orcamentos?feid=1&ndos=115&year=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:39:20] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=SIB26080529457,381000001 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:42:15] "GET /api/gr_orcamentos/clientes?feid=1&q=CECIA+Groupe+IDEC HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:42:21] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=SIB26080529457,381000001 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:42:44] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:42:44] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:42:44] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:42:44] "GET /gr_budgets/static/gr_budgets.css?v=1785922743-actions-menu-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:42:44] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:42:44] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:42:44] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:42:44] "GET /gr_budgets/static/gr_budgets.js?v=1785922743-actions-menu-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:42:44] "GET /static/js/push.js?v=1785922743 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:42:44] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:42:44] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:42:45] "GET /api/gr_orcamentos/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:42:45] "GET /api/gr_orcamentos/comerciais?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:42:46] "GET /api/gr_orcamentos/series?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:42:46] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:42:46] "GET /api/gr_orcamentos/orcamentos?feid=1&ndos=115&year=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:42:48] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=SIB26080529457,381000001 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:49:51] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:49:51] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:49:51] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:49:51] "GET /gr_budgets/static/gr_budgets.css?v=1785922743-actions-menu-1 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:49:51] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:49:51] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:49:51] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:49:51] "GET /static/js/push.js?v=1785922743 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:49:51] "GET /gr_budgets/static/gr_budgets.js?v=1785922743-actions-menu-1 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:49:51] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:49:51] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:49:52] "GET /api/gr_orcamentos/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:49:52] "GET /api/gr_orcamentos/comerciais?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:49:52] "GET /api/gr_orcamentos/series?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:49:53] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:49:53] "GET /api/gr_orcamentos/orcamentos?feid=1&ndos=115&year=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:49:54] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=SIB26080529457,381000001 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:50:01] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:50:01] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:50:01] "GET /gr_budgets/static/gr_budgets.css?v=1785922743-actions-menu-1 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:50:01] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:50:01] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:50:01] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:50:01] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:50:01] "GET /static/js/push.js?v=1785922743 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:50:01] "GET /gr_budgets/static/gr_budgets.js?v=1785922743-actions-menu-1 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:50:01] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:50:01] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:50:02] "GET /api/gr_orcamentos/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:50:03] "GET /api/gr_orcamentos/series?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:50:03] "GET /api/gr_orcamentos/comerciais?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:50:03] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:50:03] "GET /api/gr_orcamentos/orcamentos?feid=1&ndos=115&year=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:50:05] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=SIB26080529457,381000001 HTTP/1.1" 200 -
+ * Serving Flask app 'app:app'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://192.168.115.3:8001
+Press CTRL+C to quit
+127.0.0.1 - - [05/Aug/2026 10:59:41] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:59:41] "GET /gr_budgets/static/gr_budgets.css?v=1785923865-commercial-adjustments-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:59:41] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:59:41] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:59:41] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:59:41] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:59:41] "GET /static/js/push.js?v=1785923865 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:59:42] "GET /gr_budgets/static/gr_budgets.js?v=1785923865-commercial-adjustments-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:59:42] "GET /api/gr_orcamentos/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:59:43] "GET /api/gr_orcamentos/series?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:59:43] "GET /api/gr_orcamentos/comerciais?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:59:43] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 10:59:44] "GET /api/gr_orcamentos/orcamentos?feid=1&ndos=115&year=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 10:59:45] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=SIB26080529457,381000001 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:00:42] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=SIB26080529457,381000001 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:01:11] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=SIB26080529457,381000001 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:06:41] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:06:41] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:06:41] "GET /gr_budgets/static/gr_budgets.css?v=1785923865-commercial-adjustments-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:06:41] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:06:41] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:06:41] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:06:41] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:06:41] "GET /static/js/push.js?v=1785923865 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:06:41] "GET /gr_budgets/static/gr_budgets.js?v=1785923865-commercial-adjustments-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:06:41] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:06:41] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:06:42] "GET /api/gr_orcamentos/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:06:43] "GET /api/gr_orcamentos/series?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:06:43] "GET /api/gr_orcamentos/comerciais?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:06:43] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:06:43] "GET /api/gr_orcamentos/orcamentos?feid=1&ndos=115&year=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:06:45] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=SIB26080529457,381000001 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:07:42] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:07:42] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:07:42] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:07:42] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:07:42] "GET /gr_budgets/static/gr_budgets.css?v=1785923865-commercial-adjustments-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:07:42] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:07:42] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:07:42] "GET /static/js/push.js?v=1785923865 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:07:42] "GET /gr_budgets/static/gr_budgets.js?v=1785923865-commercial-adjustments-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:07:42] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:07:42] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:07:43] "GET /api/gr_orcamentos/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:07:43] "GET /api/gr_orcamentos/comerciais?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:07:43] "GET /api/gr_orcamentos/series?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:07:44] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:07:44] "GET /api/gr_orcamentos/orcamentos?feid=1&ndos=115&year=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:07:45] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=SIB26080529457,381000001 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:07:51] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:07:51] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:07:51] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:07:51] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:07:51] "GET /gr_budgets/static/gr_budgets.css?v=1785923865-commercial-adjustments-1 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:07:51] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:07:51] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:07:51] "GET /static/js/push.js?v=1785923865 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:07:51] "GET /gr_budgets/static/gr_budgets.js?v=1785923865-commercial-adjustments-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:07:51] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:07:51] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:07:51] "GET /api/gr_orcamentos/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:07:52] "GET /api/gr_orcamentos/comerciais?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:07:52] "GET /api/gr_orcamentos/series?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:07:52] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:07:53] "GET /api/gr_orcamentos/orcamentos?feid=1&ndos=115&year=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:07:54] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=SIB26080529457,381000001 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:08:00] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:08:00] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:08:00] "GET /gr_budgets/static/gr_budgets.css?v=1785923865-commercial-adjustments-1 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:08:00] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:08:00] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:08:00] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:08:00] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:08:00] "GET /static/js/push.js?v=1785923865 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:08:00] "GET /gr_budgets/static/gr_budgets.js?v=1785923865-commercial-adjustments-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:08:00] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:08:00] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:08:02] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:08:07] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:08:07] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:08:07] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:08:07] "GET /gr_budgets/static/gr_budgets.css?v=1785923865-commercial-adjustments-1 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:08:07] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:08:07] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:08:07] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:08:07] "GET /gr_budgets/static/gr_budgets.js?v=1785923865-commercial-adjustments-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:08:07] "GET /static/js/push.js?v=1785923865 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:08:07] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:08:07] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:08:09] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:08:14] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:08:14] "GET /gr_budgets/static/gr_budgets.css?v=1785923865-commercial-adjustments-1 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:08:14] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:08:14] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:08:14] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:08:14] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:08:14] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:08:14] "GET /static/js/push.js?v=1785923865 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:08:14] "GET /gr_budgets/static/gr_budgets.js?v=1785923865-commercial-adjustments-1 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:08:14] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:08:14] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:08:16] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:08:55] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:08:55] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:08:55] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:08:55] "GET /gr_budgets/static/gr_budgets.css?v=1785923865-commercial-adjustments-1 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:08:55] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:08:55] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:08:55] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:08:55] "GET /static/js/push.js?v=1785923865 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:08:55] "GET /gr_budgets/static/gr_budgets.js?v=1785923865-commercial-adjustments-1 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:08:55] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:08:55] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:08:56] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:09:03] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:09:03] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:09:03] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:09:03] "GET /gr_budgets/static/gr_budgets.css?v=1785923865-commercial-adjustments-1 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:09:03] "GET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1" 404 -
+127.0.0.1 - - [05/Aug/2026 11:09:04] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:09:04] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:09:04] "GET /static/icons/icon-192.png HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:09:04] "GET /static/icons/icon-512.png HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:09:04] "GET /static/icons/icon-192.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:09:04] "GET /static/icons/icon-512.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:09:05] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:09:05] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:09:05] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:09:05] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:09:05] "GET /gr_budgets/static/gr_budgets.css?v=1785923865-commercial-adjustments-1 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:09:05] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:09:05] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:09:05] "GET /static/js/push.js?v=1785923865 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:09:05] "GET /gr_budgets/static/gr_budgets.js?v=1785923865-commercial-adjustments-1 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:09:05] "GET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1" 404 -
+127.0.0.1 - - [05/Aug/2026 11:09:05] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:09:05] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:09:05] "GET /static/icons/icon-192.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:09:05] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:09:05] "GET /static/icons/icon-512.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:09:05] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:09:05] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:09:05] "GET /static/icons/icon-192.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:09:06] "GET /static/icons/icon-512.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:09:06] "GET /static/icons/icon-192.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:09:06] "GET /static/icons/icon-512.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:09:07] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:09:25] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:09:25] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:09:25] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:09:25] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:09:25] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:09:25] "GET /gr_budgets/static/gr_budgets.css?v=1785923865-commercial-adjustments-1 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:09:25] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:09:25] "GET /static/js/push.js?v=1785923865 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:09:25] "GET /gr_budgets/static/gr_budgets.js?v=1785923865-commercial-adjustments-1 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:09:25] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:09:25] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:09:27] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:10:09] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:10:09] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:10:09] "GET /gr_budgets/static/gr_budgets.css?v=1785923865-commercial-adjustments-1 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:10:09] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:10:09] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:10:09] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:10:09] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:10:09] "GET /static/js/push.js?v=1785923865 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:10:09] "GET /gr_budgets/static/gr_budgets.js?v=1785923865-commercial-adjustments-1 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:10:09] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:10:09] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:10:11] "GET /service-worker.js HTTP/1.1" 304 -
+ * Serving Flask app 'app:app'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://192.168.115.3:8001
+Press CTRL+C to quit
+127.0.0.1 - - [05/Aug/2026 11:10:25] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:10:25] "GET /gr_budgets/static/gr_budgets.css?v=1785924614-approval-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:10:25] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:10:25] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:10:25] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:10:25] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:10:25] "GET /static/js/push.js?v=1785924614 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:10:25] "GET /gr_budgets/static/gr_budgets.js?v=1785924614-approval-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:10:26] "GET /api/gr_orcamentos/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:10:27] "GET /api/gr_orcamentos/comerciais?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:10:27] "GET /api/gr_orcamentos/series?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:10:27] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:10:28] "GET /api/gr_orcamentos/orcamentos?feid=1&ndos=115&year=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:10:29] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=SIB26080529457,381000001 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:11:06] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:11:06] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:11:06] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:11:06] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:11:06] "GET /gr_budgets/static/gr_budgets.css?v=1785924614-approval-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:11:06] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:11:06] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:11:06] "GET /static/js/push.js?v=1785924614 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:11:06] "GET /gr_budgets/static/gr_budgets.js?v=1785924614-approval-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:11:06] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:11:06] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:11:07] "GET /api/gr_orcamentos/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:11:07] "GET /api/gr_orcamentos/series?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:11:08] "GET /api/gr_orcamentos/comerciais?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:11:08] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:11:08] "GET /api/gr_orcamentos/orcamentos?feid=1&ndos=115&year=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:11:10] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=SIB26080529457,381000001 HTTP/1.1" 200 -
+ * Serving Flask app 'app:app'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://192.168.115.3:8001
+Press CTRL+C to quit
+127.0.0.1 - - [05/Aug/2026 11:11:33] "GET /api/gr_orcamentos/orcamento/SIB26080529457,381000001/pdf?feid=1&style=modern HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:11:35] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:12:10] "GET /api/gr_orcamentos/clientes?feid=1&q=CECIA+Groupe+IDEC HTTP/1.1" 200 -
+ * Serving Flask app 'app:app'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://192.168.115.3:8001
+Press CTRL+C to quit
+127.0.0.1 - - [05/Aug/2026 11:13:46] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:13:46] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:13:46] "GET /gr_budgets/static/gr_budgets.css?v=1785924775-approval-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:13:46] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:13:46] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:13:46] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:13:46] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:13:46] "GET /static/js/push.js?v=1785924775 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:13:46] "GET /gr_budgets/static/gr_budgets.js?v=1785924775-approval-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:13:46] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:13:46] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:13:47] "GET /api/gr_orcamentos/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:13:48] "GET /api/gr_orcamentos/comerciais?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:13:48] "GET /api/gr_orcamentos/series?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:13:48] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:13:48] "GET /api/gr_orcamentos/orcamentos?feid=1&ndos=115&year=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:13:50] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=SIB26080529457,381000001 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:14:00] "POST /api/gr_orcamentos/orcamento/SIB26080529457,381000001/aprovacao HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:14:01] "GET /api/gr_orcamentos/orcamentos?feid=1&ndos=115&year=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:14:02] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=SIB26080529457,381000001 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:14:08] "POST /api/gr_orcamentos/orcamento/SIB26080529457,381000001/aprovacao HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:14:09] "GET /api/gr_orcamentos/orcamentos?feid=1&ndos=115&year=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:14:10] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=SIB26080529457,381000001 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:14:48] "POST /api/i18n/language HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:14:52] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:14:52] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:14:52] "GET /gr_budgets/static/gr_budgets.css?v=1785924775-approval-1 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:14:52] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:14:52] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:14:52] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:14:52] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:14:52] "GET /static/js/push.js?v=1785924775 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:14:52] "GET /gr_budgets/static/gr_budgets.js?v=1785924775-approval-1 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:14:52] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:14:52] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:14:53] "GET /api/gr_orcamentos/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:14:53] "GET /api/gr_orcamentos/comerciais?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:14:53] "GET /api/gr_orcamentos/series?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:14:53] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:14:54] "GET /api/gr_orcamentos/orcamentos?feid=1&ndos=115&year=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:14:55] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=SIB26080529457,381000001 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:15:04] "POST /api/i18n/language HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:15:08] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:15:08] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:15:08] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:15:08] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:15:08] "GET /gr_budgets/static/gr_budgets.css?v=1785924775-approval-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:15:08] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:15:08] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:15:08] "GET /static/js/push.js?v=1785924775 HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:15:08] "GET /gr_budgets/static/gr_budgets.js?v=1785924775-approval-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:15:08] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:15:08] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:15:09] "GET /api/gr_orcamentos/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:15:09] "GET /api/gr_orcamentos/series?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:15:09] "GET /api/gr_orcamentos/comerciais?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:15:10] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:15:10] "GET /api/gr_orcamentos/orcamentos?feid=1&ndos=115&year=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:15:11] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=SIB26080529457,381000001 HTTP/1.1" 200 -
+ * Serving Flask app 'app:app'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://192.168.115.3:8001
+Press CTRL+C to quit
+127.0.0.1 - - [05/Aug/2026 11:17:01] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:17:01] "GET /gr_budgets/static/gr_budgets.css?v=1785925005-line-actions-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:17:02] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:17:02] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:17:02] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:17:02] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:17:02] "GET /static/js/push.js?v=1785925005 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:17:02] "GET /gr_budgets/static/gr_budgets.js?v=1785925005-line-actions-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:17:02] "GET /api/gr_orcamentos/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:17:03] "GET /api/gr_orcamentos/series?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:17:03] "GET /api/gr_orcamentos/comerciais?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:17:03] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:17:04] "GET /api/gr_orcamentos/orcamentos?feid=1&ndos=115&year=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:17:05] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=SIB26080529457,381000001 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:17:08] "GET /api/gr_orcamentos/clientes?feid=1&q=CECIA+Groupe+IDEC HTTP/1.1" 200 -
+ * Serving Flask app 'app:app'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://192.168.115.3:8001
+Press CTRL+C to quit
+127.0.0.1 - - [05/Aug/2026 11:18:02] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:18:02] "GET /gr_budgets/static/gr_budgets.css?v=1785925069-line-actions-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:18:02] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:18:02] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:18:02] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:18:02] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:18:03] "GET /static/js/push.js?v=1785925069 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:18:03] "GET /gr_budgets/static/gr_budgets.js?v=1785925069-line-actions-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:18:03] "GET /api/gr_orcamentos/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:18:04] "GET /api/gr_orcamentos/comerciais?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:18:04] "GET /api/gr_orcamentos/series?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:18:04] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:18:05] "GET /api/gr_orcamentos/orcamentos?feid=1&ndos=115&year=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:18:06] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=SIB26080529457,381000001 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:18:09] "GET /api/gr_orcamentos/clientes?feid=1&q=CECIA+Groupe+IDEC HTTP/1.1" 200 -
+ * Serving Flask app 'app:app'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://192.168.115.3:8001
+Press CTRL+C to quit
+127.0.0.1 - - [05/Aug/2026 11:19:13] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:19:13] "GET /gr_budgets/static/gr_budgets.css?v=1785925141-line-actions-2 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:19:13] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:19:13] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:19:13] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:19:13] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:19:13] "GET /static/js/push.js?v=1785925141 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:19:13] "GET /gr_budgets/static/gr_budgets.js?v=1785925141-line-actions-2 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:19:14] "GET /api/gr_orcamentos/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:19:14] "GET /api/gr_orcamentos/comerciais?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:19:14] "GET /api/gr_orcamentos/series?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:19:15] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:19:15] "GET /api/gr_orcamentos/orcamentos?feid=1&ndos=115&year=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:19:17] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=SIB26080529457,381000001 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:19:19] "GET /api/gr_orcamentos/clientes?feid=1&q=CECIA+Groupe+IDEC HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:19:24] "GET /orcamentos HTTP/1.1" 302 -
+127.0.0.1 - - [05/Aug/2026 11:19:24] "GET /gr_budgets/static/gr_budgets.css?v=1-line-actions-2 HTTP/1.1" 200 -
+ * Serving Flask app 'app:app'
+ * Debug mode: off
+Address already in use
+Port 8001 is in use by another program. Either identify and stop that program, or start the server with a different port.
+ * Serving Flask app 'app:app'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://192.168.115.3:8001
+Press CTRL+C to quit
+127.0.0.1 - - [05/Aug/2026 11:27:27] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:27:27] "GET /gr_budgets/static/gr_budgets.css?v=1785925627-apply-vat-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:27:27] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:27:27] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:27:27] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:27:27] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:27:27] "GET /static/js/push.js?v=1785925627 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:27:27] "GET /gr_budgets/static/gr_budgets.js?v=1785925627-apply-vat-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:27:28] "GET /api/gr_orcamentos/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:27:29] "GET /api/gr_orcamentos/series?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:27:29] "GET /api/gr_orcamentos/comerciais?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:27:29] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:27:29] "GET /api/gr_orcamentos/orcamentos?feid=1&ndos=115&year=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:27:30] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=SIB26080529457,381000001 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:29:47] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=SIB26080529457,381000001 HTTP/1.1" 200 -
+ * Serving Flask app 'app:app'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://192.168.115.3:8001
+Press CTRL+C to quit
+ * Serving Flask app 'app:app'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://192.168.115.3:8001
+Press CTRL+C to quit
+127.0.0.1 - - [05/Aug/2026 11:36:32] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:36:32] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:36:32] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:36:32] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:36:32] "GET /gr_budgets/static/gr_budgets.css?v=1785926181-apply-vat-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:36:32] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:36:32] "GET /static/js/push.js?v=1785926181 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:36:32] "GET /gr_budgets/static/gr_budgets.js?v=1785926181-vat-inherit-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:36:33] "GET /api/gr_orcamentos/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:36:34] "GET /api/gr_orcamentos/series?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:36:34] "GET /api/gr_orcamentos/comerciais?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:36:34] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:36:34] "GET /api/gr_orcamentos/orcamentos?feid=1&ndos=115&year=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:36:36] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=SIB26080529457,381000001 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:36:38] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=HG25092058387,208000002 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:49:16] "GET /orcamentos HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:49:16] "GET /gr_budgets/static/gr_budgets.css?v=1785926181-apply-vat-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:49:16] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:49:16] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:49:16] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:49:16] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:49:16] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:49:16] "GET /static/js/push.js?v=1785926181 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:49:16] "GET /gr_budgets/static/gr_budgets.js?v=1785926181-vat-inherit-1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:49:16] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:49:16] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:49:17] "GET /api/gr_orcamentos/empresas HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:49:17] "GET /api/gr_orcamentos/series?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:49:17] "GET /api/gr_orcamentos/comerciais?feid=1 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:49:18] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [05/Aug/2026 11:49:18] "GET /api/gr_orcamentos/orcamentos?feid=1&ndos=115&year=2026 HTTP/1.1" 200 -
+127.0.0.1 - - [05/Aug/2026 11:49:19] "GET /api/gr_orcamentos/orcamento?feid=1&bostamp=SIB26080529457,381000001 HTTP/1.1" 200 -

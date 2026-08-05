@@ -373,6 +373,131 @@ class BudgetPdfTests(unittest.TestCase):
         self.assertIn("elements.editBudget.addEventListener('click', startEditBudget)", script)
         self.assertIn("elements.saveBudget.addEventListener('click', saveBudget)", script)
 
+    def test_budget_line_vat_becomes_editable_with_the_budget(self):
+        root = Path(__file__).resolve().parents[1]
+        template = (root / "modules/gr_budgets/templates/gr_budgets/budgets.html").read_text(encoding="utf-8")
+        script = (root / "modules/gr_budgets/static/gr_budgets.js").read_text(encoding="utf-8")
+
+        self.assertIn("gr_budgets.field.vat", template)
+        self.assertIn('data-budget-line-vat="${index}"', script)
+        start_edit = script.index("function startEditBudget()")
+        render_lines = script.index("renderLines(", start_edit)
+        render_statuses = script.index("renderStatuses(", start_edit)
+        self.assertLess(render_lines, render_statuses)
+
+    def test_budget_and_position_duplication_controls_are_available(self):
+        root = Path(__file__).resolve().parents[1]
+        template = (root / "modules/gr_budgets/templates/gr_budgets/budgets.html").read_text(encoding="utf-8")
+        script = (root / "modules/gr_budgets/static/gr_budgets.js").read_text(encoding="utf-8")
+
+        self.assertIn('id="budgetDuplicate"', template)
+        self.assertIn('id="budgetActionsMenu"', template)
+        self.assertIn('id="budgetActionsToggle"', template)
+        self.assertIn('id="budgetOciDuplicate"', template)
+        self.assertIn('id="budgetPositionDuplicateConfirm"', template)
+        self.assertIn("function startDuplicateBudget()", script)
+        self.assertIn("function duplicatePosition(lineIndex)", script)
+        self.assertIn("function requestGridPositionDuplicate(lineIndex)", script)
+        self.assertIn("function saveAndDuplicateCurrentPosition()", script)
+        self.assertIn("lines: cloneBudgetLinesForDraft(sourceDetail.lines || [])", script)
+        self.assertIn("const newPosition = nextBudgetPosition();", script)
+        self.assertIn("elements.actionsMenu.hidden = editing", script)
+        self.assertIn("data-tooltip=", script)
+        self.assertIn("elements.positionDuplicateSave.addEventListener('click', confirmPositionDuplicate)", script)
+
+    def test_grid_line_actions_are_at_the_end_and_delete_is_confirmed(self):
+        root = Path(__file__).resolve().parents[1]
+        template = (root / "modules/gr_budgets/templates/gr_budgets/budgets.html").read_text(encoding="utf-8")
+        script = (root / "modules/gr_budgets/static/gr_budgets.js").read_text(encoding="utf-8")
+
+        self.assertIn('id="budgetLineDeleteConfirm"', template)
+        self.assertIn('data-delete-line="${index}"', script)
+        self.assertIn("function requestBudgetLineDelete(lineIndex)", script)
+        self.assertIn("function confirmBudgetLineDelete()", script)
+        self.assertIn("label.startsWith(prefix)", script)
+        profit_cell = script.index('Number(line.profit || 0)')
+        action_cell = script.index('gr-budget-line-actions-column', profit_cell)
+        self.assertGreater(action_cell, profit_cell)
+
+    def test_duplicate_lines_receive_new_draft_identifiers(self):
+        root = Path(__file__).resolve().parents[1]
+        script = (root / "modules/gr_budgets/static/gr_budgets.js").read_text(encoding="utf-8")
+
+        self.assertIn("bistamp = newDraftId('line')", script)
+        self.assertIn("stamp: newDraftId('oci')", script)
+        self.assertIn("budget_stamp: ''", script)
+        self.assertIn("line_stamp: newLineStamp", script)
+
+    def test_budget_commercial_adjustments_are_available(self):
+        root = Path(__file__).resolve().parents[1]
+        template = (root / "modules/gr_budgets/templates/gr_budgets/budgets.html").read_text(encoding="utf-8")
+        script = (root / "modules/gr_budgets/static/gr_budgets.js").read_text(encoding="utf-8")
+
+        self.assertIn('id="budgetFinalPrice"', template)
+        self.assertIn('id="budgetDiscount"', template)
+        self.assertIn('id="budgetCommercialAdjustment"', template)
+        self.assertIn("function applyCommercialAdjustment()", script)
+        self.assertIn("baseTotal * value / 100", script)
+        self.assertIn("baseTotal - value", script)
+        self.assertIn("order: 999999999", script)
+        self.assertIn("item_label: 'ZZ'", script)
+        self.assertIn("designation: 'ESCOMPTE'", script)
+        self.assertIn("quantity: -1", script)
+        self.assertIn("filter((line) => !isBudgetDiscountLine(line))", script)
+
+    def test_budget_can_apply_one_vat_rate_to_all_lines(self):
+        root = Path(__file__).resolve().parents[1]
+        template = (root / "modules/gr_budgets/templates/gr_budgets/budgets.html").read_text(encoding="utf-8")
+        script = (root / "modules/gr_budgets/static/gr_budgets.js").read_text(encoding="utf-8")
+
+        self.assertIn('id="budgetApplyVat"', template)
+        self.assertIn('id="budgetVatApply"', template)
+        self.assertIn('id="budgetVatApplySelect"', template)
+        self.assertIn("function applyVatToAllLines()", script)
+        self.assertIn("state.detail.header.default_vat_table = vatTable", script)
+        self.assertIn("state.detail.header.default_vat_rate = vatRate", script)
+        self.assertIn("line.vat_table = vatTable", script)
+        self.assertIn("line.vat_rate = vatRate", script)
+        self.assertIn("elements.applyVatBudget.addEventListener('click', openVatApply)", script)
+
+    def test_client_without_vat_table_uses_the_application_default(self):
+        root = Path(__file__).resolve().parents[1]
+        script = (root / "modules/gr_budgets/static/gr_budgets.js").read_text(encoding="utf-8")
+
+        self.assertIn("rates.find((rate) => Number(rate.table || 0) === requestedVatTable)", script)
+        self.assertIn("rates.find((rate) => Number(rate.table || 0) === 2)", script)
+
+    def test_budget_approval_action_and_confirmation_are_available(self):
+        root = Path(__file__).resolve().parents[1]
+        template = (root / "modules/gr_budgets/templates/gr_budgets/budgets.html").read_text(encoding="utf-8")
+        script = (root / "modules/gr_budgets/static/gr_budgets.js").read_text(encoding="utf-8")
+
+        self.assertIn('id="budgetApproval"', template)
+        self.assertIn('id="budgetApprovalConfirm"', template)
+        self.assertIn("function openApprovalConfirm()", script)
+        self.assertIn("function applyBudgetApproval()", script)
+        self.assertIn("/aprovacao`,", script)
+        self.assertIn("elements.approvalBudget.addEventListener('click', openApprovalConfirm)", script)
+
+    def test_approval_endpoint_uses_edit_acl_and_authenticated_user(self):
+        app = Flask(__name__)
+        user = SimpleNamespace(ADMIN=True, DEV=False, LOGIN="codex")
+        result = {"bostamp": "BUDGET-1", "approved": True, "credit": {"available": 10}}
+        with app.test_request_context(
+            "/api/gr_orcamentos/orcamento/BUDGET-1/aprovacao",
+            method="POST",
+            json={"feid": 7, "approved": True},
+        ):
+            with patch.object(budget_routes, "current_user", user), \
+                    patch.object(budget_routes, "_has_write_acl", return_value=True) as acl, \
+                    patch.object(budget_routes, "set_budget_approval", return_value=result) as approve:
+                response = budget_routes.api_budget_approval.__wrapped__("BUDGET-1")
+
+        acl.assert_called_once_with(False)
+        approve.assert_called_once_with(7, "BUDGET-1", True, user)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.get_json()["approved"])
+
     def test_new_budget_header_is_kept_when_returning_from_technical_detail(self):
         root = Path(__file__).resolve().parents[1]
         script = (root / "modules/gr_budgets/static/gr_budgets.js").read_text(encoding="utf-8")

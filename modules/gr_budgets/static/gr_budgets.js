@@ -20,7 +20,15 @@
     document: document.getElementById('budgetDocument'),
     previous: document.getElementById('budgetPrevious'),
     next: document.getElementById('budgetNext'),
+    actionsMenu: document.getElementById('budgetActionsMenu'),
+    actionsToggle: document.getElementById('budgetActionsToggle'),
     printBudget: document.getElementById('budgetPrint'),
+    approvalBudget: document.getElementById('budgetApproval'),
+    approvalBudgetLabel: document.getElementById('budgetApprovalLabel'),
+    duplicateBudget: document.getElementById('budgetDuplicate'),
+    finalPriceBudget: document.getElementById('budgetFinalPrice'),
+    discountBudget: document.getElementById('budgetDiscount'),
+    applyVatBudget: document.getElementById('budgetApplyVat'),
     newBudget: document.getElementById('budgetNew'),
     editBudget: document.getElementById('budgetEdit'),
     cancelEdit: document.getElementById('budgetCancelEdit'),
@@ -51,6 +59,7 @@
     ociPositions: document.getElementById('budgetOciPositions'),
     ociPositionsCount: document.getElementById('budgetOciPositionsCount'),
     ociError: document.getElementById('budgetOciError'),
+    ociDuplicate: document.getElementById('budgetOciDuplicate'),
     ociCancel: document.getElementById('budgetOciCancel'),
     ociSave: document.getElementById('budgetOciSave'),
     ociAddRow: document.getElementById('budgetOciAddRow'),
@@ -100,12 +109,39 @@
     positionSwitchConfirm: document.getElementById('budgetPositionSwitchConfirm'),
     positionSwitchText: document.getElementById('budgetPositionSwitchText'),
     positionSwitchDiscard: document.getElementById('budgetPositionSwitchDiscard'),
-    positionSwitchSave: document.getElementById('budgetPositionSwitchSave')
+    positionSwitchSave: document.getElementById('budgetPositionSwitchSave'),
+    positionDuplicateConfirm: document.getElementById('budgetPositionDuplicateConfirm'),
+    positionDuplicateTitle: document.getElementById('budgetPositionDuplicateTitle'),
+    positionDuplicateText: document.getElementById('budgetPositionDuplicateText'),
+    positionDuplicateActionText: document.getElementById('budgetPositionDuplicateActionText'),
+    positionDuplicateSave: document.getElementById('budgetPositionDuplicateSave'),
+    commercialAdjustment: document.getElementById('budgetCommercialAdjustment'),
+    commercialAdjustmentTitle: document.getElementById('budgetCommercialAdjustmentTitle'),
+    commercialAdjustmentText: document.getElementById('budgetCommercialAdjustmentText'),
+    commercialAdjustmentLabel: document.getElementById('budgetCommercialAdjustmentLabel'),
+    commercialAdjustmentValue: document.getElementById('budgetCommercialAdjustmentValue'),
+    commercialAdjustmentError: document.getElementById('budgetCommercialAdjustmentError'),
+    commercialAdjustmentApply: document.getElementById('budgetCommercialAdjustmentApply'),
+    approvalConfirm: document.getElementById('budgetApprovalConfirm'),
+    approvalConfirmTitle: document.getElementById('budgetApprovalConfirmTitle'),
+    approvalConfirmText: document.getElementById('budgetApprovalConfirmText'),
+    approvalCredit: document.getElementById('budgetApprovalCredit'),
+    approvalError: document.getElementById('budgetApprovalError'),
+    approvalApply: document.getElementById('budgetApprovalApply'),
+    approvalApplyLabel: document.getElementById('budgetApprovalApplyLabel'),
+    lineDeleteConfirm: document.getElementById('budgetLineDeleteConfirm'),
+    lineDeleteText: document.getElementById('budgetLineDeleteText'),
+    lineDeleteApply: document.getElementById('budgetLineDeleteApply'),
+    vatApply: document.getElementById('budgetVatApply'),
+    vatApplySelect: document.getElementById('budgetVatApplySelect'),
+    vatApplyError: document.getElementById('budgetVatApplyError'),
+    vatApplyConfirm: document.getElementById('budgetVatApplyConfirm')
   };
 
   const state = {
     companies: [],
     series: [],
+    taxRates: [],
     salespeople: [],
     budgets: [],
     clientRows: [],
@@ -120,6 +156,11 @@
     componentFamily: '',
     componentStamp: '',
     pendingPositionTarget: null,
+    pendingPositionDuplicate: null,
+    commercialAdjustmentMode: '',
+    approvalTarget: null,
+    pendingLineDelete: null,
+    draftSequence: 0,
     ociPriceLocked: true,
     ociTargetMargin: 0,
     mode: 'view',
@@ -220,7 +261,9 @@
     let payload = {};
     try { payload = await response.json(); } catch (_) { payload = {}; }
     if (!response.ok || payload.ok === false) {
-      throw new Error(payload.error || tr('gr_budgets.error.save_budget', { status: response.status }));
+      const error = new Error(payload.error || tr('gr_budgets.error.save_budget', { status: response.status }));
+      error.payload = payload;
+      throw error;
     }
     return payload;
   }
@@ -254,6 +297,7 @@
       }
       await loadSeries();
     } catch (error) {
+      state.ociContext = null;
       showError(error.message);
       renderNoResults();
     } finally {
@@ -280,6 +324,7 @@
         getJson('/comerciais', { feid })
       ]);
       state.series = seriesPayload.rows || [];
+      state.taxRates = seriesPayload.tax_rates || [];
       state.salespeople = salespeoplePayload.rows || [];
       renderSalespeople();
       setOptions(elements.series, state.series, 'ndos', (row) => `${row.name} · ${row.ndos}`, seriesPayload.default_ndos);
@@ -490,6 +535,7 @@
     text('budgetLineCount', `${plural('gr_budgets.count.line_one', 'gr_budgets.count.line_other', lines.length)} · BI + BI2`);
 
     renderStatuses(header);
+    updateApprovalAction(header);
     renderLines(lines, header.currency, totals);
   }
 
@@ -505,6 +551,92 @@
     document.getElementById('budgetStatus').innerHTML = statuses.map(([kind, icon, label]) =>
       `<span class="sz_badge sz_badge_${kind}"><i class="fa-solid ${icon}"></i>${escapeHtml(label)}</span>`
     ).join('');
+  }
+
+  function budgetApprovalAvailable() {
+    const header = state.detail && state.detail.header;
+    if (!header || !budgetCanBeEdited()) return false;
+    const series = String(header.series || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+    return series === 'devis';
+  }
+
+  function updateApprovalAction(header) {
+    const approved = Boolean(header && header.approved);
+    const key = approved ? 'gr_budgets.action.unapprove' : 'gr_budgets.action.approve';
+    elements.approvalBudgetLabel.textContent = tr(key);
+    elements.approvalBudget.querySelector('i').className = approved
+      ? 'fa-solid fa-circle-xmark'
+      : 'fa-solid fa-circle-check';
+  }
+
+  function closeApprovalConfirm() {
+    elements.approvalConfirm.classList.remove('sz_is_open');
+    elements.approvalConfirm.setAttribute('aria-hidden', 'true');
+    elements.approvalCredit.hidden = true;
+    elements.approvalCredit.replaceChildren();
+    elements.approvalError.hidden = true;
+    elements.approvalError.textContent = '';
+    elements.approvalApply.disabled = false;
+    state.approvalTarget = null;
+  }
+
+  function openApprovalConfirm() {
+    if (isEditing() || state.loadingCount || !selectedBudgetStamp() || !budgetApprovalAvailable()) return;
+    const approved = Boolean(state.detail && state.detail.header && state.detail.header.approved);
+    state.approvalTarget = !approved;
+    const prefix = state.approvalTarget ? 'approve' : 'unapprove';
+    elements.approvalConfirmTitle.textContent = tr(`gr_budgets.approval.${prefix}_title`);
+    elements.approvalConfirmText.textContent = tr(`gr_budgets.approval.${prefix}_text`);
+    elements.approvalApplyLabel.textContent = tr(`gr_budgets.action.${prefix}`);
+    elements.approvalApply.classList.toggle('sz_button_danger', !state.approvalTarget);
+    elements.approvalCredit.hidden = true;
+    elements.approvalCredit.replaceChildren();
+    elements.approvalError.hidden = true;
+    elements.approvalError.textContent = '';
+    elements.approvalConfirm.classList.add('sz_is_open');
+    elements.approvalConfirm.setAttribute('aria-hidden', 'false');
+    elements.approvalApply.focus();
+  }
+
+  function showApprovalCredit(credit, currency) {
+    if (!credit) return;
+    const rows = [
+      ['gr_budgets.approval.total_credit', credit.total_credit],
+      ['gr_budgets.approval.open_total', credit.open_total],
+      ['gr_budgets.approval.budget_total', credit.budget_total],
+      ['gr_budgets.approval.available', credit.available]
+    ];
+    elements.approvalCredit.innerHTML = rows.map(([key, value]) =>
+      `<div><small>${escapeHtml(tr(key))}</small><strong>${escapeHtml(money(value, currency))}</strong></div>`
+    ).join('');
+    elements.approvalCredit.hidden = false;
+  }
+
+  async function applyBudgetApproval() {
+    if (state.approvalTarget == null || !state.detail || state.loadingCount) return;
+    const bostamp = selectedBudgetStamp();
+    if (!bostamp) return;
+    const target = state.approvalTarget;
+    const currency = (state.detail.header && state.detail.header.currency) || 'EUR';
+    elements.approvalApply.disabled = true;
+    elements.approvalError.hidden = true;
+    elements.approvalError.textContent = '';
+    showLoading(true);
+    try {
+      await postJson(`/orcamento/${encodeURIComponent(bostamp)}/aprovacao`, {
+        feid: elements.company.value,
+        approved: target
+      });
+      closeApprovalConfirm();
+      await loadBudgets(bostamp);
+    } catch (error) {
+      elements.approvalError.textContent = error.message;
+      elements.approvalError.hidden = false;
+      showApprovalCredit(error.payload && error.payload.credit, currency);
+      elements.approvalApply.disabled = false;
+    } finally {
+      showLoading(false);
+    }
   }
 
   function closeClientLookup() {
@@ -558,6 +690,27 @@
     }
     syncEditableHeaderToState();
     closeClientLookup();
+    if (state.detail && state.detail.header) {
+      const rates = availableVatRates();
+      const requestedVatTable = Number(row.vat_table || 0);
+      const defaultVat = rates.find((rate) => Number(rate.table || 0) === requestedVatTable)
+        || rates.find((rate) => Number(rate.table || 0) === 2)
+        || rates[0]
+        || { table: 0, rate: 0 };
+      const defaultVatTable = Number(defaultVat.table || 0);
+      const defaultVatRate = Number(defaultVat.rate || 0);
+      state.detail.header.default_vat_table = defaultVatTable;
+      state.detail.header.default_vat_rate = defaultVatRate;
+      if (defaultVatTable > 0) {
+        (state.detail.lines || []).forEach((line) => {
+          if (Number(line.vat_table || 0) <= 0) {
+            line.vat_table = defaultVatTable;
+            line.vat_rate = defaultVatRate;
+          }
+        });
+      }
+      renderLines(state.detail.lines || [], state.detail.header.currency, state.detail.totals || {});
+    }
     elements.clientSearch.focus();
   }
 
@@ -619,15 +772,121 @@
     }, 250);
   }
 
+  function availableVatRates() {
+    const detailRates = state.detail && state.detail.tax_rates;
+    const rows = Array.isArray(detailRates) && detailRates.length ? detailRates : (state.taxRates || []);
+    const seen = new Set();
+    return rows.filter((row) => {
+      const table = Number(row && row.table || 0);
+      if (table <= 0 || seen.has(table)) return false;
+      seen.add(table);
+      return true;
+    });
+  }
+
+  function vatRateForTable(table, fallback) {
+    const selected = availableVatRates().find((row) => Number(row.table || 0) === Number(table || 0));
+    return selected ? Number(selected.rate || 0) : Number(fallback || 0);
+  }
+
+  function vatLabel(line) {
+    const table = Number(line && line.vat_table || 0);
+    if (table <= 0) return '—';
+    const rate = vatRateForTable(table, line && line.vat_rate);
+    return `${table} · ${percentFormatter.format(rate)}%`;
+  }
+
+  function vatControl(line, index) {
+    const selectedTable = Number(line && line.vat_table || 0);
+    const rates = availableVatRates().slice();
+    if (selectedTable > 0 && !rates.some((row) => Number(row.table || 0) === selectedTable)) {
+      rates.push({ table: selectedTable, rate: Number(line.vat_rate || 0) });
+    }
+    if (!isEditing()) return escapeHtml(vatLabel(line));
+    const options = ['<option value="">—</option>'].concat(rates.map((row) => {
+      const table = Number(row.table || 0);
+      const selected = table === selectedTable ? ' selected' : '';
+      return `<option value="${table}"${selected}>${escapeHtml(`${table} · ${percentFormatter.format(Number(row.rate || 0))}%`)}</option>`;
+    }));
+    return `<select class="sz_select gr-budget-vat-select" data-budget-line-vat="${index}" aria-label="${escapeHtml(tr('gr_budgets.field.vat'))}">${options.join('')}</select>`;
+  }
+
+  function closeVatApply() {
+    elements.vatApply.classList.remove('sz_is_open');
+    elements.vatApply.setAttribute('aria-hidden', 'true');
+    elements.vatApplyError.hidden = true;
+    elements.vatApplyError.textContent = '';
+  }
+
+  function openVatApply() {
+    if (isEditing() || state.loadingCount || !state.detail || !selectedBudgetStamp() || !budgetCanBeEdited()) return;
+    const rates = availableVatRates();
+    if (!rates.length) {
+      showError(tr('gr_budgets.error.vat_rates_unavailable'));
+      return;
+    }
+    showError('');
+    elements.vatApplySelect.replaceChildren(...rates.map((row) => {
+      const option = document.createElement('option');
+      option.value = String(Number(row.table || 0));
+      option.textContent = `${Number(row.table || 0)} · ${percentFormatter.format(Number(row.rate || 0))}%`;
+      return option;
+    }));
+    const headerTable = Number(state.detail.header?.default_vat_table || 0);
+    const lineTable = Number((state.detail.lines || []).find((line) => Number(line.vat_table || 0) > 0)?.vat_table || 0);
+    const wantedTable = headerTable || lineTable;
+    if (wantedTable && Array.from(elements.vatApplySelect.options).some((option) => Number(option.value) === wantedTable)) {
+      elements.vatApplySelect.value = String(wantedTable);
+    }
+    elements.vatApplyError.hidden = true;
+    elements.vatApplyError.textContent = '';
+    elements.vatApply.classList.add('sz_is_open');
+    elements.vatApply.setAttribute('aria-hidden', 'false');
+    elements.vatApplySelect.focus();
+  }
+
+  function applyVatToAllLines() {
+    if (!state.detail) return;
+    const vatTable = Number(elements.vatApplySelect.value || 0);
+    const selected = availableVatRates().find((row) => Number(row.table || 0) === vatTable);
+    if (!selected) {
+      elements.vatApplyError.textContent = tr('gr_budgets.vat_apply.invalid');
+      elements.vatApplyError.hidden = false;
+      elements.vatApplySelect.focus();
+      return;
+    }
+    const vatRate = Number(selected.rate || 0);
+    syncEditableHeaderToState();
+    state.detail.header.default_vat_table = vatTable;
+    state.detail.header.default_vat_rate = vatRate;
+    (state.detail.lines || []).forEach((line) => {
+      line.vat_table = vatTable;
+      line.vat_rate = vatRate;
+    });
+    state.returnStamp = selectedBudgetStamp();
+    state.mode = 'edit';
+    closeVatApply();
+    renderDetail(state.detail);
+    updateInteractionState();
+  }
+
   function renderLines(lines, currency, totals) {
     elements.lines.innerHTML = lines.map((line, index) => {
       const title = line.designation || line.description || tr('gr_budgets.line.no_designation');
       const secondary = line.description && line.description !== line.designation ? line.description : '';
       const plusValue = isPlusValue(line.reference);
-      const technicalControl = plusValue
+      const commercialAdjustment = isBudgetDiscountLine(line);
+      const nonTechnicalLine = plusValue || commercialAdjustment;
+      const technicalControl = nonTechnicalLine
         ? '<span class="sz_text_muted">—</span>'
         : `<button type="button" class="sz_button sz_button_ghost gr-budget-technical-button" data-technical-line="${index}" aria-label="${escapeHtml(tr('gr_budgets.action.technical_line_aria', { line: line.item_label || line.item || index + 1 }))}" title="${escapeHtml(tr('gr_budgets.action.technical_detail_title'))}">+</button>`;
-      return `<tr class="sz_table_row${plusValue ? ' is-plus-value' : ''}">
+      const duplicateControl = nonTechnicalLine || !budgetCanBeEdited()
+        ? ''
+        : `<button type="button" class="sz_button sz_button_ghost gr-budget-duplicate-line-button" data-duplicate-line="${index}" data-tooltip="${escapeHtml(tr('gr_budgets.title.duplicate_position'))}" aria-label="${escapeHtml(tr('gr_budgets.action.duplicate_position_aria', { position: line.item_label || line.item || index + 1 }))}"><i class="fa-solid fa-copy" aria-hidden="true"></i></button>`;
+      const deleteControl = !isEditing()
+        ? ''
+        : `<button type="button" class="sz_button sz_button_ghost gr-budget-delete-line-button" data-delete-line="${index}" title="${escapeHtml(tr('gr_budgets.action.delete_position'))}" aria-label="${escapeHtml(tr('gr_budgets.action.delete_position_aria', { position: line.item_label || line.item || index + 1 }))}"><i class="fa-solid fa-trash-can" aria-hidden="true"></i></button>`;
+      return `<tr class="sz_table_row${plusValue ? ' is-plus-value' : ''}${commercialAdjustment ? ' is-commercial-adjustment' : ''}">
         <td class="gr-budget-num">${escapeHtml(line.item_label || line.item || index + 1)}</td>
         <td>${escapeHtml(line.reference || '—')}</td>
         <td title="${escapeHtml(secondary || title)}"><div class="gr-budget-line-title">${escapeHtml(title)}</div>${secondary ? `<div class="gr-budget-line-subtitle">${escapeHtml(secondary)}</div>` : ''}</td>
@@ -636,19 +895,23 @@
         <td class="gr-budget-num">${quantityFormatter.format(Number(line.thickness || 0))}</td>
         <td class="gr-budget-num">${lineAmountFormatter.format(Number(line.unit_price || 0))}</td>
         <td class="gr-budget-num"><strong>${lineAmountFormatter.format(Number(line.total || 0))}</strong></td>
+        <td class="gr-budget-vat">${vatControl(line, index)}</td>
         <td class="gr-budget-check">${technicalControl}</td>
         <td class="gr-budget-num">${lineAmountFormatter.format(Number(line.cost_total || 0))}</td>
         <td class="gr-budget-num">${percentFormatter.format(Number(line.margin_percentage || 0))}%</td>
         <td class="gr-budget-num">${lineAmountFormatter.format(Number(line.profit || 0))}</td>
+        <td class="gr-budget-line-actions-column"><span class="gr-budget-line-actions">${duplicateControl}${deleteControl}</span></td>
       </tr>`;
     }).join('');
     elements.linesFooter.innerHTML = `<tr>
       <td colspan="7">${escapeHtml(tr(lines.length === 1 ? 'gr_budgets.total.row_one' : 'gr_budgets.total.rows', { count: lines.length }))}</td>
       <td class="gr-budget-num">${escapeHtml(money(totals.total, currency))}</td>
       <td></td>
+      <td></td>
       <td class="gr-budget-num">${escapeHtml(money(totals.cost, currency))}</td>
       <td class="gr-budget-num">${percentFormatter.format(Number(totals.margin_percentage || 0))}%</td>
       <td class="gr-budget-num">${escapeHtml(money(totals.profit, currency))}</td>
+      <td></td>
     </tr>`;
   }
 
@@ -699,6 +962,76 @@
     const number = finiteNumber(value);
     const rounded = Math.round((Math.abs(number) + Number.EPSILON) * 100) / 100;
     return number < 0 ? -rounded : rounded;
+  }
+
+  function newDraftId(kind) {
+    state.draftSequence += 1;
+    return `draft-${kind}-${Date.now()}-${state.draftSequence}`;
+  }
+
+  function clonedTechnicalRows(sourceLine, newLineStamp) {
+    const sourceRows = Array.isArray(sourceLine && sourceLine._ociRows)
+      ? sourceLine._ociRows
+      : (Array.isArray(sourceLine && sourceLine.technical_lines) ? sourceLine.technical_lines : []);
+    return cloneData(sourceRows).map((row) => ({
+      ...row,
+      stamp: newDraftId('oci'),
+      budget_stamp: '',
+      line_stamp: newLineStamp
+    }));
+  }
+
+  function cloneLineForDraft(sourceLine, item, itemLabel, order) {
+    const bistamp = newDraftId('line');
+    const technicalRows = clonedTechnicalRows(sourceLine, bistamp);
+    return {
+      ...cloneData(sourceLine),
+      bistamp,
+      budget_stamp: '',
+      item,
+      item_label: String(itemLabel),
+      order,
+      _parent_bistamp: '',
+      _ociRows: cloneData(technicalRows),
+      technical_lines: cloneData(technicalRows)
+    };
+  }
+
+  function cloneBudgetLinesForDraft(sourceLines) {
+    const stampMap = new Map();
+    const clonedLines = (sourceLines || []).map((sourceLine, index) => {
+      const itemLabel = String(sourceLine.item_label || sourceLine.item || index + 1);
+      const labelItem = Number.parseInt(itemLabel.split('.', 1)[0], 10);
+      const orderItem = Math.trunc(finiteNumber(sourceLine.order) / 10000);
+      const item = labelItem > 0 ? labelItem : (orderItem > 0 ? orderItem : index + 1);
+      const copy = cloneLineForDraft(
+        sourceLine,
+        item,
+        itemLabel,
+        finiteNumber(sourceLine.order, (index + 1) * 10000)
+      );
+      if (sourceLine.bistamp) stampMap.set(sourceLine.bistamp, copy.bistamp);
+      return copy;
+    });
+    clonedLines.forEach((copy, index) => {
+      const sourceParent = (sourceLines[index] && sourceLines[index]._parent_bistamp) || '';
+      if (sourceParent && stampMap.has(sourceParent)) copy._parent_bistamp = stampMap.get(sourceParent);
+    });
+    return clonedLines;
+  }
+
+  function nextBudgetPosition() {
+    return ((state.detail && state.detail.lines) || []).reduce((maximum, line, index) => {
+      const label = String(line.item_label || line.item || '').trim();
+      const labelPosition = Number.parseInt(label.split('.', 1)[0], 10);
+      const orderPosition = Math.trunc(finiteNumber(line.order) / 10000);
+      return Math.max(
+        maximum,
+        Number.isFinite(labelPosition) ? labelPosition : 0,
+        orderPosition > 0 ? orderPosition : 0,
+        index + 1
+      );
+    }, 0) + 1;
   }
 
   function setNumericInput(element, value, decimals) {
@@ -752,6 +1085,8 @@
   function blankBudgetLine() {
     const lines = (state.detail && state.detail.lines) || [];
     const nextItem = lines.reduce((maximum, line) => Math.max(maximum, Number(line.item || 0)), 0) + 1;
+    const defaultVatTable = Number(state.detail?.header?.default_vat_table || 0);
+    const defaultVatRate = Number(state.detail?.header?.default_vat_rate || 0);
     return {
       bistamp: `draft-line-${Date.now()}`,
       order: nextItem * 10000,
@@ -768,6 +1103,8 @@
       cost_total: 0,
       unit_price: 0,
       total: 0,
+      vat_table: defaultVatTable,
+      vat_rate: defaultVatRate,
       margin_per_unit: 0,
       margin_value: 0,
       margin_percentage: 0,
@@ -1185,7 +1522,8 @@
     return calculatedCost;
   }
 
-  function recalculateOci() {
+  function recalculateOci(options) {
+    const preserveMarginInput = Boolean(options && options.preserveMarginInput);
     const surface = numericInput(elements.ociSurface);
     const thickness = numericInput(elements.ociThickness);
     const volume = surface * thickness;
@@ -1230,7 +1568,10 @@
     setNumericInput(elements.ociSaleTotal, saleTotal, 2);
     setNumericInput(elements.ociMarginUnit, marginUnit, 4);
     setNumericInput(elements.ociMarginTotal, marginTotal, 2);
-    setNumericInput(elements.ociMarginPercent, marginPercentage, 2);
+    // Do not replace the value while the user is still typing the target
+    // margin. Otherwise entering "15" becomes "1.00" after the first key
+    // stroke and the following key can no longer form the intended value.
+    if (!preserveMarginInput) setNumericInput(elements.ociMarginPercent, marginPercentage, 2);
     if (state.ociPriceLocked) state.ociTargetMargin = marginPercentage;
     updatePriceDriver();
 
@@ -1304,6 +1645,7 @@
       ? tr('gr_budgets.action.new_line')
       : tr('gr_budgets.label.line_number', { number: line.item || '—' });
     elements.ociMode.className = `sz_badge ${newLine ? 'sz_badge_warning' : 'sz_badge_info'}`;
+    elements.ociDuplicate.disabled = !budgetCanBeEdited();
     const budgetHeader = (state.detail && state.detail.header) || {};
     elements.ociSubtitle.textContent = `${budgetHeader.series || tr('gr_budgets.label.budget')} ${budgetHeader.number || tr('gr_budgets.label.budget_new')} · ${line.reference || tr('gr_budgets.label.no_reference')}${line.designation ? ` — ${line.designation}` : ''}`;
     updateOciPositionsTrigger();
@@ -1328,7 +1670,7 @@
   }
 
   function updateOciPositionsTrigger() {
-    const lines = (state.detail && state.detail.lines) || [];
+    const lines = ((state.detail && state.detail.lines) || []).filter((line) => !isBudgetDiscountLine(line));
     const count = lines.length;
     elements.ociPositions.hidden = count <= 1;
     elements.ociPositionsCount.textContent = plural('gr_budgets.count.position_one', 'gr_budgets.count.position_other', count);
@@ -1375,17 +1717,20 @@
   function renderPositionCards() {
     const lines = (state.detail && state.detail.lines) || [];
     const currency = (state.detail && state.detail.header && state.detail.header.currency) || 'EUR';
-    const indexedLines = lines.map((line, index) => ({ line, index })).sort((left, right) => compareBudgetLines(left.line, right.line));
+    const indexedLines = lines
+      .map((line, index) => ({ line, index }))
+      .filter(({ line }) => !isBudgetDiscountLine(line))
+      .sort((left, right) => compareBudgetLines(left.line, right.line));
     elements.positionPickerSubtitle.textContent = plural(
       'gr_budgets.count.position_available_one',
       'gr_budgets.count.position_available_other',
-      lines.length
+      indexedLines.length
     );
     elements.positionCards.innerHTML = indexedLines.map(({ line, index }) => positionCardMarkup(line, index, currency)).join('');
   }
 
   function openPositionPicker() {
-    const lines = (state.detail && state.detail.lines) || [];
+    const lines = ((state.detail && state.detail.lines) || []).filter((line) => !isBudgetDiscountLine(line));
     if (!state.ociContext || lines.length <= 1) return;
     renderPositionCards();
     elements.positionPicker.classList.add('sz_is_open');
@@ -1404,6 +1749,103 @@
     elements.positionSwitchConfirm.classList.remove('sz_is_open');
     elements.positionSwitchConfirm.setAttribute('aria-hidden', 'true');
     state.pendingPositionTarget = null;
+  }
+
+  function closePositionDuplicateConfirm() {
+    elements.positionDuplicateConfirm.classList.remove('sz_is_open');
+    elements.positionDuplicateConfirm.setAttribute('aria-hidden', 'true');
+    state.pendingPositionDuplicate = null;
+  }
+
+  function closeLineDeleteConfirm() {
+    elements.lineDeleteConfirm.classList.remove('sz_is_open');
+    elements.lineDeleteConfirm.setAttribute('aria-hidden', 'true');
+    state.pendingLineDelete = null;
+  }
+
+  function requestBudgetLineDelete(lineIndex) {
+    if (!isEditing() || !state.detail || !budgetCanBeEdited()) return;
+    const line = (state.detail.lines || [])[lineIndex];
+    if (!line) return;
+    const position = String(line.item_label || line.item || lineIndex + 1);
+    state.pendingLineDelete = {
+      bistamp: String(line.bistamp || ''),
+      position
+    };
+    elements.lineDeleteText.textContent = tr('gr_budgets.confirm.delete_position_question', { position });
+    elements.lineDeleteConfirm.classList.add('sz_is_open');
+    elements.lineDeleteConfirm.setAttribute('aria-hidden', 'false');
+    elements.lineDeleteApply.focus();
+  }
+
+  function confirmBudgetLineDelete() {
+    const pending = state.pendingLineDelete;
+    if (!pending || !state.detail || !isEditing()) return;
+    syncEditableHeaderToState();
+    const prefix = `${pending.position}.`;
+    const removedStamps = [];
+    state.detail.lines = (state.detail.lines || []).filter((line) => {
+      const stamp = String(line.bistamp || '');
+      const label = String(line.item_label || line.item || '');
+      const remove = stamp === pending.bistamp
+        || label === pending.position
+        || label.startsWith(prefix)
+        || String(line._parent_bistamp || '') === pending.bistamp;
+      if (remove && stamp) removedStamps.push(stamp);
+      return !remove;
+    });
+    removedStamps.forEach((stamp) => state.ociCache.delete(stamp));
+    closeLineDeleteConfirm();
+    recalculateBudgetDraftTotals();
+    renderDetail(state.detail);
+    updateInteractionState();
+  }
+
+  function requestPositionDuplicate() {
+    if (!state.ociContext || !budgetCanBeEdited()) return;
+    state.pendingPositionDuplicate = { saveCurrent: true, lineIndex: state.ociContext.lineIndex };
+    elements.positionDuplicateTitle.textContent = tr('gr_budgets.confirm.duplicate_position_title');
+    elements.positionDuplicateText.textContent = tr('gr_budgets.confirm.duplicate_position_question');
+    elements.positionDuplicateActionText.textContent = tr('gr_budgets.action.save_and_duplicate');
+    elements.positionDuplicateConfirm.classList.add('sz_is_open');
+    elements.positionDuplicateConfirm.setAttribute('aria-hidden', 'false');
+    elements.positionDuplicateSave.focus();
+  }
+
+  function requestGridPositionDuplicate(lineIndex) {
+    const line = state.detail && (state.detail.lines || [])[lineIndex];
+    if (!line || !budgetCanBeEdited() || isPlusValue(line.reference)) return;
+    const position = line.item_label || line.item || lineIndex + 1;
+    state.pendingPositionDuplicate = { saveCurrent: false, lineIndex };
+    elements.positionDuplicateTitle.textContent = tr('gr_budgets.confirm.duplicate_grid_position_title');
+    elements.positionDuplicateText.textContent = tr('gr_budgets.confirm.duplicate_grid_position_question', { position });
+    elements.positionDuplicateActionText.textContent = tr('gr_budgets.action.duplicate');
+    elements.positionDuplicateConfirm.classList.add('sz_is_open');
+    elements.positionDuplicateConfirm.setAttribute('aria-hidden', 'false');
+    elements.positionDuplicateSave.focus();
+  }
+
+  function saveAndDuplicateCurrentPosition() {
+    if (!state.ociContext) return;
+    const sourceStamp = state.ociContext.line && state.ociContext.line.bistamp;
+    closePositionDuplicateConfirm();
+    if (!saveOciLine()) return;
+    const sourceIndex = (state.detail.lines || []).findIndex((line) => line.bistamp === sourceStamp);
+    if (sourceIndex < 0) return;
+    const duplicateIndex = duplicatePosition(sourceIndex);
+    if (duplicateIndex >= 0) openOci(duplicateIndex, false);
+  }
+
+  function confirmPositionDuplicate() {
+    const pending = state.pendingPositionDuplicate;
+    if (!pending) return;
+    if (pending.saveCurrent) {
+      saveAndDuplicateCurrentPosition();
+      return;
+    }
+    const lineIndex = pending.lineIndex;
+    closePositionDuplicateConfirm();
+    duplicatePosition(lineIndex);
   }
 
   function requestPositionSwitch(selectedIndex) {
@@ -1453,7 +1895,9 @@
   }
 
   async function openOci(lineIndex, newLine) {
-    if (!state.detail || state.loadingCount || state.ociContext) return;
+    if (!state.detail || state.loadingCount) return;
+    if (state.ociContext && !elements.ociView.hidden) return;
+    if (state.ociContext) state.ociContext = null;
     syncEditableHeaderToState();
     showLoading(true);
     showError('');
@@ -1487,6 +1931,7 @@
     closeComponentPicker();
     closePositionPicker();
     closePositionSwitchConfirm();
+    closePositionDuplicateConfirm();
     elements.ociView.hidden = true;
     elements.contextbar.hidden = false;
     elements.body.hidden = false;
@@ -1508,6 +1953,175 @@
       margin_percentage: total ? profit / total * 100 : 0,
       line_count: lines.length
     };
+  }
+
+  function isBudgetDiscountLine(line) {
+    return normalizedCode(line && line.item_label) === 'ZZ'
+      || normalizedCode(line && line.item) === 'ZZ'
+      || normalizedCode(line && line.reference) === 'ZZ';
+  }
+
+  function budgetLinesWithoutDiscount() {
+    return ((state.detail && state.detail.lines) || []).filter((line) => !isBudgetDiscountLine(line));
+  }
+
+  function budgetBaseTotal(lines) {
+    return roundMoney((lines || [])
+      .filter((line) => !line.variant && !line.option)
+      .reduce((sum, line) => sum + Number(line.total || 0), 0));
+  }
+
+  function closeCommercialAdjustment() {
+    elements.commercialAdjustment.classList.remove('sz_is_open');
+    elements.commercialAdjustment.setAttribute('aria-hidden', 'true');
+    elements.commercialAdjustmentError.hidden = true;
+    elements.commercialAdjustmentError.textContent = '';
+    state.commercialAdjustmentMode = '';
+  }
+
+  function openCommercialAdjustment(mode) {
+    if (isEditing() || state.loadingCount || !state.detail || !selectedBudgetStamp() || !budgetCanBeEdited()) return;
+    const baseLines = budgetLinesWithoutDiscount();
+    const baseTotal = budgetBaseTotal(baseLines);
+    const currentTotal = roundMoney(Number((state.detail.totals && state.detail.totals.total) || 0));
+    const discountPercentage = baseTotal ? Math.max(0, (baseTotal - currentTotal) / baseTotal * 100) : 0;
+    const finalPriceMode = mode === 'final';
+    state.commercialAdjustmentMode = finalPriceMode ? 'final' : 'discount';
+    elements.commercialAdjustmentTitle.textContent = tr(finalPriceMode
+      ? 'gr_budgets.adjustment.final_title'
+      : 'gr_budgets.adjustment.discount_title');
+    elements.commercialAdjustmentText.textContent = tr(finalPriceMode
+      ? 'gr_budgets.adjustment.final_text'
+      : 'gr_budgets.adjustment.discount_text');
+    elements.commercialAdjustmentLabel.textContent = tr(finalPriceMode
+      ? 'gr_budgets.adjustment.final_label'
+      : 'gr_budgets.adjustment.discount_label');
+    elements.commercialAdjustmentValue.value = (finalPriceMode ? currentTotal : discountPercentage).toFixed(2);
+    elements.commercialAdjustmentError.hidden = true;
+    elements.commercialAdjustmentError.textContent = '';
+    elements.commercialAdjustment.classList.add('sz_is_open');
+    elements.commercialAdjustment.setAttribute('aria-hidden', 'false');
+    elements.commercialAdjustmentValue.focus();
+    elements.commercialAdjustmentValue.select();
+  }
+
+  function showCommercialAdjustmentError(message) {
+    elements.commercialAdjustmentError.textContent = message;
+    elements.commercialAdjustmentError.hidden = false;
+  }
+
+  function applyCommercialAdjustment() {
+    if (!state.commercialAdjustmentMode || !state.detail) return;
+    const value = parseLocalizedNumber(elements.commercialAdjustmentValue.value);
+    if (value == null) {
+      showCommercialAdjustmentError(tr('gr_budgets.adjustment.invalid_number'));
+      elements.commercialAdjustmentValue.focus();
+      return;
+    }
+    if (state.commercialAdjustmentMode === 'discount' && (value < 0 || value > 100)) {
+      showCommercialAdjustmentError(tr('gr_budgets.adjustment.invalid_discount'));
+      elements.commercialAdjustmentValue.focus();
+      return;
+    }
+    if (state.commercialAdjustmentMode === 'final' && value < 0) {
+      showCommercialAdjustmentError(tr('gr_budgets.adjustment.invalid_final_price'));
+      elements.commercialAdjustmentValue.focus();
+      return;
+    }
+
+    syncEditableHeaderToState();
+    const baseLines = budgetLinesWithoutDiscount();
+    const baseTotal = budgetBaseTotal(baseLines);
+    const adjustment = roundMoney(state.commercialAdjustmentMode === 'discount'
+      ? baseTotal * value / 100
+      : baseTotal - value);
+    const total = roundMoney(-adjustment);
+    const vatSource = baseLines.find((line) => Number(line.vat_table || 0) > 0) || {};
+    const header = state.detail.header || {};
+    const vatTable = Number(header.default_vat_table || vatSource.vat_table || 0);
+    const vatRate = vatRateForTable(vatTable, header.default_vat_rate || vatSource.vat_rate || 0);
+    const discountLine = {
+      bistamp: newDraftId('line'),
+      budget_stamp: header.bostamp || '',
+      order: 999999999,
+      item: 'ZZ',
+      item_label: 'ZZ',
+      reference: '',
+      designation: 'ESCOMPTE',
+      description: 'ESCOMPTE',
+      quantity: -1,
+      surface: -1,
+      unit: '',
+      thickness: 0,
+      volume: 0,
+      discount_1: 0,
+      discount_2: 0,
+      unit_cost: 0,
+      cost_total: 0,
+      unit_price: adjustment,
+      total,
+      vat_table: vatTable,
+      vat_rate: vatRate,
+      margin_per_unit: adjustment,
+      margin_value: total,
+      margin_percentage: total ? 100 : 0,
+      profit: total,
+      has_technical_detail: false,
+      simultaneous: false,
+      variant: false,
+      option: false,
+      blocked_price: true,
+      pump: false,
+      labour: false,
+      pro_rata: false,
+      _ociRows: [],
+      technical_lines: []
+    };
+
+    state.detail.lines = [...baseLines, discountLine].sort(compareBudgetLines);
+    state.mode = 'edit';
+    state.returnStamp = selectedBudgetStamp();
+    state.ociCache.clear();
+    closeCommercialAdjustment();
+    recalculateBudgetDraftTotals();
+    renderDetail(state.detail);
+    updateInteractionState();
+  }
+
+  function duplicatePosition(lineIndex) {
+    if (!state.detail || !budgetCanBeEdited()) return -1;
+    const lines = state.detail.lines || [];
+    const sourceLine = lines[lineIndex];
+    if (!sourceLine || isPlusValue(sourceLine.reference) || isBudgetDiscountLine(sourceLine)) return -1;
+
+    syncEditableHeaderToState();
+    if (!isEditing()) {
+      state.mode = 'edit';
+      state.returnStamp = selectedBudgetStamp();
+    }
+
+    const newPosition = nextBudgetPosition();
+    const sourceLabel = String(sourceLine.item_label || sourceLine.item || lineIndex + 1);
+    const copy = cloneLineForDraft(sourceLine, newPosition, newPosition, newPosition * 10000);
+    const childLines = lines
+      .filter((candidate, index) => index !== lineIndex && String(candidate.item_label || '').startsWith(`${sourceLabel}.`))
+      .sort(compareBudgetLines);
+
+    const copiedChildren = childLines.map((child, index) => {
+      const childLabel = String(child.item_label || '');
+      const suffix = childLabel.slice(sourceLabel.length + 1) || String(index + 1);
+      const childOrder = newPosition * 10000 + (index + 1) * 100;
+      const childCopy = cloneLineForDraft(child, newPosition, `${newPosition}.${suffix}`, childOrder);
+      childCopy._parent_bistamp = copy.bistamp;
+      return childCopy;
+    });
+
+    state.detail.lines = [...lines, copy, ...copiedChildren].sort(compareBudgetLines);
+    state.ociCache.clear();
+    recalculateBudgetDraftTotals();
+    renderDetail(state.detail);
+    updateInteractionState();
+    return state.detail.lines.findIndex((line) => line.bistamp === copy.bistamp);
   }
 
   function saveOciLine() {
@@ -1674,6 +2288,13 @@
     elements.refresh.disabled = navigationLocked || !elements.series.value;
     elements.document.disabled = navigationLocked || !state.budgets.length;
     elements.printBudget.disabled = navigationLocked || !state.detail || !selectedBudgetStamp() || !elements.company.value;
+    elements.duplicateBudget.disabled = busy || !state.detail || !selectedBudgetStamp() || !elements.company.value;
+    elements.finalPriceBudget.disabled = busy || !state.detail || !selectedBudgetStamp() || !elements.company.value || !budgetCanBeEdited();
+    elements.discountBudget.disabled = busy || !state.detail || !selectedBudgetStamp() || !elements.company.value || !budgetCanBeEdited();
+    elements.applyVatBudget.disabled = busy || !state.detail || !selectedBudgetStamp() || !elements.company.value || !budgetCanBeEdited() || !availableVatRates().length;
+    elements.approvalBudget.disabled = navigationLocked || !state.detail || !selectedBudgetStamp() || !elements.company.value || !budgetApprovalAvailable();
+    elements.actionsMenu.hidden = editing;
+    elements.actionsToggle.disabled = busy || !state.detail || !selectedBudgetStamp() || !elements.company.value;
     elements.newBudget.hidden = editing;
     elements.newBudget.disabled = busy || !elements.company.value || !elements.series.value;
     elements.editBudget.hidden = editing || !budgetCanBeEdited() || !selectedBudgetStamp();
@@ -1739,11 +2360,64 @@
     elements.clientSearch.focus();
   }
 
+  function startDuplicateBudget() {
+    if (isEditing() || state.loadingCount || !state.detail || !selectedBudgetStamp()) return;
+    window.clearTimeout(state.searchTimer);
+    state.requestVersion += 1;
+    const sourceDetail = cloneData(state.detail);
+    const sourceHeader = sourceDetail.header || {};
+    const sourceStamp = selectedBudgetStamp();
+    const sourceNumber = sourceHeader.number || '';
+    const seriesName = sourceHeader.series || tr('gr_budgets.label.budget');
+
+    state.returnStamp = sourceStamp;
+    state.mode = 'new';
+    state.ociCache.clear();
+
+    const draftOption = document.createElement('option');
+    draftOption.value = newDocumentValue;
+    draftOption.textContent = tr('gr_budgets.document.duplicate_draft', {
+      series: seriesName,
+      number: sourceNumber || '—'
+    });
+    draftOption.dataset.draft = 'true';
+    elements.document.appendChild(draftOption);
+    elements.document.value = newDocumentValue;
+    elements.resultCount.textContent = tr('gr_budgets.document.duplicate_label');
+
+    state.detail = {
+      ...sourceDetail,
+      header: {
+        ...sourceHeader,
+        _draft: true,
+        _duplicated: true,
+        bostamp: '',
+        number: '',
+        revision: '',
+        date: todayForInput(),
+        approved: false,
+        awarded: false,
+        cancelled: false,
+        closed: false
+      },
+      lines: cloneBudgetLinesForDraft(sourceDetail.lines || []),
+      vat_rows: []
+    };
+    recalculateBudgetDraftTotals();
+    renderDetail(state.detail);
+    updateInteractionState();
+  }
+
   function startEditBudget() {
     if (isEditing() || state.loadingCount || !selectedBudgetStamp() || !budgetCanBeEdited()) return;
     state.returnStamp = selectedBudgetStamp();
     state.mode = 'edit';
     syncEditableHeaderToState();
+    renderLines(
+      state.detail.lines || [],
+      (state.detail.header && state.detail.header.currency) || 'EUR',
+      state.detail.totals || {}
+    );
     renderStatuses(state.detail.header || {});
     updateInteractionState();
     elements.clientSearch.focus();
@@ -1860,7 +2534,12 @@
   });
   elements.previous.addEventListener('click', () => moveSelection(-1));
   elements.next.addEventListener('click', () => moveSelection(1));
+  elements.approvalBudget.addEventListener('click', openApprovalConfirm);
   elements.printBudget.addEventListener('click', printBudget);
+  elements.duplicateBudget.addEventListener('click', startDuplicateBudget);
+  elements.finalPriceBudget.addEventListener('click', () => openCommercialAdjustment('final'));
+  elements.discountBudget.addEventListener('click', () => openCommercialAdjustment('discount'));
+  elements.applyVatBudget.addEventListener('click', openVatApply);
   elements.newBudget.addEventListener('click', startNewBudget);
   elements.editBudget.addEventListener('click', startEditBudget);
   elements.cancelEdit.addEventListener('click', cancelEdit);
@@ -1899,12 +2578,34 @@
     }
   });
   elements.clientSearch.addEventListener('blur', () => window.setTimeout(closeClientLookup, 150));
+  elements.lines.addEventListener('change', (event) => {
+    const selector = event.target.closest('[data-budget-line-vat]');
+    if (!selector || !isEditing() || !state.detail) return;
+    const index = Number(selector.dataset.budgetLineVat);
+    const line = (state.detail.lines || [])[index];
+    if (!line) return;
+    const vatTable = Number(selector.value || 0);
+    line.vat_table = vatTable;
+    line.vat_rate = vatRateForTable(vatTable, 0);
+  });
   elements.lines.addEventListener('click', (event) => {
-    const button = event.target.closest('[data-technical-line]');
-    if (!button || !state.detail) return;
-    openOci(Number(button.dataset.technicalLine), false);
+    const technicalButton = event.target.closest('[data-technical-line]');
+    if (technicalButton && state.detail) {
+      openOci(Number(technicalButton.dataset.technicalLine), false);
+      return;
+    }
+    const duplicateButton = event.target.closest('[data-duplicate-line]');
+    if (duplicateButton) {
+      requestGridPositionDuplicate(Number(duplicateButton.dataset.duplicateLine));
+      return;
+    }
+    const deleteButton = event.target.closest('[data-delete-line]');
+    if (deleteButton) {
+      requestBudgetLineDelete(Number(deleteButton.dataset.deleteLine));
+    }
   });
   elements.addLine.addEventListener('click', () => openOci(-1, true));
+  elements.ociDuplicate.addEventListener('click', requestPositionDuplicate);
   elements.ociCancel.addEventListener('click', closeOciView);
   elements.ociSave.addEventListener('click', saveOciLine);
   elements.ociPositions.addEventListener('click', openPositionPicker);
@@ -1955,6 +2656,46 @@
   });
   elements.positionSwitchDiscard.addEventListener('click', () => switchOciPosition(false));
   elements.positionSwitchSave.addEventListener('click', () => switchOciPosition(true));
+  root.querySelectorAll('[data-position-duplicate-cancel]').forEach((button) => {
+    button.addEventListener('click', closePositionDuplicateConfirm);
+  });
+  elements.positionDuplicateConfirm.addEventListener('click', (event) => {
+    if (event.target === elements.positionDuplicateConfirm) closePositionDuplicateConfirm();
+  });
+  elements.positionDuplicateSave.addEventListener('click', confirmPositionDuplicate);
+  root.querySelectorAll('[data-commercial-adjustment-cancel]').forEach((button) => {
+    button.addEventListener('click', closeCommercialAdjustment);
+  });
+  elements.commercialAdjustment.addEventListener('click', (event) => {
+    if (event.target === elements.commercialAdjustment) closeCommercialAdjustment();
+  });
+  elements.commercialAdjustmentApply.addEventListener('click', applyCommercialAdjustment);
+  elements.commercialAdjustmentValue.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    applyCommercialAdjustment();
+  });
+  root.querySelectorAll('[data-approval-cancel]').forEach((button) => {
+    button.addEventListener('click', closeApprovalConfirm);
+  });
+  elements.approvalConfirm.addEventListener('click', (event) => {
+    if (event.target === elements.approvalConfirm) closeApprovalConfirm();
+  });
+  elements.approvalApply.addEventListener('click', applyBudgetApproval);
+  root.querySelectorAll('[data-line-delete-cancel]').forEach((button) => {
+    button.addEventListener('click', closeLineDeleteConfirm);
+  });
+  elements.lineDeleteConfirm.addEventListener('click', (event) => {
+    if (event.target === elements.lineDeleteConfirm) closeLineDeleteConfirm();
+  });
+  elements.lineDeleteApply.addEventListener('click', confirmBudgetLineDelete);
+  root.querySelectorAll('[data-vat-apply-cancel]').forEach((button) => {
+    button.addEventListener('click', closeVatApply);
+  });
+  elements.vatApply.addEventListener('click', (event) => {
+    if (event.target === elements.vatApply) closeVatApply();
+  });
+  elements.vatApplyConfirm.addEventListener('click', applyVatToAllLines);
   elements.ociRows.addEventListener('click', (event) => {
     const button = event.target.closest('[data-oci-delete]');
     if (!button) return;
@@ -2000,6 +2741,11 @@
   elements.ociMarginPercent.addEventListener('input', () => {
     state.ociPriceLocked = false;
     state.ociTargetMargin = numericInput(elements.ociMarginPercent);
+    recalculateOci({ preserveMarginInput: true });
+  });
+  elements.ociMarginPercent.addEventListener('change', () => {
+    state.ociPriceLocked = false;
+    state.ociTargetMargin = numericInput(elements.ociMarginPercent);
     recalculateOci();
   });
   elements.ociProrata.addEventListener('input', recalculateOci);
@@ -2023,7 +2769,17 @@
   });
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape') return;
-    if (elements.positionSwitchConfirm.classList.contains('sz_is_open')) {
+    if (elements.vatApply.classList.contains('sz_is_open')) {
+      closeVatApply();
+    } else if (elements.lineDeleteConfirm.classList.contains('sz_is_open')) {
+      closeLineDeleteConfirm();
+    } else if (elements.approvalConfirm.classList.contains('sz_is_open')) {
+      closeApprovalConfirm();
+    } else if (elements.commercialAdjustment.classList.contains('sz_is_open')) {
+      closeCommercialAdjustment();
+    } else if (elements.positionDuplicateConfirm.classList.contains('sz_is_open')) {
+      closePositionDuplicateConfirm();
+    } else if (elements.positionSwitchConfirm.classList.contains('sz_is_open')) {
       closePositionSwitchConfirm();
     } else if (elements.positionPicker.classList.contains('sz_is_open')) {
       closePositionPicker();

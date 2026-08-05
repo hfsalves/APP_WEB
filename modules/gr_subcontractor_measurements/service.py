@@ -36,6 +36,10 @@ def _text_value(value: Any) -> str:
     return str(value or "").strip()
 
 
+def _contract_work_code(header: dict[str, Any]) -> str:
+    return _text_value(header.get("CCUSTO") or header.get("PROCESSO"))
+
+
 def _stamp_key(value: Any) -> str:
     return re.sub(r"\s+", "", str(value or "").upper())
 
@@ -1184,7 +1188,9 @@ def create_measurement_auto(payload: dict[str, Any], user) -> dict[str, Any]:
 
             obrano = _next_measurement_obrano(cursor, dataobra.year)
             autono = _next_contract_autono(cursor, contract_bostamp)
-            process = _text_value(header.get("PROCESSO") or header.get("CCUSTO"))
+            process = _contract_work_code(header)
+            if not process:
+                raise SubcontractorMeasurementsValidationError("O contrato nao tem obra definida.")
             supplier_no = int(_number_value(header.get("NO")))
             supplier_name = _text_value(header.get("NOME"))[:55]
             currency = _text_value(header.get("MOEDA")) or "EURO"
@@ -1206,7 +1212,7 @@ def create_measurement_auto(payload: dict[str, Any], user) -> dict[str, Any]:
                 "codpost": _text_value(header.get("CODPOST")),
                 "estab": int(_number_value(header.get("ESTAB"))),
                 "moeda": currency,
-                "ccusto": _text_value(header.get("CCUSTO") or process),
+                "ccusto": process,
                 "fref": _text_value(header.get("FREF")),
                 "totaldeb": _phc_value(total_deb),
                 "etotaldeb": total_deb,
@@ -1343,7 +1349,7 @@ def create_measurement_auto(payload: dict[str, Any], user) -> dict[str, Any]:
                     "stipo": int(_number_value(source.get("STIPO"))),
                     "no": supplier_no,
                     "nome": supplier_name,
-                    "ccusto": _text_value(source.get("CCUSTO") or header.get("CCUSTO") or process),
+                    "ccusto": process,
                     "bofref": _text_value(source.get("BOFREF") or header.get("FREF")),
                     "bifref": _text_value(source.get("BIFREF") or header.get("FREF")),
                     "familia": _text_value(source.get("FAMILIA")),

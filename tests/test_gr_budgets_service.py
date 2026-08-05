@@ -4,7 +4,10 @@ import unittest
 from unittest.mock import patch
 
 from modules.gr_budgets.service import (
+    _approval_credit_payload,
+    _approval_has_credit,
     _article_designation_expression,
+    _budget_default_vat,
     _client_payload,
     _budget_is_in_preparation,
     _budget_can_be_edited,
@@ -27,6 +30,7 @@ from modules.gr_budgets.service import (
     _revision_token,
     _series_name_key,
     _series_rows,
+    _tax_rate_rows,
     _write_money,
     _write_oci_purchase_price,
 )
@@ -48,6 +52,27 @@ class BudgetPayloadTests(unittest.TestCase):
         ]
 
         self.assertEqual(_pick_default_series(rows), 115)
+
+    def test_existing_budget_inherits_its_dominant_vat_when_client_has_no_default(self):
+        tax_rates = [
+            {"table": 2, "rate": Decimal("20")},
+            {"table": 5, "rate": Decimal("0")},
+        ]
+        lines = [
+            {"total": Decimal("1000"), "vat_table": 2},
+            {"total": Decimal("50"), "vat_table": 5},
+            {"total": Decimal("5000"), "vat_table": 5, "option": True},
+        ]
+
+        self.assertEqual(_budget_default_vat(lines, tax_rates, 0), (2, Decimal("20")))
+
+    def test_client_vat_table_has_priority_for_new_positions(self):
+        tax_rates = [
+            {"table": 2, "rate": Decimal("20")},
+            {"table": 3, "rate": Decimal("10")},
+        ]
+
+        self.assertEqual(_budget_default_vat([], tax_rates, 3), (3, Decimal("10")))
 
     def test_oci_purchase_price_prefers_the_normalized_visible_input(self):
         self.assertEqual(
@@ -195,6 +220,28 @@ class BudgetPayloadTests(unittest.TestCase):
         self.assertFalse(_budget_can_be_edited({"FECHADA": True}))
         self.assertFalse(_budget_can_be_edited({"ADJUDICADO": 1}))
         self.assertFalse(_budget_can_be_edited({"ANULADO": "true"}))
+
+    def test_approval_credit_matches_phc_plafond_formula(self):
+        credit = _approval_credit_payload(
+            {
+                "U_SEGURO": Decimal("100000"),
+                "EPLAFOND": Decimal("50000"),
+                "ESALDO": Decimal("20000"),
+                "BO_ABERTO": Decimal("30000"),
+            },
+            Decimal("40000"),
+        )
+
+        self.assertEqual(credit["total_credit"], 150000.0)
+        self.assertEqual(credit["open_total"], 50000.0)
+        self.assertEqual(credit["available"], 60000.0)
+        self.assertTrue(_approval_has_credit(credit))
+
+    def test_approval_override_must_be_strictly_greater_than_total_exposure(self):
+        credit = {"available": -1, "open_total": 50000, "budget_total": 40000}
+
+        self.assertFalse(_approval_has_credit(credit, Decimal("90000")))
+        self.assertTrue(_approval_has_credit(credit, Decimal("90000.01")))
 
     def test_intersol_salespeople_10_to_14_only_see_their_own_devis(self):
         sql, params = _intersol_budget_visibility_predicate(12)
@@ -375,15 +422,32 @@ class BudgetPayloadTests(unittest.TestCase):
                 "CONTACTO": "Sarah GIRARDI",
                 "EMAIL": "facture@gsegroup.com",
                 "TELEFONE": "04 90 23 74 00",
+                "VAT_TABLE": 2,
                 "VENDEDOR": 6,
                 "VENDNM": "ELSON IGREJA",
-            }
+            },
+            {2: Decimal("20")},
         )
 
         self.assertEqual(client["number"], 10009)
         self.assertEqual(client["name"], "GSE")
         self.assertEqual(client["contact"], "Sarah GIRARDI")
+        self.assertEqual(client["vat_table"], 2)
+        self.assertEqual(client["vat_rate"], 20.0)
         self.assertEqual(client["salesperson_number"], 6)
+
+    def test_exposes_tax_tables_with_their_rates(self):
+        with patch(
+            "modules.gr_budgets.service._phc_tax_rates",
+            return_value=[
+                {"tabiva": 2, "taxaiva": Decimal("20")},
+                {"tabiva": 5, "taxaiva": Decimal("0")},
+                {"tabiva": 0, "taxaiva": Decimal("21")},
+            ],
+        ):
+            rows = _tax_rate_rows(object())
+
+        self.assertEqual(rows, [{"table": 2, "rate": 20.0}, {"table": 5, "rate": 0.0}])
 
     def test_maps_cm3_salesperson_row(self):
         salesperson = _salesperson_payload(

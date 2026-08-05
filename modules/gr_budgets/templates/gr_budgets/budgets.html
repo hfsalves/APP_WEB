@@ -4,7 +4,7 @@
 
 {% block extra_head %}
   {{ super() }}
-  <link rel="stylesheet" href="{{ url_for('gr_budgets.static', filename='gr_budgets.css') }}?v={{ config.get('STATIC_VERSION', 1) }}-money-2-decimals-1">
+  <link rel="stylesheet" href="{{ url_for('gr_budgets.static', filename='gr_budgets.css') }}?v={{ config.get('STATIC_VERSION', 1) }}-apply-vat-1">
 {% endblock %}
 
 {% block content %}
@@ -74,10 +74,6 @@
             </div>
             <div class="gr-budget-header-actions">
               <div id="budgetStatus" class="gr-budget-statuses"></div>
-              <button id="budgetPrint" type="button" class="sz_button sz_button_secondary" title="{{ _('gr_budgets.title.print') }}" disabled>
-                <i class="fa-solid fa-print" aria-hidden="true"></i>
-                <span>{{ _('gr_budgets.action.print') }}</span>
-              </button>
               <button id="budgetNew" type="button" class="sz_button sz_button_primary" title="{{ _('gr_budgets.title.create') }}">
                 <i class="fa-solid fa-plus" aria-hidden="true"></i>
                 <span>{{ _('gr_budgets.action.new') }}</span>
@@ -86,6 +82,40 @@
                 <i class="fa-solid fa-pen" aria-hidden="true"></i>
                 <span>{{ _('gr_budgets.action.edit') }}</span>
               </button>
+              <div id="budgetActionsMenu" class="dropdown gr-budget-actions-dropdown">
+                <button id="budgetActionsToggle" type="button" class="sz_button sz_button_secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                  <i class="fa-solid fa-ellipsis-vertical" aria-hidden="true"></i>
+                  <span>{{ _('common.actions') }}</span>
+                </button>
+                <div class="dropdown-menu dropdown-menu-end gr-budget-actions-menu" aria-labelledby="budgetActionsToggle">
+                  <button id="budgetApproval" type="button" class="dropdown-item gr-budget-action-item" disabled>
+                    <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
+                    <span id="budgetApprovalLabel">{{ _('gr_budgets.action.approve') }}</span>
+                  </button>
+                  <div class="dropdown-divider"></div>
+                  <button id="budgetPrint" type="button" class="dropdown-item gr-budget-action-item" title="{{ _('gr_budgets.title.print') }}" disabled>
+                    <i class="fa-solid fa-print" aria-hidden="true"></i>
+                    <span>{{ _('gr_budgets.action.print') }}</span>
+                  </button>
+                  <button id="budgetDuplicate" type="button" class="dropdown-item gr-budget-action-item" title="{{ _('gr_budgets.title.duplicate_budget') }}" disabled>
+                    <i class="fa-solid fa-copy" aria-hidden="true"></i>
+                    <span>{{ _('gr_budgets.action.duplicate') }}</span>
+                  </button>
+                  <div class="dropdown-divider"></div>
+                  <button id="budgetFinalPrice" type="button" class="dropdown-item gr-budget-action-item" disabled>
+                    <i class="fa-solid fa-bullseye" aria-hidden="true"></i>
+                    <span>{{ _('gr_budgets.action.final_price') }}</span>
+                  </button>
+                  <button id="budgetDiscount" type="button" class="dropdown-item gr-budget-action-item" disabled>
+                    <i class="fa-solid fa-percent" aria-hidden="true"></i>
+                    <span>{{ _('gr_budgets.action.discount') }}</span>
+                  </button>
+                  <button id="budgetApplyVat" type="button" class="dropdown-item gr-budget-action-item" disabled>
+                    <i class="fa-solid fa-file-invoice-dollar" aria-hidden="true"></i>
+                    <span>{{ _('gr_budgets.action.apply_vat') }}</span>
+                  </button>
+                </div>
+              </div>
               <button id="budgetCancelEdit" type="button" class="sz_button sz_button_secondary" hidden>
                 <i class="fa-solid fa-xmark" aria-hidden="true"></i>
                 <span>{{ _('gr_budgets.action.cancel') }}</span>
@@ -183,10 +213,12 @@
                   <th class="gr-budget-num">{{ _('gr_budgets.field.thickness') }}</th>
                   <th class="gr-budget-num">{{ _('gr_budgets.field.price') }}</th>
                   <th class="gr-budget-num">{{ _('gr_budgets.field.total') }}</th>
+                  <th class="gr-budget-vat">{{ _('gr_budgets.field.vat') }}</th>
                   <th class="gr-budget-check">{{ _('gr_budgets.field.technical') }}</th>
                   <th class="gr-budget-num">{{ _('gr_budgets.field.cost_total') }}</th>
                   <th class="gr-budget-num">{{ _('gr_budgets.field.margin') }}</th>
                   <th class="gr-budget-num">{{ _('gr_budgets.field.profit') }}</th>
+                  <th class="gr-budget-line-actions-column"><span class="visually-hidden">{{ _('common.actions') }}</span></th>
                 </tr>
               </thead>
               <tbody id="budgetLines"></tbody>
@@ -218,6 +250,10 @@
                 <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
               </button>
               <span id="budgetOciMode" class="sz_badge sz_badge_info">{{ _('gr_budgets.action.technical_detail') }}</span>
+              <button id="budgetOciDuplicate" type="button" class="sz_button sz_button_secondary" title="{{ _('gr_budgets.title.save_and_duplicate_position') }}">
+                <i class="fa-solid fa-copy" aria-hidden="true"></i>
+                <span>{{ _('gr_budgets.action.duplicate') }}</span>
+              </button>
               <button id="budgetOciCancel" type="button" class="sz_button sz_button_secondary">
                 <i class="fa-solid fa-xmark" aria-hidden="true"></i>
                 <span>{{ _('gr_budgets.action.cancel') }}</span>
@@ -448,6 +484,123 @@
     </div>
   </div>
 
+  <div id="budgetPositionDuplicateConfirm" class="sz_modal gr-budget-position-confirm" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="budgetPositionDuplicateTitle">
+    <div class="sz_panel gr-budget-position-confirm-panel">
+      <div class="sz_modal_header">
+        <div>
+          <span class="sz_caption">{{ _('gr_budgets.confirm.duplicate_position_caption') }}</span>
+          <h3 id="budgetPositionDuplicateTitle" class="sz_modal_title">{{ _('gr_budgets.confirm.duplicate_position_title') }}</h3>
+        </div>
+      </div>
+      <div class="sz_modal_body gr-budget-position-confirm-body">
+        <p id="budgetPositionDuplicateText">{{ _('gr_budgets.confirm.duplicate_position_question') }}</p>
+      </div>
+      <div class="sz_modal_footer gr-budget-position-confirm-actions">
+        <button type="button" class="sz_button sz_button_ghost" data-position-duplicate-cancel>{{ _('gr_budgets.action.cancel') }}</button>
+        <button id="budgetPositionDuplicateSave" type="button" class="sz_button sz_button_primary">
+          <i class="fa-solid fa-copy" aria-hidden="true"></i>
+          <span id="budgetPositionDuplicateActionText">{{ _('gr_budgets.action.save_and_duplicate') }}</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="budgetCommercialAdjustment" class="sz_modal gr-budget-position-confirm" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="budgetCommercialAdjustmentTitle">
+    <div class="sz_panel gr-budget-position-confirm-panel">
+      <div class="sz_modal_header">
+        <div>
+          <span class="sz_caption">{{ _('gr_budgets.adjustment.caption') }}</span>
+          <h3 id="budgetCommercialAdjustmentTitle" class="sz_modal_title">{{ _('gr_budgets.adjustment.discount_title') }}</h3>
+        </div>
+      </div>
+      <div class="sz_modal_body gr-budget-position-confirm-body gr-budget-adjustment-body">
+        <p id="budgetCommercialAdjustmentText">{{ _('gr_budgets.adjustment.discount_text') }}</p>
+        <label class="sz_field">
+          <span id="budgetCommercialAdjustmentLabel" class="sz_label">{{ _('gr_budgets.adjustment.discount_label') }}</span>
+          <input id="budgetCommercialAdjustmentValue" class="sz_input gr-budget-adjustment-input" type="text" inputmode="decimal" autocomplete="off">
+        </label>
+        <p id="budgetCommercialAdjustmentError" class="sz_alert sz_alert_danger" hidden></p>
+      </div>
+      <div class="sz_modal_footer gr-budget-position-confirm-actions">
+        <button type="button" class="sz_button sz_button_ghost" data-commercial-adjustment-cancel>{{ _('gr_budgets.action.cancel') }}</button>
+        <button id="budgetCommercialAdjustmentApply" type="button" class="sz_button sz_button_primary">
+          <i class="fa-solid fa-check" aria-hidden="true"></i>
+          <span>{{ _('gr_budgets.action.apply') }}</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="budgetApprovalConfirm" class="sz_modal gr-budget-position-confirm" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="budgetApprovalConfirmTitle">
+    <div class="sz_panel gr-budget-position-confirm-panel">
+      <div class="sz_modal_header">
+        <div>
+          <span class="sz_caption">{{ _('gr_budgets.approval.caption') }}</span>
+          <h3 id="budgetApprovalConfirmTitle" class="sz_modal_title">{{ _('gr_budgets.approval.approve_title') }}</h3>
+        </div>
+      </div>
+      <div class="sz_modal_body gr-budget-position-confirm-body gr-budget-adjustment-body">
+        <p id="budgetApprovalConfirmText">{{ _('gr_budgets.approval.approve_text') }}</p>
+        <div id="budgetApprovalCredit" class="gr-budget-approval-credit" hidden></div>
+        <p id="budgetApprovalError" class="sz_alert sz_alert_danger" hidden></p>
+      </div>
+      <div class="sz_modal_footer gr-budget-position-confirm-actions">
+        <button type="button" class="sz_button sz_button_ghost" data-approval-cancel>{{ _('gr_budgets.action.cancel') }}</button>
+        <button id="budgetApprovalApply" type="button" class="sz_button sz_button_primary">
+          <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
+          <span id="budgetApprovalApplyLabel">{{ _('gr_budgets.action.approve') }}</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="budgetLineDeleteConfirm" class="sz_modal gr-budget-position-confirm" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="budgetLineDeleteTitle">
+    <div class="sz_panel gr-budget-position-confirm-panel">
+      <div class="sz_modal_header">
+        <div>
+          <span class="sz_caption">{{ _('gr_budgets.confirm.delete_position_caption') }}</span>
+          <h3 id="budgetLineDeleteTitle" class="sz_modal_title">{{ _('gr_budgets.confirm.delete_position_title') }}</h3>
+        </div>
+      </div>
+      <div class="sz_modal_body gr-budget-position-confirm-body">
+        <p id="budgetLineDeleteText">{{ _('gr_budgets.confirm.delete_position_question', position='—') }}</p>
+      </div>
+      <div class="sz_modal_footer gr-budget-position-confirm-actions">
+        <button type="button" class="sz_button sz_button_ghost" data-line-delete-cancel>{{ _('gr_budgets.action.cancel') }}</button>
+        <button id="budgetLineDeleteApply" type="button" class="sz_button sz_button_danger">
+          <i class="fa-solid fa-trash-can" aria-hidden="true"></i>
+          <span>{{ _('gr_budgets.action.delete_position') }}</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="budgetVatApply" class="sz_modal gr-budget-position-confirm" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="budgetVatApplyTitle">
+    <div class="sz_panel gr-budget-position-confirm-panel">
+      <div class="sz_modal_header">
+        <div>
+          <span class="sz_caption">{{ _('gr_budgets.vat_apply.caption') }}</span>
+          <h3 id="budgetVatApplyTitle" class="sz_modal_title">{{ _('gr_budgets.vat_apply.title') }}</h3>
+        </div>
+      </div>
+      <div class="sz_modal_body gr-budget-position-confirm-body gr-budget-adjustment-body">
+        <p>{{ _('gr_budgets.vat_apply.text') }}</p>
+        <label class="sz_field">
+          <span class="sz_label">{{ _('gr_budgets.vat_apply.label') }}</span>
+          <select id="budgetVatApplySelect" class="sz_select"></select>
+        </label>
+        <p id="budgetVatApplyError" class="sz_alert sz_alert_danger" hidden></p>
+      </div>
+      <div class="sz_modal_footer gr-budget-position-confirm-actions">
+        <button type="button" class="sz_button sz_button_ghost" data-vat-apply-cancel>{{ _('gr_budgets.action.cancel') }}</button>
+        <button id="budgetVatApplyConfirm" type="button" class="sz_button sz_button_primary">
+          <i class="fa-solid fa-check" aria-hidden="true"></i>
+          <span>{{ _('gr_budgets.action.apply') }}</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
 </div>
 {% endblock %}
 
@@ -456,5 +609,5 @@
   <script>
     window.SZ_I18N = Object.assign({}, window.SZ_I18N || {}, {{ gr_budgets_i18n|tojson }});
   </script>
-  <script src="{{ url_for('gr_budgets.static', filename='gr_budgets.js') }}?v={{ config.get('STATIC_VERSION', 1) }}-oci-price-1" defer></script>
+  <script src="{{ url_for('gr_budgets.static', filename='gr_budgets.js') }}?v={{ config.get('STATIC_VERSION', 1) }}-vat-inherit-1" defer></script>
 {% endblock %}

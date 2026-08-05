@@ -10,6 +10,7 @@ from models import Acessos, db
 from modules.gr_subcontractor_measurements.service import SubcontractorMeasurementsError
 
 from .service import (
+    BudgetsCreditLimitError,
     BudgetsError,
     get_budget_detail,
     get_budget_detail_by_number,
@@ -21,6 +22,7 @@ from .service import (
     render_budget_pdf_html,
     decorate_budget_browser_pdf,
     save_budget,
+    set_budget_approval,
     list_companies_for_user,
     search_budget_clients,
 )
@@ -56,6 +58,7 @@ _BUDGET_ERROR_KEYS = {
     "Data do orçamento inválida.": "gr_budgets.error.date_invalid",
     "Selecione um cliente válido.": "gr_budgets.error.client_invalid",
     "O cliente selecionado já não está disponível no PHC.": "gr_budgets.error.client_unavailable",
+    "O cliente do orçamento já não está disponível no PHC.": "gr_budgets.error.client_unavailable",
     "O comercial selecionado já não está disponível no PHC.": "gr_budgets.error.salesperson_unavailable",
     "Dados do orçamento inválidos.": "gr_budgets.error.budget_invalid",
     "Cabeçalho do orçamento inválido.": "gr_budgets.error.header_invalid",
@@ -64,6 +67,8 @@ _BUDGET_ERROR_KEYS = {
     "O orçamento está fechado, adjudicado ou anulado e não pode ser alterado.": "gr_budgets.error.budget_locked",
     "O orçamento foi alterado por outro utilizador. Atualize os dados antes de voltar a gravar.": "gr_budgets.error.budget_stale",
     "Existem linhas duplicadas no orçamento.": "gr_budgets.error.budget_lines_duplicate",
+    "A aprovação só está disponível para dossiers Devis.": "gr_budgets.error.approval_devis_only",
+    "Não existe plafond suficiente para aprovar este orçamento.": "gr_budgets.error.approval_credit_limit",
 }
 
 
@@ -137,7 +142,10 @@ def _forbidden(api: bool = True):
 
 def _handle_error(exc: Exception):
     if isinstance(exc, (BudgetsError, SubcontractorMeasurementsError)):
-        return jsonify({"error": _localized_error_message(exc)}), getattr(exc, "status_code", 500)
+        payload = {"error": _localized_error_message(exc)}
+        if isinstance(exc, BudgetsCreditLimitError):
+            payload["credit"] = exc.credit
+        return jsonify(payload), getattr(exc, "status_code", 500)
     return jsonify({"error": translate("gr_budgets.error.generic")}), 500
 
 
@@ -279,6 +287,30 @@ def api_save_budget():
         return jsonify({"error": translate(key)}), 403
     try:
         return jsonify({"ok": True, **save_budget(payload, current_user)})
+    except Exception as exc:
+        return _handle_error(exc)
+
+
+@bp.route("/api/gr_orcamentos/orcamento/<bostamp>/aprovacao", methods=["POST"])
+@login_required
+def api_budget_approval(bostamp):
+    if not _has_write_acl(False):
+        return jsonify({"error": translate("gr_budgets.error.forbidden_edit")}), 403
+    payload = request.get_json(silent=True) or {}
+    if not isinstance(payload.get("approved"), bool):
+        return jsonify({"error": translate("gr_budgets.error.approval_invalid_state")}), 400
+    try:
+        return jsonify(
+            {
+                "ok": True,
+                **set_budget_approval(
+                    payload.get("feid"),
+                    bostamp,
+                    payload.get("approved"),
+                    current_user,
+                ),
+            }
+        )
     except Exception as exc:
         return _handle_error(exc)
 
