@@ -700,17 +700,18 @@ def get_opc_phc_info(record_stamp: str) -> dict:
             continue
         # O resumo da obra tem de refletir o que foi faturado ao cliente, e nao o
         # valor original do auto. Isto tambem preserva o sinal das notas de credito.
-        auto.update({
-            "producao": valor_faturado,
-            "ajustes": 0.0,
-            "multas": 0.0,
-            "ret_garantia": 0.0,
-            "ret_fim_trabalho": 0.0,
-            "prorata": 0.0,
-            "outras_retencoes": 0.0,
-            "iva": round(valor_faturado * _as_float(auto.get("iva_percentagem")) / 100.0, 2),
-            "total_iva": round(valor_faturado * (1 + _as_float(auto.get("iva_percentagem")) / 100.0), 2),
-        })
+        auto["producao"] = valor_faturado
+        base_liquida = (
+            valor_faturado
+            - _as_float(auto.get("ajustes"))
+            + _as_float(auto.get("adiantamento"))
+            - _as_float(auto.get("ret_garantia"))
+            - _as_float(auto.get("ret_fim_trabalho"))
+            - _as_float(auto.get("outras_retencoes"))
+            - _as_float(auto.get("prorata"))
+        )
+        auto["iva"] = round(base_liquida * _as_float(auto.get("iva_percentagem")) / 100.0, 2)
+        auto["total_iva"] = round(base_liquida + _as_float(auto["iva"]), 2)
 
     return {
         "obra": {
