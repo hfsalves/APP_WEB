@@ -618,10 +618,49 @@ WHERE FT.NDOC IN (1, 4)
 """
 
 
+FATURADO_POR_AUTO_SQL = """
+WITH ligacoes AS (
+    SELECT
+        FT.FTSTAMP,
+        BI.BOSTAMP,
+        CAST(ISNULL(FI.IVA, 0) AS decimal(9,3)) AS TVAP,
+        SUM(CAST(FI.QTT * FI.EPV * (1.0 - ISNULL(FI.DESCONTO, 0) / 100.0) AS decimal(19,6))) AS BASE_LIGADA
+    FROM BO
+    JOIN BO2 ON BO2.BO2STAMP = BO.BOSTAMP
+    JOIN BI ON BI.BOSTAMP = BO.BOSTAMP
+    JOIN FI ON FI.BISTAMP = BI.BISTAMP
+    JOIN FT ON FT.FTSTAMP = FI.FTSTAMP AND FT.NDOC IN (1, 4)
+    WHERE BO.NDOS IN (118, 124)
+      AND LTRIM(RTRIM(ISNULL(BO2.PROCESSO, ''))) = ?
+    GROUP BY FT.FTSTAMP, BI.BOSTAMP, CAST(ISNULL(FI.IVA, 0) AS decimal(9,3))
+), totais_ft AS (
+    SELECT FTSTAMP, SUM(BASE_LIGADA) AS BASE_TOTAL
+    FROM ligacoes
+    GROUP BY FTSTAMP
+)
+SELECT
+    L.BOSTAMP,
+    L.TVAP,
+    CAST(SUM(FT.ETOTAL * L.BASE_LIGADA / NULLIF(T.BASE_TOTAL, 0)) AS decimal(19,2)) AS BASE_FATURADA
+FROM ligacoes L
+JOIN totais_ft T ON T.FTSTAMP = L.FTSTAMP
+JOIN FT ON FT.FTSTAMP = L.FTSTAMP
+GROUP BY L.BOSTAMP, L.TVAP
+"""
+
+
 def _fetch_scalar(cursor, sql: str, params: tuple = ()) -> float:
     cursor.execute(sql, params)
     row = cursor.fetchone()
     return _as_float(row[0] if row else 0)
+
+
+def _fetch_billed_by_auto(cursor, processo: str) -> dict[tuple[str, float], float]:
+    cursor.execute(FATURADO_POR_AUTO_SQL, (processo,))
+    return {
+        (_as_text(row[0]), _as_float(row[1])): _as_float(row[2])
+        for row in cursor.fetchall()
+    }
 
 
 def get_opc_phc_info(record_stamp: str) -> dict:
@@ -652,6 +691,26 @@ def get_opc_phc_info(record_stamp: str) -> dict:
         autos.extend(_fetch_all(cursor, _with_optional_uret(FT_STANDALONE_SQL, has_uret_table, has_uret_iva), (phc_processo,)))
         autos.sort(key=lambda item: (item.get("ordem") or 0, item.get("descricao") or "", item.get("iva_percentagem") or 0))
         total_faturado = _fetch_scalar(cursor, FATURADO_TOTAL_SQL, (phc_processo,))
+        faturado_por_auto = _fetch_billed_by_auto(cursor, phc_processo)
+
+    for auto in autos:
+        key = (_as_text(auto.get("oristamp")), _as_float(auto.get("iva_percentagem")))
+        valor_faturado = faturado_por_auto.get(key)
+        if valor_faturado is None:
+            continue
+        # O resumo da obra tem de refletir o que foi faturado ao cliente, e nao o
+        # valor original do auto. Isto tambem preserva o sinal das notas de credito.
+        auto.update({
+            "producao": valor_faturado,
+            "ajustes": 0.0,
+            "multas": 0.0,
+            "ret_garantia": 0.0,
+            "ret_fim_trabalho": 0.0,
+            "prorata": 0.0,
+            "outras_retencoes": 0.0,
+            "iva": round(valor_faturado * _as_float(auto.get("iva_percentagem")) / 100.0, 2),
+            "total_iva": round(valor_faturado * (1 + _as_float(auto.get("iva_percentagem")) / 100.0), 2),
+        })
 
     return {
         "obra": {

@@ -1,0 +1,53 @@
+<section class="vacation-approval-panel" data-week-grid data-start="{{ start.isoformat() }}" data-end="{{ end.isoformat() }}" data-company="{{ selected_feid or '' }}">
+  <div class="vacation-approval-legend" aria-label="Legenda">
+    <span><i class="legend-swatch is-approved"></i> Aprovada</span>
+    <span><i class="legend-swatch is-pending"></i> Por aprovar</span>
+    <span><i class="legend-swatch is-weekend"></i> Fim de semana</span>
+    <span><i class="legend-swatch is-holiday"></i> Feriado</span>
+  </div>
+
+  <div class="vacation-grid-scroll">
+    <table class="vacation-grid">
+      <thead>
+        <tr class="vacation-month-row">
+          <th class="vacation-person-header" rowspan="2">Colaborador</th>
+          {% for month in months %}
+            <th colspan="{{ month.span }}">{{ month.label }}</th>
+          {% endfor %}
+        </tr>
+        <tr class="vacation-day-row">
+          {% for day in days %}
+            <th class="{{ 'is-weekend' if day.weekend else '' }} {{ 'is-week-break' if day.week_break else '' }}">
+              {{ day.day }}
+            </th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for employee in employees %}
+            <tr>
+              <th class="vacation-person-cell" title="N.º {{ employee.no }} · {{ employee.empresa }}">
+                <strong>{{ employee.nome or 'Sem nome' }}</strong>
+              </th>
+            {% for day in days %}
+              {% set status = employee.statuses.get(day.key, '') %}
+              {% set is_holiday = day.key in employee.holidays %}
+              {% set is_removal_pending = day.key in employee.unmark_request_days %}
+              {% set state = 'removal' if is_removal_pending else (status if status else 'empty') %}
+              <td class="vacation-action-cell {{ 'is-weekend' if day.weekend else '' }} {{ 'is-holiday' if is_holiday else '' }} {{ 'is-approved' if status == 'approved' else '' }} {{ 'is-pending' if status == 'pending' else '' }} {{ 'is-removal-pending' if is_removal_pending else '' }} {{ 'is-week-break' if day.week_break else '' }}"
+                  data-vacation-day="{{ day.key }}"
+                  data-vacation-state="{{ state }}"
+                  data-vacation-employee="{{ employee.no }}"
+                  data-vacation-company="{{ employee.feid }}"
+                  title="{{ 'Pedido de remoção de férias' if is_removal_pending else ('Férias aprovadas' if status == 'approved' else ('Férias por aprovar' if status == 'pending' else ('Feriado' if is_holiday else ('Fim de semana' if day.weekend else 'Marcar férias')))) }}">
+                {% if status == 'approved' %}<i class="fa-solid fa-check"></i>{% elif status == 'pending' %}<i class="fa-solid fa-clock"></i>{% endif %}
+              </td>
+            {% endfor %}
+          </tr>
+        {% else %}
+          <tr><td class="vacation-grid-empty" colspan="{{ days|length + 1 }}">Sem colaboradores ativos.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>

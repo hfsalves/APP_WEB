@@ -633,6 +633,9 @@ def create_app():
     from blueprints.analytics_revpar import bp as analytics_revpar_bp
     app.register_blueprint(analytics_revpar_bp)
 
+    from blueprints.guestspa_ferias import bp as guestspa_ferias_bp
+    app.register_blueprint(guestspa_ferias_bp)
+
     from blueprints.email_service import bp as email_service_bp
     app.register_blueprint(email_service_bp)
 
