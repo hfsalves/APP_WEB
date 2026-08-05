@@ -309,6 +309,17 @@ def _split_lookup_fields(value: str) -> list[str]:
     ]
 
 
+def _split_lookup_table_reference(table_name: str) -> tuple[str, str, str]:
+    """Return database, schema and table from a lookup source identifier."""
+    raw = str(table_name or '').strip().replace('[', '').replace(']', '')
+    parts = [part.strip() for part in raw.split('.') if part.strip()]
+    if len(parts) >= 3:
+        return parts[-3], parts[-2], parts[-1]
+    if len(parts) == 2:
+        return '', parts[0], parts[1]
+    return '', 'dbo', parts[0] if parts else ''
+
+
 def _normalize_lookup_field_name(value: str) -> str:
     raw = str(value or '').strip().strip('[]').strip()
     if '.' in raw:
@@ -3522,7 +3533,13 @@ def menu_object_lookup():
         if not q and not (exact_mode and exact_value):
             return jsonify({'success': True, 'rows': [], 'target_field': target_field})
 
-        schema_name, physical_table = _resolve_table_identifier(lookup_table)
+        database_name, requested_schema, requested_table = _split_lookup_table_reference(lookup_table)
+        is_external_database = bool(database_name)
+        if is_external_database:
+            schema_name = _clean_identifier_part(requested_schema) or 'dbo'
+            physical_table = _clean_identifier_part(requested_table)
+        else:
+            schema_name, physical_table = _resolve_table_identifier(lookup_table)
         if not physical_table:
             return jsonify({'success': False, 'error': 'Tabela de pesquisa invalida.'}), 400
         screen_table = str(payload.get('table_name') or '').strip()
@@ -3539,12 +3556,34 @@ def menu_object_lookup():
         ):
             return jsonify({'success': False, 'error': 'Sem permissao para consultar a tabela de pesquisa.'}), 403
 
-        table = get_table(f'{schema_name}.{physical_table}')
-        column_map = {
-            str(column.name or '').strip().upper(): str(column.name or '').strip()
-            for column in table.columns
-            if str(column.name or '').strip()
-        }
+        if is_external_database:
+            # Lookup sources may intentionally point to a PHC database on the same SQL Server.
+            external_table_ref = f'{_quote_sql_identifier(database_name)}.{_quote_sql_identifier(schema_name)}.{_quote_sql_identifier(physical_table)}'
+            columns_rows = db.session.execute(text(f'''
+                SELECT COLUMN_NAME
+                FROM {_quote_sql_identifier(database_name)}.INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_SCHEMA = :lookup_schema
+                  AND TABLE_NAME = :lookup_table
+            '''), {
+                'lookup_schema': schema_name,
+                'lookup_table': physical_table,
+            }).mappings().all()
+            column_map = {
+                str(row.get('COLUMN_NAME') or '').strip().upper(): str(row.get('COLUMN_NAME') or '').strip()
+                for row in columns_rows
+                if str(row.get('COLUMN_NAME') or '').strip()
+            }
+            table_ref = external_table_ref
+        else:
+            table = get_table(f'{schema_name}.{physical_table}')
+            column_map = {
+                str(column.name or '').strip().upper(): str(column.name or '').strip()
+                for column in table.columns
+                if str(column.name or '').strip()
+            }
+            table_ref = f'{_quote_sql_identifier(schema_name)}.{_quote_sql_identifier(physical_table)}'
+        if not column_map:
+            return jsonify({'success': False, 'error': 'Tabela de pesquisa invalida ou sem colunas acessiveis.'}), 400
         value_field = _resolve_lookup_column(column_map, value_field_raw, 'Campo valor')
         display_requests = _split_lookup_fields(display_fields_raw)
         if not display_requests:
@@ -3593,7 +3632,6 @@ def menu_object_lookup():
             lookup_state['FEID'] = None
 
         alias = 'LKP'
-        table_ref = f'{_quote_sql_identifier(schema_name)}.{_quote_sql_identifier(physical_table)}'
         select_parts = [f'{alias}.{_quote_sql_identifier(value_field)} AS [__value]']
         selected_columns = set()
         for column_name in display_columns:
@@ -3631,7 +3669,7 @@ def menu_object_lookup():
             WHERE {' AND '.join(where_parts)}
         """
         scope_table_name = physical_table if schema_name.lower() == 'dbo' else f'{schema_name}.{physical_table}'
-        if _table_is_fe_scoped(scope_table_name):
+        if not is_external_database and _table_is_fe_scoped(scope_table_name):
             params['lookup_feid'] = _current_feid_or_abort()
             sql += _sql_feid_clause(scope_table_name, alias=alias, param_name='lookup_feid', mode='read')
         sql += f' ORDER BY {alias}.{_quote_sql_identifier(display_columns[0] if display_columns else value_field)}'

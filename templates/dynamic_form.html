@@ -479,7 +479,7 @@
  window.DEV_MODE = {{ 'true' if is_dev else 'false' }};
 </script>
 
-<script type="module" src="{{ url_for('static', filename='js/dynamic_form.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/dynamic_form.js') }}?v={{ config.get('STATIC_VERSION', 1) }}"></script>
 {% if table_name|upper == 'VA' %}
 <script type="module" src="{{ url_for('static', filename='js/va_snc.js') }}?v=3"></script>
 {% endif %}

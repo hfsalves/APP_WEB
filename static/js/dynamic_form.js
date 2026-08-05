@@ -2017,7 +2017,8 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
         const rows = await fetchTableFieldLookupRows(col, { value });
         const row = rows.find(item => String(item?.value ?? '').trim() === value) || rows[0];
         const label = String(row?.label || value).trim() || value;
-        input.value = value;
+        // The stored value may be an internal code; keep the lookup readable after hydration.
+        input.value = label;
         setFormStateValue(`${col.name}_LABEL`, label);
         applyTableFieldLookupMappings(row, config);
       } catch (error) {
@@ -2091,7 +2092,9 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
       if (!row) return;
       const value = row.value === undefined || row.value === null ? '' : String(row.value);
       const labelValue = String(row.label || value || '').trim();
-      input.value = value;
+      // TABLE_FIELD inputs are search controls, so show their label while the target field
+      // continues to receive the actual database value.
+      input.value = labelValue;
       setFormStateValue(col.name, value);
       setFormStateValue(`${col.name}_LABEL`, labelValue);
       if (targetField) {
@@ -2124,7 +2127,7 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
         const displayValues = Array.isArray(row.display)
           ? row.display.map(value => String(value ?? '').trim()).filter(Boolean)
           : [];
-        const primaryValue = String(fallbackValue ?? '').trim() || displayValues[0] || '-';
+        const primaryValue = displayValues[0] || String(fallbackValue ?? '').trim() || '-';
         title.textContent = primaryValue;
         button.appendChild(title);
         const metaValues = displayValues.filter(value => value !== primaryValue);
