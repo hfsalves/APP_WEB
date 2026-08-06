@@ -530,7 +530,8 @@ function Start-StationZeroMode {
         -RedirectStandardError $Config.StdErrLog `
         -PassThru
 
-    $ready = Wait-StationZeroPortState -Port $Config.Port -ShouldListen $true -TimeoutSeconds 20
+    # A primeira ligacao ao SQL Server pode atrasar o import da aplicacao.
+    $ready = Wait-StationZeroPortState -Port $Config.Port -ShouldListen $true -TimeoutSeconds 90
     $processes = @(Get-StationZeroModeProcesses -Config $Config)
     if ($processes.Count -gt 0) {
         Save-StationZeroPidFile -Config $Config -Processes $processes
