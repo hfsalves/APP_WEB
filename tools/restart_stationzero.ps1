@@ -26,6 +26,22 @@ if ($resolvedMode -eq 'Server' -and -not $NoUpdate) {
     }
 }
 
+if ($resolvedMode -eq 'Server') {
+    $waitressService = Get-Service -Name 'SZeroWaitress' -ErrorAction SilentlyContinue
+    if ($waitressService) {
+        Restart-Service -Name 'SZeroWaitress' -Force -ErrorAction Stop
+        if (-not (Wait-StationZeroPortState -Port $config.Port -ShouldListen $true -TimeoutSeconds 90)) {
+            $message = "O servico SZeroWaitress reiniciou, mas a porta $($config.Port) nao ficou a escutar."
+            Write-StationZeroLog -Kind control -Message $message
+            throw $message
+        }
+
+        Write-StationZeroLog -Kind control -Message 'Servico SZeroWaitress reiniciado com sucesso.'
+        Write-Host "Atualizacao concluida e servico SZeroWaitress reiniciado na porta $($config.Port)."
+        return
+    }
+}
+
 Stop-StationZeroMode -Config $config | Out-Null
 Start-Sleep -Seconds $DelaySeconds
 $result = Start-StationZeroMode -Config $config -NoNginx:$NoNginx
