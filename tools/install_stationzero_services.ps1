@@ -135,7 +135,7 @@ Invoke-Nssm install SZeroWaitress $waitressExe '--host=0.0.0.0' '--port=8000' 'a
 Invoke-Nssm set SZeroWaitress AppDirectory $root
 Invoke-Nssm set SZeroWaitress DisplayName 'SZero Waitress'
 Invoke-Nssm set SZeroWaitress Description 'Servidor web Python do StationZero.'
-Invoke-Nssm set SZeroWaitress Start SERVICE_DELAYED_AUTO_START
+Invoke-Nssm set SZeroWaitress Start SERVICE_AUTO_START
 Invoke-Nssm set SZeroWaitress AppExit Default Restart
 Invoke-Nssm set SZeroWaitress AppRestartDelay 5000
 Invoke-Nssm set SZeroWaitress AppStdout (Join-Path $logs 'szero-waitress-service.out.log')
