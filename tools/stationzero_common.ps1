@@ -283,6 +283,22 @@ function Test-StationZeroModeProcess {
     return (Test-StationZeroModeSignature -Process $Process -Config $Config)
 }
 
+function Test-StationZeroManagedPortProcess {
+    param(
+        [Parameter(Mandatory = $true)]$Process,
+        [Parameter(Mandatory = $true)][hashtable]$Config
+    )
+
+    if ((Test-StationZeroRootMatch -Process $Process) -or
+        (Test-StationZeroModeSignature -Process $Process -Config $Config)) {
+        return $true
+    }
+
+    # A non-elevated session cannot inspect command lines from the SYSTEM task.
+    $name = (ConvertTo-StationZeroSafeString $Process.Name).ToLowerInvariant()
+    return $Config.CommandKind -eq 'waitress' -and $name -in @('python.exe', 'waitress-serve.exe')
+}
+
 function Get-StationZeroPortListeners {
     param([int]$Port)
 
@@ -315,7 +331,7 @@ function Get-StationZeroModeProcesses {
 
     $matches = @(Get-StationZeroProcessInventory | Where-Object { Test-StationZeroModeProcess -Process $_ -Config $Config })
     $portOwner = Get-StationZeroPortOwnerProcess -Port $Config.Port
-    if ($portOwner -and ((Test-StationZeroRootMatch -Process $portOwner) -or (Test-StationZeroModeSignature -Process $portOwner -Config $Config))) {
+    if ($portOwner -and (Test-StationZeroManagedPortProcess -Process $portOwner -Config $Config)) {
         if (-not ($matches | Where-Object { $_.ProcessId -eq $portOwner.ProcessId })) {
             $matches += $portOwner
         }
@@ -495,7 +511,7 @@ function Start-StationZeroMode {
     }
 
     $portOwner = Get-StationZeroPortOwnerProcess -Port $Config.Port
-    if ($portOwner -and -not ((Test-StationZeroRootMatch -Process $portOwner) -or (Test-StationZeroModeSignature -Process $portOwner -Config $Config))) {
+    if ($portOwner -and -not (Test-StationZeroManagedPortProcess -Process $portOwner -Config $Config)) {
         $msg = "Porta $($Config.Port) ocupada por processo nao relacionado: PID $($portOwner.ProcessId) [$($portOwner.Name)]."
         Write-StationZeroLog -Kind control -Message $msg
         throw $msg

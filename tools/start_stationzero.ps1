@@ -19,7 +19,7 @@ $config = Get-StationZeroModeConfig -Mode $resolvedMode
 
 $alreadyRunning = @(Get-StationZeroModeProcesses -Config $config).Count -gt 0 -and (Test-StationZeroPortListening -Port $config.Port)
 $portOwner = Get-StationZeroPortOwnerProcess -Port $config.Port
-if ($portOwner -and -not (Test-StationZeroRootMatch -Process $portOwner)) {
+if ($portOwner -and -not (Test-StationZeroManagedPortProcess -Process $portOwner -Config $config)) {
     $message = "Porta $($config.Port) ocupada por processo nao relacionado: PID $($portOwner.ProcessId) [$($portOwner.Name)]."
     Write-StationZeroLog -Kind control -Message $message
     throw $message
