@@ -17,7 +17,8 @@ if (-not (Test-Path $scriptPath)) {
 }
 
 $extra = if ($InstallRequirements) { ' -InstallRequirements' } else { '' }
-$argument = "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`" -Mode $Mode$extra"
+# Keep the scheduled task attached to the web process and avoid network updates at boot.
+$argument = "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`" -Mode $Mode -Foreground -NoUpdate$extra"
 $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument $argument -WorkingDirectory (Split-Path -Parent $scriptPath)
 $trigger = New-ScheduledTaskTrigger -AtStartup
 $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
