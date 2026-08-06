@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import re
 import secrets
+import time
 import uuid
 from datetime import date, datetime
 from decimal import Decimal, ROUND_HALF_UP
@@ -1351,7 +1353,15 @@ def _portal_payment_table_exists(table_name: str) -> bool:
 def _portal_payment_require_table() -> None:
     if not _portal_payment_table_exists("PB_STRIPE_TEST_PAYMENTS"):
         raise PortalPaymentConfigurationError(
-            "O pagamento de teste ainda nao esta configurado. Aplique a migracao do portal."
+            "O pagamento Stripe ainda nao esta configurado. Aplique a migracao do portal."
+        )
+
+
+def _portal_webhook_require_table() -> None:
+    _portal_payment_require_table()
+    if not _portal_payment_table_exists("PB_STRIPE_WEBHOOK_EVENTS"):
+        raise PortalPaymentConfigurationError(
+            "O webhook Stripe ainda nao esta configurado. Aplique a migracao do portal."
         )
 
 
@@ -1382,19 +1392,34 @@ def _portal_para_text(code: str) -> str:
         return ""
 
 
-def _portal_stripe_test_secret_key() -> str:
+def portal_stripe_mode() -> str:
+    value = _portal_para_text("PORTOBREAK_STRIPE_MODE").upper()
+    return value if value in {"TEST", "LIVE"} else "TEST"
+
+
+def _portal_stripe_webhook_secret() -> str:
+    return _portal_para_text("PORTOBREAK_STRIPE_WEBHOOK_SECRET")
+
+
+def _portal_stripe_secret_key() -> str:
     secret_key = _portal_para_text("SHOP_STRIPE_SECRET_KEY")
-    if secret_key.startswith("sk_test_"):
+    mode = portal_stripe_mode()
+    expected_prefixes = ("sk_live_", "rk_live_") if mode == "LIVE" else ("sk_test_", "rk_test_")
+    if secret_key.startswith(expected_prefixes):
+        if mode == "LIVE" and not _portal_stripe_webhook_secret():
+            raise PortalPaymentConfigurationError(
+                "O pagamento real so pode ser ativado depois de configurar o segredo do webhook Stripe."
+            )
         return secret_key
     if secret_key:
         raise PortalPaymentConfigurationError(
-            "A configuracao Stripe ainda nao esta preparada para este ambiente."
+            "A chave Stripe nao corresponde ao modo de pagamento configurado."
         )
     raise PortalPaymentConfigurationError("A configuracao Stripe esta em falta.")
 
 
-def _portal_stripe_test_request(method: str, path: str, data=None, *, idempotency_key: str = "") -> dict:
-    secret_key = _portal_stripe_test_secret_key()
+def _portal_stripe_request(method: str, path: str, data=None, *, idempotency_key: str = "") -> dict:
+    secret_key = _portal_stripe_secret_key()
     method = _clean(method).upper() or "GET"
     resource = _clean(path)
     if not resource.startswith("/"):
@@ -1459,27 +1484,28 @@ def criar_checkout_teste_portal(
     lang: str = "pt",
 ) -> dict:
     _portal_payment_require_table()
-    _portal_stripe_test_secret_key()
+    mode = portal_stripe_mode()
+    _portal_stripe_secret_key()
     booking = _portal_test_payment_booking(request_id, user_id)
     if not booking or _clean(booking.get("ESTADO")).upper() != "PENDENTE":
-        raise PortalPaymentError("O pedido de reserva nao esta disponivel para pagamento de teste.")
+        raise PortalPaymentError("O pedido de reserva nao esta disponivel para pagamento.")
     amount = _to_decimal(booking.get("PRECO_ESTIMADO"))
     if amount <= 0:
-        raise PortalPaymentError("O pedido de reserva nao tem um valor valido para testar o pagamento.")
+        raise PortalPaymentError("O pedido de reserva nao tem um valor valido para pagamento.")
 
     payment_id = _new_stamp()
-    idempotency_key = f"portobreak-test-{payment_id.replace('-', '')[:24]}"
+    idempotency_key = f"portobreak-{mode.lower()}-{payment_id.replace('-', '')[:24]}"
     db.session.execute(
         text(
             """
             INSERT INTO dbo.PB_STRIPE_TEST_PAYMENTS
             (
-                PBPAYSTAMP, PBBKSTAMP, PBUSERSTAMP, ESTADO, MOEDA, VALOR,
+                PBPAYSTAMP, PBBKSTAMP, PBUSERSTAMP, ESTADO, AMBIENTE, MOEDA, VALOR,
                 IDEMPOTENCY_KEY, DTCRI, DTALT
             )
             VALUES
             (
-                :payment_id, :request_id, :user_id, 'CRIADO', 'EUR', :amount,
+                :payment_id, :request_id, :user_id, 'CRIADO', :environment, 'EUR', :amount,
                 :idempotency_key, SYSUTCDATETIME(), SYSUTCDATETIME()
             )
             """
@@ -1488,13 +1514,14 @@ def criar_checkout_teste_portal(
             "payment_id": payment_id,
             "request_id": booking["PBBKSTAMP"],
             "user_id": _clean(booking.get("PBUSERSTAMP")) or None,
+            "environment": mode,
             "amount": amount,
             "idempotency_key": idempotency_key,
         },
     )
     db.session.commit()
     try:
-        stripe_session = _portal_stripe_test_request(
+        stripe_session = _portal_stripe_request(
             "POST",
             "/v1/checkout/sessions",
             {
@@ -1506,7 +1533,7 @@ def criar_checkout_teste_portal(
                 "payment_method_types[0]": "card",
                 "metadata[pb_payment_id]": payment_id,
                 "metadata[pb_booking_request_id]": booking["PBBKSTAMP"],
-                "metadata[environment]": "test",
+                "metadata[environment]": mode.lower(),
                 "line_items[0][quantity]": "1",
                 "line_items[0][price_data][currency]": "eur",
                 "line_items[0][price_data][unit_amount]": str(int(amount * 100)),
@@ -1571,7 +1598,7 @@ def sincronizar_checkout_teste_portal(session_id: str, user_id: str | None = Non
     payment = db.session.execute(
         text(
             f"""
-            SELECT TOP 1 PBPAYSTAMP, PBBKSTAMP, ESTADO, VALOR, MOEDA, CHECKOUT_SESSION_ID
+            SELECT TOP 1 PBPAYSTAMP, PBBKSTAMP, ESTADO, AMBIENTE, VALOR, MOEDA, CHECKOUT_SESSION_ID
             FROM dbo.PB_STRIPE_TEST_PAYMENTS
             WHERE CHECKOUT_SESSION_ID = :session_id
               {owner_filter}
@@ -1581,7 +1608,11 @@ def sincronizar_checkout_teste_portal(session_id: str, user_id: str | None = Non
     ).mappings().first()
     if not payment:
         return None
-    stripe_session = _portal_stripe_test_request(
+    mode = portal_stripe_mode()
+    payment_environment = _clean(payment.get("AMBIENTE")).upper() or "TEST"
+    if payment_environment != mode:
+        raise PortalPaymentError("A sessao de pagamento pertence a outro ambiente Stripe.")
+    stripe_session = _portal_stripe_request(
         "GET", f"/v1/checkout/sessions/{_clean(session_id)}"
     )
     paid = (
@@ -1589,7 +1620,7 @@ def sincronizar_checkout_teste_portal(session_id: str, user_id: str | None = Non
         and _clean(stripe_session.get("payment_status")) == "paid"
     )
     if paid:
-        state = "PAGO_TESTE"
+        state = "PAGO" if mode == "LIVE" else "PAGO_TESTE"
     elif _clean(stripe_session.get("status")) == "expired":
         state = "EXPIRADO"
     else:
@@ -1626,6 +1657,184 @@ def sincronizar_checkout_teste_portal(session_id: str, user_id: str | None = Non
     }
 
 
+def verificar_assinatura_webhook_stripe_portal(payload: bytes, signature_header: str) -> bool:
+    secret = _portal_stripe_webhook_secret()
+    if not secret:
+        return False
+    try:
+        parts = {}
+        for chunk in str(signature_header or "").split(","):
+            if "=" not in chunk:
+                continue
+            key, value = chunk.split("=", 1)
+            parts.setdefault(key.strip(), []).append(value.strip())
+        timestamp = int((parts.get("t") or [""])[0])
+        signatures = parts.get("v1") or []
+        if not signatures or abs(int(time.time()) - timestamp) > 300:
+            return False
+        signed_payload = f"{timestamp}.{payload.decode('utf-8')}".encode("utf-8")
+        expected = hmac.new(secret.encode("utf-8"), signed_payload, hashlib.sha256).hexdigest()
+        return any(hmac.compare_digest(expected, signature) for signature in signatures)
+    except Exception:
+        return False
+
+
+def _portal_webhook_event_begin(event_id: str, event_type: str, payment_id: str | None = None) -> bool:
+    """Returns False only when Stripe already received a successful response for this event."""
+    existing = db.session.execute(
+        text(
+            """
+            SELECT ESTADO
+            FROM dbo.PB_STRIPE_WEBHOOK_EVENTS WITH (UPDLOCK, HOLDLOCK)
+            WHERE EVENT_ID = :event_id
+            """
+        ),
+        {"event_id": event_id},
+    ).mappings().first()
+    if existing:
+        if _clean(existing.get("ESTADO")) in {"PROCESSADO", "IGNORADO"}:
+            db.session.commit()
+            return False
+        db.session.execute(
+            text(
+                """
+                UPDATE dbo.PB_STRIPE_WEBHOOK_EVENTS
+                SET ESTADO = 'RECEBIDO', ULTIMO_ERRO = NULL, PBPAYSTAMP = COALESCE(:payment_id, PBPAYSTAMP)
+                WHERE EVENT_ID = :event_id
+                """
+            ),
+            {"event_id": event_id, "payment_id": _clean(payment_id) or None},
+        )
+    else:
+        db.session.execute(
+            text(
+                """
+                INSERT INTO dbo.PB_STRIPE_WEBHOOK_EVENTS
+                    (EVENT_ID, EVENT_TYPE, AMBIENTE, PBPAYSTAMP, ESTADO)
+                VALUES (:event_id, :event_type, :environment, :payment_id, 'RECEBIDO')
+                """
+            ),
+            {
+                "event_id": event_id,
+                "event_type": event_type[:120],
+                "environment": portal_stripe_mode(),
+                "payment_id": _clean(payment_id) or None,
+            },
+        )
+    db.session.commit()
+    return True
+
+
+def _portal_webhook_event_finish(event_id: str, state: str, error: str = "") -> None:
+    db.session.execute(
+        text(
+            """
+            UPDATE dbo.PB_STRIPE_WEBHOOK_EVENTS
+            SET ESTADO = :state,
+                ULTIMO_ERRO = :error,
+                PROCESSADO_EM = CASE WHEN :state IN ('PROCESSADO', 'IGNORADO') THEN SYSUTCDATETIME() ELSE NULL END
+            WHERE EVENT_ID = :event_id
+            """
+        ),
+        {"event_id": event_id, "state": state, "error": _clean(error)[:1000] or None},
+    )
+    db.session.commit()
+
+
+def _portal_checkout_payment_id(session_data: dict) -> str:
+    metadata = session_data.get("metadata") if isinstance(session_data.get("metadata"), dict) else {}
+    return _clean(metadata.get("pb_payment_id") or session_data.get("client_reference_id"))
+
+
+def _portal_payment_exists(payment_id: str) -> bool:
+    if not _clean(payment_id):
+        return False
+    return bool(db.session.execute(
+        text("SELECT TOP 1 1 FROM dbo.PB_STRIPE_TEST_PAYMENTS WHERE PBPAYSTAMP = :payment_id"),
+        {"payment_id": _clean(payment_id)},
+    ).scalar())
+
+
+def _portal_mark_checkout_state(session_id: str, state: str, stripe_status: str = "") -> str:
+    row = db.session.execute(
+        text(
+            """
+            SELECT TOP 1 PBPAYSTAMP
+            FROM dbo.PB_STRIPE_TEST_PAYMENTS
+            WHERE CHECKOUT_SESSION_ID = :session_id
+              AND ISNULL(AMBIENTE, 'TEST') = :environment
+            """
+        ),
+        {"session_id": _clean(session_id), "environment": portal_stripe_mode()},
+    ).mappings().first()
+    if not row:
+        return ""
+    payment_id = _clean(row.get("PBPAYSTAMP"))
+    db.session.execute(
+        text(
+            """
+            UPDATE dbo.PB_STRIPE_TEST_PAYMENTS
+            SET ESTADO = :state, STRIPE_STATUS = :stripe_status, DTALT = SYSUTCDATETIME()
+            WHERE PBPAYSTAMP = :payment_id
+            """
+        ),
+        {"payment_id": payment_id, "state": state, "stripe_status": _clean(stripe_status) or None},
+    )
+    db.session.commit()
+    return payment_id
+
+
+def processar_webhook_stripe_portal(event: dict) -> dict:
+    """Process a verified Stripe event once; callers must return 500 on exceptions for retry."""
+    _portal_webhook_require_table()
+    event_id = _clean(event.get("id"))
+    event_type = _clean(event.get("type"))
+    if not event_id or not event_type:
+        raise PortalPaymentError("Evento Stripe invalido.")
+    expected_live = portal_stripe_mode() == "LIVE"
+    if bool(event.get("livemode")) != expected_live:
+        raise PortalPaymentError("O evento Stripe pertence a outro ambiente.")
+
+    obj = ((event.get("data") or {}).get("object") or {})
+    if not isinstance(obj, dict):
+        obj = {}
+    session_id = _clean(obj.get("id")) if event_type.startswith("checkout.session.") else ""
+    payment_id = _portal_checkout_payment_id(obj)
+    if payment_id and not _portal_payment_exists(payment_id):
+        payment_id = ""
+    if not _portal_webhook_event_begin(event_id, event_type, payment_id):
+        return {"duplicate": True, "payment": None}
+
+    try:
+        if event_type in {"checkout.session.completed", "checkout.session.async_payment_succeeded"}:
+            payment = sincronizar_checkout_teste_portal(session_id)
+            if payment and payment.get("paid"):
+                _portal_webhook_event_finish(event_id, "PROCESSADO")
+                return {"duplicate": False, "payment": payment}
+            _portal_webhook_event_finish(event_id, "IGNORADO")
+            return {"duplicate": False, "payment": None}
+
+        if event_type == "checkout.session.expired":
+            payment_id = _portal_mark_checkout_state(session_id, "EXPIRADO", "expired") or payment_id
+            _portal_webhook_event_finish(event_id, "PROCESSADO")
+            return {"duplicate": False, "payment": {"id": payment_id} if payment_id else None}
+
+        if event_type == "checkout.session.async_payment_failed":
+            payment_id = _portal_mark_checkout_state(session_id, "FALHADO", "failed") or payment_id
+            _portal_webhook_event_finish(event_id, "PROCESSADO")
+            return {"duplicate": False, "payment": {"id": payment_id} if payment_id else None}
+
+        _portal_webhook_event_finish(event_id, "IGNORADO")
+        return {"duplicate": False, "payment": None}
+    except Exception as exc:
+        db.session.rollback()
+        try:
+            _portal_webhook_event_finish(event_id, "ERRO", str(exc))
+        except Exception:
+            db.session.rollback()
+        raise
+
+
 def registar_reserva_portal_pagamento(payment_id: str) -> dict | None:
     """Create the operational RS reservation exactly once after a successful Stripe payment."""
     _portal_payment_require_table()
@@ -1646,7 +1855,7 @@ def registar_reserva_portal_pagamento(payment_id: str) -> dict | None:
         ),
         {"payment_id": _clean(payment_id)},
     ).mappings().first()
-    if not payment or _clean(payment.get("PAGAMENTO_ESTADO")) != "PAGO_TESTE":
+    if not payment or _clean(payment.get("PAGAMENTO_ESTADO")) not in {"PAGO_TESTE", "PAGO"}:
         return None
 
     existing_stamp = _clean(payment.get("RSSTAMP"))

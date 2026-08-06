@@ -901,9 +901,110 @@
       .public-wrap{padding:92px 12px 12px;}
       .public-header{width:calc(100% - 16px); top:8px;}
     }
+    {% if public_v2|default(false) %}
+    body.r-public2{padding-bottom:92px; background:#f7f3ed; color:#1c1917;}
+    body.r-public2::before,body.r-public2::after{display:none;}
+    .r-public2 .public-wrap{max-width:1040px; padding-top:94px;}
+    .r-public2 .public-header{width:min(1040px, calc(100% - 24px)); background:rgba(247,243,237,.96); border-color:#ded6cb; box-shadow:0 6px 24px rgba(28,25,23,.08);}
+    .r-public2 .public-header::after{background:#ded6cb;}
+    .r-public2 .public-brand{padding:0; background:transparent; border:0; box-shadow:none;}
+    .r-public2 .public-brand img{display:block; width:132px; height:auto;}
+    .r-public2 .lang-menu-btn{color:#6b6258; background:#fff; border-color:#ded6cb; box-shadow:0 3px 10px rgba(28,25,23,.06); backdrop-filter:none;}
+    .r-public2 .lang-menu-list{background:#fff; border-color:#ded6cb; box-shadow:0 10px 28px rgba(28,25,23,.12); backdrop-filter:none;}
+    .r-public2 .lang-option{color:#1c1917;}
+    .r-public2 .lang-option:hover{background:#f7f3ed;}
+    .r-public2 .lang-option.active{background:#e8f3fb; color:#063f72;}
+    .r-public2 .public-meta{border-radius:20px; margin-bottom:20px; border-color:#ded6cb; background:#fff; box-shadow:0 4px 18px rgba(28,25,23,.05);}
+    .r-public2 .public-title{color:#1c1917;}
+    .r-public2 .public-sub{color:#6b6258;}
+    .r-public2 .public-meta.has-cover .public-meta-body{background:#fff;}
+    .r-public2 .public-meta-cover::after{background:linear-gradient(180deg, transparent, rgba(15,23,42,.12));}
+    .r-public2 .app-reservation-hero:not(.is-active){display:none;}
+    .r-public2 .cards-grid{grid-template-columns:repeat(2, minmax(0, 1fr)); gap:14px; align-items:start;}
+    .r-public2 .cards-grid > .r-card[data-app-page]{display:none;}
+    .r-public2 .cards-grid > .r-card[data-app-page].is-active{display:flex; animation:appPageIn .2s ease both;}
+    .r-public2 .r-card{min-height:178px; display:flex; flex-direction:column; border-radius:16px; padding:18px; color:#1c1917; background:#fff; border-color:#ded6cb; box-shadow:0 3px 12px rgba(28,25,23,.04);}
+    .r-public2 .r-card::before,.r-public2 .r-card::after{display:none;}
+    .r-public2 .r-card:hover{transform:none; border-color:#cfc7bb; box-shadow:0 5px 16px rgba(28,25,23,.06);}
+    .r-public2 .r-card.is-disabled{background:#fffaf4; border-color:#e7d8c5; box-shadow:none;}
+    .r-public2 .r-card h3,.r-public2 .r-card .small,.r-public2 .r-card .fw-semibold{color:#1c1917 !important;}
+    .r-public2 .r-card .muted,.r-public2 .r-card .text-muted,.r-public2 .plan-inline-note{color:#6b6258 !important;}
+    .r-public2 .r-card .btn.btn-primary{background:#0b5f9e; color:#fff; box-shadow:none; border-color:#0b5f9e;}
+    .r-public2 .r-card .btn.btn-outline-secondary,.r-public2 .r-card .btn.btn-outline-primary{background:#fff; color:#0b5f9e; border-color:#b9d7e9;}
+    .r-public2 .r-card .btn.btn-outline-secondary:hover,.r-public2 .r-card .btn.btn-outline-primary:hover{background:#e8f3fb; color:#063f72; border-color:#8dbfdc;}
+    .r-public2 .shop-card-deadline,.r-public2 .checkin-instructions-text{color:#334155; background:#f8fafc; border-color:#e2e8f0;}
+    .r-public2 .checkin-instructions-text a{color:#2563eb;}
+    .r-public2 .checkin-instructions-text a:hover{color:#1d4ed8;}
+    .r-public2 .checkin-instructions-image{background:#f8fafc; border-color:#e2e8f0;}
+    .r-public2 .badge-soft{color:#334155; background:#f1f5f9; border-color:#e2e8f0;}
+    .r-public2 .plan-summary .small{color:#334155 !important;}
+    .r-public2 .whs-badge{color:#475569; background:#f1f5f9; border-color:#e2e8f0; box-shadow:none;}
+    .r-public2 .app-card-details{display:none; margin-top:14px;}
+    .r-public2 .r-card.app-card-open .app-card-details{display:block;}
+    .r-public2 .r-card.app-card-open{grid-column:span 2;}
+    .r-public2 .app-card-icon{width:34px; height:34px; margin-bottom:14px; display:grid; place-items:center; flex:0 0 auto; border-radius:10px; color:#0b5f9e; background:#e8f3fb; border:1px solid #cce5f3; font-size:.9rem;}
+    .r-public2 .r-card[data-app-page]:not(.app-card-open){cursor:pointer;}
+    .r-public2 .r-card[data-app-page].app-card-static{cursor:default;}
+    .r-public2 #app-rules #rulesOpenBtn{display:none;}
+    .r-public2 #app-wifi .kv{grid-template-columns:1fr; gap:3px;}
+    .r-public2 #app-wifi .kv > div{min-width:0; overflow-wrap:anywhere; word-break:break-word;}
+    .r-public2 #app-wifi .kv .k{margin-top:5px;}
+    .r-public2 #app-wifi .kv .k:first-child{margin-top:0;}
+    .r-public2 .r-card[data-app-page]:not(.app-card-open):focus-visible{outline:2px solid #64748b; outline-offset:2px;}
+    .r-public2 .checkin-instructions-card{grid-column:span 2; min-height:0;}
+    .r-public2 .checkin-instructions-card .checkin-instructions-content{margin-top:12px;}
+    .r-public2 .public-footer{display:none; max-width:1040px; padding:0 12px; margin-bottom:82px;}
+    .r-public2 .public-footer.is-active{display:block;}
+    .r-public2 .public-footer-card{background:#fff; border-color:#e5e7eb; box-shadow:none;}
+    .r-public2 .public-footer-title{color:#1f2937;}.r-public2 .public-footer-line{color:#64748b;}
+    .r-public2 .guest-modal-backdrop{background:rgba(15,23,42,.38); backdrop-filter:blur(5px);}
+    .r-public2 .guest-modal-panel{color:#334155; background:#fff; border-color:#e5e7eb; box-shadow:0 20px 55px rgba(15,23,42,.18);}
+    .r-public2 .guest-modal-header{border-color:#e5e7eb;}
+    .r-public2 .guest-modal-panel .fw-bold,.r-public2 .guest-modal-panel .text-muted{color:#334155 !important;}
+    .r-public2 .guest-modal-panel .small.text-muted{color:#64748b !important;}
+    .r-public2 .guest-modal-panel .btn.btn-primary{background:#0b5f9e; border-color:#0b5f9e; box-shadow:none;}
+    .r-public2 .guest-modal-panel .btn.btn-outline-secondary,.r-public2 .guest-modal-panel .btn.btn-outline-primary{color:#475569; background:#fff; border-color:#d1d5db;}
+    .r-public2 .guest-modal-panel .btn.btn-outline-secondary:hover,.r-public2 .guest-modal-panel .btn.btn-outline-primary:hover{background:#f8fafc; color:#1f2937; border-color:#94a3b8;}
+    .r-public2 .guest-menu-box,.r-public2 .guest-main{color:#334155; background:#f8fafc; border-color:#e2e8f0; box-shadow:none;}
+    .r-public2 .guest-menu-title,.r-public2 .guest-nav-sub,.r-public2 .guest-current-sub{color:#64748b;}
+    .r-public2 .guest-nav-btn{color:#334155; background:#fff; border-color:#e2e8f0; box-shadow:none;}
+    .r-public2 .guest-nav-btn::before{background:#cbd5e1;}
+    .r-public2 .guest-nav-btn.active{background:#f1f5f9; border-color:#94a3b8; box-shadow:none;}
+    .r-public2 .guest-nav-btn.active::before{background:#475569;}
+    .r-public2 .guest-back-btn{color:#475569; background:#fff; border-color:#cbd5e1;}
+    .r-public2 .guest-current-head,.r-public2 .guest-actions{border-color:#e2e8f0;}
+    .r-public2 .guest-current-title{color:#1f2937;}
+    .r-public2 .guest-section-title{color:#475569;}
+    .r-public2 .rules-summary-intro,.r-public2 .rules-note{color:#475569;}
+    .r-public2 .rules-item{background:#fff; border-color:#e2e8f0; box-shadow:none;}
+    .r-public2 .rules-item i{color:#64748b;}
+    .r-public2 .rules-item span{color:#334155;}
+    .r-public2 .rules-note{background:#f8fafc; border-color:#e2e8f0;}
+    .r-public2 .plan-checkbox-row{background:#fff; border-color:#e2e8f0;}
+    .r-public2 .form-control.form-control-sm,.r-public2 .form-select.form-select-sm{color:#334155; border-color:#cbd5e1; background:#fff; box-shadow:none;}
+    .r-public2 .form-control.form-control-sm:focus,.r-public2 .form-select.form-select-sm:focus{border-color:#64748b; box-shadow:0 0 0 .2rem rgba(100,116,139,.12);}
+    @keyframes appPageIn{from{opacity:0; transform:translateY(6px)}to{opacity:1; transform:translateY(0)}}
+    .app-bottom-nav{position:fixed; z-index:50; left:50%; bottom:12px; transform:translateX(-50%); width:min(620px, calc(100% - 24px)); display:grid; grid-template-columns:repeat(5,1fr); padding:7px; border:1px solid #ded6cb; border-radius:18px; background:rgba(255,255,255,.96); box-shadow:0 8px 28px rgba(28,25,23,.12); backdrop-filter:blur(18px);}
+    .app-bottom-nav button{appearance:none; border:0; background:transparent; color:#6b6258; padding:7px 3px; border-radius:12px; font:600 .64rem/1.15 "Manrope",sans-serif; display:grid; gap:4px; justify-items:center; transition:.18s ease;}
+    .app-bottom-nav button i{font-size:1rem;}
+    .app-bottom-nav button:hover,.app-bottom-nav button:focus-visible,.app-bottom-nav button.is-active{background:#e8f3fb; color:#0b5f9e; outline:none;}
+    @media (max-width:700px){
+      .r-public2 .public-wrap{padding:82px 12px 12px;}
+      .r-public2 .cards-grid{grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px;}
+      .r-public2 .checkin-instructions-card{grid-column:span 1;}
+      .r-public2 .r-card{min-height:174px; padding:14px; border-radius:14px;}
+      .r-public2 .r-card.app-card-open{grid-column:span 2;}
+      .r-public2 .r-card h3{font-size:.82rem; line-height:1.25; margin-bottom:8px;}
+      .r-public2 .r-card .badge{font-size:.62rem;}
+      .r-public2 .app-card-icon{width:30px; height:30px; margin-bottom:10px; border-radius:9px; font-size:.8rem;}
+      .r-public2 .public-brand img{width:112px;}
+      .r-public2 .guest-modal-panel{width:min(900px,calc(100vw - 24px)); max-height:calc(100dvh - 142px); margin:24px auto 0;}
+      .r-public2 .public-meta-cover{height:168px;}
+    }
+    {% endif %}
   </style>
 </head>
-<body>
+<body{% if public_v2|default(false) %} class="r-public2"{% endif %}>
   {% if invalid %}
     {% set invalid_reason = page_data.get('invalid_reason', 'not_found') if page_data is defined else 'not_found' %}
     {% set invalid_key = 'expired' if invalid_reason == 'expired' else 'not_found' %}
@@ -945,7 +1046,13 @@
   {% else %}
     <main class="public-wrap">
       <header class="public-header">
-        <div class="public-brand">STATIONZERO</div>
+        <div class="public-brand">
+          {% if public_v2|default(false) %}
+            <img src="{{ url_for('static', filename='images/booking_portal/portobreak-logo-simple.png') }}" alt="PortoBreak.com">
+          {% else %}
+            STATIONZERO
+          {% endif %}
+        </div>
         <div class="lang-switch">
           <div class="lang-menu">
             <button id="langMenuBtn" type="button" class="lang-menu-btn" aria-label="Idioma">
@@ -961,7 +1068,7 @@
           </div>
         </div>
       </header>
-      <div class="public-meta{% if page_data.alojamento_cover_url %} has-cover{% endif %}">
+      <div id="appReservationHero" class="public-meta app-reservation-hero is-active{% if page_data.alojamento_cover_url %} has-cover{% endif %}">
         {% if page_data.alojamento_cover_url %}
           <div class="public-meta-cover">
             <img src="{{ page_data.alojamento_cover_url }}" alt="{{ page_data.alojamento or 'Alojamento' }}">
@@ -977,7 +1084,7 @@
       </div>
 
       <section class="cards-grid">
-        <article class="r-card">
+        <article id="app-home" class="r-card is-active" data-app-page="home">
           <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
             <h3 class="mb-0" data-i18n="card_mandatory">Dados Obrigat&oacute;rios</h3>
             <span id="guestCardStatus" class="badge bg-warning-subtle text-warning-emphasis border" data-i18n="mandatory_status_pending">Pendente</span>
@@ -995,7 +1102,7 @@
           </div>
         </article>
 
-        <article id="checkinInstructionsCard" class="r-card checkin-instructions-card{% if not page_data.checkin_instructions_date_available %} is-disabled{% endif %}">
+        <article id="checkinInstructionsCard" class="r-card checkin-instructions-card is-active{% if not page_data.checkin_instructions_date_available %} is-disabled{% endif %}" data-app-page="home">
           <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
             <h3 class="mb-0" data-i18n="card_checkin_instructions">Instru&ccedil;&otilde;es de check-in</h3>
             <span id="checkinInstructionsStatus" class="badge bg-warning-subtle text-warning-emphasis border" data-i18n="checkin_instructions_status_pending">Aguardar</span>
@@ -1031,10 +1138,10 @@
           </div>
         </div>
 
-        <article class="r-card">
+        <article id="app-plan" class="r-card is-active" data-app-page="home">
           <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
             <h3 class="mb-0" data-i18n="card_stay_plan">Ajuda-nos a preparar a tua chegada e sa&iacute;da</h3>
-            <span id="stayPlanStatus" class="badge bg-info-subtle text-info-emphasis border" data-i18n="stay_plan_status_empty">Opcional</span>
+            <span id="stayPlanStatus" class="badge bg-warning-subtle text-warning-emphasis border" data-i18n="stay_plan_status_empty">Pendente</span>
           </div>
           <div class="small text-muted mb-3" data-i18n="stay_plan_hint">Partilha os hor&aacute;rios previstos de check-in e check-out para prepararmos melhor a tua reserva.</div>
           <div class="plan-summary mb-3">
@@ -1047,7 +1154,7 @@
         </article>
 
         {% if page_data.shop_enabled %}
-          <article class="r-card{% if not page_data.shop_available %} is-disabled{% endif %}">
+          <article id="app-shop" class="r-card{% if not page_data.shop_available %} is-disabled{% endif %}" data-app-page="stay">
             <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
               <h3 class="mb-0" data-i18n="card_shop">Shop da estadia</h3>
               {% if page_data.shop_available %}
@@ -1171,8 +1278,8 @@
                     <select id="g_nacionalidade" class="form-select form-select-sm"></select>
                   </div>
                   <div class="full">
-                    <label class="form-label small mb-1" data-i18n="guest_residence_country">Pa&iacute;s de resid&ecirc;ncia</label>
-                    <select id="g_pais_residencia" class="form-select form-select-sm"></select>
+                    <label class="form-label small mb-1" data-i18n="guest_residence_country">Pa&iacute;s de resid&ecirc;ncia*</label>
+                    <select id="g_pais_residencia" class="form-select form-select-sm" required></select>
                   </div>
                 </div>
 
@@ -1202,7 +1309,7 @@
           </div>
         </div>
 
-        <article class="r-card">
+        <article id="app-stay" class="r-card" data-app-page="stay">
           <h3 data-i18n="card_checkin">Check-in</h3>
           <div class="kv">
             <div class="k" data-i18n="label_property">Alojamento</div><div><strong>{{ page_data.alojamento or '&mdash;'|safe }}</strong></div>
@@ -1214,7 +1321,7 @@
         </article>
 
         {% if page_data.wifi_available %}
-          <article class="r-card">
+          <article id="app-wifi" class="r-card app-stay-card app-card-static" data-app-page="stay">
             <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
               <h3 class="mb-0" data-i18n="card_wifi">Wi-Fi</h3>
               <span class="badge bg-success-subtle text-success-emphasis border">
@@ -1230,7 +1337,7 @@
           </article>
         {% endif %}
 
-        <article class="r-card">
+        <article class="r-card app-stay-card" data-app-page="stay">
           <h3 data-i18n="card_how_to_get">Como Chegar</h3>
           <div class="mb-2 muted">{{ page_data.address_text or "" }}{% if not page_data.address_text %}<span data-i18n="placeholder_no_address">Morada n&atilde;o dispon&iacute;vel</span>{% endif %}</div>
           {% if page_data.maps_url %}
@@ -1241,7 +1348,7 @@
         </article>
 
         {% if page_data.parking_instructions_available %}
-          <article class="r-card">
+          <article id="app-parking" class="r-card app-stay-card" data-app-page="stay">
             <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
               <h3 class="mb-0" data-i18n="card_parking_instructions">Instru&ccedil;&otilde;es de Estacionamento</h3>
               <span class="badge bg-info-subtle text-info-emphasis border">
@@ -1262,7 +1369,7 @@
         {% endif %}
 
         {% for grp in (page_data.poi_groups or []) %}
-          <article class="r-card" data-poi-card>
+          <article class="r-card app-explore-card" data-app-page="explore" data-poi-card>
             <h3>{{ grp['name'] }}</h3>
             {% if grp['items'] %}
               <div class="vstack gap-2">
@@ -1300,7 +1407,7 @@
             {% endif %}
           </article>
         {% endfor %}
-        <article class="r-card">
+        <article class="r-card app-explore-card" data-app-page="explore">
           <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
             <h3 class="mb-0" data-i18n="card_tourism">Posto de Turismo</h3>
             <span class="whs-badge" aria-label="WHS">WHS</span>
@@ -1319,7 +1426,7 @@
             </div>
           </div>
         </article>
-        <article class="r-card">
+        <article id="app-help" class="r-card app-help-card" data-app-page="help">
           <h3 data-i18n="card_emergency">Emerg&ecirc;ncia e Contactos</h3>
           <div class="vstack gap-3">
             <div>
@@ -1351,7 +1458,7 @@
             </div>
           </div>
         </article>
-        <article class="r-card">
+        <article id="app-rules" class="r-card app-stay-card" data-app-page="stay" data-app-modal="rules">
           <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
             <h3 class="mb-0" data-i18n="card_rules">Regras Essenciais</h3>
             <span class="badge bg-info-subtle text-info-emphasis border" data-i18n="rules_badge">Importante</span>
@@ -1359,7 +1466,7 @@
           <div class="small text-muted mb-3" data-i18n="rules_hint">Consulta um resumo rapido das regras da casa, horarios e principais penalizacoes.</div>
           <button id="rulesOpenBtn" type="button" class="btn btn-sm btn-primary" data-i18n="btn_open_rules">Ler regras da casa</button>
         </article>
-        <article class="r-card">
+        <article id="app-reservation" class="r-card app-reservation-card" data-app-page="reservation">
           <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
             <h3 class="mb-0" data-i18n="card_billing">Dados de Fatura&ccedil;&atilde;o</h3>
             <span id="billingStatus" class="badge bg-info-subtle text-info-emphasis border" data-i18n="billing_status_empty">Opcional</span>
@@ -1450,10 +1557,19 @@
         </div>
       </div>
     </main>
+    {% if public_v2|default(false) %}
+      <nav class="app-bottom-nav" aria-label="Navega&ccedil;&atilde;o do portal">
+        <button type="button" class="is-active" data-app-target="app-home"><i class="fa-solid fa-house"></i><span data-app-nav-label="home">In&iacute;cio</span></button>
+        <button type="button" data-app-target="app-stay"><i class="fa-solid fa-key"></i><span data-app-nav-label="stay">Estadia</span></button>
+        <button type="button" data-app-target="app-explore"><i class="fa-solid fa-compass"></i><span data-app-nav-label="explore">Explorar</span></button>
+        <button type="button" data-app-target="app-help"><i class="fa-solid fa-circle-question"></i><span data-app-nav-label="help">Ajuda</span></button>
+        <button type="button" data-app-target="app-reservation"><i class="fa-solid fa-receipt"></i><span data-app-nav-label="reservation">Reserva</span></button>
+      </nav>
+    {% endif %}
   {% endif %}
 
   {% if not invalid %}
-    <footer class="public-footer">
+    <footer id="appPublicFooter" class="public-footer">
       <div class="public-footer-card">
         <div class="public-footer-copy">
           <div class="public-footer-title" data-i18n="footer_company_name">GuestSpaTur Habita&ccedil;&atilde;o e Turismo, Lda.</div>
@@ -1538,7 +1654,7 @@
           stay_plan_modal_title: 'Ajuda-nos a preparar melhor o teu check-in e check-out',
           stay_plan_modal_hint: 'Esta informa\u00e7\u00e3o \u00e9 opcional, mas ajuda a equipa a organizar a tua reserva.',
           stay_plan_hint: 'Partilha os hor\u00e1rios previstos de check-in e check-out para prepararmos melhor a tua reserva.',
-          stay_plan_status_empty: 'Opcional',
+          stay_plan_status_empty: 'Pendente',
           stay_plan_status_ready: 'Atualizado',
           stay_plan_summary_empty: 'Sem hor\u00e1rios definidos.',
           stay_plan_summary_checkin: 'Check-in previsto: {value}',
@@ -1609,7 +1725,8 @@
           guest_doc_type_other: 'Outro',
           guest_doc_num: 'N.\u00ba do documento*',
           guest_doc_country: 'Pa\u00eds emissor do documento*',
-          guest_residence_country: 'Pa\u00eds de resid\u00eancia',
+          guest_residence_country: 'Pa\u00eds de resid\u00eancia*',
+          guest_field_residence_country: 'Pa\u00eds de resid\u00eancia',
           btn_back_guest_menu: 'Voltar aos h\u00f3spedes',
           btn_prev_guest: 'Anterior',
           btn_save_guest: 'Gravar',
@@ -1718,7 +1835,7 @@
           stay_plan_modal_title: 'Help us prepare your check-in and check-out',
           stay_plan_modal_hint: 'This information is optional, but it helps the team organise your stay.',
           stay_plan_hint: 'Share your expected check-in and check-out times so we can better prepare your reservation.',
-          stay_plan_status_empty: 'Optional',
+          stay_plan_status_empty: 'Pending',
           stay_plan_status_ready: 'Updated',
           stay_plan_summary_empty: 'No times defined yet.',
           stay_plan_summary_checkin: 'Expected check-in: {value}',
@@ -1789,7 +1906,8 @@
           guest_doc_type_other: 'Other',
           guest_doc_num: 'Document number*',
           guest_doc_country: 'Document issuer country*',
-          guest_residence_country: 'Country of residence',
+          guest_residence_country: 'Country of residence*',
+          guest_field_residence_country: 'Country of residence',
           btn_back_guest_menu: 'Back to guests',
           btn_prev_guest: 'Previous',
           btn_save_guest: 'Save',
@@ -1898,7 +2016,7 @@
           stay_plan_modal_title: 'Aidez-nous \u00e0 mieux pr\u00e9parer votre arriv\u00e9e et votre d\u00e9part',
           stay_plan_modal_hint: 'Cette information est facultative, mais elle aide l\u2019\u00e9quipe \u00e0 organiser votre s\u00e9jour.',
           stay_plan_hint: 'Indiquez vos horaires pr\u00e9vus d\u2019arriv\u00e9e et de d\u00e9part afin que nous puissions mieux pr\u00e9parer votre r\u00e9servation.',
-          stay_plan_status_empty: 'Optionnel',
+          stay_plan_status_empty: 'En attente',
           stay_plan_status_ready: 'Mis \u00e0 jour',
           stay_plan_summary_empty: 'Aucun horaire d\u00e9fini.',
           stay_plan_summary_checkin: 'Arriv\u00e9e pr\u00e9vue : {value}',
@@ -1969,7 +2087,8 @@
           guest_doc_type_other: 'Autre',
           guest_doc_num: 'Num\u00e9ro du document*',
           guest_doc_country: 'Pays \u00e9metteur du document*',
-          guest_residence_country: 'Pays de r\u00e9sidence',
+          guest_residence_country: 'Pays de r\u00e9sidence*',
+          guest_field_residence_country: 'Pays de r\u00e9sidence',
           btn_back_guest_menu: 'Retour aux voyageurs',
           btn_prev_guest: 'Pr\u00e9c\u00e9dent',
           btn_save_guest: 'Enregistrer',
@@ -2078,7 +2197,7 @@
           stay_plan_modal_title: 'Ay\u00fadanos a preparar mejor tu check-in y check-out',
           stay_plan_modal_hint: 'Esta informaci\u00f3n es opcional, pero ayuda al equipo a organizar tu reserva.',
           stay_plan_hint: 'Comparte tus horarios previstos de check-in y check-out para preparar mejor tu reserva.',
-          stay_plan_status_empty: 'Opcional',
+          stay_plan_status_empty: 'Pendiente',
           stay_plan_status_ready: 'Actualizado',
           stay_plan_summary_empty: 'Todav\u00eda no hay horarios definidos.',
           stay_plan_summary_checkin: 'Check-in previsto: {value}',
@@ -2149,7 +2268,8 @@
           guest_doc_type_other: 'Otro',
           guest_doc_num: 'N\u00famero del documento*',
           guest_doc_country: 'Pa\u00eds emisor del documento*',
-          guest_residence_country: 'Pa\u00eds de residencia',
+          guest_residence_country: 'Pa\u00eds de residencia*',
+          guest_field_residence_country: 'Pa\u00eds de residencia',
           btn_back_guest_menu: 'Volver a los hu\u00e9spedes',
           btn_prev_guest: 'Anterior',
           btn_save_guest: 'Guardar',
@@ -2224,6 +2344,12 @@
       const menuFlag = document.getElementById('langMenuFlag');
       const menuCode = document.getElementById('langMenuCode');
       const key = 'r_public_lang';
+      const APP_NAV_LABELS = {
+        pt: { home: 'Início', stay: 'Estadia', explore: 'Explorar', help: 'Ajuda', reservation: 'Reserva' },
+        en: { home: 'Home', stay: 'Stay', explore: 'Explore', help: 'Help', reservation: 'Booking' },
+        fr: { home: 'Accueil', stay: 'Séjour', explore: 'Explorer', help: 'Aide', reservation: 'Réservation' },
+        es: { home: 'Inicio', stay: 'Estancia', explore: 'Explorar', help: 'Ayuda', reservation: 'Reserva' }
+      };
       const meta = {
         pt: { flagClass: 'fi fi-pt', code: 'PT' },
         en: { flagClass: 'fi fi-gb', code: 'EN' },
@@ -2347,6 +2473,10 @@
         if (typeof renderCheckinInstructionsUi === 'function') renderCheckinInstructionsUi();
         if (typeof renderParkingInstructionsUi === 'function') renderParkingInstructionsUi();
         if (typeof renderPoiToggles === 'function') renderPoiToggles();
+        const navLabels = APP_NAV_LABELS[lang] || APP_NAV_LABELS.pt;
+        document.querySelectorAll('[data-app-nav-label]').forEach((el) => {
+          el.textContent = navLabels[el.getAttribute('data-app-nav-label')] || '';
+        });
       };
 
       const guestEls = {
@@ -2530,6 +2660,7 @@
         guest_field_doc_type: 'Tipo de documento',
         guest_field_doc_num: 'N. do documento',
         guest_field_doc_country: 'Pais emissor do documento',
+        guest_field_residence_country: 'Pais de residencia',
         card_checkin_instructions: 'Instrucoes de check-in',
         checkin_instructions_status_locked: 'Bloqueado',
         checkin_instructions_status_pending: 'Aguardar',
@@ -2547,7 +2678,7 @@
         stay_plan_modal_title: 'Ajuda-nos a preparar melhor o teu check-in e check-out',
         stay_plan_modal_hint: 'Esta informacao e opcional, mas ajuda a equipa a organizar a tua reserva.',
         stay_plan_hint: 'Partilha os horarios previstos de check-in e check-out para prepararmos melhor a tua reserva.',
-        stay_plan_status_empty: 'Opcional',
+        stay_plan_status_empty: 'Pendente',
         stay_plan_status_ready: 'Atualizado',
         stay_plan_summary_empty: 'Sem horarios definidos.',
         stay_plan_summary_checkin: 'Check-in previsto: {value}',
@@ -2600,7 +2731,8 @@
         { key: 'nacionalidade', labelKey: 'guest_field_nationality' },
         { key: 'tipo_doc', labelKey: 'guest_field_doc_type' },
         { key: 'num_doc', labelKey: 'guest_field_doc_num' },
-        { key: 'pais_emissor_doc', labelKey: 'guest_field_doc_country' }
+        { key: 'pais_emissor_doc', labelKey: 'guest_field_doc_country' },
+        { key: 'pais_residencia', labelKey: 'guest_field_residence_country' }
       ];
 
       function escapeGuestHtml(value) {
@@ -3011,7 +3143,7 @@
           stayEls.status.textContent = hasData ? tGuest('stay_plan_status_ready') : tGuest('stay_plan_status_empty');
           stayEls.status.className = hasData
             ? 'badge bg-success-subtle text-success-emphasis border'
-            : 'badge bg-info-subtle text-info-emphasis border';
+            : 'badge bg-warning-subtle text-warning-emphasis border';
         }
       }
 
@@ -3306,6 +3438,89 @@
         const poiToggle = e.target.closest('[data-poi-toggle]');
         if (!poiToggle) return;
         togglePoiCard(poiToggle);
+      });
+      function initializeAppCards() {
+        document.querySelectorAll('.r-public2 .r-card[data-app-page]').forEach((card) => {
+          if (card.classList.contains('app-card-static')) return;
+          if (card.dataset.appModal === 'rules') {
+            card.tabIndex = 0;
+            card.setAttribute('role', 'button');
+            const openRules = (event) => {
+              if (event?.target?.closest('a, button, input, select, textarea, label')) return;
+              openRulesModal();
+            };
+            card.addEventListener('click', openRules);
+            card.addEventListener('keydown', (event) => {
+              if (event.key !== 'Enter' && event.key !== ' ') return;
+              event.preventDefault();
+              openRulesModal();
+            });
+            return;
+          }
+          const children = Array.from(card.children);
+          if (children.length < 2) return;
+          const iconByCard = {
+            'app-home': 'fa-user-group',
+            'checkinInstructionsCard': 'fa-key',
+            'app-plan': 'fa-clock',
+            'app-shop': 'fa-basket-shopping',
+            'app-stay': 'fa-calendar-check',
+            'app-parking': 'fa-square-parking',
+            'app-help': 'fa-shield-heart',
+            'app-reservation': 'fa-receipt'
+          };
+          let icon = iconByCard[card.id] || '';
+          if (!icon && card.matches('[data-poi-card]')) icon = 'fa-location-dot';
+          if (!icon && card.classList.contains('app-explore-card')) icon = 'fa-compass';
+          if (!icon && card.classList.contains('app-stay-card')) icon = 'fa-house';
+          if (!icon) icon = 'fa-circle-info';
+          const details = document.createElement('div');
+          details.className = 'app-card-details';
+          children.slice(1).forEach((child) => details.appendChild(child));
+          const iconWrap = document.createElement('div');
+          iconWrap.className = 'app-card-icon';
+          iconWrap.setAttribute('aria-hidden', 'true');
+          iconWrap.innerHTML = `<i class="fa-solid ${icon}"></i>`;
+          card.prepend(iconWrap);
+          card.append(details);
+          card.tabIndex = 0;
+          card.setAttribute('role', 'button');
+          card.setAttribute('aria-expanded', 'false');
+          const toggleCard = () => {
+            const isOpen = card.classList.toggle('app-card-open');
+            card.setAttribute('aria-expanded', String(isOpen));
+            card.setAttribute('role', isOpen ? 'group' : 'button');
+            card.tabIndex = isOpen ? -1 : 0;
+          };
+          card.addEventListener('click', (event) => {
+            if (event.target.closest('a, button, input, select, textarea, label')) return;
+            toggleCard();
+          });
+          card.addEventListener('keydown', (event) => {
+            if (event.key !== 'Enter' && event.key !== ' ') return;
+            event.preventDefault();
+            toggleCard();
+          });
+        });
+      }
+
+      initializeAppCards();
+      const appNavButtons = Array.from(document.querySelectorAll('[data-app-target]'));
+      appNavButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+          const page = String(button.getAttribute('data-app-target') || '').replace(/^app-/, '');
+          if (!page) return;
+          document.querySelectorAll('[data-app-page]').forEach((card) => {
+            card.classList.toggle('is-active', card.getAttribute('data-app-page') === page);
+            card.classList.remove('app-card-open');
+            card.setAttribute('aria-expanded', 'false');
+            card.setAttribute('role', 'button');
+            card.tabIndex = 0;
+          });
+          document.getElementById('appReservationHero')?.classList.toggle('is-active', page === 'home');
+          document.getElementById('appPublicFooter')?.classList.toggle('is-active', page === 'reservation');
+          appNavButtons.forEach((item) => item.classList.toggle('is-active', item === button));
+        });
       });
       guestEls.next?.addEventListener('click', async () => {
         const okSave = await saveCurrentGuest();

@@ -491,7 +491,7 @@ def create_app():
         if reason_key not in {'not_found', 'expired'}:
             reason_key = 'not_found'
         return render_template(
-            'r_public.html',
+            'r_public2.html' if request.path.startswith('/r2/') else 'r_public.html',
             invalid=True,
             page_data={'invalid_reason': reason_key}
         ), status
@@ -1196,8 +1196,8 @@ def create_app():
             """), {'alstamp': stamp}).mappings().first()
         except Exception:
             row = None
-        caminho = str((row or {}).get('CAMINHO') or '').strip().lstrip('/')
-        return f"/static/{caminho}" if caminho else ''
+        caminho = str((row or {}).get('CAMINHO') or '').strip()
+        return _public_static_url_from_path(caminho)
 
     def _fmt_public_date(v):
         if isinstance(v, datetime):
@@ -1228,7 +1228,8 @@ def create_app():
         clean = str(path or '').strip().replace('\\', '/').lstrip('/')
         if not clean:
             return ''
-        return clean if clean.startswith('/static/') else f"/static/{clean}"
+        static_path = clean if clean.startswith('static/') else f"static/{clean}"
+        return f"https://szeroapp.com/{static_path}"
 
     def _public_al_tag_values(alojamento):
         aloj = str(alojamento or '').strip()
@@ -3098,6 +3099,8 @@ def create_app():
 
     @app.route('/r/<reserva_code>')
     @app.route('/r/<reserva_code>/')
+    @app.route('/r2/<reserva_code>')
+    @app.route('/r2/<reserva_code>/')
     def public_reserva_page(reserva_code):
         public_code = (reserva_code or '').strip()
         if _public_reserva_code_invalid(public_code):
@@ -3170,7 +3173,7 @@ def create_app():
             'shop_available': bool(shop_state.get('is_available')),
             'shop_message': shop_state.get('message') or '',
             'shop_deadline_label': shop_state.get('deadline_label') or '',
-            'shop_url': url_for('public_reserva_shop_page', reserva_code=canonical_reserva_code),
+            'shop_url': f"{'/r2' if request.path.startswith('/r2/') else '/r'}/{quote(canonical_reserva_code, safe='')}/shop",
             'checkin_instructions_release_label': checkin_release.get('release_label') or '',
             'checkin_instructions_date_available': bool(checkin_release.get('available')),
             'wifi_ssid': wifi_ssid,
@@ -3279,10 +3282,13 @@ def create_app():
             })
 
         page_data['poi_groups'] = [poi_groups_map[k] for k in poi_groups_order]
-        return render_template('r_public.html', invalid=False, page_data=page_data)
+        template_name = 'r_public2.html' if request.path.startswith('/r2/') else 'r_public.html'
+        return render_template(template_name, invalid=False, page_data=page_data)
 
     @app.route('/r/<reserva_code>/shop')
     @app.route('/r/<reserva_code>/shop/')
+    @app.route('/r2/<reserva_code>/shop')
+    @app.route('/r2/<reserva_code>/shop/')
     def public_reserva_shop_page(reserva_code):
         public_code = (reserva_code or '').strip()
         if _public_reserva_code_invalid(public_code):
@@ -3306,7 +3312,7 @@ def create_app():
             'shop_available': bool(shop_state.get('is_available')),
             'shop_message': shop_state.get('message') or '',
             'shop_deadline_label': shop_state.get('deadline_label') or '',
-            'back_url': url_for('public_reserva_page', reserva_code=canonical_reserva_code),
+            'back_url': f"{'/r2' if request.path.startswith('/r2/') else '/r'}/{quote(canonical_reserva_code, safe='')}",
         }
         return render_template('r_public_shop.html', invalid=False, page_data=page_data)
 
@@ -3994,6 +4000,8 @@ def create_app():
             if not dtn or dtn in ('1900-01-01', '0001-01-01'):
                 return False
             if not str(g.get('nacionalidade') or '').strip():
+                return False
+            if not str(g.get('pais_residencia') or '').strip():
                 return False
             if not str(g.get('tipo_doc') or '').strip():
                 return False

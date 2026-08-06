@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import html
+import json
 import os
 import time
 from datetime import date
@@ -28,8 +29,10 @@ from services.booking_portal_service import (
     get_unverified_portal_user_by_email,
     criar_verificacao_email_portal,
     portal_user_exists,
+    processar_webhook_stripe_portal,
     redefinir_password_portal,
     sincronizar_checkout_teste_portal,
+    verificar_assinatura_webhook_stripe_portal,
     PortalPaymentError,
 )
 from services.email_service import EmailServiceError, queue_email, send_email_now
@@ -1100,7 +1103,7 @@ def _confirmed_booking_summary(booking_id: str, *, payment_id: str | None = None
             WHERE B.PBBKSTAMP = :booking_id
               {payment_condition}
               AND B.ESTADO = 'CONFIRMADO'
-              AND P.ESTADO = 'PAGO_TESTE'
+              AND P.ESTADO IN ('PAGO_TESTE', 'PAGO')
             """
         ),
         {"booking_id": booking_id, "payment_id": payment_id},
@@ -2074,6 +2077,32 @@ def payment_result():
         back_url=url_for("booking_portal.index", lang=lang),
         page_title=t["test_payment_title"],
     )
+
+
+@bp.route("/portal-reservas/stripe/webhook", methods=["POST"])
+@bp.route("/reservas/stripe/webhook", methods=["POST"])
+def stripe_webhook():
+    payload = request.get_data(cache=False, as_text=False) or b""
+    signature = request.headers.get("Stripe-Signature") or ""
+    if not verificar_assinatura_webhook_stripe_portal(payload, signature):
+        current_app.logger.warning("Webhook Stripe Porto Break rejeitado por assinatura invalida.")
+        return jsonify({"error": "Assinatura invalida."}), 400
+    try:
+        event = json.loads(payload.decode("utf-8") or "{}")
+    except Exception:
+        return jsonify({"error": "Payload invalido."}), 400
+    try:
+        result = processar_webhook_stripe_portal(event)
+        payment = result.get("payment") or {}
+        if payment.get("paid") and payment.get("reservation_code"):
+            _send_paid_booking_confirmation_email(payment, _resolve_lang())
+        return jsonify({"ok": True, "duplicate": bool(result.get("duplicate"))})
+    except PortalPaymentError as exc:
+        current_app.logger.exception("Falha ao processar webhook Stripe Porto Break: %s", exc)
+        return jsonify({"error": "Falha ao processar pagamento."}), 500
+    except Exception:
+        current_app.logger.exception("Erro inesperado no webhook Stripe Porto Break")
+        return jsonify({"error": "Erro interno."}), 500
 
 
 @bp.route("/portal-reservas/portal/<token>")
