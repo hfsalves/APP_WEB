@@ -563,6 +563,7 @@ def create_app():
 
         is_guest_public_path = (
             path.startswith('/r/') or
+            path.startswith('/r2/') or
             path.startswith('/api/r/') or
             path == '/reservas' or
             path.startswith('/reservas/') or
@@ -1374,6 +1375,53 @@ def create_app():
         normalized = ''.join(ch for ch in normalized if unicodedata.category(ch) != 'Mn')
         normalized = re.sub(r'\s+', ' ', normalized)
         return normalized in {'estacionamento', 'parking', 'parque estacionamento', 'parque de estacionamento'}
+
+    # Traduções dos temas/grupos de POI. Para acrescentar um tema basta incluir
+    # uma nova entrada com a chave normalizada (sem acentos e em minúsculas).
+    _public_poi_group_translations = {
+        'atracoes turisticas': {
+            'icon': 'fa-landmark',
+            'title': {'pt': 'Atrações turísticas', 'en': 'Tourist attractions', 'fr': 'Attractions touristiques', 'es': 'Atracciones turísticas'},
+            'summary': {'pt': 'História, vistas e lugares que definem o Porto.', 'en': 'History, viewpoints and places that define Porto.', 'fr': 'Histoire, panoramas et lieux emblématiques de Porto.', 'es': 'Historia, miradores y lugares que definen Oporto.'},
+        },
+        'restaurantes': {
+            'icon': 'fa-utensils',
+            'title': {'pt': 'Restaurantes', 'en': 'Restaurants', 'fr': 'Restaurants', 'es': 'Restaurantes'},
+            'summary': {'pt': 'Sabores locais, mesas de bairro e bons clássicos.', 'en': 'Local flavours, neighbourhood tables and timeless classics.', 'fr': 'Saveurs locales, tables de quartier et grands classiques.', 'es': 'Sabores locales, mesas de barrio y buenos clásicos.'},
+        },
+        'praias': {
+            'icon': 'fa-umbrella-beach',
+            'title': {'pt': 'Praias', 'en': 'Beaches', 'fr': 'Plages', 'es': 'Playas'},
+            'summary': {'pt': 'Mar, passeio e pôr do sol perto da cidade.', 'en': 'Sea, promenades and sunsets close to the city.', 'fr': 'Mer, promenades et couchers de soleil près de la ville.', 'es': 'Mar, paseos y atardeceres cerca de la ciudad.'},
+        },
+        'shopping': {
+            'icon': 'fa-bag-shopping',
+            'title': {'pt': 'Shopping', 'en': 'Shopping', 'fr': 'Shopping', 'es': 'Compras'},
+            'summary': {'pt': 'Pequenas descobertas, lojas locais e centros comerciais.', 'en': 'Small discoveries, local shops and shopping centres.', 'fr': 'Petites trouvailles, boutiques locales et centres commerciaux.', 'es': 'Pequeños descubrimientos, tiendas locales y centros comerciales.'},
+        },
+        'farmacias': {
+            'icon': 'fa-staff-snake',
+            'title': {'pt': 'Farmácias', 'en': 'Pharmacies', 'fr': 'Pharmacies', 'es': 'Farmacias'},
+            'summary': {'pt': 'Opções úteis para qualquer necessidade durante a estadia.', 'en': 'Useful options for any need during your stay.', 'fr': 'Des options utiles pour chaque besoin pendant votre séjour.', 'es': 'Opciones útiles para cualquier necesidad durante la estancia.'},
+        },
+        'bares e cafes': {
+            'icon': 'fa-mug-hot',
+            'title': {'pt': 'Bares e cafés', 'en': 'Bars and cafés', 'fr': 'Bars et cafés', 'es': 'Bares y cafés'},
+            'summary': {'pt': 'Um copo, um café e boa conversa pelo caminho.', 'en': 'A drink, a coffee and good conversation along the way.', 'fr': 'Un verre, un café et de bonnes conversations en chemin.', 'es': 'Una copa, un café y buena conversación por el camino.'},
+        },
+    }
+
+    def _public_poi_group_translation_set(name):
+        source_name = str(name or '').strip() or 'Outros'
+        normalized = unicodedata.normalize('NFD', source_name.lower())
+        normalized = ''.join(ch for ch in normalized if unicodedata.category(ch) != 'Mn')
+        normalized = re.sub(r'\s+', ' ', normalized).strip()
+        theme = _public_poi_group_translations.get(normalized, {})
+        return {
+            'title': {lang: str((theme.get('title') or {}).get(lang) or source_name) for lang in ('pt', 'en', 'fr', 'es')},
+            'summary': {lang: str((theme.get('summary') or {}).get(lang) or '') for lang in ('pt', 'en', 'fr', 'es')},
+            'icon': str(theme.get('icon') or 'fa-location-dot'),
+        }
 
     def _public_reserva_guests_complete(row):
         rsstamp = str((row or {}).get('RSSTAMP') or '').strip()
@@ -3241,8 +3289,13 @@ def create_app():
                 continue
             gkey = str(r.get('POIGSTAMP') or '').strip() or '__OUTROS__'
             if gkey not in poi_groups_map:
+                group_name = str(r.get('GRUPO_NOME') or 'Outros').strip() or 'Outros'
+                group_theme = _public_poi_group_translation_set(group_name)
                 poi_groups_map[gkey] = {
-                    'name': str(r.get('GRUPO_NOME') or 'Outros').strip() or 'Outros',
+                    'name': group_name,
+                    'translations': group_theme.get('title') or {},
+                    'summary_translations': group_theme.get('summary') or {},
+                    'icon': group_theme.get('icon') or 'fa-location-dot',
                     'items': []
                 }
                 poi_groups_order.append(gkey)

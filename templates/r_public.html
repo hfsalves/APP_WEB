@@ -915,6 +915,7 @@
     .r-public2 .lang-option:hover{background:#f7f3ed;}
     .r-public2 .lang-option.active{background:#e8f3fb; color:#063f72;}
     .r-public2 .public-meta{border-radius:20px; margin-bottom:20px; border-color:#ded6cb; background:#fff; box-shadow:0 4px 18px rgba(28,25,23,.05);}
+    .r-public2 .public-meta::before,.r-public2 .public-meta::after{display:none;}
     .r-public2 .public-title{color:#1c1917;}
     .r-public2 .public-sub{color:#6b6258;}
     .r-public2 .public-meta.has-cover .public-meta-body{background:#fff;}
@@ -943,6 +944,10 @@
     .r-public2 .r-card.app-card-open .app-card-details{display:block;}
     .r-public2 .r-card.app-card-open{grid-column:span 2;}
     .r-public2 .app-card-icon{width:34px; height:34px; margin-bottom:14px; display:grid; place-items:center; flex:0 0 auto; border-radius:10px; color:#0b5f9e; background:#e8f3fb; border:1px solid #cce5f3; font-size:.9rem;}
+    .r-public2 #app-whatsapp .app-card-icon{color:#128c5b; background:#ecfdf3; border-color:#bbf7d0;}
+    .r-public2 #app-whatsapp .btn.btn-primary{background:#128c5b; border-color:#128c5b;}
+    .r-public2 #app-whatsapp .btn.btn-primary:hover{background:#0f734a; border-color:#0f734a;}
+    .r-public2 .app-poi-summary{margin:0; color:#6b6258; font-size:.75rem; line-height:1.4;}
     .r-public2 .r-card[data-app-page]:not(.app-card-open){cursor:pointer;}
     .r-public2 .r-card[data-app-page].app-card-static{cursor:default;}
     .r-public2 #app-rules #rulesOpenBtn{display:none;}
@@ -995,11 +1000,15 @@
       .r-public2 .r-card{min-height:174px; padding:14px; border-radius:14px;}
       .r-public2 .r-card.app-card-open{grid-column:span 2;}
       .r-public2 .r-card h3{font-size:.82rem; line-height:1.25; margin-bottom:8px;}
+      .r-public2 .app-poi-summary{font-size:.7rem;}
       .r-public2 .r-card .badge{font-size:.62rem;}
       .r-public2 .app-card-icon{width:30px; height:30px; margin-bottom:10px; border-radius:9px; font-size:.8rem;}
       .r-public2 .public-brand img{width:112px;}
       .r-public2 .guest-modal-panel{width:min(900px,calc(100vw - 24px)); max-height:calc(100dvh - 142px); margin:24px auto 0;}
-      .r-public2 .public-meta-cover{height:168px;}
+      .r-public2 .public-meta-cover{height:136px;}
+      .r-public2 .public-meta-body{padding:10px 14px 12px;}
+      .r-public2 .public-title{font-size:1.14rem; line-height:1.2;}
+      .r-public2 .public-sub{font-size:.76rem; line-height:1.4;}
     }
     {% endif %}
   </style>
@@ -1075,9 +1084,9 @@
           </div>
         {% endif %}
         <div class="public-meta-body">
-          <h1 class="public-title"><span data-i18n="title_reservation">Reserva</span> &middot; {{ page_data.alojamento or 'Alojamento' }}</h1>
+          <h1 class="public-title">{% if not public_v2|default(false) %}<span data-i18n="title_reservation">Reserva</span> &middot; {% endif %}{{ page_data.alojamento or 'Alojamento' }}</h1>
           <div class="public-sub">
-            {% if page_data.reserva %}<span data-i18n="label_reservation">Reserva</span> {{ page_data.reserva }} &middot; {% endif %}
+            {% if page_data.reserva %}{% if not public_v2|default(false) %}<span data-i18n="label_reservation">Reserva</span> {% endif %}{{ page_data.reserva }} &middot; {% endif %}
             {{ page_data.checkin_data or '&mdash;'|safe }} &rarr; {{ page_data.checkout_data or '&mdash;'|safe }}
           </div>
         </div>
@@ -1369,8 +1378,9 @@
         {% endif %}
 
         {% for grp in (page_data.poi_groups or []) %}
-          <article class="r-card app-explore-card" data-app-page="explore" data-poi-card>
-            <h3>{{ grp['name'] }}</h3>
+          <article class="r-card app-explore-card" data-app-page="explore" data-poi-card data-poi-icon="{{ grp['icon'] }}">
+            <h3 data-poi-group-title data-poi-group-translations='{{ grp["translations"]|tojson }}'>{{ grp['name'] }}</h3>
+            <p class="app-poi-summary" data-poi-group-summary data-poi-group-translations='{{ grp["summary_translations"]|tojson }}'>{{ grp['summary_translations'].get('pt', '') }}</p>
             {% if grp['items'] %}
               <div class="vstack gap-2">
                 {% for p in grp['items'] %}
@@ -1458,12 +1468,19 @@
             </div>
           </div>
         </article>
+        <article id="app-whatsapp" class="r-card app-help-card" data-app-page="help">
+          <h3 data-i18n="card_whatsapp">WhatsApp</h3>
+          <div class="small text-muted mb-3" data-i18n="whatsapp_hint">Fala connosco rapidamente durante a tua estadia.</div>
+          <a class="btn btn-sm btn-primary" href="https://wa.me/351934266823" target="_blank" rel="noopener">
+            <i class="fa-brands fa-whatsapp me-1"></i><span data-i18n="btn_whatsapp">Mensagem no WhatsApp</span>
+          </a>
+        </article>
         <article id="app-rules" class="r-card app-stay-card" data-app-page="stay" data-app-modal="rules">
           <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
             <h3 class="mb-0" data-i18n="card_rules">Regras Essenciais</h3>
             <span class="badge bg-info-subtle text-info-emphasis border" data-i18n="rules_badge">Importante</span>
           </div>
-          <div class="small text-muted mb-3" data-i18n="rules_hint">Consulta um resumo rapido das regras da casa, horarios e principais penalizacoes.</div>
+          <div class="small text-muted mb-3" data-i18n="rules_hint">Consulta um resumo rápido das regras da casa e horários.</div>
           <button id="rulesOpenBtn" type="button" class="btn btn-sm btn-primary" data-i18n="btn_open_rules">Ler regras da casa</button>
         </article>
         <article id="app-reservation" class="r-card app-reservation-card" data-app-page="reservation">
@@ -1752,9 +1769,12 @@
           card_restaurants: 'Restaurantes',
           card_laundries: 'Lavandarias',
           card_emergency: 'Emerg\u00eancia e Contactos',
+          card_whatsapp: 'WhatsApp',
+          whatsapp_hint: 'Fala connosco rapidamente durante a tua estadia.',
+          btn_whatsapp: 'Mensagem no WhatsApp',
           card_rules: 'Regras Essenciais',
           rules_badge: 'Importante',
-          rules_hint: 'Consulta um resumo rapido das regras da casa, horarios e principais penalizacoes.',
+          rules_hint: 'Consulta um resumo rápido das regras da casa e horários.',
           btn_open_rules: 'Ler regras da casa',
           rules_modal_title: 'Regras da casa',
           rules_modal_hint: 'Resumo essencial para preparar a estadia e evitar problemas durante a reserva.',
@@ -1933,9 +1953,12 @@
           card_restaurants: 'Restaurants',
           card_laundries: 'Laundries',
           card_emergency: 'Emergency & Contacts',
+          card_whatsapp: 'WhatsApp',
+          whatsapp_hint: 'Message us quickly during your stay.',
+          btn_whatsapp: 'Message on WhatsApp',
           card_rules: 'Essential Rules',
           rules_badge: 'Important',
-          rules_hint: 'Read a quick summary of the house rules, timings and main penalties.',
+          rules_hint: 'Read a quick summary of the house rules and timings.',
           btn_open_rules: 'Read house rules',
           rules_modal_title: 'House rules',
           rules_modal_hint: 'Essential summary to help you prepare your stay and avoid problems during the booking.',
@@ -2114,9 +2137,12 @@
           card_restaurants: 'Restaurants',
           card_laundries: 'Laveries',
           card_emergency: 'Urgence et contacts',
+          card_whatsapp: 'WhatsApp',
+          whatsapp_hint: 'Contactez-nous rapidement pendant votre séjour.',
+          btn_whatsapp: 'Message WhatsApp',
           card_rules: 'R\u00e8gles essentielles',
           rules_badge: 'Important',
-          rules_hint: 'Consultez un resume rapide des regles de la maison, des horaires et des principales penalites.',
+          rules_hint: 'Consultez un résumé rapide des règles de la maison et des horaires.',
           btn_open_rules: 'Lire les regles',
           rules_modal_title: 'Regles de la maison',
           rules_modal_hint: 'Resume essentiel pour preparer votre sejour et eviter les problemes pendant la reservation.',
@@ -2295,9 +2321,12 @@
           card_restaurants: 'Restaurantes',
           card_laundries: 'Lavander\u00edas',
           card_emergency: 'Emergencia y contactos',
+          card_whatsapp: 'WhatsApp',
+          whatsapp_hint: 'Escríbenos rápidamente durante tu estancia.',
+          btn_whatsapp: 'Mensaje por WhatsApp',
           card_rules: 'Reglas esenciales',
           rules_badge: 'Importante',
-          rules_hint: 'Consulta un resumen rapido de las normas de la casa, horarios y principales penalizaciones.',
+          rules_hint: 'Consulta un resumen rápido de las normas de la casa y los horarios.',
           btn_open_rules: 'Leer normas de la casa',
           rules_modal_title: 'Normas de la casa',
           rules_modal_hint: 'Resumen esencial para preparar la estancia y evitar problemas durante la reserva.',
@@ -2473,6 +2502,18 @@
         if (typeof renderCheckinInstructionsUi === 'function') renderCheckinInstructionsUi();
         if (typeof renderParkingInstructionsUi === 'function') renderParkingInstructionsUi();
         if (typeof renderPoiToggles === 'function') renderPoiToggles();
+        document.querySelectorAll('[data-poi-group-title]').forEach((el) => {
+          try {
+            const translations = JSON.parse(el.getAttribute('data-poi-group-translations') || '{}');
+            el.textContent = translations[lang] || translations.pt || el.textContent;
+          } catch (_) {}
+        });
+        document.querySelectorAll('[data-poi-group-summary]').forEach((el) => {
+          try {
+            const translations = JSON.parse(el.getAttribute('data-poi-group-translations') || '{}');
+            el.textContent = translations[lang] || translations.pt || el.textContent;
+          } catch (_) {}
+        });
         const navLabels = APP_NAV_LABELS[lang] || APP_NAV_LABELS.pt;
         document.querySelectorAll('[data-app-nav-label]').forEach((el) => {
           el.textContent = navLabels[el.getAttribute('data-app-nav-label')] || '';
@@ -3467,20 +3508,22 @@
             'app-stay': 'fa-calendar-check',
             'app-parking': 'fa-square-parking',
             'app-help': 'fa-shield-heart',
+            'app-whatsapp': 'fa-brands fa-whatsapp',
             'app-reservation': 'fa-receipt'
           };
-          let icon = iconByCard[card.id] || '';
+          let icon = card.dataset.poiIcon || iconByCard[card.id] || '';
           if (!icon && card.matches('[data-poi-card]')) icon = 'fa-location-dot';
           if (!icon && card.classList.contains('app-explore-card')) icon = 'fa-compass';
           if (!icon && card.classList.contains('app-stay-card')) icon = 'fa-house';
           if (!icon) icon = 'fa-circle-info';
           const details = document.createElement('div');
           details.className = 'app-card-details';
-          children.slice(1).forEach((child) => details.appendChild(child));
+          const visibleChildren = card.matches('[data-poi-card]') ? 2 : 1;
+          children.slice(visibleChildren).forEach((child) => details.appendChild(child));
           const iconWrap = document.createElement('div');
           iconWrap.className = 'app-card-icon';
           iconWrap.setAttribute('aria-hidden', 'true');
-          iconWrap.innerHTML = `<i class="fa-solid ${icon}"></i>`;
+          iconWrap.innerHTML = `<i class="${icon.startsWith('fa-brands ') ? icon : `fa-solid ${icon}`}"></i>`;
           card.prepend(iconWrap);
           card.append(details);
           card.tabIndex = 0;
