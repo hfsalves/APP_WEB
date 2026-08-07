@@ -3183,6 +3183,8 @@ def create_app():
         adultos = int(row.get('ADULTOS') or 0)
         criancas = int(row.get('CRIANCAS') or 0)
         hospedes = adultos + criancas
+        checkin_date_value = _public_date_value(row.get('DATAIN'))
+        checkout_date_value = _public_date_value(row.get('DATAOUT'))
         shop_state = _public_shop_state(row)
         checkin_release = _public_checkin_release_state(row)
         al_tag_values = _public_al_tag_values(row.get('ALOJAMENTO'))
@@ -3197,6 +3199,8 @@ def create_app():
             'alojamento_cover_url': _public_al_cover_url(row.get('ALSTAMP')),
             'checkin_data': _fmt_public_date(row.get('DATAIN')),
             'checkout_data': _fmt_public_date(row.get('DATAOUT')),
+            'checkin_date_input': checkin_date_value.isoformat() if checkin_date_value else '',
+            'checkout_date_input': checkout_date_value.isoformat() if checkout_date_value else '',
             'checkin_hora': (row.get('HORAIN') or '').strip(),
             'checkout_hora': (row.get('HORAOUT') or '').strip(),
             'berco': bool(row.get('BERCO') or 0),
