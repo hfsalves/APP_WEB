@@ -26,6 +26,7 @@ from services.booking_portal_service import (
     get_alojamentos_disponiveis_page,
     get_calendario_ocupacao,
     get_portal_user,
+    get_portal_user_bookings,
     get_unverified_portal_user_by_email,
     criar_verificacao_email_portal,
     portal_user_exists,
@@ -153,6 +154,15 @@ TRANSLATIONS = {
         "login": "Entrar",
         "logout": "Terminar sessao",
         "account": "Conta",
+        "my_bookings": "As minhas reservas",
+        "my_bookings_lead": "Consulte as suas estadias confirmadas e os respetivos detalhes.",
+        "upcoming_stays": "Proximas estadias",
+        "past_stays": "Estadias anteriores",
+        "no_bookings_title": "Ainda nao tem reservas confirmadas.",
+        "no_bookings_text": "Quando uma reserva for paga e confirmada, aparecera aqui.",
+        "explore_stays": "Explorar alojamentos",
+        "booking_confirmed": "Reserva confirmada",
+        "view_booking": "Ver reserva",
         "login_title": "Entre na sua conta",
         "login_lead": "Use o email e a password definidos ao criar a conta Porto Break.",
         "login_submit": "Entrar",
@@ -310,6 +320,15 @@ TRANSLATIONS = {
         "login": "Sign in",
         "logout": "Sign out",
         "account": "Account",
+        "my_bookings": "My bookings",
+        "my_bookings_lead": "View your confirmed stays and their details.",
+        "upcoming_stays": "Upcoming stays",
+        "past_stays": "Past stays",
+        "no_bookings_title": "You do not have any confirmed bookings yet.",
+        "no_bookings_text": "A paid and confirmed booking will appear here.",
+        "explore_stays": "Explore stays",
+        "booking_confirmed": "Booking confirmed",
+        "view_booking": "View booking",
         "login_title": "Sign in to your account",
         "login_lead": "Use the email and password set when you created your Porto Break account.",
         "login_submit": "Sign in",
@@ -467,6 +486,15 @@ TRANSLATIONS = {
         "login": "Entrar",
         "logout": "Cerrar sesion",
         "account": "Cuenta",
+        "my_bookings": "Mis reservas",
+        "my_bookings_lead": "Consulta tus estancias confirmadas y sus detalles.",
+        "upcoming_stays": "Proximas estancias",
+        "past_stays": "Estancias anteriores",
+        "no_bookings_title": "Aun no tienes reservas confirmadas.",
+        "no_bookings_text": "Las reservas pagadas y confirmadas apareceran aqui.",
+        "explore_stays": "Ver alojamientos",
+        "booking_confirmed": "Reserva confirmada",
+        "view_booking": "Ver reserva",
         "login_title": "Entra en tu cuenta",
         "login_lead": "Usa el email y la password definidos al crear tu cuenta de Porto Break.",
         "login_submit": "Entrar",
@@ -624,6 +652,15 @@ TRANSLATIONS = {
         "login": "Se connecter",
         "logout": "Se deconnecter",
         "account": "Compte",
+        "my_bookings": "Mes reservations",
+        "my_bookings_lead": "Consultez vos sejours confirmes et leurs details.",
+        "upcoming_stays": "Prochains sejours",
+        "past_stays": "Sejours precedents",
+        "no_bookings_title": "Vous n'avez pas encore de reservations confirmees.",
+        "no_bookings_text": "Une reservation payee et confirmee apparaitra ici.",
+        "explore_stays": "Voir les logements",
+        "booking_confirmed": "Reservation confirmee",
+        "view_booking": "Voir la reservation",
         "login_title": "Connectez-vous a votre compte",
         "login_lead": "Utilisez l'email et le mot de passe definis lors de la creation de votre compte Porto Break.",
         "login_submit": "Se connecter",
@@ -1790,6 +1827,41 @@ def resend_email_verification():
 def logout():
     session.pop(PORTAL_USER_SESSION_KEY, None)
     return redirect(url_for("booking_portal.index", lang=_resolve_lang()))
+
+
+@bp.route("/portal-reservas/minhas-reservas")
+@bp.route("/reservas/minhas-reservas")
+def my_bookings():
+    lang = _resolve_lang()
+    portal_user = _portal_current_user()
+    if not portal_user:
+        next_url = url_for("booking_portal.my_bookings", lang=lang)
+        return redirect(url_for("booking_portal.login", lang=lang, next=next_url))
+
+    bookings = get_portal_user_bookings(portal_user["id"], lang=lang)
+    today = date.today()
+    upcoming_bookings = []
+    past_bookings = []
+    for booking in bookings:
+        booking["portal_url"] = _guest_portal_url(
+            booking.get("PBBKSTAMP"),
+            booking.get("CLIENTE_EMAIL"),
+            lang,
+        )
+        checkout = booking.get("CHECKOUT")
+        if checkout and checkout >= today:
+            upcoming_bookings.append(booking)
+        else:
+            past_bookings.append(booking)
+
+    upcoming_bookings.sort(key=lambda booking: booking.get("CHECKIN") or date.max)
+    return _render_booking_template(
+        "booking_portal/my_bookings.html",
+        lang,
+        upcoming_bookings=upcoming_bookings,
+        past_bookings=past_bookings,
+        page_title=_t(lang)["my_bookings"],
+    )
 
 
 @bp.route("/portal-reservas")

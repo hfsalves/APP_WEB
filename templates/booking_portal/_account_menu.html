@@ -1,0 +1,13 @@
+{% if portal_user %}
+  <details class="booking-account-menu">
+    <summary>{{ portal_user.nome or t.account }}</summary>
+    <div class="booking-account-dropdown">
+      <a href="{{ url_for('booking_portal.my_bookings', lang=lang) }}">{{ t.my_bookings }}</a>
+      <form method="post" action="{{ url_for('booking_portal.logout', lang=lang) }}">
+        <button type="submit">{{ t.logout }}</button>
+      </form>
+    </div>
+  </details>
+{% else %}
+  <a class="booking-account-link" href="{{ url_for('booking_portal.login', lang=lang) }}">{{ t.login }}</a>
+{% endif %}

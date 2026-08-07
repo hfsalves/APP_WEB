@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnNewAttachment= document.getElementById('btnNewAttachment');
   const btnNew          = document.getElementById('btnNew');
   const btnImportPhcUsers = document.getElementById('btnImportPhcUsers');
+  const btnCreateCollaboratorUser = document.getElementById('btnCreateCollaboratorUser');
   const modalSort       = document.getElementById('modalSort');
   const closeSortBtn    = document.getElementById('closeSortModal');
   const closeSortTopBtn = document.getElementById('closeSortModalTop');
@@ -28,6 +29,18 @@ document.addEventListener('DOMContentLoaded', () => {
   const phcUsersImportWarnings = document.getElementById('phcUsersImportWarnings');
   const phcUsersImportRows = document.getElementById('phcUsersImportRows');
   const phcUsersImportSelectAll = document.getElementById('phcUsersImportSelectAll');
+  const modalCreateCollaboratorUser = document.getElementById('modalCreateCollaboratorUser');
+  const closeCreateCollaboratorUserBtn = document.getElementById('closeCreateCollaboratorUser');
+  const closeCreateCollaboratorUserTopBtn = document.getElementById('closeCreateCollaboratorUserTop');
+  const createCollaboratorUserForm = document.getElementById('createCollaboratorUserForm');
+  const collaboratorUserName = document.getElementById('collaboratorUserName');
+  const collaboratorUserLogin = document.getElementById('collaboratorUserLogin');
+  const collaboratorUserPassword = document.getElementById('collaboratorUserPassword');
+  const collaboratorUserEmail = document.getElementById('collaboratorUserEmail');
+  const collaboratorUserCompanies = document.getElementById('collaboratorUserCompanies');
+  const collaboratorUserSelectAllCompanies = document.getElementById('collaboratorUserSelectAllCompanies');
+  const collaboratorUserWizardStatus = document.getElementById('collaboratorUserWizardStatus');
+  const confirmCreateCollaboratorUserBtn = document.getElementById('confirmCreateCollaboratorUser');
   const userPerms       = window.USER_PERMS[tableName] || {};
   const isFoList        = (tableName || '').toUpperCase() === 'FO';
   const isUsList        = (tableName || '').toUpperCase() === 'US';
@@ -107,6 +120,11 @@ document.addEventListener('DOMContentLoaded', () => {
     btnImportPhcUsers.innerHTML = '<i class="fa-solid fa-file-import"></i><span>Importar do PHC</span>';
     btnImportPhcUsers.className = 'sz_button sz_button_secondary';
     btnImportPhcUsers.setAttribute('aria-label', 'Importar do PHC');
+  }
+  if (btnCreateCollaboratorUser) {
+    btnCreateCollaboratorUser.innerHTML = '<i class="fa-solid fa-user-plus"></i><span>Criar utilizador</span>';
+    btnCreateCollaboratorUser.className = 'sz_button sz_button_secondary';
+    btnCreateCollaboratorUser.setAttribute('aria-label', 'Criar utilizador colaborador');
   }
   if (listSearchInput) {
     listSearchInput.addEventListener('input', () => {
@@ -197,6 +215,110 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!modalImportPhcUsers) return;
     modalImportPhcUsers.classList.remove('sz_is_open');
     modalImportPhcUsers.setAttribute('aria-hidden', 'true');
+  }
+
+  function openCreateCollaboratorUserModal() {
+    if (!modalCreateCollaboratorUser) return;
+    modalCreateCollaboratorUser.classList.add('sz_is_open');
+    modalCreateCollaboratorUser.setAttribute('aria-hidden', 'false');
+  }
+
+  function closeCreateCollaboratorUserModal() {
+    if (!modalCreateCollaboratorUser) return;
+    modalCreateCollaboratorUser.classList.remove('sz_is_open');
+    modalCreateCollaboratorUser.setAttribute('aria-hidden', 'true');
+  }
+
+  function setCollaboratorUserWizardStatus(message, isError = false) {
+    if (!collaboratorUserWizardStatus) return;
+    collaboratorUserWizardStatus.textContent = message || '';
+    collaboratorUserWizardStatus.className = isError ? 'text-danger' : 'sz_text_muted';
+  }
+
+  function collaboratorUserCompanyCheckboxes() {
+    return collaboratorUserCompanies
+      ? [...collaboratorUserCompanies.querySelectorAll('input[data-collaborator-user-feid]')]
+      : [];
+  }
+
+  function updateCollaboratorUserSelectAll() {
+    if (!collaboratorUserSelectAllCompanies) return;
+    const checkboxes = collaboratorUserCompanyCheckboxes();
+    const checked = checkboxes.filter((checkbox) => checkbox.checked).length;
+    collaboratorUserSelectAllCompanies.checked = checkboxes.length > 0 && checked === checkboxes.length;
+    collaboratorUserSelectAllCompanies.indeterminate = checked > 0 && checked < checkboxes.length;
+  }
+
+  function renderCollaboratorUserCompanies(empresas) {
+    if (!collaboratorUserCompanies) return;
+    const rows = Array.isArray(empresas) ? empresas : [];
+    collaboratorUserCompanies.innerHTML = rows.length
+      ? rows.map((empresa) => `
+          <label class="sz_collaborator_user_company">
+            <input type="checkbox" data-collaborator-user-feid="${escapeHtml(empresa.feid || '')}">
+            <span>${escapeHtml(empresa.nome || empresa.feid || '')}</span>
+          </label>
+        `).join('')
+      : '<span class="sz_text_muted">Sem empresas disponíveis.</span>';
+    updateCollaboratorUserSelectAll();
+  }
+
+  async function openCollaboratorUserWizard() {
+    if (!isUsList || !modalCreateCollaboratorUser) return;
+    if (createCollaboratorUserForm) createCollaboratorUserForm.reset();
+    renderCollaboratorUserCompanies([]);
+    setCollaboratorUserWizardStatus('A carregar empresas...');
+    openCreateCollaboratorUserModal();
+    try {
+      const response = await fetch('/generic/api/us/collaborator_wizard/options');
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || `Erro ${response.status}`);
+      renderCollaboratorUserCompanies(payload.empresas || []);
+      setCollaboratorUserWizardStatus('Selecione as empresas a que o colaborador pode aceder.');
+      collaboratorUserName?.focus();
+    } catch (error) {
+      setCollaboratorUserWizardStatus(error.message || 'Erro ao carregar empresas.', true);
+    }
+  }
+
+  async function createCollaboratorUser(event) {
+    event.preventDefault();
+    if (!createCollaboratorUserForm || !confirmCreateCollaboratorUserBtn) return;
+    const feids = collaboratorUserCompanyCheckboxes()
+      .filter((checkbox) => checkbox.checked)
+      .map((checkbox) => Number(checkbox.dataset.collaboratorUserFeid || 0))
+      .filter(Boolean);
+    if (!feids.length) {
+      setCollaboratorUserWizardStatus('Selecione pelo menos uma empresa.', true);
+      return;
+    }
+    const payload = {
+      nome: String(collaboratorUserName?.value || '').trim(),
+      login: String(collaboratorUserLogin?.value || '').trim(),
+      password: String(collaboratorUserPassword?.value || ''),
+      email: String(collaboratorUserEmail?.value || '').trim(),
+      feids,
+    };
+    confirmCreateCollaboratorUserBtn.disabled = true;
+    confirmCreateCollaboratorUserBtn.querySelector('span').textContent = 'A criar...';
+    setCollaboratorUserWizardStatus('A criar utilizador e acessos...');
+    try {
+      const response = await fetch('/generic/api/us/collaborator_wizard', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || `Erro ${response.status}`);
+      closeCreateCollaboratorUserModal();
+      await loadData();
+      alert(`Utilizador ${result.login || payload.login} criado com sucesso.`);
+    } catch (error) {
+      setCollaboratorUserWizardStatus(error.message || 'Erro ao criar utilizador.', true);
+    } finally {
+      confirmCreateCollaboratorUserBtn.disabled = false;
+      confirmCreateCollaboratorUserBtn.querySelector('span').textContent = 'Criar utilizador';
+    }
   }
 
   function setPhcUsersImportStatus(message, isError = false) {
@@ -555,6 +677,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Escape' && modalImportPhcUsers && modalImportPhcUsers.classList.contains('sz_is_open')) {
       closeImportPhcUsersModal();
     }
+    if (e.key === 'Escape' && modalCreateCollaboratorUser && modalCreateCollaboratorUser.classList.contains('sz_is_open')) {
+      closeCreateCollaboratorUserModal();
+    }
   });
 
   if (sortFieldList) {
@@ -606,6 +731,34 @@ document.addEventListener('DOMContentLoaded', () => {
     btnImportPhcUsers.addEventListener('click', () => {
       scanPhcUsersForImport();
     });
+  }
+  if (btnCreateCollaboratorUser) {
+    btnCreateCollaboratorUser.addEventListener('click', openCollaboratorUserWizard);
+  }
+  if (closeCreateCollaboratorUserBtn) {
+    closeCreateCollaboratorUserBtn.addEventListener('click', closeCreateCollaboratorUserModal);
+  }
+  if (closeCreateCollaboratorUserTopBtn) {
+    closeCreateCollaboratorUserTopBtn.addEventListener('click', closeCreateCollaboratorUserModal);
+  }
+  if (modalCreateCollaboratorUser) {
+    modalCreateCollaboratorUser.addEventListener('click', (event) => {
+      if (event.target === modalCreateCollaboratorUser) closeCreateCollaboratorUserModal();
+    });
+  }
+  if (collaboratorUserCompanies) {
+    collaboratorUserCompanies.addEventListener('change', updateCollaboratorUserSelectAll);
+  }
+  if (collaboratorUserSelectAllCompanies) {
+    collaboratorUserSelectAllCompanies.addEventListener('change', () => {
+      collaboratorUserCompanyCheckboxes().forEach((checkbox) => {
+        checkbox.checked = collaboratorUserSelectAllCompanies.checked;
+      });
+      updateCollaboratorUserSelectAll();
+    });
+  }
+  if (createCollaboratorUserForm) {
+    createCollaboratorUserForm.addEventListener('submit', createCollaboratorUser);
   }
   if (closeImportPhcUsersBtn) {
     closeImportPhcUsersBtn.addEventListener('click', closeImportPhcUsersModal);

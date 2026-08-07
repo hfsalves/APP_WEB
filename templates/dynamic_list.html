@@ -26,6 +26,12 @@
               <span>{{ _('common.filter') }}</span>
             </button>
             {% if table_name|upper == 'US' and (table_perms.get('inserir') or table_perms.inserir or table_perms.get('editar') or table_perms.editar) %}
+              {% if table_perms.get('inserir') or table_perms.inserir %}
+              <button id="btnCreateCollaboratorUser" type="button" class="sz_button sz_button_secondary">
+                <i class="fa-solid fa-user-plus"></i>
+                <span>Criar utilizador</span>
+              </button>
+              {% endif %}
               <button id="btnImportPhcUsers" type="button" class="sz_button sz_button_secondary">
                 <i class="fa-solid fa-file-import"></i>
                 <span>Importar do PHC</span>
@@ -55,6 +61,59 @@
 </div>
 
 {% if table_name|upper == 'US' and (table_perms.get('inserir') or table_perms.inserir or table_perms.get('editar') or table_perms.editar) %}
+{% if table_perms.get('inserir') or table_perms.inserir %}
+<div id="modalCreateCollaboratorUser" class="sz_modal" aria-labelledby="modalCreateCollaboratorUserLabel" aria-hidden="true">
+  <div class="sz_panel sz_collaborator_user_wizard_panel">
+    <div class="sz_modal_header">
+      <h3 class="sz_h4 sz_modal_title" id="modalCreateCollaboratorUserLabel">Criar utilizador colaborador</h3>
+      <button type="button" id="closeCreateCollaboratorUserTop" class="sz_button sz_button_ghost" aria-label="Fechar">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+    <form id="createCollaboratorUserForm">
+      <div class="sz_modal_body sz_collaborator_user_wizard_body">
+        <div class="sz_collaborator_user_form_grid">
+          <label class="sz_form_group">
+            <span>Nome</span>
+            <input id="collaboratorUserName" class="sz_input" type="text" maxlength="60" required autocomplete="name">
+          </label>
+          <label class="sz_form_group">
+            <span>Login</span>
+            <input id="collaboratorUserLogin" class="sz_input" type="text" maxlength="60" required autocomplete="username">
+          </label>
+          <label class="sz_form_group">
+            <span>Password</span>
+            <input id="collaboratorUserPassword" class="sz_input" type="password" maxlength="128" required autocomplete="new-password">
+          </label>
+          <label class="sz_form_group">
+            <span>Email</span>
+            <input id="collaboratorUserEmail" class="sz_input" type="email" maxlength="120" required autocomplete="email">
+          </label>
+        </div>
+        <div class="sz_collaborator_user_companies_header">
+          <strong>Empresas a que acede</strong>
+          <label class="sz_checkbox_label">
+            <input id="collaboratorUserSelectAllCompanies" type="checkbox">
+            <span>Selecionar todas</span>
+          </label>
+        </div>
+        <div id="collaboratorUserCompanies" class="sz_collaborator_user_companies" aria-live="polite"></div>
+        <p id="collaboratorUserWizardStatus" class="sz_text_muted">Selecione as empresas do utilizador.</p>
+      </div>
+      <div class="sz_modal_footer">
+        <button type="button" id="closeCreateCollaboratorUser" class="sz_button sz_button_secondary">
+          <i class="fa-solid fa-ban"></i>
+          <span>Cancelar</span>
+        </button>
+        <button type="submit" id="confirmCreateCollaboratorUser" class="sz_button sz_button_primary">
+          <i class="fa-solid fa-user-plus"></i>
+          <span>Criar utilizador</span>
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
 <div id="modalImportPhcUsers" class="sz_modal" aria-labelledby="modalImportPhcUsersLabel" aria-hidden="true">
   <div class="sz_panel sz_phc_users_import_panel">
     <div class="sz_modal_header">
@@ -178,6 +237,83 @@
 <style>
   .sz_dynamic_sort_modal_panel {
     max-width: min(32rem, calc(100vw - 1.5rem));
+  }
+
+  .sz_collaborator_user_wizard_panel {
+    width: min(42rem, calc(100vw - 1.5rem));
+  }
+
+  .sz_collaborator_user_form_grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .85rem;
+  }
+
+  .sz_collaborator_user_form_grid .sz_form_group {
+    display: grid;
+    gap: .35rem;
+    min-width: 0;
+    color: var(--sz-color-text-secondary);
+    font-size: .82rem;
+    font-weight: 700;
+  }
+
+  .sz_collaborator_user_companies_header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    margin-top: 1.15rem;
+    margin-bottom: .55rem;
+  }
+
+  .sz_checkbox_label {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    color: var(--sz-color-text-secondary);
+    font-size: .85rem;
+    cursor: pointer;
+  }
+
+  .sz_collaborator_user_companies {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .45rem;
+    max-height: 14rem;
+    overflow-y: auto;
+    padding: .1rem;
+  }
+
+  .sz_collaborator_user_company {
+    display: flex;
+    align-items: center;
+    gap: .55rem;
+    min-width: 0;
+    padding: .65rem .7rem;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-sm);
+    color: var(--sz-color-text);
+    background: var(--sz-color-surface);
+    cursor: pointer;
+  }
+
+  .sz_collaborator_user_company span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  #collaboratorUserWizardStatus {
+    margin: .85rem 0 0;
+  }
+
+  @media (max-width: 640px) {
+    .sz_collaborator_user_form_grid,
+    .sz_collaborator_user_companies {
+      grid-template-columns: minmax(0, 1fr);
+    }
   }
 
   .sz_dynamic_sort_modal_body {

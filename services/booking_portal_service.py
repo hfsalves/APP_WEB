@@ -919,6 +919,58 @@ def get_portal_user(pbuserstamp: str) -> dict | None:
     return dict(row) if row else None
 
 
+def get_portal_user_bookings(pbuserstamp: str, *, lang: str = "pt") -> list[dict]:
+    """Return confirmed, paid bookings that belong to one portal account."""
+    user_id = _clean(pbuserstamp)
+    if not user_id:
+        return []
+
+    rows = db.session.execute(
+        text(
+            """
+            SELECT
+                B.PBBKSTAMP, B.ALSTAMP, B.AL_NOME, B.CHECKIN, B.CHECKOUT, B.NOITES,
+                B.ADULTOS, B.CRIANCAS, B.BEBES, B.CLIENTE_EMAIL,
+                B.PRECO_ESTIMADO, B.PRECO_LABEL,
+                P.PBPAYSTAMP, P.ESTADO AS PAGAMENTO_ESTADO, P.MOEDA, P.VALOR,
+                R.RESERVA
+            FROM dbo.PB_BOOKING_REQUESTS AS B
+            CROSS APPLY (
+                SELECT TOP 1
+                    PBPAYSTAMP, ESTADO, MOEDA, VALOR, RSSTAMP, DTALT, DTCRI
+                FROM dbo.PB_STRIPE_TEST_PAYMENTS
+                WHERE PBBKSTAMP = B.PBBKSTAMP
+                  AND ESTADO IN ('PAGO_TESTE', 'PAGO')
+                  AND RSSTAMP IS NOT NULL
+                ORDER BY COALESCE(DTALT, DTCRI) DESC
+            ) AS P
+            INNER JOIN dbo.RS AS R ON R.RSSTAMP = P.RSSTAMP
+            WHERE B.PBUSERSTAMP = :user_id
+              AND B.ESTADO = 'CONFIRMADO'
+            ORDER BY B.CHECKIN DESC, B.DTCRI DESC
+            """
+        ),
+        {"user_id": user_id},
+    ).mappings().all()
+
+    bookings = []
+    for row in rows:
+        booking = dict(row)
+        alojamento = get_alojamento(booking.get("ALSTAMP"), lang=lang) or {}
+        booking["nome"] = alojamento.get("nome") or _clean(booking.get("AL_NOME"))
+        booking["foto"] = alojamento.get("foto") or ""
+        booking["localizacao"] = alojamento.get("localizacao") or ""
+        booking["reservation_code"] = _clean(booking.get("RESERVA"))
+        total = _clean(booking.get("PRECO_LABEL"))
+        if not total and booking.get("VALOR") is not None:
+            total = _money(booking.get("VALOR"))
+        if not total and booking.get("PRECO_ESTIMADO") is not None:
+            total = _money(booking.get("PRECO_ESTIMADO"))
+        booking["total"] = total
+        bookings.append(booking)
+    return bookings
+
+
 def get_unverified_portal_user_by_email(email: str) -> dict | None:
     email_normalizado = _normalize_email(email)
     if not email_normalizado:

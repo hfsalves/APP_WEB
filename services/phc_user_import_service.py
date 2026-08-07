@@ -66,6 +66,23 @@ def _active_fe_sources() -> list[dict]:
     return [dict(row) for row in rows]
 
 
+def collaborator_user_company_options() -> list[dict]:
+    """Return the active companies that can be assigned to a local user."""
+    rows = db.session.execute(text("""
+        SELECT
+            ISNULL(FEID, 0) AS FEID,
+            LTRIM(RTRIM(ISNULL(NOME, ''))) AS NOME
+        FROM dbo.FE
+        WHERE ISNULL(ATIVA, 1) = 1
+        ORDER BY ISNULL(NOME, ''), ISNULL(FEID, 0)
+    """)).mappings().all()
+    return [
+        {"feid": int(row.get("FEID") or 0), "nome": str(row.get("NOME") or "").strip()}
+        for row in rows
+        if int(row.get("FEID") or 0)
+    ]
+
+
 def _source_us_columns(cursor) -> set[str]:
     cursor.execute("""
         SELECT LOWER(COLUMN_NAME) AS COLUMN_NAME
@@ -398,6 +415,110 @@ def _ensure_user_company(usstamp: str, feid: int, principal: bool, user_login: s
         "USERALTERACAO": user_login,
     })
     return True
+
+
+def _ensure_collaborator_accesses(login: str, usstamp: str) -> None:
+    """Grant only the self-service modules available to a collaborator."""
+    access_levels = {
+        "DESPESAS": {"consultar": 1, "inserir": 1, "editar": 1, "eliminar": 0},
+        "FERIAS": {"consultar": 1, "inserir": 1, "editar": 1, "eliminar": 0},
+        "RECIBOS": {"consultar": 1, "inserir": 0, "editar": 0, "eliminar": 0},
+    }
+    for table_name, permissions in access_levels.items():
+        existing = db.session.execute(text("""
+            SELECT TOP 1 ACESSOSSTAMP
+            FROM dbo.ACESSOS
+            WHERE UPPER(LTRIM(RTRIM(ISNULL(UTILIZADOR, '')))) = :login
+              AND UPPER(LTRIM(RTRIM(ISNULL(TABELA, '')))) = :tabela
+        """), {"login": login.upper(), "tabela": table_name}).mappings().first()
+        params = {
+            "utilizador": login,
+            "tabela": table_name,
+            "consultar": permissions["consultar"],
+            "inserir": permissions["inserir"],
+            "editar": permissions["editar"],
+            "eliminar": permissions["eliminar"],
+            "usstamp": usstamp,
+        }
+        if existing:
+            db.session.execute(text("""
+                UPDATE dbo.ACESSOS
+                   SET CONSULTAR = :consultar,
+                       INSERIR = :inserir,
+                       EDITAR = :editar,
+                       ELIMINAR = :eliminar,
+                       USSTAMP = :usstamp
+                 WHERE ACESSOSSTAMP = :acessosstamp
+            """), {**params, "acessosstamp": existing.get("ACESSOSSTAMP")})
+            continue
+        db.session.execute(text("""
+            INSERT INTO dbo.ACESSOS
+            (ACESSOSSTAMP, UTILIZADOR, TABELA, CONSULTAR, INSERIR, EDITAR, ELIMINAR, USSTAMP)
+            VALUES
+            (:acessosstamp, :utilizador, :tabela, :consultar, :inserir, :editar, :eliminar, :usstamp)
+        """), {**params, "acessosstamp": uuid.uuid4().hex.upper()[:25]})
+
+
+def create_collaborator_user(payload: dict, user_login: str) -> dict:
+    """Create a local collaborator user, entity links and self-service ACLs."""
+    payload = payload if isinstance(payload, dict) else {}
+    nome = str(payload.get("nome") or "").strip()
+    login = str(payload.get("login") or "").strip()
+    password = str(payload.get("password") or "").strip()
+    email = str(payload.get("email") or "").strip()
+    raw_feids = payload.get("feids") if isinstance(payload.get("feids"), list) else []
+
+    if not nome:
+        raise ValueError("Nome em falta.")
+    if not login:
+        raise ValueError("Login em falta.")
+    if not password:
+        raise ValueError("Password em falta.")
+    if not email or "@" not in email:
+        raise ValueError("Indique um email válido.")
+    if len(nome) > 60 or len(login) > 60 or len(password) > 128 or len(email) > 120:
+        raise ValueError("Um dos campos excede o tamanho permitido.")
+
+    feids: list[int] = []
+    for value in raw_feids:
+        try:
+            feid = int(value)
+        except (TypeError, ValueError):
+            continue
+        if feid and feid not in feids:
+            feids.append(feid)
+    if not feids:
+        raise ValueError("Selecione pelo menos uma empresa.")
+
+    available_feids = {row["feid"] for row in collaborator_user_company_options()}
+    invalid_feids = [str(feid) for feid in feids if feid not in available_feids]
+    if invalid_feids:
+        raise ValueError("Uma das empresas selecionadas deixou de estar disponível.")
+    if _find_local_user_by_login(login):
+        raise ValueError(f"Já existe um utilizador com o login {login}.")
+    if _email_conflict(email):
+        raise ValueError(f"Já existe um utilizador com o email {email}.")
+
+    with db.session.begin_nested():
+        usstamp, created = _insert_or_update_user({
+            "nome": nome,
+            "login": login,
+            "password": password,
+            "email": email,
+            "vendedor": 0,
+        })
+        if not created:
+            raise ValueError(f"Já existe um utilizador com o login {login}.")
+        for index, feid in enumerate(feids):
+            _ensure_user_company(usstamp, feid, index == 0, user_login)
+        _ensure_collaborator_accesses(login, usstamp)
+    db.session.commit()
+    return {
+        "ok": True,
+        "usstamp": usstamp,
+        "login": login,
+        "empresas": len(feids),
+    }
 
 
 def import_phc_users(selected_keys: list[str], user_login: str) -> dict:

@@ -21,16 +21,7 @@
             <a href="{{ item.url }}" class="{% if item.active %}is-active{% endif %}" lang="{{ item.code }}">{{ item.label }}</a>
           {% endfor %}
         </div>
-        {% if portal_user %}
-          <details class="booking-account-menu">
-            <summary>{{ portal_user.nome or t.account }}</summary>
-            <form method="post" action="{{ url_for('booking_portal.logout', lang=lang) }}">
-              <button type="submit">{{ t.logout }}</button>
-            </form>
-          </details>
-        {% else %}
-          <a class="booking-account-link" href="{{ url_for('booking_portal.login', lang=lang) }}">{{ t.login }}</a>
-        {% endif %}
+        {% include 'booking_portal/_account_menu.html' %}
       </div>
     </nav>
 

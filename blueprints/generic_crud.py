@@ -8,7 +8,13 @@ from models import Campo, Menu, Acessos, CamposModal, Linhas
 from services.db_i18n_service import _extract_openai_text, _para_value, _strip_json_fence, _translation_model, translate_db_record
 from services.dashboard_links_service import DASHBOARD_LINKS_TABLES, ensure_dashboard_links_schema
 from services.multiempresa_service import get_current_feid, MissingCurrentEntityError
-from services.phc_user_import_service import import_phc_users, inactivate_phc_user, scan_phc_users_for_import
+from services.phc_user_import_service import (
+    collaborator_user_company_options,
+    create_collaborator_user,
+    import_phc_users,
+    inactivate_phc_user,
+    scan_phc_users_for_import,
+)
 import uuid
 from datetime import date, timedelta, datetime
 import json
@@ -2332,6 +2338,36 @@ def us_phc_import_inactivate():
         return jsonify({'error': str(e)}), 400
     except Exception as e:
         current_app.logger.exception('Erro ao inativar utilizador PHC')
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/us/collaborator_wizard/options', methods=['GET'])
+@login_required
+def us_collaborator_wizard_options():
+    if not has_permission('US', 'inserir'):
+        return jsonify({'error': 'Sem permissão para criar utilizadores'}), 403
+    try:
+        return jsonify({'ok': True, 'empresas': collaborator_user_company_options()})
+    except Exception as e:
+        current_app.logger.exception('Erro ao carregar empresas para criação de utilizador')
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/us/collaborator_wizard', methods=['POST'])
+@login_required
+def us_collaborator_wizard_create():
+    if not has_permission('US', 'inserir'):
+        return jsonify({'error': 'Sem permissão para criar utilizadores'}), 403
+    try:
+        payload = request.get_json(force=True) or {}
+        result = create_collaborator_user(payload, (getattr(current_user, 'LOGIN', '') or '').strip())
+        return jsonify(result), 201
+    except ValueError as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.exception('Erro ao criar utilizador colaborador')
         return jsonify({'error': str(e)}), 500
 
 

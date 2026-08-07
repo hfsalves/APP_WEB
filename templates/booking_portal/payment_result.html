@@ -21,6 +21,7 @@
             <a href="{{ item.url }}" class="{% if item.active %}is-active{% endif %}" lang="{{ item.code }}">{{ item.label }}</a>
           {% endfor %}
         </div>
+        {% include 'booking_portal/_account_menu.html' %}
       </div>
     </nav>
     <section class="booking-success-panel {% if payment_error %}is-error{% endif %}">

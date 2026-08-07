@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="{{ lang }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PortoBreak.com - {{ page_title }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/booking_portal.css') }}?v={{ config.get('STATIC_VERSION', 1) }}">
+</head>
+<body>
+  <main class="booking-shell booking-detail-shell">
+    <nav class="booking-nav booking-topbar-light" aria-label="{{ t.my_bookings }}">
+      <a class="booking-brand" href="{{ url_for('booking_portal.index', lang=lang) }}" aria-label="PortoBreak.com">
+        <img src="{{ url_for('static', filename='images/booking_portal/portobreak-logo-simple.png') }}" alt="PortoBreak.com">
+      </a>
+      <div class="booking-nav-actions">
+        <div class="booking-language-switcher booking-language-switcher-nav" aria-label="Language">
+          {% for item in language_links %}
+            <a href="{{ item.url }}" class="{% if item.active %}is-active{% endif %}" lang="{{ item.code }}">{{ item.label }}</a>
+          {% endfor %}
+        </div>
+        {% include 'booking_portal/_account_menu.html' %}
+      </div>
+    </nav>
+
+    <section class="booking-my-bookings">
+      <div class="booking-my-bookings-head">
+        <p class="booking-kicker booking-kicker-dark">{{ t.account }}</p>
+        <h1>{{ t.my_bookings }}</h1>
+        <p>{{ t.my_bookings_lead }}</p>
+      </div>
+
+      {% if upcoming_bookings %}
+        <section class="booking-my-bookings-section">
+          <h2>{{ t.upcoming_stays }}</h2>
+          <div class="booking-my-bookings-grid">
+            {% for booking in upcoming_bookings %}
+              <article class="booking-my-booking-card">
+                {% if booking.foto %}
+                  <img src="{{ booking.foto }}" alt="{{ booking.nome }}" loading="lazy" decoding="async">
+                {% else %}
+                  <div class="booking-my-booking-photo-placeholder"></div>
+                {% endif %}
+                <div class="booking-my-booking-body">
+                  <span class="booking-my-booking-status">{{ t.booking_confirmed }}</span>
+                  <h3>{{ booking.nome }}</h3>
+                  {% if booking.localizacao %}<span class="booking-summary-location">{{ booking.localizacao }}</span>{% endif %}
+                  <dl>
+                    <div><dt>{{ t.checkin }}</dt><dd>{{ booking.CHECKIN }}</dd></div>
+                    <div><dt>{{ t.checkout }}</dt><dd>{{ booking.CHECKOUT }}</dd></div>
+                    <div><dt>{{ t.booking_reference }}</dt><dd>{{ booking.reservation_code }}</dd></div>
+                    <div><dt>{{ t.total_paid }}</dt><dd>{{ booking.total }}</dd></div>
+                  </dl>
+                  <a class="booking-button booking-button-primary booking-button-wide" href="{{ booking.portal_url }}">{{ t.view_booking }}</a>
+                </div>
+              </article>
+            {% endfor %}
+          </div>
+        </section>
+      {% endif %}
+
+      {% if past_bookings %}
+        <section class="booking-my-bookings-section">
+          <h2>{{ t.past_stays }}</h2>
+          <div class="booking-my-bookings-grid">
+            {% for booking in past_bookings %}
+              <article class="booking-my-booking-card is-past">
+                {% if booking.foto %}
+                  <img src="{{ booking.foto }}" alt="{{ booking.nome }}" loading="lazy" decoding="async">
+                {% else %}
+                  <div class="booking-my-booking-photo-placeholder"></div>
+                {% endif %}
+                <div class="booking-my-booking-body">
+                  <span class="booking-my-booking-status">{{ t.booking_confirmed }}</span>
+                  <h3>{{ booking.nome }}</h3>
+                  {% if booking.localizacao %}<span class="booking-summary-location">{{ booking.localizacao }}</span>{% endif %}
+                  <dl>
+                    <div><dt>{{ t.checkin }}</dt><dd>{{ booking.CHECKIN }}</dd></div>
+                    <div><dt>{{ t.checkout }}</dt><dd>{{ booking.CHECKOUT }}</dd></div>
+                    <div><dt>{{ t.booking_reference }}</dt><dd>{{ booking.reservation_code }}</dd></div>
+                    <div><dt>{{ t.total_paid }}</dt><dd>{{ booking.total }}</dd></div>
+                  </dl>
+                  <a class="booking-button booking-button-secondary booking-button-wide" href="{{ booking.portal_url }}">{{ t.view_booking }}</a>
+                </div>
+              </article>
+            {% endfor %}
+          </div>
+        </section>
+      {% endif %}
+
+      {% if not upcoming_bookings and not past_bookings %}
+        <section class="booking-my-bookings-empty">
+          <h2>{{ t.no_bookings_title }}</h2>
+          <p>{{ t.no_bookings_text }}</p>
+          <a class="booking-button booking-button-primary" href="{{ url_for('booking_portal.index', lang=lang) }}">{{ t.explore_stays }}</a>
+        </section>
+      {% endif %}
+    </section>
+  </main>
+</body>
+</html>
