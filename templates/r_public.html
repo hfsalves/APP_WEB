@@ -106,6 +106,36 @@
       border:1px solid rgba(125,211,252,.18);
       box-shadow:inset 0 1px 0 rgba(255,255,255,.08);
     }
+    .public-header-actions{
+      display:flex;
+      align-items:center;
+      justify-content:flex-end;
+      gap:10px;
+      margin-left:auto;
+      min-width:0;
+    }
+    .public-account-link{
+      display:inline-flex;
+      align-items:center;
+      min-height:34px;
+      max-width:180px;
+      padding:7px 11px;
+      overflow:hidden;
+      border:1px solid rgba(148,163,184,.28);
+      border-radius:999px;
+      background:rgba(255,255,255,.08);
+      color:inherit;
+      font-size:.78rem;
+      font-weight:800;
+      line-height:1;
+      text-decoration:none;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+    .public-account-link:hover{
+      color:inherit;
+      background:rgba(255,255,255,.15);
+    }
     .public-title{
       font-family:"Space Grotesk","Manrope",sans-serif;
       font-size:clamp(1.45rem, 2vw, 2rem);
@@ -909,6 +939,8 @@
     .r-public2 .public-header::after{background:#ded6cb;}
     .r-public2 .public-brand{padding:0; background:transparent; border:0; box-shadow:none;}
     .r-public2 .public-brand img{display:block; width:132px; height:auto;}
+    .r-public2 .public-account-link{border-color:#ded6cb; background:#fff; color:#063f72; box-shadow:0 3px 10px rgba(28,25,23,.06);}
+    .r-public2 .public-account-link:hover{color:#063f72; background:#f8fafc;}
     .r-public2 .lang-menu-btn{color:#6b6258; background:#fff; border-color:#ded6cb; box-shadow:0 3px 10px rgba(28,25,23,.06); backdrop-filter:none;}
     .r-public2 .lang-menu-list{background:#fff; border-color:#ded6cb; box-shadow:0 10px 28px rgba(28,25,23,.12); backdrop-filter:none;}
     .r-public2 .lang-option{color:#1c1917;}
@@ -1020,6 +1052,8 @@
       .r-public2 .r-card .badge{font-size:.62rem;}
       .r-public2 .app-card-icon{width:30px; height:30px; margin-bottom:10px; border-radius:9px; font-size:.8rem;}
       .r-public2 .public-brand img{width:112px;}
+      .public-header-actions{gap:6px;}
+      .public-account-link{max-width:112px; min-height:31px; padding:6px 8px; font-size:.7rem;}
       .r-public2 .guest-modal-panel{width:min(900px,calc(100vw - 24px)); max-height:calc(100dvh - 142px); margin:24px auto 0;}
       .r-public2 .public-meta-cover{height:136px;}
       .r-public2 .public-meta-body{padding:10px 14px 12px;}
@@ -1078,6 +1112,7 @@
             STATIONZERO
           {% endif %}
         </div>
+        <div class="public-header-actions">
         <div class="lang-switch">
           <div class="lang-menu">
             <button id="langMenuBtn" type="button" class="lang-menu-btn" aria-label="Idioma">
@@ -1091,6 +1126,12 @@
               <button type="button" class="lang-option" data-lang="es"><span class="fi fi-es"></span><span>Espa&ntilde;ol</span></button>
             </div>
           </div>
+        </div>
+        {% if portal_account %}
+          <a class="public-account-link" href="{{ url_for('booking_portal.my_bookings', lang='pt') }}">
+            {{ portal_account.get('nome') or portal_account.get('email') or 'Conta' }}
+          </a>
+        {% endif %}
         </div>
       </header>
       <div id="appReservationHero" class="public-meta app-reservation-hero is-active{% if page_data.alojamento_cover_url %} has-cover{% endif %}">
@@ -1312,7 +1353,7 @@
                   <button id="transferCancelBtn" type="button" class="btn btn-sm btn-outline-secondary" data-i18n="btn_cancel">Cancelar</button>
                 </div>
                 <a id="transferSendBtn" class="btn btn-sm btn-primary" target="_blank" rel="noopener">
-                  <i class="fa-brands fa-whatsapp me-1"></i><span data-i18n="transfer_send">Pedir por WhatsApp</span>
+                  <i class="fa-solid fa-paper-plane me-1"></i><span data-i18n="transfer_send">Enviar pedido</span>
                 </a>
               </div>
             </section>
@@ -1880,7 +1921,7 @@
           transfer_departure_hint: 'O transfer será do alojamento para o aeroporto ou estação.',
           transfer_departure_date: 'Data de partida',
           transfer_departure_time: 'Hora pretendida',
-          transfer_send: 'Pedir por WhatsApp',
+          transfer_send: 'Enviar pedido',
           transfer_required_error: 'Indica a hora de chegada.',
           transfer_departure_required_error: 'Indica a hora de partida.',
           card_rules: 'Regras Essenciais',
@@ -2083,7 +2124,7 @@
           transfer_departure_hint: 'The transfer will be from the accommodation to the airport or station.',
           transfer_departure_date: 'Departure date',
           transfer_departure_time: 'Requested time',
-          transfer_send: 'Request on WhatsApp',
+          transfer_send: 'Send request',
           transfer_required_error: 'Please enter your arrival time.',
           transfer_departure_required_error: 'Please enter your departure time.',
           card_rules: 'Essential Rules',
@@ -2286,7 +2327,7 @@
           transfer_departure_hint: 'Le transfert sera du logement à l’aéroport ou à la gare.',
           transfer_departure_date: 'Date de départ',
           transfer_departure_time: 'Heure souhaitée',
-          transfer_send: 'Demander sur WhatsApp',
+          transfer_send: 'Envoyer la demande',
           transfer_required_error: 'Indiquez votre heure d’arrivée.',
           transfer_departure_required_error: 'Indiquez votre heure de départ.',
           card_rules: 'R\u00e8gles essentielles',
@@ -2489,7 +2530,7 @@
           transfer_departure_hint: 'El traslado será desde el alojamiento al aeropuerto o estación.',
           transfer_departure_date: 'Fecha de salida',
           transfer_departure_time: 'Hora deseada',
-          transfer_send: 'Solicitar por WhatsApp',
+          transfer_send: 'Enviar solicitud',
           transfer_required_error: 'Indica la hora de llegada.',
           transfer_departure_required_error: 'Indica la hora de salida.',
           card_rules: 'Reglas esenciales',
@@ -3422,37 +3463,33 @@
         transferEls.message.classList.remove('d-none');
       }
 
-      function buildTransferWhatsAppUrl() {
+      async function submitTransferRequest() {
         const arrivalTime = String(transferEls.arrivalTime?.value || '').trim();
         if (!arrivalTime) {
           showTransferMessage(tGuest('transfer_required_error'));
           transferEls.arrivalTime?.focus();
-          return '';
+          return false;
         }
         const hasDeparture = !!transferEls.departureEnabled?.checked;
         const departureTime = String(transferEls.departureTime?.value || '').trim();
         if (hasDeparture && !departureTime) {
           showTransferMessage(tGuest('transfer_departure_required_error'));
           transferEls.departureTime?.focus();
-          return '';
+          return false;
         }
-        const originLabel = transferEls.origin?.selectedOptions?.[0]?.textContent?.trim() || '';
-        const lines = [
-          `*${tGuest('transfer_modal_title')}*`,
-          `${tGuest('label_reservation')}: ${PUBLIC_RESERVA || '-'}`,
-          `${tGuest('transfer_origin_label')}: ${originLabel}`,
-          `${tGuest('transfer_arrival_date')}: ${String(transferEls.arrivalDate?.value || '').trim() || '-'}`,
-          `${tGuest('transfer_arrival_time')}: ${arrivalTime}`
-        ];
-        if ((transferEls.origin?.value || 'airport') === 'airport' && String(transferEls.flight?.value || '').trim()) {
-          lines.push(`${tGuest('transfer_flight_label')}: ${String(transferEls.flight.value).trim()}`);
-        }
-        if (hasDeparture) {
-          lines.push(`${tGuest('transfer_departure_date')}: ${String(transferEls.departureDate?.value || '').trim() || '-'}`);
-          lines.push(`${tGuest('transfer_departure_time')}: ${departureTime}`);
-        }
-        lines.push(tGuest('transfer_price_note'));
-        return `https://wa.me/351934266823?text=${encodeURIComponent(lines.join('\n'))}`;
+        try {
+          transferEls.send.disabled = true;
+          const res = await fetch(`/api/r/${encodeURIComponent(PUBLIC_RESERVA)}/transfers`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({
+            origin: transferEls.origin?.value || 'airport', arrival_date: transferEls.arrivalDate?.value || '', arrival_time: arrivalTime,
+            flight: transferEls.flight?.value || '', departure_enabled: hasDeparture,
+            departure_date: transferEls.departureDate?.value || '', departure_time: departureTime
+          })});
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || data.error) throw new Error(data.error || 'Erro ao enviar o pedido.');
+          closeTransferModal();
+          return true;
+        } catch (error) { showTransferMessage(error.message || 'Erro ao enviar o pedido.'); return false; }
+        finally { transferEls.send.disabled = false; }
       }
 
       function stayPlanTimeToMinutes(value) {
@@ -3877,14 +3914,7 @@
       transferEls.backdrop?.addEventListener('click', closeTransferModal);
       transferEls.origin?.addEventListener('change', updateTransferForm);
       transferEls.departureEnabled?.addEventListener('change', updateTransferForm);
-      transferEls.send?.addEventListener('click', (event) => {
-        const url = buildTransferWhatsAppUrl();
-        if (!url) {
-          event.preventDefault();
-          return;
-        }
-        transferEls.send.href = url;
-      });
+      transferEls.send?.addEventListener('click', (event) => { event.preventDefault(); submitTransferRequest(); });
       billingEls.openBtn?.addEventListener('click', openBillingModal);
       billingEls.close?.addEventListener('click', closeBillingModal);
       billingEls.cancel?.addEventListener('click', closeBillingModal);

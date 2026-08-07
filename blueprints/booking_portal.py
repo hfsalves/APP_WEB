@@ -2190,11 +2190,17 @@ def guest_portal(token):
     booking = _confirmed_booking_summary(booking_id, lang=lang)
     if not booking or str(booking.get("CLIENTE_EMAIL") or "").strip().lower() != token_email:
         abort(404)
-    return _render_booking_template(
-        "booking_portal/guest_portal.html",
-        lang,
-        booking=booking,
-        page_title=_t(lang)["guest_portal"],
+    reservation_code = str(booking.get("reservation_code") or "").strip()
+    public_portal_view = current_app.view_functions.get("public_reserva_page")
+    if not reservation_code or not public_portal_view:
+        abort(404)
+
+    # Reutiliza a area completa de hospede ja usada em r_public2, mas a
+    # entrada continua protegida pelo link assinado deste portal.
+    return public_portal_view(
+        reservation_code,
+        force_public_v2=True,
+        portal_account=_portal_current_user(),
     )
 
 

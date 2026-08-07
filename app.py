@@ -502,6 +502,9 @@ def create_app():
     PORTOBREAK_DOMAINS = {'portobreak.com', 'www.portobreak.com'}
     PORTOBREAK_ALLOWED_PREFIXES = [
         '/reservas',
+        # Endpoints publicos usados pela area do hospede da reserva.
+        '/r2',
+        '/api/r',
         '/static',
         '/assets',
     ]
@@ -531,6 +534,10 @@ def create_app():
     def is_allowed_portobreak_path(path_value: str | None = None) -> bool:
         path = (path_value if path_value is not None else request.path or '/').strip() or '/'
         if path in PORTOBREAK_ALLOWED_EXACT_PATHS:
+            return True
+        # /api e bloqueado por defeito neste dominio. Estas rotas sao a
+        # excecao publica, limitada, usada pelo portal do hospede.
+        if _path_matches_prefix(path, '/api/r'):
             return True
         if any(_path_matches_prefix(path, prefix) for prefix in PORTOBREAK_BLOCKED_PREFIXES):
             return False
@@ -3149,7 +3156,7 @@ def create_app():
     @app.route('/r/<reserva_code>/')
     @app.route('/r2/<reserva_code>')
     @app.route('/r2/<reserva_code>/')
-    def public_reserva_page(reserva_code):
+    def public_reserva_page(reserva_code, *, force_public_v2=False, portal_account=None):
         public_code = (reserva_code or '').strip()
         if _public_reserva_code_invalid(public_code):
             return _public_reserva_unavailable_page('not_found')
@@ -3192,6 +3199,7 @@ def create_app():
         wifi_password = str(al_tag_values.get('wifi_password') or al_tag_values.get('wifi-password') or '').strip()
         parking_instructions = _public_parking_instructions_payload(row)
 
+        is_public_v2 = bool(force_public_v2 or request.path.startswith('/r2/'))
         page_data = {
             'public_code': canonical_reserva_code,
             'reserva': canonical_reserva_code,
@@ -3225,7 +3233,7 @@ def create_app():
             'shop_available': bool(shop_state.get('is_available')),
             'shop_message': shop_state.get('message') or '',
             'shop_deadline_label': shop_state.get('deadline_label') or '',
-            'shop_url': f"{'/r2' if request.path.startswith('/r2/') else '/r'}/{quote(canonical_reserva_code, safe='')}/shop",
+            'shop_url': f"{'/r2' if is_public_v2 else '/r'}/{quote(canonical_reserva_code, safe='')}/shop",
             'checkin_instructions_release_label': checkin_release.get('release_label') or '',
             'checkin_instructions_date_available': bool(checkin_release.get('available')),
             'wifi_ssid': wifi_ssid,
@@ -3339,8 +3347,13 @@ def create_app():
             })
 
         page_data['poi_groups'] = [poi_groups_map[k] for k in poi_groups_order]
-        template_name = 'r_public2.html' if request.path.startswith('/r2/') else 'r_public.html'
-        return render_template(template_name, invalid=False, page_data=page_data)
+        template_name = 'r_public2.html' if is_public_v2 else 'r_public.html'
+        return render_template(
+            template_name,
+            invalid=False,
+            page_data=page_data,
+            portal_account=portal_account,
+        )
 
     @app.route('/r/<reserva_code>/shop')
     @app.route('/r/<reserva_code>/shop/')
@@ -4251,6 +4264,82 @@ def create_app():
         })
         db.session.commit()
         return public_reserva_stay_plan_get(reserva_code)
+
+    @app.route('/api/r/<reserva_code>/transfers', methods=['POST'])
+    def public_reserva_transfer_create(reserva_code):
+        public_code = (reserva_code or '').strip()
+        row = _public_reserva_row(public_code)
+        if not row:
+            return jsonify({'error': 'Reserva inválida ou não encontrada'}), 404
+        if not db.session.execute(text("SELECT OBJECT_ID('dbo.TRANSFERS', 'U')")).scalar():
+            return jsonify({'error': 'A tabela de transfers ainda não está instalada.'}), 503
+
+        body = request.get_json(silent=True) or {}
+        origin = str(body.get('origin') or '').strip().lower()
+        if origin not in {'airport', 'campanha'}:
+            return jsonify({'error': 'Origem de chegada inválida.'}), 400
+        arrival_date = _parse_public_date(body.get('arrival_date'))
+        departure_enabled = bool(body.get('departure_enabled'))
+        departure_date = _parse_public_date(body.get('departure_date')) if departure_enabled else None
+        time_re = re.compile(r'^([01]\d|2[0-3]):[0-5]\d$')
+        arrival_time = str(body.get('arrival_time') or '').strip()
+        departure_time = str(body.get('departure_time') or '').strip() if departure_enabled else ''
+        if not arrival_date or not time_re.match(arrival_time):
+            return jsonify({'error': 'Indica uma data e hora de chegada válidas.'}), 400
+        if departure_enabled and (not departure_date or not time_re.match(departure_time)):
+            return jsonify({'error': 'Indica uma data e hora de partida válidas.'}), 400
+
+        stamp = _new_stamp_25()
+        values = {
+            'stamp': stamp, 'rsstamp': str(row.get('RSSTAMP') or '').strip(),
+            'reserva': str(row.get('RESERVA') or public_code).strip(),
+            'alojamento': str(row.get('ALOJAMENTO') or '').strip(), 'origin': origin,
+            'arrival_date': arrival_date, 'arrival_time': arrival_time,
+            'flight': str(body.get('flight') or '').strip()[:20] if origin == 'airport' else '',
+            'has_departure': 1 if departure_enabled else 0, 'departure_date': departure_date,
+            'departure_time': departure_time or None,
+        }
+        db.session.execute(text("""
+            INSERT INTO dbo.TRANSFERS
+            (TRANSFERSTAMP,RSSTAMP,RESERVA,ALOJAMENTO,ORIGEM,DATA_CHEGADA,HORA_CHEGADA,NUM_VOO,TEM_PARTIDA,DATA_PARTIDA,HORA_PARTIDA)
+            VALUES (:stamp,:rsstamp,:reserva,:alojamento,:origin,:arrival_date,:arrival_time,:flight,:has_departure,:departure_date,:departure_time)
+        """), values)
+        db.session.commit()
+
+        origin_label = 'Aeroporto do Porto' if origin == 'airport' else 'Estação de Campanhã'
+        lines = [
+            'NOVO PEDIDO DE TRANSFER', f"Reserva: {values['reserva']}", f"Alojamento: {values['alojamento']}",
+            f"Chegada: {origin_label} — {arrival_date.strftime('%d/%m/%Y')} às {arrival_time}",
+        ]
+        if values['flight']:
+            lines.append(f"Voo: {values['flight']}")
+        if departure_enabled:
+            lines.append(f"Partida: {departure_date.strftime('%d/%m/%Y')} às {departure_time}")
+        lines += ['Valor: 30 EUR por viagem, pago ao motorista.', f"Transfer: {stamp}"]
+        try:
+            from services.email_service import list_profiles, queue_email, send_email_now
+            smtp_profile = next((profile for profile in list_profiles(include_inactive=False)
+                                 if str(profile.get('SMTP_HOST') or '').strip().lower() == 'mail.guestspa.pt'), None)
+            if not smtp_profile:
+                raise RuntimeError('Falta configurar um perfil SMTP ativo para mail.guestspa.pt.')
+            email_id = queue_email(
+                profile_id=smtp_profile.get('ID'),
+                to=['hugo@guestspa.pt', 'pedro@guestspa.pt', 'helpdesk@guestspa.pt', 'iara@guestspa.pt'],
+                subject=f"Novo pedido de transfer — {values['reserva']}", body_text='\n'.join(lines),
+                context='TRANSFER', context_id=stamp, created_by='guest-portal'
+            )
+            result = send_email_now(email_id)
+            db.session.execute(text("UPDATE dbo.TRANSFERS SET EMAIL_ID=:email_id, ESTADO=:state, DTALT=GETDATE() WHERE TRANSFERSTAMP=:stamp"),
+                               {'email_id': email_id, 'state': 'ENVIADO' if result.get('ok') else 'EMAIL_ERRO', 'stamp': stamp})
+            db.session.commit()
+            if not result.get('ok'):
+                return jsonify({'error': 'O pedido foi gravado, mas não foi possível enviar o email.'}), 502
+        except Exception:
+            current_app.logger.exception('Erro ao enviar email do transfer %s', stamp)
+            db.session.execute(text("UPDATE dbo.TRANSFERS SET ESTADO='EMAIL_ERRO', DTALT=GETDATE() WHERE TRANSFERSTAMP=:stamp"), {'stamp': stamp})
+            db.session.commit()
+            return jsonify({'error': 'O pedido foi gravado, mas não foi possível enviar o email.'}), 502
+        return jsonify({'ok': True, 'transfer_stamp': stamp})
 
     @app.route('/api/r/<reserva_code>/billing', methods=['POST'])
     def public_reserva_billing_save(reserva_code):
