@@ -167,6 +167,14 @@
     return [date, time].filter(Boolean).join(' · ') || '—';
   }
 
+  function teamFlagMarkup(name) {
+    const normalizedName = String(name || '').trim() || 'Sem equipa';
+    const configuredTeam = state.teams.find(team => teamName(team) === normalizedName);
+    const configuredColor = String(configuredTeam?.COR || '').trim();
+    const color = window.CSS?.supports?.('color', configuredColor) ? configuredColor : '#6f8ca8';
+    return `<span class="cleaning-mobile-team-flag" style="--cleaning-team-color:${esc(color)}"><i></i>${esc(normalizedName)}</span>`;
+  }
+
   function cleaningDuration(row) {
     const configured = Number(row?.cleaning_minutes || 0);
     if (Number.isFinite(configured) && configured > 0) return configured;
@@ -271,7 +279,7 @@
     return `<button class="cleaning-mobile-card${pending ? ' is-pending' : ''}" type="button" data-row="${esc(row._key)}" data-cleaning="${esc(cleaning?._key || '')}">
       <span class="cleaning-mobile-card-head"><span class="cleaning-mobile-card-name">${esc(row.lodging)}</span><span class="cleaning-mobile-card-time">${esc(plannedTime)}</span></span>
       <span class="cleaning-mobile-window"><span class="cleaning-mobile-window-item">CHECK-OUT<strong>${esc(checkout)}</strong></span><span class="cleaning-mobile-window-item is-checkin">CHECK-IN<strong>${esc(checkin)}</strong></span></span>
-      <span class="cleaning-mobile-card-meta">${pending ? esc(`${rowLabel}${durationText}`) : esc(`${cleaning.team || 'Sem equipa'} · ${rowLabel}${durationText}`)}</span>
+      <span class="cleaning-mobile-card-meta">${pending ? esc(`${rowLabel}${durationText}`) : `${teamFlagMarkup(cleaning.team)}<span class="cleaning-mobile-card-detail">${esc(`${rowLabel}${durationText}`)}</span>`}</span>
       <span class="cleaning-mobile-card-action">${pending ? 'Atribuir limpeza →' : 'Editar limpeza →'}</span>
     </button>`;
   }
@@ -281,13 +289,11 @@
     const statusDate = shortDate(future ? status.date : row.last_clean_date);
     const team = future ? status.team : String(row.last_team || '').trim();
     const badge = future ? `Atribuída para ${statusDate}` : `Limpa em ${statusDate}`;
-    const detail = future
-      ? `${team || 'Equipa por indicar'} · limpeza planeada para outra data`
-      : `${team || 'Equipa por indicar'} · limpeza efetuada anteriormente`;
+    const detail = future ? 'Limpeza planeada para outra data' : 'Limpeza efetuada anteriormente';
     return `<article class="cleaning-mobile-card cleaning-mobile-card-status ${future ? 'is-future' : 'is-previous'}">
       <span class="cleaning-mobile-card-head"><span class="cleaning-mobile-card-name">${esc(row.lodging)}</span><span class="cleaning-mobile-card-time">${esc(badge)}</span></span>
       <span class="cleaning-mobile-window"><span class="cleaning-mobile-window-item">CHECK-OUT<strong>${esc(normalizeTime(row.checkout_time))}</strong></span><span class="cleaning-mobile-window-item is-checkin">CHECK-IN<strong>${esc(checkinDisplay(row))}</strong></span></span>
-      <span class="cleaning-mobile-card-meta">${esc(detail)}</span>
+      <span class="cleaning-mobile-card-meta">${teamFlagMarkup(team || 'Equipa por indicar')}<span class="cleaning-mobile-card-detail">${esc(detail)}</span></span>
     </article>`;
   }
 

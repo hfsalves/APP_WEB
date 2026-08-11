@@ -45,7 +45,10 @@
   .cleaning-mobile-window-item { border: 1px solid #284764; border-radius: .4rem; background: #0d1e31; color: #aebfd2; font-size: .57rem; padding: .35rem .45rem; }
   .cleaning-mobile-window-item strong { display: block; color: #eef6ff; font-size: .76rem; margin-top: .1rem; }
   .cleaning-mobile-window-item.is-checkin strong { color: #85c7ff; }
-  .cleaning-mobile-card-meta { display: block; color: #aec1d6; font-size: .71rem; margin-top: .55rem; }
+  .cleaning-mobile-card-meta { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; color: #aec1d6; font-size: .71rem; margin-top: .55rem; }
+  .cleaning-mobile-team-flag { display: inline-flex; align-items: center; gap: .3rem; max-width: 100%; border: 1px solid #47617b; border-color: color-mix(in srgb, var(--cleaning-team-color) 75%, #47617b); border-radius: 999px; background: #18314b; background: color-mix(in srgb, var(--cleaning-team-color) 20%, #10243a); color: #e9f3ff; font-size: .66rem; font-weight: 800; line-height: 1; padding: .3rem .48rem; }
+  .cleaning-mobile-team-flag i { flex: 0 0 auto; width: .45rem; height: .45rem; border-radius: 50%; background: var(--cleaning-team-color); }
+  .cleaning-mobile-card-detail::before { content: '·'; margin-right: .35rem; color: #67819b; }
   .cleaning-mobile-card-action { display: inline-block; margin-top: .58rem; color: #7fc7ff; font-size: .72rem; font-weight: 800; }
   .is-pending .cleaning-mobile-card-action { color: #ffc18f; }
   .cleaning-mobile-card-status { cursor: default; }
