@@ -22,6 +22,11 @@
       <a class="sz_button sz_button_ghost obra360-form-link" id="obra360FormLink" href="#" hidden>
         <i class="fa-solid fa-arrow-up-right-from-square"></i><span>Abrir ficha</span>
       </a>
+      {% if obra360_is_admin %}
+      <button type="button" class="sz_button sz_button_ghost" id="obra360AccessButton">
+        <i class="fa-solid fa-user-shield"></i><span>Acessos</span>
+      </button>
+      {% endif %}
     </section>
 
     <section class="obra360-header-panel sz_panel" id="obra360Header" aria-live="polite">
@@ -33,8 +38,8 @@
     <nav class="obra360-tabs" aria-label="Secções do dossiê">
       {% for code, label in [
         ('resumo', 'Resumo'), ('comercial', 'Comercial'), ('compras', 'Compras'),
-        ('blbc', 'BC/BL'), ('autos', 'Autos'), ('faturacao', 'Faturação'), ('recebimentos', 'Recebimentos'),
-        ('custos', 'Custos'), ('producao', 'Produção'), ('documentos', 'Documentos'), ('financeiro', 'Financeiro')
+        ('blbc', 'BC/BL'), ('autos', 'Autos'), ('faturacao', 'Faturação'), ('recebimentos', 'Tesouraria'),
+        ('custos', 'Custos'), ('producao', 'Produção'), ('documentos', 'Documentos')
       ] %}
       <button type="button" class="obra360-tab{% if code == 'resumo' %} is-active{% endif %}" data-tab="{{ code }}">{{ label }}</button>
       {% endfor %}
@@ -45,11 +50,30 @@
         <h2 class="sz_h3" id="obra360SectionTitle">Resumo da obra</h2>
         <p class="sz_text_muted" id="obra360SectionDescription">Os dados são carregados por secção, sem bloquear o dossiê.</p>
       </div>
+      <div class="obra360-summary-kpis" id="obra360SummaryKpis" hidden aria-live="polite"></div>
     </section>
 
     <section class="obra360-cards" id="obra360Cards" aria-live="polite"></section>
   </div>
 </div>
+
+{% if obra360_is_admin %}
+<div class="modal fade" id="obra360AccessModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable modal-dialog-centered">
+    <div class="modal-content sz_panel obra360-detail-modal">
+      <div class="modal-header sz_modal_header">
+        <div><h3 class="sz_h4 sz_modal_title">Acessos ao dossiê de obra</h3><div class="sz_text_muted">Define os separadores disponíveis para cada utilizador.</div></div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body sz_modal_body" id="obra360AccessBody"></div>
+      <div class="modal-footer sz_modal_footer">
+        <button type="button" class="sz_button sz_button_ghost" data-bs-dismiss="modal">Fechar</button>
+        <button type="button" class="sz_button sz_button_primary" id="obra360AccessSave"><i class="fa-solid fa-floppy-disk"></i><span>Gravar</span></button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
 
 <div class="modal fade" id="obra360DetailModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-xl modal-dialog-scrollable modal-dialog-centered">

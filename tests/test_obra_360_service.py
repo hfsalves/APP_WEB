@@ -28,7 +28,53 @@ class Obra360ServiceTests(unittest.TestCase):
     def test_only_supported_cards_are_marked_loading(self):
         self.assertEqual(hub._card_shell("orcamento")["state"], "loading")
         self.assertEqual(hub._card_shell("bl")["state"], "loading")
-        self.assertEqual(hub._card_shell("custos")["state"], "preparation")
+        self.assertEqual(hub._card_shell("custos")["state"], "loading")
+
+    def test_cost_card_uses_management_map_groups(self):
+        work = {"opcstamp": "OPC1", "codigo": "FR1787"}
+        costs = {
+            "total": 1250,
+            "record_count": 4,
+            "updated_at": "2026-08-10",
+            "groups": [{"family": "2", "title": "2 · Mão de obra", "value": 1250, "record_count": 4}],
+        }
+        with patch.object(hub, "get_work_cost_groups", return_value=costs):
+            with Flask(__name__).app_context():
+                card = hub.card_data(work, "custos", "/generic/opc_projetos_form/OPC1")
+        self.assertEqual(card["state"], "available")
+        self.assertEqual(card["value"], 1250)
+        self.assertEqual(card["groups"][0]["family"], "2")
+
+    def test_production_card_uses_planning_assignments(self):
+        work = {"opcstamp": "OPC1", "codigo": "HS2226", "origem": "HSOLS FRANCE"}
+        assignments = [{
+            "plan_stamp": "PLAN1",
+            "date": "2026-07-21",
+            "team": "IS ALSACE 02",
+            "status": "concluida",
+            "status_label": "Concluída",
+            "intervention_count": 2,
+            "updated_at": "2026-07-23",
+        }]
+        with patch.object(hub, "get_work_production_assignments", return_value=assignments):
+            with Flask(__name__).app_context():
+                card = hub.card_data(work, "producao", "/generic/opc_projetos_form/OPC1")
+        self.assertEqual(card["state"], "available")
+        self.assertEqual(card["record_count"], 1)
+        self.assertEqual(card["assignments"][0]["team"], "IS ALSACE 02")
+
+    def test_documents_card_lists_phc_opc_attachments(self):
+        work = {"opcstamp": "OPC1"}
+        attachments = {
+            "source": {"name": "HSOLS France"},
+            "attachments": [{"oristamp": "ANX1", "description": "Receção", "filename": "pvr.pdf"}],
+        }
+        with patch("services.opc_phc_info_service.get_opc_attachments", return_value=attachments):
+            with Flask(__name__).app_context():
+                card = hub.card_data(work, "anexos", "/generic/opc_projetos_form/OPC1")
+        self.assertEqual(card["state"], "available")
+        self.assertEqual(card["record_count"], 1)
+        self.assertEqual(card["rows"][0]["filename"], "pvr.pdf")
 
     def test_opc_permission_is_required_for_non_admin_users(self):
         query = Mock()
@@ -93,6 +139,22 @@ class Obra360ServiceTests(unittest.TestCase):
         self.assertEqual(card["record_count"], 1)
         self.assertEqual(card["value"], 100)
         self.assertEqual(card["rows"][0]["oristamp"], "BL1")
+
+    def test_customer_invoice_card_uses_actual_ft_documents(self):
+        work = {"opcstamp": "OPC1"}
+        phc_info = {
+            "fonte": {"feid": 12, "nome": "HSOLS France"},
+            "faturas_cliente": [
+                {"oristamp": "FT1", "total": 120},
+                {"oristamp": "FT2", "total": -20},
+            ],
+        }
+        with patch.object(hub, "_cached_phc_info", return_value=phc_info):
+            with Flask(__name__).app_context():
+                card = hub.card_data(work, "faturas_cliente", "/generic/opc_projetos_form/OPC1")
+        self.assertEqual(card["record_count"], 2)
+        self.assertEqual(card["value"], 100)
+        self.assertEqual(card["rows"][0]["oristamp"], "FT1")
 
 
 if __name__ == "__main__":

@@ -249,6 +249,192 @@ def _supplier_logistics_documents(cursor, processo: str) -> list[dict]:
     return sorted(rows, key=lambda item: (item.get("data") or "", item.get("descricao") or ""), reverse=True)
 
 
+def _subcontractor_auto_series(cursor) -> list[int]:
+    """Resolve the supplier/subcontractor work-progress series from TS."""
+    rows = _fetch_raw_rows(cursor, "SELECT NDOS, NMDOS FROM dbo.TS")
+    series: list[int] = []
+    for row in rows:
+        name = _norm(row.get("NMDOS") or "")
+        try:
+            ndos = int(row.get("NDOS") or 0)
+        except (TypeError, ValueError):
+            continue
+        if ndos and "SITUATIONTRAVAUXST" in name:
+            series.append(ndos)
+    return series
+
+
+def _subcontractor_auto_documents(cursor, processo: str) -> list[dict]:
+    """Return the PHC Situation Travaux ST dossiers for the selected work."""
+    series = _subcontractor_auto_series(cursor)
+    if not series:
+        return []
+    placeholders = ", ".join("?" for _ in series)
+    documents = _fetch_raw_rows(cursor, f"""
+        SELECT B.BOSTAMP, B.NDOS, B.NMDOS, B.OBRANO, B.DATAOBRA, B.NO, B.NOME,
+               B.CCUSTO, B.MOEDA, B.ETOTALDEB, B.FECHADA, B2.PROCESSO
+        FROM dbo.BO B
+        INNER JOIN dbo.BO2 B2 ON B2.BO2STAMP = B.BOSTAMP
+        WHERE B.NDOS IN ({placeholders})
+          AND LTRIM(RTRIM(ISNULL(B2.PROCESSO, ''))) = ?
+        ORDER BY B.DATAOBRA DESC, B.OBRANO DESC
+    """, tuple(series) + (processo,))
+    return [{
+        "oristamp": _as_text(document.get("BOSTAMP")),
+        "descricao": f"{_as_text(document.get('NMDOS'))} nº {_as_text(document.get('OBRANO'))}",
+        "data": _date_text(document.get("DATAOBRA")),
+        "processo": _as_text(document.get("PROCESSO")),
+        "fornecedor": _as_text(document.get("NOME")),
+        "ccusto": _as_text(document.get("CCUSTO")),
+        "currency": _as_text(document.get("MOEDA")) or "EUR",
+        "total": _as_float(document.get("ETOTALDEB")),
+        "fechada": bool(document.get("FECHADA")),
+    } for document in documents]
+
+
+def _receipt_documents(cursor, processo: str) -> list[dict]:
+    """Return receipts whose RL/CC source movement belongs to this work.
+
+    A receipt can settle several invoices.  The Hub therefore totals only the
+    RL rows whose CC.FTSTAMP leads to a customer invoice (FT/FT2) of the
+    selected process, instead of trusting the receipt header total.
+    """
+    rows = _fetch_raw_rows(cursor, """
+        SELECT
+            RE.RESTAMP, RE.NMDOC, RE.RNO, RE.RDATA, RE.NO, RE.NOME, RE.MOEDA,
+            RE.ANULADO, FT2.PROCESSO,
+            SUM(ISNULL(RL.EREC, 0)) AS VALOR_RECEBIDO,
+            COUNT(*) AS LINHAS
+        FROM dbo.RE RE
+        INNER JOIN dbo.RL RL ON RL.RESTAMP = RE.RESTAMP
+        INNER JOIN dbo.CC CC ON CC.CCSTAMP = RL.CCSTAMP
+        INNER JOIN dbo.FT FT ON FT.FTSTAMP = CC.FTSTAMP
+        INNER JOIN dbo.FT2 FT2 ON FT2.FT2STAMP = FT.FTSTAMP
+        WHERE LTRIM(RTRIM(ISNULL(FT2.PROCESSO, ''))) = ?
+        GROUP BY RE.RESTAMP, RE.NMDOC, RE.RNO, RE.RDATA, RE.NO, RE.NOME, RE.MOEDA,
+                 RE.ANULADO, FT2.PROCESSO
+        ORDER BY RE.RDATA DESC, RE.RNO DESC, RE.RESTAMP DESC
+    """, (processo,))
+    return [{
+        "oristamp": _as_text(row.get("RESTAMP")),
+        "descricao": f"{_as_text(row.get('NMDOC')) or 'Recibo'} nº {_as_text(row.get('RNO'))}",
+        "data": _date_text(row.get("RDATA")),
+        "processo": _as_text(row.get("PROCESSO")),
+        "cliente": _as_text(row.get("NOME")),
+        "currency": _as_text(row.get("MOEDA")) or "EUR",
+        "total": _as_float(row.get("VALOR_RECEBIDO")),
+        "record_count": int(row.get("LINHAS") or 0),
+        "anulado": bool(row.get("ANULADO")),
+        "estado": "Anulado" if bool(row.get("ANULADO")) else "Recebido",
+    } for row in rows]
+
+
+def _payment_documents(cursor, processo: str) -> list[dict]:
+    """Return payments whose PL/FC source purchase belongs to this work."""
+    rows = _fetch_raw_rows(cursor, """
+        SELECT
+            PO.POSTAMP, PO.RNO, PO.RDATA, PO.NO, PO.NOME, PO.MOEDA,
+            SUM(ISNULL(PL.EREC, 0)) AS VALOR_PAGO,
+            COUNT(*) AS LINHAS
+        FROM dbo.PO PO
+        INNER JOIN dbo.PL PL ON PL.POSTAMP = PO.POSTAMP
+        INNER JOIN dbo.FC FC ON FC.FCSTAMP = PL.FCSTAMP
+        INNER JOIN dbo.FO FO ON FO.FOSTAMP = FC.FOSTAMP
+        WHERE LTRIM(RTRIM(ISNULL(FO.PROCESSO, ''))) = ?
+        GROUP BY PO.POSTAMP, PO.RNO, PO.RDATA, PO.NO, PO.NOME, PO.MOEDA
+        ORDER BY PO.RDATA DESC, PO.RNO DESC, PO.POSTAMP DESC
+    """, (processo,))
+    return [{
+        "oristamp": _as_text(row.get("POSTAMP")),
+        "descricao": f"Pagamento nº {_as_text(row.get('RNO'))}",
+        "data": _date_text(row.get("RDATA")),
+        "processo": processo,
+        "fornecedor": _as_text(row.get("NOME")),
+        "currency": _as_text(row.get("MOEDA")) or "EUR",
+        "total": _as_float(row.get("VALOR_PAGO")),
+        "record_count": int(row.get("LINHAS") or 0),
+        "estado": "Pago",
+    } for row in rows]
+
+
+def _customer_invoice_documents(cursor, processo: str) -> list[dict]:
+    """Return actual customer invoices for the process, one row per FT document."""
+    ftt_join = """
+        LEFT JOIN (
+            SELECT FTSTAMP, SUM(ISNULL(EVALOR, 0)) AS IVA_TOTAL
+            FROM dbo.FTT
+            GROUP BY FTSTAMP
+        ) FTT ON FTT.FTSTAMP = FT.FTSTAMP
+    """ if _has_table(cursor, "FTT") else ""
+    iva_expr = "ISNULL(FTT.IVA_TOTAL, 0)" if ftt_join else "CAST(0 AS decimal(19,2))"
+    rows = _fetch_raw_rows(cursor, f"""
+        SELECT
+            FT.FTSTAMP, FT.NDOC, FT.NMDOC, FT.FNO, FT.FDATA, FT.NO, FT.NOME,
+            FT.MOEDA, FT.ETOTAL, FT2.PROCESSO, {iva_expr} AS IVA_TOTAL
+        FROM dbo.FT FT
+        INNER JOIN dbo.FT2 FT2 ON FT2.FT2STAMP = FT.FTSTAMP
+        {ftt_join}
+        WHERE FT.NDOC IN (1, 4)
+          AND LTRIM(RTRIM(ISNULL(FT2.PROCESSO, ''))) = ?
+        ORDER BY FT.FDATA DESC, FT.FNO DESC, FT.FTSTAMP DESC
+    """, (processo,))
+    return [{
+        "oristamp": _as_text(row.get("FTSTAMP")),
+        "descricao": f"{_as_text(row.get('NMDOC')) or 'Fatura'} nº {_as_text(row.get('FNO'))}",
+        "data": _date_text(row.get("FDATA")),
+        "processo": _as_text(row.get("PROCESSO")),
+        "cliente": _as_text(row.get("NOME")),
+        "currency": _as_text(row.get("MOEDA")) or "EUR",
+        "total": _as_float(row.get("ETOTAL")),
+        "iva": _as_float(row.get("IVA_TOTAL")),
+        "faturado": True,
+    } for row in rows]
+
+
+def _supplier_purchase_documents(cursor, processo: str) -> list[dict]:
+    """Return supplier purchase documents (FO) scoped to the work process.
+
+    ``FO`` is the supplier-purchase header in PHC.  ``FO2`` contributes the
+    document state when that field exists and ``FOT`` supplies the VAT total;
+    the latter is aggregated first so it cannot duplicate a header with
+    multiple VAT rates.
+    """
+    fo2_facturada = "ISNULL(FO2.FACTURADA, 0)" if _has_table(cursor, "FO2") and _has_column(cursor, "FO2", "FACTURADA") else "CAST(0 AS bit)"
+    fot_join = """
+        LEFT JOIN (
+            SELECT FOSTAMP, SUM(ISNULL(EVALOR, 0)) AS IVA_TOTAL
+            FROM dbo.FOT
+            GROUP BY FOSTAMP
+        ) FOT ON FOT.FOSTAMP = FO.FOSTAMP
+    """ if _has_table(cursor, "FOT") else ""
+    iva_expr = "ISNULL(FOT.IVA_TOTAL, 0)" if fot_join else "CAST(0 AS decimal(19,2))"
+    fo2_join = "LEFT JOIN dbo.FO2 FO2 ON FO2.FO2STAMP = FO.FOSTAMP" if _has_table(cursor, "FO2") else ""
+    rows = _fetch_raw_rows(cursor, f"""
+        SELECT
+            FO.FOSTAMP, FO.DOCNOME, FO.DOCCODE, FO.DATA, FO.PDATA, FO.NO, FO.NOME,
+            FO.CCUSTO, FO.PROCESSO, FO.MOEDA, FO.ETOTAL, FO.ETTILIQ,
+            {iva_expr} AS IVA_TOTAL, {fo2_facturada} AS FACTURADA
+        FROM dbo.FO FO
+        {fo2_join}
+        {fot_join}
+        WHERE LTRIM(RTRIM(ISNULL(FO.PROCESSO, ''))) = ?
+        ORDER BY FO.DATA DESC, FO.FOSTAMP DESC
+    """, (processo,))
+    return [{
+        "oristamp": _as_text(row.get("FOSTAMP")),
+        "descricao": _as_text(row.get("DOCNOME")) or "Compra de fornecedor",
+        "data": _date_text(row.get("DATA")),
+        "processo": _as_text(row.get("PROCESSO")),
+        "fornecedor": _as_text(row.get("NOME")),
+        "ccusto": _as_text(row.get("CCUSTO")),
+        "currency": _as_text(row.get("MOEDA")) or "EUR",
+        "total": _as_float(row.get("ETOTAL")),
+        "base": _as_float(row.get("ETTILIQ")),
+        "iva": _as_float(row.get("IVA_TOTAL")),
+        "faturado": bool(row.get("FACTURADA")),
+    } for row in rows]
+
+
 def _has_column(cursor, table_name: str, column_name: str) -> bool:
     cursor.execute("""
         SELECT 1
@@ -758,6 +944,11 @@ def get_opc_phc_info(record_stamp: str) -> dict:
         autos.extend(_fetch_all(cursor, _with_optional_uret(FT_STANDALONE_SQL, has_uret_table, has_uret_iva), (phc_processo,)))
         autos.sort(key=lambda item: (item.get("ordem") or 0, item.get("descricao") or "", item.get("iva_percentagem") or 0))
         logistics = _supplier_logistics_documents(cursor, phc_processo)
+        autos_subempreiteiro = _subcontractor_auto_documents(cursor, phc_processo)
+        compras = _supplier_purchase_documents(cursor, phc_processo)
+        recebimentos = _receipt_documents(cursor, phc_processo)
+        pagamentos = _payment_documents(cursor, phc_processo)
+        faturas_cliente = _customer_invoice_documents(cursor, phc_processo)
         total_faturado = _fetch_scalar(cursor, FATURADO_TOTAL_SQL, (phc_processo,))
         faturado_por_auto = _fetch_billed_by_auto(cursor, phc_processo)
 
@@ -803,11 +994,78 @@ def get_opc_phc_info(record_stamp: str) -> dict:
         },
         "orcamentos": orcamentos,
         "autos": autos,
+        "autos_subempreiteiro": autos_subempreiteiro,
         "logistics": logistics,
+        "compras": compras,
+        "recebimentos": recebimentos,
+        "pagamentos": pagamentos,
+        "faturas_cliente": faturas_cliente,
         # FT/FT2 e a fonte contabilistica dos documentos efetivamente emitidos.
         # Um documento pode estar ligado a varias linhas/autos, pelo que o resumo
         # nao deve resultar da soma dessas ligacoes.
         "autos_total_faturado": total_faturado,
+    }
+
+
+def get_opc_attachments(record_stamp: str) -> dict:
+    """List the PHC attachments explicitly associated with the work OPC record."""
+    work = db.session.execute(text("""
+        SELECT TOP 1
+            LTRIM(RTRIM(ISNULL(PROCESSO, ''))) AS PROCESSO,
+            LTRIM(RTRIM(ISNULL(U_ORIGEM, ''))) AS U_ORIGEM
+        FROM dbo.OPC
+        WHERE LTRIM(RTRIM(ISNULL(OPCSTAMP, ''))) = :stamp
+    """), {"stamp": _as_text(record_stamp)}).mappings().first()
+    if not work:
+        raise RuntimeError("Obra OPC não encontrada.")
+
+    source = _resolve_phc_source(work.get("U_ORIGEM") or "")
+    database_name = _as_text(source.get("PHC_DB"))
+    process = _phc_process_code(work.get("PROCESSO") or "", work.get("U_ORIGEM") or "", database_name)
+    with pyodbc.connect(_phc_conn_str(database_name, source.get("PHC_SERVER") or ""), timeout=15) as conn:
+        cursor = conn.cursor()
+        rows = _fetch_raw_rows(cursor, """
+            SELECT
+                LTRIM(RTRIM(CONVERT(varchar(25), A.ANEXOSSTAMP))) AS ANEXOSSTAMP,
+                LTRIM(RTRIM(CONVERT(varchar(25), A.RECSTAMP))) AS RECSTAMP,
+                CONVERT(varchar(500), A.DESCRICAO) AS DESCRICAO,
+                CONVERT(varchar(200), A.FNAME) AS FNAME,
+                CONVERT(varchar(30), A.FEXT) AS FEXT,
+                ISNULL(A.FLEN, 0) AS FLEN,
+                CONVERT(varchar(2048), A.FULLNAME) AS FULLNAME,
+                COALESCE(A.USRDATA, A.AUSRDATA, A.EUSRDATA) AS DATA_ANEXO
+            FROM dbo.ANEXOS A
+            INNER JOIN dbo.OPC O
+                ON LTRIM(RTRIM(CONVERT(varchar(25), O.OPCSTAMP))) = LTRIM(RTRIM(CONVERT(varchar(25), A.RECSTAMP)))
+            WHERE UPPER(LTRIM(RTRIM(CONVERT(varchar(80), A.ORITABLE)))) = 'OPC'
+              AND LTRIM(RTRIM(ISNULL(O.PROCESSO, ''))) = ?
+              AND ISNULL(A.INVISIVEL, 0) = 0
+              AND ISNULL(A.PRIVADO, 0) = 0
+            ORDER BY COALESCE(A.USRDATA, A.AUSRDATA, A.EUSRDATA) DESC, A.ANEXOSSTAMP DESC
+        """, (process,))
+    attachments = []
+    for row in rows:
+        filename = _as_text(row.get("FNAME"))
+        extension = _as_text(row.get("FEXT"))
+        display_name = _as_text(row.get("DESCRICAO")) or filename
+        if extension and filename and not filename.lower().endswith(f".{extension.lower()}"):
+            filename = f"{filename}.{extension}"
+        attachments.append({
+            "oristamp": _as_text(row.get("ANEXOSSTAMP")),
+            "description": display_name or "Anexo PHC",
+            "filename": filename,
+            "extension": extension,
+            "size": _as_float(row.get("FLEN")),
+            "date": _date_text(row.get("DATA_ANEXO")),
+            "path": _as_text(row.get("FULLNAME")),
+        })
+    return {
+        "attachments": attachments,
+        "source": {
+            "feid": int(source.get("FEID") or 0),
+            "name": _as_text(source.get("NOME")),
+            "database": database_name,
+        },
     }
 
 
@@ -906,6 +1164,80 @@ def get_opc_auto_lines(record_stamp: str, auto_stamp: str) -> dict:
     }
 
 
+def get_opc_subcontractor_auto_lines(record_stamp: str, auto_stamp: str) -> dict:
+    """Return BI lines for one Situation Travaux ST, scoped to its OPC work."""
+    clean_stamp = _as_text(auto_stamp)
+    if not clean_stamp:
+        raise RuntimeError("Auto de subempreitada não indicado.")
+    work = db.session.execute(text("""
+        SELECT TOP 1
+            LTRIM(RTRIM(ISNULL(PROCESSO, ''))) AS PROCESSO,
+            LTRIM(RTRIM(ISNULL(U_ORIGEM, ''))) AS U_ORIGEM
+        FROM dbo.OPC
+        WHERE LTRIM(RTRIM(ISNULL(OPCSTAMP, ''))) = :stamp
+    """), {"stamp": _as_text(record_stamp)}).mappings().first()
+    if not work:
+        raise RuntimeError("Obra OPC não encontrada.")
+
+    source = _resolve_phc_source(work.get("U_ORIGEM") or "")
+    database_name = _as_text(source.get("PHC_DB"))
+    process = _phc_process_code(work.get("PROCESSO") or "", work.get("U_ORIGEM") or "", database_name)
+    with pyodbc.connect(_phc_conn_str(database_name, source.get("PHC_SERVER") or ""), timeout=15) as conn:
+        cursor = conn.cursor()
+        series = _subcontractor_auto_series(cursor)
+        if not series:
+            raise RuntimeError("A série Situation Travaux ST não está configurada nesta empresa.")
+        placeholders = ", ".join("?" for _ in series)
+        header_rows = _fetch_raw_rows(cursor, f"""
+            SELECT TOP 1 B.BOSTAMP, B.NMDOS, B.OBRANO, B.DATAOBRA, B.MOEDA, B.ETOTALDEB, B.NOME
+            FROM dbo.BO B
+            INNER JOIN dbo.BO2 B2 ON B2.BO2STAMP = B.BOSTAMP
+            WHERE B.BOSTAMP = ?
+              AND B.NDOS IN ({placeholders})
+              AND LTRIM(RTRIM(ISNULL(B2.PROCESSO, ''))) = ?
+        """, (clean_stamp,) + tuple(series) + (process,))
+        if not header_rows:
+            raise RuntimeError("Auto de subempreitada não encontrado nesta obra.")
+        bi_columns = {
+            str(column).strip().upper()
+            for column in _fetch_raw_rows(cursor, "SELECT name FROM sys.columns WHERE object_id = OBJECT_ID('dbo.BI')")
+        }
+        description_sql = "BI.DGERAL" if "DGERAL" in bi_columns else "BI.DESIGN"
+        line_rows = _fetch_raw_rows(cursor, f"""
+            SELECT BI.BISTAMP, BI.LORDEM, BI.REF, BI.DESIGN, {description_sql} AS DGERAL, BI.UNIDADE,
+                   BI.QTT, BI.EDEBITO, BI.DESCONTO, BI.ETTDEB, BI.IVA, BI.TABIVA
+            FROM dbo.BI BI
+            WHERE BI.BOSTAMP = ?
+            ORDER BY BI.LORDEM, BI.BISTAMP
+        """, (clean_stamp,))
+
+    header = header_rows[0]
+    return {
+        "auto": {
+            "stamp": clean_stamp,
+            "description": f"{_as_text(header.get('NMDOS'))} nº {_as_text(header.get('OBRANO'))}",
+            "date": _date_text(header.get("DATAOBRA")),
+            "supplier": _as_text(header.get("NOME")),
+            "currency": _as_text(header.get("MOEDA")) or "EUR",
+            "total": _as_float(header.get("ETOTALDEB")),
+        },
+        "lines": [{
+            "stamp": _as_text(row.get("BISTAMP")),
+            "order": _as_float(row.get("LORDEM")),
+            "reference": _as_text(row.get("REF")),
+            "designation": _as_text(row.get("DESIGN") or row.get("DGERAL")),
+            "description": _as_text(row.get("DGERAL")),
+            "unit": _as_text(row.get("UNIDADE")),
+            "quantity": _as_float(row.get("QTT")),
+            "unit_price": _as_float(row.get("EDEBITO")),
+            "discount": _as_float(row.get("DESCONTO")),
+            "total": _as_float(row.get("ETTDEB")),
+            "vat_rate": _as_float(row.get("IVA")),
+            "vat_table": _as_float(row.get("TABIVA")),
+        } for row in line_rows],
+    }
+
+
 def get_opc_logistics_lines(record_stamp: str, document_stamp: str, kind: str) -> dict:
     """Return supplier BL/BC lines, only after scoping the PHC document to its OPC work."""
     clean_stamp = _as_text(document_stamp)
@@ -979,5 +1311,283 @@ def get_opc_logistics_lines(record_stamp: str, document_stamp: str, kind: str) -
             "total": _as_float(row.get("ETTDEB")),
             "vat_rate": _as_float(row.get("IVA")),
             "vat_table": _as_float(row.get("TABIVA")),
+        } for row in line_rows],
+    }
+
+
+def get_opc_purchase_lines(record_stamp: str, purchase_stamp: str) -> dict:
+    """Return FN lines for one supplier purchase, scoped to the selected work."""
+    clean_stamp = _as_text(purchase_stamp)
+    if not clean_stamp:
+        raise RuntimeError("Compra não indicada.")
+
+    work = db.session.execute(text("""
+        SELECT TOP 1
+            LTRIM(RTRIM(ISNULL(PROCESSO, ''))) AS PROCESSO,
+            LTRIM(RTRIM(ISNULL(U_ORIGEM, ''))) AS U_ORIGEM
+        FROM dbo.OPC
+        WHERE LTRIM(RTRIM(ISNULL(OPCSTAMP, ''))) = :stamp
+    """), {"stamp": _as_text(record_stamp)}).mappings().first()
+    if not work:
+        raise RuntimeError("Obra OPC não encontrada.")
+
+    source = _resolve_phc_source(work.get("U_ORIGEM") or "")
+    database_name = _as_text(source.get("PHC_DB"))
+    process = _phc_process_code(work.get("PROCESSO") or "", work.get("U_ORIGEM") or "", database_name)
+    with pyodbc.connect(_phc_conn_str(database_name, source.get("PHC_SERVER") or ""), timeout=15) as conn:
+        cursor = conn.cursor()
+        header_rows = _fetch_raw_rows(cursor, """
+            SELECT TOP 1 FO.FOSTAMP, FO.DOCNOME, FO.DATA, FO.MOEDA, FO.ETOTAL, FO.NOME
+            FROM dbo.FO FO
+            WHERE FO.FOSTAMP = ?
+              AND LTRIM(RTRIM(ISNULL(FO.PROCESSO, ''))) = ?
+        """, (clean_stamp, process))
+        if not header_rows:
+            raise RuntimeError("Compra não encontrada nesta obra.")
+        fn_columns = {
+            str(column).strip().upper()
+            for column in _fetch_raw_rows(cursor, "SELECT name FROM sys.columns WHERE object_id = OBJECT_ID('dbo.FN')")
+        }
+        total_sql = "FN.ETILIQUIDO" if "ETILIQUIDO" in fn_columns else "FN.TILIQUIDO"
+        unit_price_sql = "FN.EPV" if "EPV" in fn_columns else "FN.PV"
+        discount_sql = "FN.DESCONTO" if "DESCONTO" in fn_columns else "CAST(0 AS decimal(19,2))"
+        ccusto_sql = "FN.FNCCUSTO" if "FNCCUSTO" in fn_columns else "CAST('' AS varchar(50))"
+        line_rows = _fetch_raw_rows(cursor, f"""
+            SELECT FN.FNSTAMP, FN.LORDEM, FN.REF, FN.DESIGN, FN.UNIDADE, FN.QTT,
+                   {unit_price_sql} AS PRECO_UNITARIO, {discount_sql} AS DESCONTO,
+                   {total_sql} AS TOTAL_LINHA, FN.IVA, FN.TABIVA, {ccusto_sql} AS CCUSTO
+            FROM dbo.FN FN
+            WHERE FN.FOSTAMP = ?
+            ORDER BY FN.LORDEM, FN.FNSTAMP
+        """, (clean_stamp,))
+
+    header = header_rows[0]
+    return {
+        "purchase": {
+            "stamp": clean_stamp,
+            "description": _as_text(header.get("DOCNOME")) or "Compra de fornecedor",
+            "date": _date_text(header.get("DATA")),
+            "supplier": _as_text(header.get("NOME")),
+            "currency": _as_text(header.get("MOEDA")) or "EUR",
+            "total": _as_float(header.get("ETOTAL")),
+        },
+        "lines": [{
+            "stamp": _as_text(row.get("FNSTAMP")),
+            "order": _as_float(row.get("LORDEM")),
+            "reference": _as_text(row.get("REF")),
+            "designation": _as_text(row.get("DESIGN")),
+            "unit": _as_text(row.get("UNIDADE")),
+            "quantity": _as_float(row.get("QTT")),
+            "unit_price": _as_float(row.get("PRECO_UNITARIO")),
+            "discount": _as_float(row.get("DESCONTO")),
+            "total": _as_float(row.get("TOTAL_LINHA")),
+            "vat_rate": _as_float(row.get("IVA")),
+            "vat_table": _as_float(row.get("TABIVA")),
+            "ccusto": _as_text(row.get("CCUSTO")),
+        } for row in line_rows],
+    }
+
+
+def get_opc_receipt_lines(record_stamp: str, receipt_stamp: str) -> dict:
+    """Return the invoices of a receipt that belong to the selected work."""
+    clean_stamp = _as_text(receipt_stamp)
+    if not clean_stamp:
+        raise RuntimeError("Recibo não indicado.")
+    work = db.session.execute(text("""
+        SELECT TOP 1
+            LTRIM(RTRIM(ISNULL(PROCESSO, ''))) AS PROCESSO,
+            LTRIM(RTRIM(ISNULL(U_ORIGEM, ''))) AS U_ORIGEM
+        FROM dbo.OPC
+        WHERE LTRIM(RTRIM(ISNULL(OPCSTAMP, ''))) = :stamp
+    """), {"stamp": _as_text(record_stamp)}).mappings().first()
+    if not work:
+        raise RuntimeError("Obra OPC não encontrada.")
+
+    source = _resolve_phc_source(work.get("U_ORIGEM") or "")
+    database_name = _as_text(source.get("PHC_DB"))
+    process = _phc_process_code(work.get("PROCESSO") or "", work.get("U_ORIGEM") or "", database_name)
+    with pyodbc.connect(_phc_conn_str(database_name, source.get("PHC_SERVER") or ""), timeout=15) as conn:
+        cursor = conn.cursor()
+        header_rows = _fetch_raw_rows(cursor, """
+            SELECT TOP 1 RE.RESTAMP, RE.NMDOC, RE.RNO, RE.RDATA, RE.MOEDA, RE.NOME, RE.ETOTAL, RE.ANULADO
+            FROM dbo.RE RE
+            INNER JOIN dbo.RL RL ON RL.RESTAMP = RE.RESTAMP
+            INNER JOIN dbo.CC CC ON CC.CCSTAMP = RL.CCSTAMP
+            INNER JOIN dbo.FT FT ON FT.FTSTAMP = CC.FTSTAMP
+            INNER JOIN dbo.FT2 FT2 ON FT2.FT2STAMP = FT.FTSTAMP
+            WHERE RE.RESTAMP = ?
+              AND LTRIM(RTRIM(ISNULL(FT2.PROCESSO, ''))) = ?
+        """, (clean_stamp, process))
+        if not header_rows:
+            raise RuntimeError("Recibo não encontrado nesta obra.")
+        line_rows = _fetch_raw_rows(cursor, """
+            SELECT RL.RLSTAMP, RL.LORDEM, RL.EREC, RL.EVAL, RL.DATALC, RL.DATAVEN,
+                   CC.CCSTAMP, CC.FTSTAMP,
+                   FT.NMDOC, FT.FNO, FT.FDATA, FT.ETOTAL, FT.NOME, FT2.PROCESSO
+            FROM dbo.RL RL
+            INNER JOIN dbo.CC CC ON CC.CCSTAMP = RL.CCSTAMP
+            INNER JOIN dbo.FT FT ON FT.FTSTAMP = CC.FTSTAMP
+            INNER JOIN dbo.FT2 FT2 ON FT2.FT2STAMP = FT.FTSTAMP
+            WHERE RL.RESTAMP = ?
+              AND LTRIM(RTRIM(ISNULL(FT2.PROCESSO, ''))) = ?
+            ORDER BY RL.LORDEM, RL.RLSTAMP
+        """, (clean_stamp, process))
+
+    header = header_rows[0]
+    return {
+        "receipt": {
+            "stamp": clean_stamp,
+            "description": f"{_as_text(header.get('NMDOC')) or 'Recibo'} nº {_as_text(header.get('RNO'))}",
+            "date": _date_text(header.get("RDATA")),
+            "client": _as_text(header.get("NOME")),
+            "currency": _as_text(header.get("MOEDA")) or "EUR",
+            "total": _as_float(header.get("ETOTAL")),
+            "anulado": bool(header.get("ANULADO")),
+        },
+        "lines": [{
+            "stamp": _as_text(row.get("RLSTAMP")),
+            "order": _as_float(row.get("LORDEM")),
+            "invoice_stamp": _as_text(row.get("FTSTAMP")),
+            "document": f"{_as_text(row.get('NMDOC')) or 'Fatura'} nº {_as_text(row.get('FNO'))}",
+            "date": _date_text(row.get("FDATA")),
+            "due_date": _date_text(row.get("DATAVEN")),
+            "client": _as_text(row.get("NOME")),
+            "invoice_total": _as_float(row.get("ETOTAL")),
+            "received": _as_float(row.get("EREC")),
+        } for row in line_rows],
+    }
+
+
+def get_opc_payment_lines(record_stamp: str, payment_stamp: str) -> dict:
+    """Return the supplier purchases of a payment belonging to the work."""
+    clean_stamp = _as_text(payment_stamp)
+    if not clean_stamp:
+        raise RuntimeError("Pagamento não indicado.")
+    work = db.session.execute(text("""
+        SELECT TOP 1
+            LTRIM(RTRIM(ISNULL(PROCESSO, ''))) AS PROCESSO,
+            LTRIM(RTRIM(ISNULL(U_ORIGEM, ''))) AS U_ORIGEM
+        FROM dbo.OPC
+        WHERE LTRIM(RTRIM(ISNULL(OPCSTAMP, ''))) = :stamp
+    """), {"stamp": _as_text(record_stamp)}).mappings().first()
+    if not work:
+        raise RuntimeError("Obra OPC não encontrada.")
+
+    source = _resolve_phc_source(work.get("U_ORIGEM") or "")
+    database_name = _as_text(source.get("PHC_DB"))
+    process = _phc_process_code(work.get("PROCESSO") or "", work.get("U_ORIGEM") or "", database_name)
+    with pyodbc.connect(_phc_conn_str(database_name, source.get("PHC_SERVER") or ""), timeout=15) as conn:
+        cursor = conn.cursor()
+        header_rows = _fetch_raw_rows(cursor, """
+            SELECT TOP 1 PO.POSTAMP, PO.RNO, PO.RDATA, PO.MOEDA, PO.NOME, PO.ETOTAL
+            FROM dbo.PO PO
+            INNER JOIN dbo.PL PL ON PL.POSTAMP = PO.POSTAMP
+            INNER JOIN dbo.FC FC ON FC.FCSTAMP = PL.FCSTAMP
+            INNER JOIN dbo.FO FO ON FO.FOSTAMP = FC.FOSTAMP
+            WHERE PO.POSTAMP = ?
+              AND LTRIM(RTRIM(ISNULL(FO.PROCESSO, ''))) = ?
+        """, (clean_stamp, process))
+        if not header_rows:
+            raise RuntimeError("Pagamento não encontrado nesta obra.")
+        line_rows = _fetch_raw_rows(cursor, """
+            SELECT PL.PLSTAMP, PL.LORDEM, PL.EREC, PL.EVAL, PL.DATALC, PL.DATAVEN,
+                   FC.FCSTAMP, FC.FOSTAMP,
+                   FO.DOCNOME, FO.DATA, FO.ETOTAL, FO.NOME, FO.PROCESSO
+            FROM dbo.PL PL
+            INNER JOIN dbo.FC FC ON FC.FCSTAMP = PL.FCSTAMP
+            INNER JOIN dbo.FO FO ON FO.FOSTAMP = FC.FOSTAMP
+            WHERE PL.POSTAMP = ?
+              AND LTRIM(RTRIM(ISNULL(FO.PROCESSO, ''))) = ?
+            ORDER BY PL.LORDEM, PL.PLSTAMP
+        """, (clean_stamp, process))
+
+    header = header_rows[0]
+    return {
+        "payment": {
+            "stamp": clean_stamp,
+            "description": f"Pagamento nº {_as_text(header.get('RNO'))}",
+            "date": _date_text(header.get("RDATA")),
+            "supplier": _as_text(header.get("NOME")),
+            "currency": _as_text(header.get("MOEDA")) or "EUR",
+            "total": _as_float(header.get("ETOTAL")),
+        },
+        "lines": [{
+            "stamp": _as_text(row.get("PLSTAMP")),
+            "order": _as_float(row.get("LORDEM")),
+            "purchase_stamp": _as_text(row.get("FOSTAMP")),
+            "document": _as_text(row.get("DOCNOME")) or "Compra de fornecedor",
+            "date": _date_text(row.get("DATA")),
+            "due_date": _date_text(row.get("DATAVEN")),
+            "supplier": _as_text(row.get("NOME")),
+            "purchase_total": _as_float(row.get("ETOTAL")),
+            "paid": _as_float(row.get("EREC")),
+        } for row in line_rows],
+    }
+
+
+def get_opc_invoice_lines(record_stamp: str, invoice_stamp: str) -> dict:
+    """Return FI lines for an FT document verified against the selected OPC work."""
+    clean_stamp = _as_text(invoice_stamp)
+    if not clean_stamp:
+        raise RuntimeError("Fatura não indicada.")
+    work = db.session.execute(text("""
+        SELECT TOP 1
+            LTRIM(RTRIM(ISNULL(PROCESSO, ''))) AS PROCESSO,
+            LTRIM(RTRIM(ISNULL(U_ORIGEM, ''))) AS U_ORIGEM
+        FROM dbo.OPC
+        WHERE LTRIM(RTRIM(ISNULL(OPCSTAMP, ''))) = :stamp
+    """), {"stamp": _as_text(record_stamp)}).mappings().first()
+    if not work:
+        raise RuntimeError("Obra OPC não encontrada.")
+
+    source = _resolve_phc_source(work.get("U_ORIGEM") or "")
+    database_name = _as_text(source.get("PHC_DB"))
+    process = _phc_process_code(work.get("PROCESSO") or "", work.get("U_ORIGEM") or "", database_name)
+    with pyodbc.connect(_phc_conn_str(database_name, source.get("PHC_SERVER") or ""), timeout=15) as conn:
+        cursor = conn.cursor()
+        header_rows = _fetch_raw_rows(cursor, """
+            SELECT TOP 1 FT.FTSTAMP, FT.NMDOC, FT.FNO, FT.FDATA, FT.MOEDA, FT.ETOTAL
+            FROM dbo.FT FT
+            INNER JOIN dbo.FT2 FT2 ON FT2.FT2STAMP = FT.FTSTAMP
+            WHERE FT.FTSTAMP = ?
+              AND FT.NDOC IN (1, 4)
+              AND LTRIM(RTRIM(ISNULL(FT2.PROCESSO, ''))) = ?
+        """, (clean_stamp, process))
+        if not header_rows:
+            raise RuntimeError("Fatura não encontrada nesta obra.")
+        fi_columns = {
+            str(column).strip().upper()
+            for column in _fetch_raw_rows(cursor, "SELECT name FROM sys.columns WHERE object_id = OBJECT_ID('dbo.FI')")
+        }
+        description_sql = "FI.DGERAL" if "DGERAL" in fi_columns else "FI.DESIGN"
+        line_rows = _fetch_raw_rows(cursor, f"""
+            SELECT FI.FISTAMP, FI.LORDEM, FI.REF, FI.DESIGN, {description_sql} AS DGERAL, FI.UNIDADE,
+                   FI.QTT, FI.EPV, FI.DESCONTO, FI.ETILIQUIDO, FI.IVA
+            FROM dbo.FI FI
+            WHERE FI.FTSTAMP = ?
+            ORDER BY FI.LORDEM, FI.FISTAMP
+        """, (clean_stamp,))
+
+    header = header_rows[0]
+    return {
+        "invoice": {
+            "stamp": clean_stamp,
+            "description": f"{_as_text(header.get('NMDOC')) or 'Fatura'} nº {_as_text(header.get('FNO'))}",
+            "date": _date_text(header.get("FDATA")),
+            "currency": _as_text(header.get("MOEDA")) or "EUR",
+            "total": _as_float(header.get("ETOTAL")),
+        },
+        "lines": [{
+            "stamp": _as_text(row.get("FISTAMP")),
+            "order": _as_float(row.get("LORDEM")),
+            "reference": _as_text(row.get("REF")),
+            "designation": _as_text(row.get("DESIGN") or row.get("DGERAL")),
+            "description": _as_text(row.get("DGERAL")),
+            "unit": _as_text(row.get("UNIDADE")),
+            "quantity": _as_float(row.get("QTT")),
+            "unit_price": _as_float(row.get("EPV")),
+            "discount": _as_float(row.get("DESCONTO")),
+            "total": _as_float(row.get("ETILIQUIDO")),
+            "vat_rate": _as_float(row.get("IVA")),
         } for row in line_rows],
     }

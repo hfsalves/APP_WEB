@@ -75,17 +75,29 @@
   function ensureSortControls() {
     let lodging = $('#cleaningMobileSortLodging');
     let team = $('#cleaningMobileSortTeam');
-    if (lodging && team) return { lodging, team };
+    let print = $('#cleaningMobilePrint');
+    if (lodging && team && !print) {
+      print = document.createElement('button');
+      print.type = 'button';
+      print.className = 'cleaning-mobile-print';
+      print.id = 'cleaningMobilePrint';
+      print.setAttribute('aria-label', 'Imprimir etiquetas do dia');
+      print.title = 'Imprimir etiquetas do dia';
+      print.innerHTML = '<i class="fa-solid fa-print"></i>';
+      team.parentElement.appendChild(print);
+    }
+    if (lodging && team && print) return { lodging, team, print };
     const status = $('.cleaning-mobile-status');
-    if (!status) return { lodging: null, team: null };
+    if (!status) return { lodging: null, team: null, print: null };
     const controls = document.createElement('div');
     controls.className = 'cleaning-mobile-sort';
     controls.setAttribute('aria-label', 'Ordenação do planeamento');
-    controls.innerHTML = '<button type="button" id="cleaningMobileSortLodging" aria-pressed="false"><i class="fa-solid fa-house"></i> Alojamento</button><button type="button" class="is-active" id="cleaningMobileSortTeam" aria-pressed="true"><i class="fa-solid fa-user"></i> Equipa</button>';
+    controls.innerHTML = '<button type="button" id="cleaningMobileSortLodging" aria-pressed="false"><i class="fa-solid fa-house"></i> Alojamento</button><button type="button" class="is-active" id="cleaningMobileSortTeam" aria-pressed="true"><i class="fa-solid fa-user"></i> Equipa</button><button type="button" class="cleaning-mobile-print" id="cleaningMobilePrint" aria-label="Imprimir etiquetas do dia" title="Imprimir etiquetas do dia"><i class="fa-solid fa-print"></i></button>';
     status.insertAdjacentElement('afterend', controls);
     lodging = controls.querySelector('#cleaningMobileSortLodging');
     team = controls.querySelector('#cleaningMobileSortTeam');
-    return { lodging, team };
+    print = controls.querySelector('#cleaningMobilePrint');
+    return { lodging, team, print };
   }
 
   document.querySelector('meta[name="viewport"]')?.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no');
@@ -96,7 +108,7 @@
     dateInput: $('#cleaningMobileDateInput'), weekday: $('#cleaningMobileWeekday'), dateLabel: $('#cleaningMobileDateLabel'),
     pendingCount: $('#cleaningMobilePendingCount'), plannedCount: $('#cleaningMobilePlannedCount'),
     pendingSection: $('#cleaningMobilePendingSection'), pendingList: $('#cleaningMobilePendingList'), assignedSection: $('#cleaningMobileAssignedSection'), teamList: $('#cleaningMobileTeamList'), empty: $('#cleaningMobileEmpty'),
-    sortLodging: sortControls.lodging, sortTeam: sortControls.team,
+    sortLodging: sortControls.lodging, sortTeam: sortControls.team, print: sortControls.print,
     save: $('#cleaningMobileSave'), cancel: ensureCancelButton(), sheet: $('#cleaningMobileSheet'), sheetClose: $('#cleaningMobileSheetClose'),
     sheetTitle: $('#cleaningMobileSheetTitle'), sheetProperty: $('#cleaningMobileSheetProperty'), sheetWindow: $('#cleaningMobileSheetWindow'),
     personList: ensurePersonList(), timeInput: ensureTimeStepper(), timeMinus: $('#cleaningMobileTimeMinus'), timePlus: $('#cleaningMobileTimePlus'), warning: $('#cleaningMobileScheduleWarning'),
@@ -250,6 +262,7 @@
     els.previous.disabled = state.dirty;
     els.next.disabled = state.dirty;
     els.date.disabled = state.dirty;
+    els.print.disabled = state.dirty;
   }
 
   function setSortMode(mode) {
@@ -511,10 +524,30 @@
     if (typeof window.showToast === 'function') window.showToast(message, 'danger'); else window.alert(message);
   }
 
+  function showSuccess(message) {
+    if (typeof window.showToast === 'function') window.showToast(message, 'success'); else window.alert(message);
+  }
+
+  async function printLabels() {
+    if (!state.date || state.dirty) return;
+    els.print.disabled = true;
+    els.print.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+    try {
+      const response = await fetch(`/planner/api/imprimir_etiquetas?date=${encodeURIComponent(state.date)}`, { method: 'POST' });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.success) throw new Error(data.error || 'Não foi possível criar as etiquetas.');
+      showSuccess('Etiquetas criadas.');
+    } finally {
+      els.print.disabled = state.dirty;
+      els.print.innerHTML = '<i class="fa-solid fa-print"></i>';
+    }
+  }
+
   els.previous.addEventListener('click', () => changeDate(-1));
   els.next.addEventListener('click', () => changeDate(1));
   els.sortLodging.addEventListener('click', () => setSortMode('lodging'));
   els.sortTeam.addEventListener('click', () => setSortMode('team'));
+  els.print.addEventListener('click', () => printLabels().catch(showError));
   els.date.addEventListener('click', () => els.dateInput.showPicker?.() || els.dateInput.click());
   els.dateInput.addEventListener('change', () => {
     if (state.dirty) { els.dateInput.value = state.date; return; }
