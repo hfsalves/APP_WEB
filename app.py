@@ -351,6 +351,29 @@ def create_app():
         os.environ.get('APP_DB_TARGET', '')
     ).strip().lower()
     app.config['DB_PROD_ROUTE'] = prod_conn_route
+    app.config['GR360_AUDIT_ENABLED'] = os.environ.get('GR360_AUDIT_ENABLED', '')
+    app.config['GR360_AUDIT_TARGET'] = os.environ.get('GR360_AUDIT_TARGET', db_target_client)
+    app.config['GR360_AUDIT_EXPECTED_DATABASE'] = os.environ.get('GR360_AUDIT_EXPECTED_DATABASE', 'GR360_CORE')
+    app.config['GR360_AUDIT_SOURCE_DATABASE'] = os.environ.get(
+        'GR360_AUDIT_SOURCE_DATABASE',
+        os.environ.get('DB_CLIENT_NAME', 'GR360_CORE'),
+    )
+    app.config['GR360_AUDIT_TABLES'] = os.environ.get('GR360_AUDIT_TABLES', '*')
+    app.config['GR360_AUDIT_SELECT_ENABLED'] = os.environ.get('GR360_AUDIT_SELECT_ENABLED', '')
+    app.config['GR360_AUDIT_ENVIRONMENT'] = os.environ.get('GR360_AUDIT_ENVIRONMENT', os.environ.get('APP_ENV', 'development'))
+    app.config['GR360_AUDIT_APP_NAME'] = os.environ.get('GR360_AUDIT_APP_NAME', 'APP_WEB')
+    app.config['GR360_AUDIT_LOG_CONN_STR'] = os.environ.get('GR360_AUDIT_LOG_CONN_STR', '')
+    app.config['GR360_AUDIT_LOG_SERVER'] = os.environ.get('GR360_AUDIT_LOG_SERVER', '')
+    app.config['GR360_AUDIT_LOG_PORT'] = os.environ.get('GR360_AUDIT_LOG_PORT', '')
+    app.config['GR360_AUDIT_LOG_DATABASE'] = os.environ.get('GR360_AUDIT_LOG_DATABASE', 'GR360_LOG')
+    app.config['GR360_AUDIT_LOG_USER'] = os.environ.get('GR360_AUDIT_LOG_USER', '')
+    app.config['GR360_AUDIT_LOG_PASSWORD'] = os.environ.get('GR360_AUDIT_LOG_PASSWORD', '')
+    app.config['GR360_HUB_TARGET'] = os.environ.get('GR360_HUB_TARGET', db_target_client)
+    app.config['GR360_HUB_EXPECTED_DATABASE'] = os.environ.get('GR360_HUB_EXPECTED_DATABASE', 'GR360_CORE')
+    app.config['GR360_HUB_SOURCE_DATABASE'] = os.environ.get(
+        'GR360_HUB_SOURCE_DATABASE',
+        os.environ.get('DB_CLIENT_NAME', 'GR360_CORE'),
+    )
     app.config['DB_CONN_STRS'] = {
         db_target_prod: prod_conn_str,
         db_target_client: _build_pyodbc_conn_str(
@@ -486,6 +509,8 @@ def create_app():
             or ''
         )
 
+    app.config['DB_CURRENT_TARGET_RESOLVER'] = _resolve_db_target
+
     def _public_reserva_unavailable_page(reason='not_found', status=200):
         reason_key = str(reason or 'not_found').strip().lower()
         if reason_key not in {'not_found', 'expired'}:
@@ -616,6 +641,11 @@ def create_app():
     # Importa e regista blueprint genÃ©rico
     from blueprints.generic_crud import bp as generic_bp
     app.register_blueprint(generic_bp)
+
+    # O Hub de Obra é guardado internamente pelo próprio blueprint e só responde
+    # quando o alvo ativo é explicitamente GR360_CORE.
+    from blueprints.obra_360 import bp as obra_360_bp
+    app.register_blueprint(obra_360_bp)
 
     from blueprints.anexos import bp as anexos_bp
     app.register_blueprint(anexos_bp)
@@ -26201,6 +26231,7 @@ def create_app():
             ensure_dashboard_links_schema()
             ensure_dashboard_links_for_user(getattr(current_user, 'USSTAMP', ''))
             _ensure_gr_management_summary_widget_for_current_user()
+            _ensure_obra_360_search_widget_for_current_user()
         except Exception:
             db.session.rollback()
             app.logger.exception('Erro ao preparar Dashboard Links.')
@@ -28291,6 +28322,71 @@ def create_app():
                     })
         db.session.commit()
 
+    def _ensure_obra_360_search_widget_for_current_user():
+        """Expose the GR360 work search through the normal dashboard widget flow."""
+        from services.obra_360_service import can_consult_opc, is_gr360_hub_context
+
+        if not is_gr360_hub_context() or not can_consult_opc(current_user):
+            return
+
+        login = str(getattr(current_user, 'LOGIN', '') or '').strip()
+        if not login:
+            return
+
+        name = 'OBRA_360_PESQUISA'
+        title = 'Pesquisa de Obra'
+        config = json.dumps({'handler': 'obra_360_search'}, ensure_ascii=False)
+        exists = db.session.execute(text("""
+            SELECT TOP 1 WIDGETSSTAMP
+            FROM dbo.WIDGETS
+            WHERE NOME = :nome
+        """), {'nome': name}).scalar()
+        if exists:
+            db.session.execute(text("""
+                UPDATE dbo.WIDGETS
+                SET TITULO = :titulo,
+                    TIPO = 'OBRA360',
+                    FONTE = 'GR360_CORE',
+                    URL = '',
+                    CONFIG = :config,
+                    FILTROS = '{}',
+                    ATIVO = 1
+                WHERE NOME = :nome
+            """), {'nome': name, 'titulo': title, 'config': config})
+        else:
+            db.session.execute(text("""
+                INSERT INTO dbo.WIDGETS (WIDGETSSTAMP, NOME, TITULO, TIPO, FONTE, URL, CONFIG, FILTROS, ATIVO)
+                VALUES (:stamp, :nome, :titulo, 'OBRA360', 'GR360_CORE', '', :config, '{}', 1)
+            """), {
+                'stamp': uuid.uuid4().hex.upper()[:25],
+                'nome': name,
+                'titulo': title,
+                'config': config,
+            })
+
+        assignment = db.session.execute(text("""
+            SELECT TOP 1 USWIDGETSSTAMP
+            FROM dbo.USWIDGETS
+            WHERE LTRIM(RTRIM(ISNULL(UTILIZADOR, ''))) = :utilizador
+              AND LTRIM(RTRIM(ISNULL(WIDGET, ''))) = :widget
+        """), {'utilizador': login, 'widget': name}).scalar()
+        if not assignment:
+            next_order = db.session.execute(text("""
+                SELECT ISNULL(MAX(ISNULL(ORDEM, 0)), 0) + 10
+                FROM dbo.USWIDGETS
+                WHERE LTRIM(RTRIM(ISNULL(UTILIZADOR, ''))) = :utilizador
+            """), {'utilizador': login}).scalar() or 10
+            db.session.execute(text("""
+                INSERT INTO dbo.USWIDGETS (USWIDGETSSTAMP, UTILIZADOR, WIDGET, COLUNA, ORDEM, VISIVEL, MAXHEIGHT)
+                VALUES (:stamp, :utilizador, :widget, 1, :ordem, 0, 0)
+            """), {
+                'stamp': uuid.uuid4().hex.upper()[:25],
+                'utilizador': login,
+                'widget': name,
+                'ordem': int(next_order),
+            })
+        db.session.commit()
+
     def _dashboard_user_pref_key():
         userstamp = str(getattr(current_user, 'USSTAMP', '') or '').strip()
         login = str(getattr(current_user, 'LOGIN', '') or '').strip()
@@ -28412,6 +28508,7 @@ def create_app():
             ensure_dashboard_links_schema()
             ensure_dashboard_links_for_user(getattr(current_user, 'USSTAMP', ''))
             _ensure_gr_management_summary_widget_for_current_user()
+            _ensure_obra_360_search_widget_for_current_user()
         except Exception:
             db.session.rollback()
             app.logger.exception('Erro ao preparar Dashboard Links.')
@@ -29233,12 +29330,21 @@ def create_app():
             config = json.loads(widget.CONFIG or '{}')
             handler = str(config.get('handler') or '').strip()
             query = config.get('query')
-            if handler in {'gr_management_map_summary', 'gr_management_project_top'}:
+            if handler in {'gr_management_map_summary', 'gr_management_project_top', 'obra_360_search'}:
                 query = ''
             elif not query:
                 return jsonify({'error': 'Query não definida no config'}), 400
         except Exception as e:
             return jsonify({'error': f'Config inválido: {e}'}), 400
+
+        if handler == 'obra_360_search':
+            from services.obra_360_service import can_consult_opc, is_gr360_hub_context, recent_works
+
+            if not is_gr360_hub_context():
+                return jsonify({'error': 'Widget indisponível neste contexto.'}), 404
+            if not can_consult_opc(current_user):
+                return jsonify({'error': 'Sem permissão para consultar obras.'}), 403
+            return jsonify({'recent': recent_works(current_user)})
 
         if handler == 'gr_management_map_summary':
             try:
@@ -43503,6 +43609,8 @@ Guest SPA"""
                 'autos_description': 'Criação, consulta e retenções nos autos de medição.',
                 'budgets_title': 'Orçamentos de Clientes',
                 'budgets_description': 'Criação, consulta, cálculo e impressão de orçamentos.',
+                'sync_title': 'Circulação de Informação PHC e GR360',
+                'sync_description': 'Como a informação é partilhada, controlada e acompanhada entre os dois sistemas.',
             },
             'fr': {
                 'page_title': 'Guides utilisateur',
@@ -43515,6 +43623,8 @@ Guest SPA"""
                 'autos_description': 'Création, consultation et retenues sur les situations de travaux.',
                 'budgets_title': 'Devis clients',
                 'budgets_description': 'Création, consultation, calcul et impression des devis.',
+                'sync_title': 'Circulation de l’information PHC et GR360',
+                'sync_description': 'Comment l’information est partagée, contrôlée et suivie entre les deux systèmes.',
             },
             'en': {
                 'page_title': 'User guides',
@@ -43527,6 +43637,8 @@ Guest SPA"""
                 'autos_description': 'Create, consult and manage retentions in client work statements.',
                 'budgets_title': 'Client quotations',
                 'budgets_description': 'Create, consult, calculate and print quotations.',
+                'sync_title': 'Information flow between PHC and GR360',
+                'sync_description': 'How information is shared, controlled and tracked between both systems.',
             },
             'es': {
                 'page_title': 'Manuales de usuario',
@@ -43539,6 +43651,8 @@ Guest SPA"""
                 'autos_description': 'Creación, consulta y retenciones en las certificaciones de obra.',
                 'budgets_title': 'Presupuestos de clientes',
                 'budgets_description': 'Creación, consulta, cálculo e impresión de presupuestos.',
+                'sync_title': 'Circulación de información entre PHC y GR360',
+                'sync_description': 'Cómo se comparte, controla y sigue la información entre ambos sistemas.',
             },
             'de': {
                 'page_title': 'Benutzerhandbücher',
@@ -43551,6 +43665,8 @@ Guest SPA"""
                 'autos_description': 'Erstellen, abfragen und Einbehalte in Kunden-Aufmaßen verwalten.',
                 'budgets_title': 'Kundenangebote',
                 'budgets_description': 'Angebote erstellen, abfragen, berechnen und drucken.',
+                'sync_title': 'Informationsfluss zwischen PHC und GR360',
+                'sync_description': 'Wie Informationen zwischen beiden Systemen geteilt, geprüft und nachverfolgt werden.',
             },
         }
         ui = manuals_ui.get(getattr(g, 'language', BASE_LANGUAGE), manuals_ui['pt_PT'])
@@ -43566,6 +43682,12 @@ Guest SPA"""
                 'description': ui['budgets_description'],
                 'pt_url': url_for('budget_manual_view', language='pt'),
                 'fr_url': url_for('budget_manual_view', language='fr'),
+            },
+            {
+                'title': ui['sync_title'],
+                'description': ui['sync_description'],
+                'pt_url': url_for('information_flow_manual_view', language='pt'),
+                'fr_url': url_for('information_flow_manual_view', language='fr'),
             },
         ]
         return render_template('manuals.html', manuals=available_manuals, manuals_ui=ui)
@@ -43616,6 +43738,31 @@ Guest SPA"""
             'language': language,
             'pt_url': url_for('budget_manual_view', language='pt'),
             'fr_url': url_for('budget_manual_view', language='fr'),
+            'file_url': url_for('manuals_file', filename=manual['file']),
+        }
+        return render_template('manual_view.html', manual=manual, manuals_ui=_manuals_ui_labels())
+
+    @app.route('/manuais/circulacao-informacao-phc-gr360/<language>')
+    @login_required
+    def information_flow_manual_view(language):
+        manuals_by_language = {
+            'pt': {
+                'title': 'Circulação de Informação PHC e GR360',
+                'file': 'Processo/Circulação de Informação PHC e GR360/pt/guia.html',
+            },
+            'fr': {
+                'title': 'Circulation de l’information PHC et GR360',
+                'file': "Processo/Circulation de l'information PHC et GR360/fr/guide.html",
+            },
+        }
+        manual = manuals_by_language.get(language)
+        if manual is None:
+            abort(404)
+        manual = {
+            **manual,
+            'language': language,
+            'pt_url': url_for('information_flow_manual_view', language='pt'),
+            'fr_url': url_for('information_flow_manual_view', language='fr'),
             'file_url': url_for('manuals_file', filename=manual['file']),
         }
         return render_template('manual_view.html', manual=manual, manuals_ui=_manuals_ui_labels())

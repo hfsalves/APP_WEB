@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from datetime import date, datetime
 import re
 from typing import Any
 
@@ -180,6 +181,72 @@ def _fetch_all(cursor, sql: str, params: tuple = ()) -> list[dict]:
     cursor.execute(sql, params)
     columns = [col[0].lower() for col in cursor.description]
     return [_row_dict(columns, row) for row in cursor.fetchall()]
+
+
+def _fetch_raw_rows(cursor, sql: str, params: tuple = ()) -> list[dict]:
+    """Fetch PHC rows without applying the auto/orcamento aggregate mapping."""
+    cursor.execute(sql, params)
+    columns = [str(column[0]).upper() for column in cursor.description]
+    return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+
+def _date_text(value: Any) -> str:
+    if isinstance(value, (datetime, date)):
+        return value.date().isoformat() if isinstance(value, datetime) else value.isoformat()
+    return _as_text(value)
+
+
+def _supplier_logistics_series(cursor) -> dict[str, list[int]]:
+    """Resolve BL/BC series from TS instead of assuming equal NDOS in every PHC DB."""
+    rows = _fetch_raw_rows(cursor, "SELECT NDOS, NMDOS FROM dbo.TS")
+    series = {"bl": [], "bc": []}
+    for row in rows:
+        name = _norm(row.get("NMDOS") or "")
+        try:
+            ndos = int(row.get("NDOS") or 0)
+        except (TypeError, ValueError):
+            continue
+        if not ndos:
+            continue
+        if "COMMANDE" in name and "FOURN" in name:
+            series["bc"].append(ndos)
+        elif "LIVRAISON" in name and "FOURN" in name:
+            series["bl"].append(ndos)
+    return series
+
+
+def _supplier_logistics_documents(cursor, processo: str) -> list[dict]:
+    series = _supplier_logistics_series(cursor)
+    rows: list[dict] = []
+    for kind, ndos_values in series.items():
+        if not ndos_values:
+            continue
+        placeholders = ", ".join("?" for _ in ndos_values)
+        documents = _fetch_raw_rows(cursor, f"""
+            SELECT
+                B.BOSTAMP, B.NDOS, B.NMDOS, B.OBRANO, B.DATAOBRA, B.NO, B.NOME,
+                B.CCUSTO, B.MOEDA, B.ETOTALDEB, B.FECHADA, B2.PROCESSO
+            FROM dbo.BO B
+            INNER JOIN dbo.BO2 B2 ON B2.BO2STAMP = B.BOSTAMP
+            WHERE B.NDOS IN ({placeholders})
+              AND LTRIM(RTRIM(ISNULL(B2.PROCESSO, ''))) = ?
+            ORDER BY B.DATAOBRA DESC, B.OBRANO DESC
+        """, tuple(ndos_values) + (processo,))
+        for document in documents:
+            rows.append({
+                "kind": kind,
+                "oristamp": _as_text(document.get("BOSTAMP")),
+                "ndos": _as_float(document.get("NDOS")),
+                "descricao": f"{_as_text(document.get('NMDOS'))} nº {_as_text(document.get('OBRANO'))}",
+                "data": _date_text(document.get("DATAOBRA")),
+                "processo": _as_text(document.get("PROCESSO")),
+                "fornecedor": _as_text(document.get("NOME")),
+                "ccusto": _as_text(document.get("CCUSTO")),
+                "currency": _as_text(document.get("MOEDA")) or "EUR",
+                "total": _as_float(document.get("ETOTALDEB")),
+                "fechada": bool(document.get("FECHADA")),
+            })
+    return sorted(rows, key=lambda item: (item.get("data") or "", item.get("descricao") or ""), reverse=True)
 
 
 def _has_column(cursor, table_name: str, column_name: str) -> bool:
@@ -690,6 +757,7 @@ def get_opc_phc_info(record_stamp: str) -> dict:
         autos = _fetch_all(cursor, _with_optional_uret(AUTOS_SQL, has_uret_table, has_uret_iva), (phc_processo,))
         autos.extend(_fetch_all(cursor, _with_optional_uret(FT_STANDALONE_SQL, has_uret_table, has_uret_iva), (phc_processo,)))
         autos.sort(key=lambda item: (item.get("ordem") or 0, item.get("descricao") or "", item.get("iva_percentagem") or 0))
+        logistics = _supplier_logistics_documents(cursor, phc_processo)
         total_faturado = _fetch_scalar(cursor, FATURADO_TOTAL_SQL, (phc_processo,))
         faturado_por_auto = _fetch_billed_by_auto(cursor, phc_processo)
 
@@ -735,8 +803,181 @@ def get_opc_phc_info(record_stamp: str) -> dict:
         },
         "orcamentos": orcamentos,
         "autos": autos,
+        "logistics": logistics,
         # FT/FT2 e a fonte contabilistica dos documentos efetivamente emitidos.
         # Um documento pode estar ligado a varias linhas/autos, pelo que o resumo
         # nao deve resultar da soma dessas ligacoes.
         "autos_total_faturado": total_faturado,
+    }
+
+
+def get_opc_auto_lines(record_stamp: str, auto_stamp: str) -> dict:
+    """Return the lines of one customer measurement, scoped to its OPC work.
+
+    The Hub must never use a raw PHC stamp on its own: the document is checked
+    against the process resolved from OPC before exposing any of its lines.
+    """
+    clean_stamp = _as_text(auto_stamp)
+    if not clean_stamp:
+        raise RuntimeError("Auto de cliente não indicado.")
+
+    work = db.session.execute(text("""
+        SELECT TOP 1
+            LTRIM(RTRIM(ISNULL(PROCESSO, ''))) AS PROCESSO,
+            LTRIM(RTRIM(ISNULL(U_ORIGEM, ''))) AS U_ORIGEM
+        FROM dbo.OPC
+        WHERE LTRIM(RTRIM(ISNULL(OPCSTAMP, ''))) = :stamp
+    """), {"stamp": _as_text(record_stamp)}).mappings().first()
+    if not work:
+        raise RuntimeError("Obra OPC não encontrada.")
+
+    source = _resolve_phc_source(work.get("U_ORIGEM") or "")
+    database_name = _as_text(source.get("PHC_DB"))
+    process = _phc_process_code(work.get("PROCESSO") or "", work.get("U_ORIGEM") or "", database_name)
+
+    with pyodbc.connect(_phc_conn_str(database_name, source.get("PHC_SERVER") or ""), timeout=15) as conn:
+        cursor = conn.cursor()
+        header_rows = _fetch_raw_rows(
+            cursor,
+            """
+            SELECT TOP 1
+                B.BOSTAMP, B.NMDOS, B.OBRANO, B.DATAOBRA, B.MOEDA, B.ETOTALDEB
+            FROM dbo.BO B
+            INNER JOIN dbo.BO2 B2 ON B2.BO2STAMP = B.BOSTAMP
+            WHERE B.BOSTAMP = ?
+              AND B.NDOS IN (118, 124)
+              AND LTRIM(RTRIM(ISNULL(B2.PROCESSO, ''))) = ?
+            """,
+            (clean_stamp, process),
+        )
+        if not header_rows:
+            raise RuntimeError("Auto de cliente não encontrado nesta obra.")
+        bi_columns = {
+            str(column).strip().upper()
+            for column in _fetch_raw_rows(
+                cursor,
+                """
+                SELECT name
+                FROM sys.columns
+                WHERE object_id = OBJECT_ID('dbo.BI')
+                """,
+            )
+        }
+        description_sql = "BI.DGERAL" if "DGERAL" in bi_columns else "BI.DESIGN"
+        line_rows = _fetch_raw_rows(
+            cursor,
+            f"""
+            SELECT
+                BI.BISTAMP, BI.LORDEM, BI.REF, BI.DESIGN, {description_sql} AS DGERAL, BI.UNIDADE,
+                BI.QTT, BI.EDEBITO, BI.DESCONTO, BI.ETTDEB, BI.IVA, BI.TABIVA
+            FROM dbo.BI BI
+            WHERE BI.BOSTAMP = ?
+            ORDER BY BI.LORDEM, BI.BISTAMP
+            """,
+            (clean_stamp,),
+        )
+
+    header = header_rows[0]
+    lines = []
+    for row in line_rows:
+        lines.append({
+            "stamp": _as_text(row.get("BISTAMP")),
+            "order": _as_float(row.get("LORDEM")),
+            "reference": _as_text(row.get("REF")),
+            "designation": _as_text(row.get("DESIGN") or row.get("DGERAL")),
+            "description": _as_text(row.get("DGERAL")),
+            "unit": _as_text(row.get("UNIDADE")),
+            "quantity": _as_float(row.get("QTT")),
+            "unit_price": _as_float(row.get("EDEBITO")),
+            "discount": _as_float(row.get("DESCONTO")),
+            "total": _as_float(row.get("ETTDEB")),
+            "vat_rate": _as_float(row.get("IVA")),
+            "vat_table": _as_float(row.get("TABIVA")),
+        })
+    return {
+        "auto": {
+            "stamp": clean_stamp,
+            "description": f"{_as_text(header.get('NMDOS'))} nº {_as_text(header.get('OBRANO'))}",
+            "date": _as_text(header.get("DATAOBRA")),
+            "currency": _as_text(header.get("MOEDA")) or "EUR",
+            "total": _as_float(header.get("ETOTALDEB")),
+        },
+        "lines": lines,
+    }
+
+
+def get_opc_logistics_lines(record_stamp: str, document_stamp: str, kind: str) -> dict:
+    """Return supplier BL/BC lines, only after scoping the PHC document to its OPC work."""
+    clean_stamp = _as_text(document_stamp)
+    clean_kind = _as_text(kind).lower()
+    if clean_kind not in {"bl", "bc"}:
+        raise RuntimeError("Tipo de documento logístico inválido.")
+    if not clean_stamp:
+        raise RuntimeError("Documento logístico não indicado.")
+
+    work = db.session.execute(text("""
+        SELECT TOP 1
+            LTRIM(RTRIM(ISNULL(PROCESSO, ''))) AS PROCESSO,
+            LTRIM(RTRIM(ISNULL(U_ORIGEM, ''))) AS U_ORIGEM
+        FROM dbo.OPC
+        WHERE LTRIM(RTRIM(ISNULL(OPCSTAMP, ''))) = :stamp
+    """), {"stamp": _as_text(record_stamp)}).mappings().first()
+    if not work:
+        raise RuntimeError("Obra OPC não encontrada.")
+
+    source = _resolve_phc_source(work.get("U_ORIGEM") or "")
+    database_name = _as_text(source.get("PHC_DB"))
+    process = _phc_process_code(work.get("PROCESSO") or "", work.get("U_ORIGEM") or "", database_name)
+    with pyodbc.connect(_phc_conn_str(database_name, source.get("PHC_SERVER") or ""), timeout=15) as conn:
+        cursor = conn.cursor()
+        series = _supplier_logistics_series(cursor).get(clean_kind) or []
+        if not series:
+            raise RuntimeError("A série deste documento não está configurada nesta empresa.")
+        placeholders = ", ".join("?" for _ in series)
+        header_rows = _fetch_raw_rows(cursor, f"""
+            SELECT TOP 1 B.BOSTAMP, B.NMDOS, B.OBRANO, B.DATAOBRA, B.MOEDA, B.ETOTALDEB
+            FROM dbo.BO B
+            INNER JOIN dbo.BO2 B2 ON B2.BO2STAMP = B.BOSTAMP
+            WHERE B.BOSTAMP = ?
+              AND B.NDOS IN ({placeholders})
+              AND LTRIM(RTRIM(ISNULL(B2.PROCESSO, ''))) = ?
+        """, (clean_stamp,) + tuple(series) + (process,))
+        if not header_rows:
+            raise RuntimeError("Documento logístico não encontrado nesta obra.")
+        bi_columns = {
+            str(column).strip().upper()
+            for column in _fetch_raw_rows(cursor, "SELECT name FROM sys.columns WHERE object_id = OBJECT_ID('dbo.BI')")
+        }
+        description_sql = "BI.DGERAL" if "DGERAL" in bi_columns else "BI.DESIGN"
+        line_rows = _fetch_raw_rows(cursor, f"""
+            SELECT BI.BISTAMP, BI.LORDEM, BI.REF, BI.DESIGN, {description_sql} AS DGERAL, BI.UNIDADE,
+                   BI.QTT, BI.EDEBITO, BI.DESCONTO, BI.ETTDEB, BI.IVA, BI.TABIVA
+            FROM dbo.BI BI
+            WHERE BI.BOSTAMP = ?
+            ORDER BY BI.LORDEM, BI.BISTAMP
+        """, (clean_stamp,))
+
+    header = header_rows[0]
+    return {
+        "document": {
+            "stamp": clean_stamp,
+            "description": f"{_as_text(header.get('NMDOS'))} nº {_as_text(header.get('OBRANO'))}",
+            "date": _date_text(header.get("DATAOBRA")),
+            "currency": _as_text(header.get("MOEDA")) or "EUR",
+            "total": _as_float(header.get("ETOTALDEB")),
+        },
+        "lines": [{
+            "stamp": _as_text(row.get("BISTAMP")),
+            "order": _as_float(row.get("LORDEM")),
+            "reference": _as_text(row.get("REF")),
+            "designation": _as_text(row.get("DESIGN") or row.get("DGERAL")),
+            "description": _as_text(row.get("DGERAL")),
+            "unit": _as_text(row.get("UNIDADE")),
+            "quantity": _as_float(row.get("QTT")),
+            "unit_price": _as_float(row.get("EDEBITO")),
+            "discount": _as_float(row.get("DESCONTO")),
+            "total": _as_float(row.get("ETTDEB")),
+            "vat_rate": _as_float(row.get("IVA")),
+            "vat_table": _as_float(row.get("TABIVA")),
+        } for row in line_rows],
     }

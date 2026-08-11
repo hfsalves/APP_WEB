@@ -2707,6 +2707,23 @@ body.sz-base-shell.authenticated .main-content:has(.sz_dashboard_page)::-webkit-
   min-height: 5rem;
 }
 
+.obra360-dashboard-widget { display: grid; gap: var(--sz-space-3); }
+.sz_dashboard_widget_obra360 { overflow: visible; position: relative; z-index: 1; }
+.sz_dashboard_widget_obra360:has(.obra360-dashboard-results:not([hidden])) { z-index: 80; }
+.sz_dashboard_widget_obra360 .sz_dashboard_widget_body { overflow: visible !important; position: relative; }
+.obra360-dashboard-searchbox { position: relative; }
+.obra360-dashboard-searchbox > i { color: var(--sz-color-text-muted); left: .85rem; pointer-events: none; position: absolute; top: 50%; transform: translateY(-50%); }
+.obra360-dashboard-input { padding-left: 2.35rem !important; width: 100%; }
+.obra360-dashboard-results { background: var(--sz-color-surface); border: 1px solid var(--sz-color-border); border-radius: var(--sz-radius-sm); box-shadow: var(--sz-shadow-3); left: 0; max-height: 19rem; overflow-y: auto; position: absolute; right: 0; top: calc(100% + .35rem); z-index: 70; }
+.obra360-dashboard-work { background: transparent; border: 0; border-bottom: 1px solid var(--sz-color-border); color: var(--sz-color-text); display: grid; gap: .15rem; padding: .7rem .85rem; text-align: left; width: 100%; }
+.obra360-dashboard-work:hover { background: color-mix(in srgb, var(--sz-color-primary) 12%, transparent); }
+.obra360-dashboard-work span, .obra360-dashboard-empty { color: var(--sz-color-text-muted); font-size: var(--sz-font-size-sm); }
+.obra360-dashboard-empty { padding: .75rem; }
+.obra360-dashboard-recent { align-items: center; display: flex; flex-wrap: wrap; gap: .4rem; }
+.obra360-dashboard-recent > span { color: var(--sz-color-text-muted); font-size: var(--sz-font-size-sm); margin-right: .2rem; }
+.obra360-dashboard-recent > div { display: flex; flex-wrap: wrap; gap: .4rem; }
+.obra360-dashboard-recent .obra360-dashboard-work { background: var(--sz-color-surface-alt); border: 1px solid var(--sz-color-border); border-radius: 999px; color: var(--sz-color-text); display: block; font-size: var(--sz-font-size-xs); padding: .32rem .55rem; width: auto; }
+
 .sz_dashboard_page .sz_dashboard_widget {
   background: var(--sz-color-surface);
   border: 1px solid var(--sz-color-border);

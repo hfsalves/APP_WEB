@@ -7,6 +7,7 @@ from app import db
 from models import Campo, Menu, Acessos, CamposModal, Linhas
 from services.db_i18n_service import _extract_openai_text, _para_value, _strip_json_fence, _translation_model, translate_db_record
 from services.dashboard_links_service import DASHBOARD_LINKS_TABLES, ensure_dashboard_links_schema
+from services.gr360_audit_service import audit_table_write, should_audit_table
 from services.multiempresa_service import get_current_feid, MissingCurrentEntityError
 from services.phc_user_import_service import (
     collaborator_user_company_options,
@@ -23,6 +24,7 @@ import os
 from decimal import Decimal, InvalidOperation
 import xml.etree.ElementTree as ET
 from urllib import request as urllib_request, error as urllib_error
+from werkzeug.exceptions import HTTPException
 from werkzeug.utils import secure_filename
 
 bp = Blueprint('generic', __name__, url_prefix='/generic')
@@ -43,6 +45,32 @@ EVENT_CURSOR_SQL_FORBIDDEN_RE = re.compile(
 def _ensure_dashboard_links_if_needed(table_name: str) -> None:
     if str(table_name or '').strip().upper() in DASHBOARD_LINKS_TABLES:
         ensure_dashboard_links_schema()
+
+
+def _generic_audit_enabled(table_name: str) -> bool:
+    try:
+        return bool(should_audit_table(table_name))
+    except Exception:
+        current_app.logger.exception('Erro ao avaliar auditoria GR360 para %s', table_name)
+        return False
+
+
+def _generic_audit_snapshot(table, table_name: str, record_stamp: str, mode: str = 'read') -> dict | None:
+    if not record_stamp:
+        return None
+    try:
+        pk = getattr(table.c, f"{table_name.upper()}STAMP")
+        stmt = select(table).where(pk == record_stamp)
+        stmt = _apply_feid_scope_stmt(stmt, table, table_name, mode=mode)
+        row = db.session.execute(stmt).mappings().first()
+        return dict(row) if row else None
+    except Exception:
+        current_app.logger.exception('Erro ao capturar snapshot de auditoria GR360 para %s/%s', table_name, record_stamp)
+        return None
+
+
+def _generic_audit_record_key(table_name: str, record_stamp: str) -> dict:
+    return {f"{str(table_name or '').strip().upper()}STAMP": str(record_stamp or '').strip()}
 
 # --------------------------------------------------
 # FO: pagamento (V_FC) helper
@@ -4539,6 +4567,12 @@ def create_record(table_name):
     try:
         ins = table.insert().inline().values(**clean)
         db.session.execute(ins)
+        audit_enabled = _generic_audit_enabled(tn)
+        audit_stamp = str(clean.get(pk_name) or '').strip()
+        audit_after = (
+            _generic_audit_snapshot(table, tn, audit_stamp, mode='read')
+            if audit_enabled and audit_stamp else dict(clean)
+        )
         if tn == 'DBW':
             userstamp = str(getattr(current_user, 'USSTAMP', '') or '').strip()
             dbwstamp = str(clean.get('DBWSTAMP') or '').strip()
@@ -4557,10 +4591,33 @@ def create_record(table_name):
                     'userstamp': userstamp,
                 })
         db.session.commit()
+        if audit_enabled:
+            audit_table_write(
+                table_name=tn,
+                action='INSERT',
+                record_key=_generic_audit_record_key(tn, audit_stamp),
+                before_data=None,
+                after_data=audit_after or dict(clean),
+                metadata={'source': 'generic_crud.create_record'},
+            )
         return jsonify({'success': True}), 201
     except Exception as e:
         current_app.logger.exception(f"Falha ao criar {table_name}")
         db.session.rollback()
+        try:
+            if _generic_audit_enabled(tn):
+                audit_table_write(
+                    table_name=tn,
+                    action='INSERT',
+                    record_key=_generic_audit_record_key(tn, str(clean.get(pk_name) or '')),
+                    before_data=None,
+                    after_data=clean,
+                    status='failed',
+                    error_message=str(e),
+                    metadata={'source': 'generic_crud.create_record'},
+                )
+        except Exception:
+            current_app.logger.exception('Erro ao registar falha de auditoria GR360 em INSERT %s', table_name)
         return jsonify({'error': str(e)}), 500
 
 
@@ -4640,17 +4697,46 @@ def update_record(table_name, record_stamp):
         pass
 
     try:
+        audit_enabled = _generic_audit_enabled(tn)
+        audit_before = _generic_audit_snapshot(table, tn, record_stamp, mode='write') if audit_enabled else None
         upd = table.update().where(pk == record_stamp)
         upd = _apply_feid_scope_stmt(upd, table, table_name, mode='write')
         upd = upd.values(**data)
         res = db.session.execute(upd)
         if res.rowcount == 0:
             abort(404)
+        audit_after = _generic_audit_snapshot(table, tn, record_stamp, mode='read') if audit_enabled else None
         db.session.commit()
+        if audit_enabled:
+            audit_table_write(
+                table_name=tn,
+                action='UPDATE',
+                record_key=_generic_audit_record_key(tn, record_stamp),
+                before_data=audit_before,
+                after_data=audit_after,
+                metadata={'source': 'generic_crud.update_record'},
+            )
         return jsonify({'success': True})
+    except HTTPException:
+        db.session.rollback()
+        raise
     except Exception as e:
         current_app.logger.exception(f"Falha ao atualizar {table_name}")
         db.session.rollback()
+        try:
+            if _generic_audit_enabled(tn):
+                audit_table_write(
+                    table_name=tn,
+                    action='UPDATE',
+                    record_key=_generic_audit_record_key(tn, record_stamp),
+                    before_data=locals().get('audit_before'),
+                    after_data=data,
+                    status='failed',
+                    error_message=str(e),
+                    metadata={'source': 'generic_crud.update_record'},
+                )
+        except Exception:
+            current_app.logger.exception('Erro ao registar falha de auditoria GR360 em UPDATE %s', table_name)
         return jsonify({'error': str(e)}), 500
 
 # --------------------------------------------------
@@ -4682,13 +4768,47 @@ def delete_record(table_name, record_stamp):
 
     table = get_table(table_name)
     pk = getattr(table.c, f"{table_name.upper()}STAMP")
+    audit_enabled = _generic_audit_enabled(table_name)
+    audit_before = _generic_audit_snapshot(table, table_name, record_stamp, mode='write') if audit_enabled else None
     stmt = table.delete().where(pk == record_stamp)
     stmt = _apply_feid_scope_stmt(stmt, table, table_name, mode='write')
-    result = db.session.execute(stmt)
-    db.session.commit()
+    try:
+        result = db.session.execute(stmt)
+        if result.rowcount == 0:
+            db.session.rollback()
+            abort(404, "Registo nÃ£o encontrado")
 
-    if result.rowcount == 0:
-        abort(404, "Registo nÃ£o encontrado")
+        db.session.commit()
+
+        if audit_enabled:
+            audit_table_write(
+                table_name=table_name,
+                action='DELETE',
+                record_key=_generic_audit_record_key(table_name, record_stamp),
+                before_data=audit_before,
+                after_data=None,
+                metadata={'source': 'generic_crud.delete_record'},
+            )
+    except HTTPException:
+        db.session.rollback()
+        raise
+    except Exception as e:
+        db.session.rollback()
+        try:
+            if audit_enabled:
+                audit_table_write(
+                    table_name=table_name,
+                    action='DELETE',
+                    record_key=_generic_audit_record_key(table_name, record_stamp),
+                    before_data=audit_before,
+                    after_data=None,
+                    status='failed',
+                    error_message=str(e),
+                    metadata={'source': 'generic_crud.delete_record'},
+                )
+        except Exception:
+            current_app.logger.exception('Erro ao registar falha de auditoria GR360 em DELETE %s', table_name)
+        raise
 
     return jsonify(success=True)
 
@@ -4872,6 +4992,28 @@ def view_planeamento_limpezas(planner_date):
     return render_template('planeamento_limpezas.html', planner_date=planner_date, page_title='Planeamento de Limpezas')
 
 
+@bp.route('/planeamento_limpezas/mobile/', defaults={'planner_date': None})
+@bp.route('/planeamento_limpezas/mobile/<planner_date>')
+@login_required
+def view_planeamento_limpezas_mobile(planner_date):
+    """Mobile-first daily cleaning assignment screen, kept separate from the desktop planner."""
+    if not has_cleaning_planner_access():
+        abort(403, 'Sem permissão para consultar')
+    try:
+        if planner_date:
+            datetime.strptime(planner_date, '%Y-%m-%d')
+        else:
+            planner_date = date.today().isoformat()
+    except ValueError:
+        return "Formato de data inválido (usa YYYY-MM-DD)", 400
+
+    return render_template(
+        'planeamento_limpezas_mobile.html',
+        planner_date=planner_date,
+        page_title='Planeamento de Limpezas',
+    )
+
+
 
 @bp.route('/api/cleaning_plan')
 @login_required
@@ -5000,6 +5142,7 @@ def api_cleaning_plan():
           ta.HORAFIM              AS cleaning_finished_at,
           ta.UTILIZADOR_NOME      AS cleaning_task_user,
           nx.next_checkin_date     AS next_checkin_date,
+          nx.next_checkin_time     AS next_checkin_time,
           -- Limpeza adiada (entre hoje e o próximo check-in)
           pc.postponed_date        AS postponed_date,
           pc.postponed_team        AS postponed_team,
@@ -5023,7 +5166,9 @@ def api_cleaning_plan():
           ORDER BY LP.DATA DESC, LP.HORA DESC, LP.LPSTAMP DESC
         ) lc
         OUTER APPLY (
-          SELECT TOP 1 CAST(RS.DATAIN AS date) AS next_checkin_date
+          SELECT TOP 1
+            CAST(RS.DATAIN AS date) AS next_checkin_date,
+            RS.HORAIN AS next_checkin_time
           FROM RS
           WHERE RS.ALOJAMENTO = al.NOME
             AND RS.CANCELADA = 0
@@ -5137,6 +5282,7 @@ def api_cleaning_plan():
               ta.HORAFIM             AS cleaning_finished_at,
               ta.UTILIZADOR_NOME     AS cleaning_task_user,
               NULL                   AS next_checkin_date,
+              ''                     AS next_checkin_time,
               NULL                   AS postponed_date,
               ''                     AS postponed_team,
               5                      AS planner_status,

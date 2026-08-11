@@ -4,6 +4,11 @@
 
 {% block extra_head %}
   {{ super() }}
+  <script>
+    if (window.matchMedia('(max-width: 768px)').matches) {
+      window.location.replace({{ url_for('generic.view_planeamento_limpezas_mobile', planner_date=planner_date) | tojson }});
+    }
+  </script>
   <style>
     .planner2-page .sz_page_container {
       padding-block: var(--sz-space-2) 0;

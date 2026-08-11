@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block title %}Planeamento de Limpezas{% endblock %}
+
+{% block extra_head %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/planeamento_limpezas_mobile.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="cleaning-mobile-page" id="cleaningMobilePage">
+  <div class="cleaning-mobile-desktop-notice">
+    <i class="fa-solid fa-mobile-screen-button"></i>
+    <strong>Este planeamento foi criado para mobile.</strong>
+    <span>Abra-o num telemóvel para atribuir e ajustar limpezas.</span>
+  </div>
+
+  <div class="cleaning-mobile-app">
+    <header class="cleaning-mobile-header">
+      <div class="cleaning-mobile-kicker">GuestSpaTur</div>
+      <h1>Planeamento de Limpezas</h1>
+      <p>Atribuir, ajustar e remover limpezas.</p>
+    </header>
+
+    <nav class="cleaning-mobile-date-nav" aria-label="Navegação por dia">
+      <button type="button" id="cleaningMobilePrevious" aria-label="Dia anterior"><i class="fa-solid fa-chevron-left"></i></button>
+      <button type="button" class="cleaning-mobile-date-button" id="cleaningMobileDate" aria-label="Escolher data">
+        <span id="cleaningMobileWeekday"></span>
+        <strong id="cleaningMobileDateLabel"></strong>
+      </button>
+      <input type="date" id="cleaningMobileDateInput" aria-label="Data do planeamento">
+      <button type="button" id="cleaningMobileNext" aria-label="Dia seguinte"><i class="fa-solid fa-chevron-right"></i></button>
+    </nav>
+
+    <div class="cleaning-mobile-status" aria-live="polite">
+      <span class="cleaning-mobile-status-pending"><i class="fa-solid fa-triangle-exclamation"></i> <strong id="cleaningMobilePendingCount">0</strong> pendentes</span>
+      <span>Planeadas <strong id="cleaningMobilePlannedCount">0 de 0</strong></span>
+    </div>
+
+    <main class="cleaning-mobile-content">
+      <section id="cleaningMobilePendingSection">
+        <div class="cleaning-mobile-section-title">
+          <h2>Por atribuir</h2>
+          <span>Prioridade de trabalho</span>
+        </div>
+        <div class="cleaning-mobile-list" id="cleaningMobilePendingList"></div>
+      </section>
+      <section id="cleaningMobileAssignedSection">
+        <div class="cleaning-mobile-section-title">
+          <h2>Por equipa</h2>
+        </div>
+        <div id="cleaningMobileTeamList"></div>
+      </section>
+      <div class="cleaning-mobile-empty" id="cleaningMobileEmpty" hidden>
+        <i class="fa-solid fa-broom-ball"></i>
+        <strong>Sem limpezas para este dia.</strong>
+      </div>
+    </main>
+
+    <footer class="cleaning-mobile-footer">
+      <button type="button" class="cleaning-mobile-cancel" id="cleaningMobileCancel" disabled><i class="fa-solid fa-rotate-left"></i> Cancelar</button>
+      <button type="button" id="cleaningMobileSave" disabled><i class="fa-solid fa-floppy-disk"></i> Gravar alterações</button>
+    </footer>
+  </div>
+</div>
+
+<div class="cleaning-mobile-sheet" id="cleaningMobileSheet" aria-hidden="true">
+  <div class="cleaning-mobile-sheet-panel" role="dialog" aria-modal="true" aria-labelledby="cleaningMobileSheetTitle">
+    <div class="cleaning-mobile-sheet-handle"></div>
+    <div class="cleaning-mobile-sheet-head">
+      <div>
+        <h2 id="cleaningMobileSheetTitle">Atribuir limpeza</h2>
+        <p id="cleaningMobileSheetProperty"></p>
+      </div>
+      <button type="button" id="cleaningMobileSheetClose" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="cleaning-mobile-sheet-window" id="cleaningMobileSheetWindow"></div>
+    <div class="cleaning-mobile-team-picker">
+      <span class="cleaning-mobile-field-label">Escolher equipa</span>
+      <div class="cleaning-mobile-person-list" id="cleaningMobilePersonList"></div>
+    </div>
+    <label class="cleaning-mobile-field">Hora de início
+      <span class="cleaning-mobile-time-stepper">
+        <button type="button" id="cleaningMobileTimeMinus" aria-label="Reduzir 15 minutos">−</button>
+        <input type="text" id="cleaningMobileTimeInput" readonly aria-label="Hora de início selecionada">
+        <button type="button" id="cleaningMobileTimePlus" aria-label="Aumentar 15 minutos">+</button>
+      </span>
+    </label>
+    <p class="cleaning-mobile-warning" id="cleaningMobileScheduleWarning" hidden></p>
+    <button type="button" class="cleaning-mobile-sheet-save" id="cleaningMobileSheetSave" disabled>Gravar limpeza</button>
+    <button type="button" class="cleaning-mobile-sheet-remove" id="cleaningMobileSheetRemove">Remover limpeza</button>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script>window.CLEANING_MOBILE_INITIAL_DATE = {{ planner_date | tojson }};</script>
+  <script src="{{ url_for('static', filename='js/planeamento_limpezas_mobile.js') }}"></script>
+{% endblock %}

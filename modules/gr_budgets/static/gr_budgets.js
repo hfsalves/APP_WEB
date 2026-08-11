@@ -7,6 +7,11 @@
   const apiBase = '/api/gr_orcamentos';
   const tr = (key, vars) => (typeof window.t === 'function' ? window.t(key, vars) : key);
   const languageTag = window.SZ_LANGUAGE_TAG || 'pt-PT';
+  const initialBudget = {
+    feid: String(root.dataset.initialFeid || '').trim(),
+    bostamp: String(root.dataset.initialBostamp || '').trim(),
+    applied: false
+  };
 
   function plural(oneKey, otherKey, count) {
     return tr(Number(count) === 1 ? oneKey : otherKey, { count });
@@ -287,7 +292,8 @@
       state.companies = payload.rows || [];
       const stored = window.localStorage.getItem('gr-budgets-feid');
       const preferredDatabase = (root.dataset.preferredDatabase || '').toUpperCase();
-      const selected = state.companies.find((row) => String(row.feid) === stored)
+      const selected = state.companies.find((row) => String(row.feid) === initialBudget.feid)
+        || state.companies.find((row) => String(row.feid) === stored)
         || state.companies.find((row) => String(row.phc_db || '').toUpperCase() === preferredDatabase)
         || state.companies[0];
       setOptions(elements.company, state.companies, 'feid', (row) => row.name || row.phc_db, selected && selected.feid);
@@ -332,7 +338,18 @@
         renderNoResults(tr('gr_budgets.error.series_unavailable'));
         return;
       }
-      await loadBudgets();
+      if (initialBudget.bostamp && !initialBudget.applied) {
+        const direct = await getJson('/orcamento', { feid, bostamp: initialBudget.bostamp });
+        const header = direct.header || {};
+        if (header.ndos && Array.from(elements.series.options).some((option) => option.value === String(header.ndos))) {
+          elements.series.value = String(header.ndos);
+        }
+        if (header.year) elements.year.value = String(header.year);
+        initialBudget.applied = true;
+        await loadBudgets(initialBudget.bostamp);
+      } else {
+        await loadBudgets();
+      }
     } catch (error) {
       showError(error.message);
       renderNoResults();

@@ -533,9 +533,67 @@ async function runWidget(widgetName, filters) {
 
 function renderDataIntoWidget(state, data) {
   const { widget, body } = state;
-  if (widget.tipo === 'ANALISE') renderAnalise(body, data);
+  if (widget.tipo === 'OBRA360') renderObra360Search(body, data);
+  else if (widget.tipo === 'ANALISE') renderAnalise(body, data);
   else if (widget.tipo === 'GRAFICO') renderGrafico(body, widget, data);
   applyWidgetTableClass(body);
+}
+
+function renderObra360Search(body, data) {
+  const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+  }[char]));
+  const workButton = (work, compact = false) => `
+    <button type="button" class="obra360-dashboard-work" data-obra360-code="${escapeHtml(work.codigo)}">
+      <strong>${escapeHtml(work.codigo)}${compact ? '' : ` · ${escapeHtml(work.designacao || 'Sem designação')}`}</strong>
+      ${compact ? '' : `<span>${escapeHtml([work.cliente, work.empresa, work.estado].filter(Boolean).join(' · '))}</span>`}
+    </button>`;
+  const recent = Array.isArray(data?.recent) ? data.recent : [];
+  body.innerHTML = `
+    <div class="obra360-dashboard-widget">
+      <div class="obra360-dashboard-searchbox">
+        <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+        <input class="sz_input obra360-dashboard-input" type="search" autocomplete="off" placeholder="Código, centro de custo, cliente ou nome da obra">
+        <div class="obra360-dashboard-results" hidden></div>
+      </div>
+      <div class="obra360-dashboard-recent" ${recent.length ? '' : 'hidden'}>
+        <span>Consultadas recentemente</span>
+        <div>${recent.map((work) => workButton(work, true)).join('')}</div>
+      </div>
+    </div>`;
+
+  const input = body.querySelector('.obra360-dashboard-input');
+  const results = body.querySelector('.obra360-dashboard-results');
+  let timer = null;
+  const showResults = (works, emptyMessage) => {
+    results.innerHTML = works.length
+      ? works.map((work) => workButton(work)).join('')
+      : `<div class="obra360-dashboard-empty">${emptyMessage}</div>`;
+    results.hidden = false;
+  };
+  const openWork = (target) => {
+    const code = target.closest('[data-obra360-code]')?.dataset.obra360Code;
+    if (code) window.location.assign(`/obra-360/${encodeURIComponent(code)}`);
+  };
+  input.addEventListener('input', () => {
+    window.clearTimeout(timer);
+    const value = input.value.trim();
+    if (value.length < 2) {
+      results.hidden = true;
+      return;
+    }
+    timer = window.setTimeout(async () => {
+      try {
+        const response = await fetch(`/api/obra-360/search?q=${encodeURIComponent(value)}`);
+        const responseData = await parseJsonResponse(response, 'Não foi possível pesquisar obras');
+        if (!response.ok || responseData.error) throw new Error(responseData.error || 'Pesquisa indisponível');
+        showResults(responseData.works || [], 'Sem obras encontradas.');
+      } catch (error) {
+        showResults([], error.message || 'Não foi possível pesquisar agora.');
+      }
+    }, 260);
+  });
+  body.addEventListener('click', (event) => openWork(event.target));
 }
 
 function parseDashboardHeight(value, fallback = 0) {
@@ -872,7 +930,7 @@ async function renderWidget(widget, colDiv) {
   renderWidgetLoading(body);
 
   try {
-    if (widget.tipo === 'ANALISE' || widget.tipo === 'GRAFICO') {
+    if (widget.tipo === 'ANALISE' || widget.tipo === 'GRAFICO' || widget.tipo === 'OBRA360') {
       const state = widgetState.get(widget.nome) || { widget, body, filtersDef, currentFilters: {} };
       const filters = hasFilters ? (state.currentFilters || buildDefaultFilters(filtersDef)) : {};
       const data = await runWidget(widget.nome, filters);

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from urllib.parse import urlparse
 
 from flask import Blueprint, Response, jsonify, render_template, request
 from flask_login import current_user, login_required
@@ -149,6 +150,15 @@ def _handle_error(exc: Exception):
     return jsonify({"error": translate("gr_budgets.error.generic")}), 500
 
 
+def _hub_return_url(value: str | None) -> str:
+    """Only retain an internal return link back to a Hub 360 dossier."""
+    candidate = str(value or "").strip()
+    parsed = urlparse(candidate)
+    if not candidate or parsed.scheme or parsed.netloc or not parsed.path.startswith("/obra-360/"):
+        return ""
+    return candidate
+
+
 @bp.route("/gr360_orcamentos")
 @bp.route("/gr_orcamentos")
 @bp.route("/orcamentos")
@@ -159,6 +169,7 @@ def page():
     return render_template(
         "gr_budgets/budgets.html",
         gr_budgets_i18n=_budget_i18n_payload(),
+        hub_return_url=_hub_return_url(request.args.get("return_to")),
     )
 
 

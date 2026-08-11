@@ -8,13 +8,22 @@
 {% endblock %}
 
 {% block content %}
-<div class="sz_page gr-budget-page" id="grBudgetApp" data-preferred-database="HSOLS_FR">
+<div class="sz_page gr-budget-page" id="grBudgetApp"
+     data-preferred-database="HSOLS_FR"
+     data-initial-feid="{{ request.args.get('feid', '') }}"
+     data-initial-bostamp="{{ request.args.get('bostamp', '') }}">
   <div class="sz_page_container gr-budget-shell">
     <header class="sz_contextbar sz_page_contextbar gr-budget-contextbar">
       <div class="sz_contextbar_left">
         <h1 class="sz_page_title">{{ _('gr_budgets.title') }}</h1>
         <div class="sz_breadcrumbs">{{ _('gr_budgets.breadcrumb') }}</div>
         <p class="sz_page_subtitle">{{ _('gr_budgets.subtitle') }}</p>
+        {% if hub_return_url %}
+        <a class="sz_button sz_button_ghost sz_button_compact" href="{{ hub_return_url }}">
+          <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
+          <span>Voltar ao Dossiê 360</span>
+        </a>
+        {% endif %}
       </div>
       <div class="sz_contextbar_right gr-budget-context-actions">
         <div class="gr-budget-filters">

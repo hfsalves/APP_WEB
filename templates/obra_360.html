@@ -1,0 +1,69 @@
+{% extends "sz_base.html" %}
+{% block title %}Hub de Obra 360º{% endblock %}
+{% block extra_head %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/obra_360.css') }}?v={{ static_version }}">
+{% endblock %}
+{% block content %}
+<div class="sz_page obra360-page" id="obra360Page" data-codigo="{{ codigo }}">
+  <div class="sz_page_container obra360-container">
+    <section class="sz_contextbar obra360-contextbar">
+      <div class="obra360-heading">
+        <div class="sz_breadcrumbs">GR360 / OBRAS / DOSSIÊ 360º</div>
+        <div class="sz_page_title" id="obra360Title">A carregar obra...</div>
+        <div class="sz_page_subtitle" id="obra360Subtitle">Identificação e situação operacional</div>
+      </div>
+      <div class="obra360-search-wrap">
+        <label class="visually-hidden" for="obra360Search">Pesquisar obra</label>
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input id="obra360Search" class="sz_input" type="search" autocomplete="off" placeholder="Código, centro de custo, cliente ou nome da obra">
+        <div class="obra360-search-results" id="obra360SearchResults" hidden></div>
+      </div>
+      <a class="sz_button sz_button_ghost obra360-form-link" id="obra360FormLink" href="#" hidden>
+        <i class="fa-solid fa-arrow-up-right-from-square"></i><span>Abrir ficha</span>
+      </a>
+    </section>
+
+    <section class="obra360-header-panel sz_panel" id="obra360Header" aria-live="polite">
+      <div class="obra360-header-skeleton skeleton-line"></div>
+      <div class="obra360-header-skeleton skeleton-line"></div>
+      <div class="obra360-header-skeleton skeleton-line"></div>
+    </section>
+
+    <nav class="obra360-tabs" aria-label="Secções do dossiê">
+      {% for code, label in [
+        ('resumo', 'Resumo'), ('comercial', 'Comercial'), ('compras', 'Compras'),
+        ('blbc', 'BC/BL'), ('autos', 'Autos'), ('faturacao', 'Faturação'), ('recebimentos', 'Recebimentos'),
+        ('custos', 'Custos'), ('producao', 'Produção'), ('documentos', 'Documentos'), ('financeiro', 'Financeiro')
+      ] %}
+      <button type="button" class="obra360-tab{% if code == 'resumo' %} is-active{% endif %}" data-tab="{{ code }}">{{ label }}</button>
+      {% endfor %}
+    </nav>
+
+    <section class="obra360-section-intro" id="obra360SectionIntro">
+      <div>
+        <h2 class="sz_h3" id="obra360SectionTitle">Resumo da obra</h2>
+        <p class="sz_text_muted" id="obra360SectionDescription">Os dados são carregados por secção, sem bloquear o dossiê.</p>
+      </div>
+    </section>
+
+    <section class="obra360-cards" id="obra360Cards" aria-live="polite"></section>
+  </div>
+</div>
+
+<div class="modal fade" id="obra360DetailModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable modal-dialog-centered">
+    <div class="modal-content sz_panel obra360-detail-modal">
+      <div class="modal-header sz_modal_header">
+        <div><h3 class="sz_h4 sz_modal_title" id="obra360DetailTitle">Detalhe</h3><div class="sz_text_muted" id="obra360DetailSource"></div></div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body sz_modal_body" id="obra360DetailBody"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+  {{ super() }}
+  <script src="{{ url_for('static', filename='js/obra_360.js') }}?v={{ static_version }}"></script>
+{% endblock %}
