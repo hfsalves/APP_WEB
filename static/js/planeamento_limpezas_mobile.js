@@ -95,7 +95,7 @@
     previous: $('#cleaningMobilePrevious'), next: $('#cleaningMobileNext'), date: $('#cleaningMobileDate'),
     dateInput: $('#cleaningMobileDateInput'), weekday: $('#cleaningMobileWeekday'), dateLabel: $('#cleaningMobileDateLabel'),
     pendingCount: $('#cleaningMobilePendingCount'), plannedCount: $('#cleaningMobilePlannedCount'),
-    pendingSection: $('#cleaningMobilePendingSection'), pendingList: $('#cleaningMobilePendingList'), teamList: $('#cleaningMobileTeamList'), empty: $('#cleaningMobileEmpty'),
+    pendingSection: $('#cleaningMobilePendingSection'), pendingList: $('#cleaningMobilePendingList'), assignedSection: $('#cleaningMobileAssignedSection'), teamList: $('#cleaningMobileTeamList'), empty: $('#cleaningMobileEmpty'),
     sortLodging: sortControls.lodging, sortTeam: sortControls.team,
     save: $('#cleaningMobileSave'), cancel: ensureCancelButton(), sheet: $('#cleaningMobileSheet'), sheetClose: $('#cleaningMobileSheetClose'),
     sheetTitle: $('#cleaningMobileSheetTitle'), sheetProperty: $('#cleaningMobileSheetProperty'), sheetWindow: $('#cleaningMobileSheetWindow'),
@@ -323,22 +323,34 @@
     const planned = requiredRows.length - pending.length;
     els.pendingCount.textContent = pending.length;
     els.plannedCount.textContent = `${planned} de ${requiredRows.length}`;
-    els.pendingSection.hidden = !pending.length;
+    els.pendingSection.hidden = state.sortMode === 'lodging' || !pending.length;
     els.pendingList.innerHTML = pending.map(row => cardMarkup(row, null)).join('');
 
     const assigned = state.rows.flatMap(row => cleaningsFor(row).map(cleaning => ({ row, cleaning })))
       .sort((a, b) => state.sortMode === 'lodging'
         ? String(a.row.lodging || '').localeCompare(String(b.row.lodging || ''), 'pt') || String(a.cleaning.time).localeCompare(String(b.cleaning.time))
         : String(a.cleaning.team).localeCompare(String(b.cleaning.team), 'pt') || String(a.cleaning.time).localeCompare(String(b.cleaning.time)));
+    if (state.sortMode === 'lodging') {
+      const flatItems = [
+        ...pending.map(row => ({ row, time: '', markup: cardMarkup(row, null) })),
+        ...assigned.map(({ row, cleaning }) => ({ row, time: cleaning.time || '', markup: cardMarkup(row, cleaning) })),
+        ...special.map(({ row, status }) => ({ row, time: '', markup: statusCardMarkup(row, status) })),
+      ].sort((a, b) => String(a.row.lodging || '').localeCompare(String(b.row.lodging || ''), 'pt') || String(a.time).localeCompare(String(b.time)));
+      els.assignedSection.querySelector('.cleaning-mobile-section-title').hidden = true;
+      els.teamList.innerHTML = `<div class="cleaning-mobile-list">${flatItems.map(item => item.markup).join('')}</div>`;
+      els.empty.hidden = Boolean(flatItems.length);
+      bindCards();
+      return;
+    }
+
+    els.assignedSection.querySelector('.cleaning-mobile-section-title').hidden = false;
     const groups = new Map();
     assigned.forEach(item => {
       const key = item.cleaning.team || 'Sem equipa';
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push(item);
     });
-    const teamSections = state.sortMode === 'lodging'
-      ? (assigned.length ? `<section class="cleaning-mobile-team"><h3 class="cleaning-mobile-team-heading"><i class="fa-solid fa-house"></i>Alojamentos<small>${assigned.length} limpeza${assigned.length === 1 ? '' : 's'}</small></h3><div class="cleaning-mobile-list">${assigned.map(({ row, cleaning }) => cardMarkup(row, cleaning)).join('')}</div></section>` : '')
-      : [...groups.entries()].map(([name, jobs]) => {
+    const teamSections = [...groups.entries()].map(([name, jobs]) => {
       const configuredTeam = state.teams.find(team => teamName(team) === name);
       const color = configuredTeam?.COR || '#58c7bb';
       return `<section class="cleaning-mobile-team"><h3 class="cleaning-mobile-team-heading"><i class="cleaning-mobile-team-dot" style="background:${esc(color)}"></i>${esc(name)}<small>${jobs.length} limpeza${jobs.length === 1 ? '' : 's'}</small></h3><div class="cleaning-mobile-list">${jobs.map(({ row, cleaning }) => cardMarkup(row, cleaning)).join('')}</div></section>`;
