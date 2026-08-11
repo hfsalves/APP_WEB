@@ -4,6 +4,9 @@
 
 {% block extra_head %}
   {{ super() }}
+  <script>
+    document.querySelector('meta[name="viewport"]')?.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no');
+  </script>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/planeamento_limpezas_mobile.css') }}">
 {% endblock %}
 
@@ -35,6 +38,10 @@
     <div class="cleaning-mobile-status" aria-live="polite">
       <span class="cleaning-mobile-status-pending"><i class="fa-solid fa-triangle-exclamation"></i> <strong id="cleaningMobilePendingCount">0</strong> pendentes</span>
       <span>Planeadas <strong id="cleaningMobilePlannedCount">0 de 0</strong></span>
+    </div>
+    <div class="cleaning-mobile-sort" aria-label="Ordenação do planeamento">
+      <button type="button" id="cleaningMobileSortLodging" aria-pressed="false"><i class="fa-solid fa-house"></i> Alojamento</button>
+      <button type="button" class="is-active" id="cleaningMobileSortTeam" aria-pressed="true"><i class="fa-solid fa-user"></i> Equipa</button>
     </div>
 
     <main class="cleaning-mobile-content">

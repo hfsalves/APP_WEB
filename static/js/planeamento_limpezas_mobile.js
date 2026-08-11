@@ -8,6 +8,7 @@
     selected: null,
     selectedTeam: '',
     deletedIds: [],
+    sortMode: 'team',
     dirty: false,
   };
 
@@ -71,11 +72,31 @@
     return cancel;
   }
 
+  function ensureSortControls() {
+    let lodging = $('#cleaningMobileSortLodging');
+    let team = $('#cleaningMobileSortTeam');
+    if (lodging && team) return { lodging, team };
+    const status = $('.cleaning-mobile-status');
+    if (!status) return { lodging: null, team: null };
+    const controls = document.createElement('div');
+    controls.className = 'cleaning-mobile-sort';
+    controls.setAttribute('aria-label', 'Ordenação do planeamento');
+    controls.innerHTML = '<button type="button" id="cleaningMobileSortLodging" aria-pressed="false"><i class="fa-solid fa-house"></i> Alojamento</button><button type="button" class="is-active" id="cleaningMobileSortTeam" aria-pressed="true"><i class="fa-solid fa-user"></i> Equipa</button>';
+    status.insertAdjacentElement('afterend', controls);
+    lodging = controls.querySelector('#cleaningMobileSortLodging');
+    team = controls.querySelector('#cleaningMobileSortTeam');
+    return { lodging, team };
+  }
+
+  document.querySelector('meta[name="viewport"]')?.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no');
+  const sortControls = ensureSortControls();
+
   const els = {
     previous: $('#cleaningMobilePrevious'), next: $('#cleaningMobileNext'), date: $('#cleaningMobileDate'),
     dateInput: $('#cleaningMobileDateInput'), weekday: $('#cleaningMobileWeekday'), dateLabel: $('#cleaningMobileDateLabel'),
     pendingCount: $('#cleaningMobilePendingCount'), plannedCount: $('#cleaningMobilePlannedCount'),
     pendingSection: $('#cleaningMobilePendingSection'), pendingList: $('#cleaningMobilePendingList'), teamList: $('#cleaningMobileTeamList'), empty: $('#cleaningMobileEmpty'),
+    sortLodging: sortControls.lodging, sortTeam: sortControls.team,
     save: $('#cleaningMobileSave'), cancel: ensureCancelButton(), sheet: $('#cleaningMobileSheet'), sheetClose: $('#cleaningMobileSheetClose'),
     sheetTitle: $('#cleaningMobileSheetTitle'), sheetProperty: $('#cleaningMobileSheetProperty'), sheetWindow: $('#cleaningMobileSheetWindow'),
     personList: ensurePersonList(), timeInput: ensureTimeStepper(), timeMinus: $('#cleaningMobileTimeMinus'), timePlus: $('#cleaningMobileTimePlus'), warning: $('#cleaningMobileScheduleWarning'),
@@ -223,6 +244,16 @@
     els.date.disabled = state.dirty;
   }
 
+  function setSortMode(mode) {
+    state.sortMode = mode === 'lodging' ? 'lodging' : 'team';
+    const lodgingActive = state.sortMode === 'lodging';
+    els.sortLodging.classList.toggle('is-active', lodgingActive);
+    els.sortTeam.classList.toggle('is-active', !lodgingActive);
+    els.sortLodging.setAttribute('aria-pressed', String(lodgingActive));
+    els.sortTeam.setAttribute('aria-pressed', String(!lodgingActive));
+    render();
+  }
+
   function updateDateHeader() {
     els.dateInput.value = state.date;
     els.weekday.textContent = formatDate(state.date, { weekday: 'long' });
@@ -288,6 +319,7 @@
       || (Boolean(row.checkin_reservation) && !isCleanSinceLast(row))
     ));
     const pending = requiredRows.filter(row => !cleaningsFor(row).length && !specialRows.has(row));
+    if (state.sortMode === 'lodging') pending.sort((a, b) => String(a.lodging || '').localeCompare(String(b.lodging || ''), 'pt'));
     const planned = requiredRows.length - pending.length;
     els.pendingCount.textContent = pending.length;
     els.plannedCount.textContent = `${planned} de ${requiredRows.length}`;
@@ -295,14 +327,18 @@
     els.pendingList.innerHTML = pending.map(row => cardMarkup(row, null)).join('');
 
     const assigned = state.rows.flatMap(row => cleaningsFor(row).map(cleaning => ({ row, cleaning })))
-      .sort((a, b) => String(a.cleaning.team).localeCompare(String(b.cleaning.team)) || String(a.cleaning.time).localeCompare(String(b.cleaning.time)));
+      .sort((a, b) => state.sortMode === 'lodging'
+        ? String(a.row.lodging || '').localeCompare(String(b.row.lodging || ''), 'pt') || String(a.cleaning.time).localeCompare(String(b.cleaning.time))
+        : String(a.cleaning.team).localeCompare(String(b.cleaning.team), 'pt') || String(a.cleaning.time).localeCompare(String(b.cleaning.time)));
     const groups = new Map();
     assigned.forEach(item => {
       const key = item.cleaning.team || 'Sem equipa';
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push(item);
     });
-    const teamSections = [...groups.entries()].map(([name, jobs]) => {
+    const teamSections = state.sortMode === 'lodging'
+      ? (assigned.length ? `<section class="cleaning-mobile-team"><h3 class="cleaning-mobile-team-heading"><i class="fa-solid fa-house"></i>Alojamentos<small>${assigned.length} limpeza${assigned.length === 1 ? '' : 's'}</small></h3><div class="cleaning-mobile-list">${assigned.map(({ row, cleaning }) => cardMarkup(row, cleaning)).join('')}</div></section>` : '')
+      : [...groups.entries()].map(([name, jobs]) => {
       const configuredTeam = state.teams.find(team => teamName(team) === name);
       const color = configuredTeam?.COR || '#58c7bb';
       return `<section class="cleaning-mobile-team"><h3 class="cleaning-mobile-team-heading"><i class="cleaning-mobile-team-dot" style="background:${esc(color)}"></i>${esc(name)}<small>${jobs.length} limpeza${jobs.length === 1 ? '' : 's'}</small></h3><div class="cleaning-mobile-list">${jobs.map(({ row, cleaning }) => cardMarkup(row, cleaning)).join('')}</div></section>`;
@@ -459,6 +495,8 @@
 
   els.previous.addEventListener('click', () => changeDate(-1));
   els.next.addEventListener('click', () => changeDate(1));
+  els.sortLodging.addEventListener('click', () => setSortMode('lodging'));
+  els.sortTeam.addEventListener('click', () => setSortMode('team'));
   els.date.addEventListener('click', () => els.dateInput.showPicker?.() || els.dateInput.click());
   els.dateInput.addEventListener('change', () => {
     if (state.dirty) { els.dateInput.value = state.date; return; }
@@ -479,7 +517,14 @@
     if (!cleaning) row.cleanings.push(item);
     setDirty(true);
     closeSheet();
-    render();
+    if (!cleaning) {
+      const sourceCard = [...document.querySelectorAll('button.cleaning-mobile-card[data-row]')]
+        .find(card => card.dataset.row === row._key && !card.dataset.cleaning);
+      if (sourceCard) {
+        sourceCard.classList.add('is-assigned-exit');
+        window.setTimeout(render, 420);
+      } else render();
+    } else render();
   });
   els.sheetRemove.addEventListener('click', async () => {
     const { row, cleaning } = state.selected || {};

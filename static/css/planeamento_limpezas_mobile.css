@@ -1,4 +1,5 @@
 .cleaning-mobile-page { min-height: 100%; background: var(--sz-color-bg-main, #091526); }
+.cleaning-mobile-page button { touch-action: manipulation; }
 .cleaning-mobile-app { display: none; }
 .cleaning-mobile-desktop-notice { min-height: 60vh; display: grid; place-content: center; gap: .6rem; color: var(--sz-color-text-secondary, #9db0c7); text-align: center; padding: 2rem; }
 .cleaning-mobile-desktop-notice i { font-size: 2rem; color: var(--sz-color-primary, #5fa8ff); }
@@ -20,12 +21,22 @@
   .cleaning-mobile-status { display: flex; gap: .45rem; overflow-x: auto; padding: .7rem .8rem .45rem; background: #0b1728; color: #c7d7e9; font-size: .73rem; white-space: nowrap; }
   .cleaning-mobile-status > span { border: 1px solid #365878; border-radius: 999px; background: #132943; padding: .4rem .6rem; }
   .cleaning-mobile-status-pending { border-color: #a9683d !important; background: #352318 !important; color: #ffc698; }
+  .cleaning-mobile-sort { display: grid; grid-template-columns: 1fr 1fr; gap: .45rem; padding: .35rem .8rem .6rem; background: #0b1728; }
+  .cleaning-mobile-sort button { min-height: 2.2rem; border: 1px solid #345575; border-radius: .55rem; background: #11253b; color: #9eb5cc; font-size: .7rem; font-weight: 800; }
+  .cleaning-mobile-sort button.is-active { border-color: #559de0; background: #183b5d; color: #e5f2ff; }
+  .cleaning-mobile-sort button i { margin-right: .3rem; }
   .cleaning-mobile-content { padding: 0 .8rem 1rem; background: #0b1728; min-height: calc(100vh - 14rem); }
   .cleaning-mobile-section-title { display: flex; align-items: baseline; justify-content: space-between; padding: 1rem .1rem .5rem; }
   .cleaning-mobile-section-title h2 { color: #e7f0fc; font-size: .78rem; letter-spacing: .04em; margin: 0; text-transform: uppercase; }
   .cleaning-mobile-section-title span { color: #9db3cb; font-size: .67rem; }
   .cleaning-mobile-list { display: grid; gap: .55rem; }
   .cleaning-mobile-card { width: 100%; text-align: left; border: 1px solid #31516f; background: #12263d; border-radius: .85rem; padding: .75rem; color: #eaf2ff; }
+  .cleaning-mobile-card.is-assigned-exit { pointer-events: none; animation: cleaning-mobile-card-assigned .42s ease forwards; }
+  @keyframes cleaning-mobile-card-assigned {
+    0% { opacity: 1; transform: translateX(0) scale(1); }
+    35% { border-color: #55c7a9; background: #143b38; transform: translateX(0) scale(.985); }
+    100% { opacity: 0; border-color: #55c7a9; background: #143b38; transform: translateX(2.5rem) scale(.96); }
+  }
   .cleaning-mobile-card.is-pending { border-color: #9b6540; background: linear-gradient(100deg, #2f221b, #15283e); }
   .cleaning-mobile-card-head { display: flex; justify-content: space-between; align-items: center; gap: .5rem; }
   .cleaning-mobile-card-name { font-size: .88rem; font-weight: 800; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -82,7 +93,7 @@
   .cleaning-mobile-field { display: grid; gap: .35rem; color: #b9cce0; font-size: .72rem; font-weight: 700; margin-top: .7rem; }
   .cleaning-mobile-time-stepper { display: grid; grid-template-columns: 3rem minmax(0, 1fr) 3rem; gap: .45rem; }
   .cleaning-mobile-time-stepper input { min-width: 0; border: 1px solid #42617f; border-radius: .55rem; background: #0f2136; color: #eaf2ff; font-size: 1rem; font-weight: 800; padding: .65rem; text-align: center; }
-  .cleaning-mobile-time-stepper button { border: 1px solid #42617f; border-radius: .55rem; background: #183451; color: #8bcaff; font-size: 1.35rem; font-weight: 800; line-height: 1; }
+  .cleaning-mobile-time-stepper button { touch-action: manipulation; user-select: none; -webkit-user-select: none; border: 1px solid #42617f; border-radius: .55rem; background: #183451; color: #8bcaff; font-size: 1.35rem; font-weight: 800; line-height: 1; }
   .cleaning-mobile-time-stepper button:active { background: #24537d; }
   .cleaning-mobile-warning { color: #ffd39e; background: #3a291b; border: 1px solid #8a6039; border-radius: .5rem; font-size: .72rem; margin: .8rem 0 0; padding: .55rem .6rem; }
   .cleaning-mobile-sheet-save { margin-top: 1rem; }
