@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from urllib.parse import urlparse
 
-from flask import Blueprint, Response, jsonify, render_template, request
+from flask import Blueprint, Response, current_app, jsonify, render_template, request
 from flask_login import current_user, login_required
 
 from i18n import BASE_LANGUAGE, js_translations, reload_translations, translate
@@ -156,6 +156,7 @@ def _handle_error(exc: Exception):
         if isinstance(exc, BudgetsCreditLimitError):
             payload["credit"] = exc.credit
         return jsonify(payload), getattr(exc, "status_code", 500)
+    current_app.logger.exception("Erro inesperado no módulo de orçamentos")
     return jsonify({"error": translate("gr_budgets.error.generic")}), 500
 
 
@@ -375,6 +376,13 @@ def api_budget_convert_execution(bostamp):
             }
         )
     except Exception as exc:
+        current_app.logger.exception(
+            "Falha ao concluir orçamento ganho: bostamp=%s feid=%s utilizador=%s target=%s",
+            bostamp,
+            payload.get("feid"),
+            getattr(current_user, "LOGIN", ""),
+            payload.get("target"),
+        )
         return _handle_error(exc)
 
 
