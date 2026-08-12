@@ -1213,6 +1213,8 @@ def create_app():
                 = LTRIM(RTRIM(:r)) COLLATE SQL_Latin1_General_CP1_CI_AI
               -- O portal público nunca pode expor reservas canceladas.
               AND ISNULL(RS.CANCELADA, 0) = 0
+              -- BLOQ permite bloquear manualmente o acesso ao portal.
+              AND ISNULL(RS.BLOQ, 0) = 0
             ORDER BY ISNULL(RS.DATAIN, RS.DATAOUT) DESC
         """), {'r': reserva_code}).mappings().first()
         if not row:
