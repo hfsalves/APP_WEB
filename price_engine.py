@@ -2529,7 +2529,8 @@ def _load_pricing_sync_monitor_state():
             """
             SELECT
                 LTRIM(RTRIM(D.AL_NOME)) AS Alojamento,
-                COUNT(*) AS RegistosPorSincronizar,
+                SUM(CASE WHEN ISNULL(P.[SYNC], 0) = 1 AND ISNULL(D.[SYNC], 0) = 0 THEN 1 ELSE 0 END) AS RegistosAirbnb,
+                SUM(CASE WHEN ISNULL(P.SYNC_BOOKING, 0) = 1 AND ISNULL(D.SYNC_BOOKING, 0) = 0 THEN 1 ELSE 0 END) AS RegistosBooking,
                 MIN(CAST(D.[DATA] AS date)) AS PrimeiraData,
                 MAX(CAST(D.[DATA] AS date)) AS UltimaData
             FROM dbo.PR_CALC_DAY AS D
@@ -2538,8 +2539,10 @@ def _load_pricing_sync_monitor_state():
             JOIN dbo.AL AS AL
               ON AL.NOME = D.AL_NOME
             WHERE
-                P.SYNC = 1
-                AND ISNULL(D.SYNC, 0) = 0
+                (
+                    (ISNULL(P.[SYNC], 0) = 1 AND ISNULL(D.[SYNC], 0) = 0)
+                    OR (ISNULL(P.SYNC_BOOKING, 0) = 1 AND ISNULL(D.SYNC_BOOKING, 0) = 0)
+                )
                 AND D.[DATA] >= CAST(GETDATE() AS date)
                 AND D.[DATA] < DATEADD(day, 375, CAST(GETDATE() AS date))
                 AND NOT EXISTS (
@@ -2562,6 +2565,8 @@ def _load_pricing_sync_monitor_state():
     totals = {
         "total_alojamentos": 0,
         "total_registos": 0,
+        "total_airbnb": 0,
+        "total_booking": 0,
         "primeira_data": "",
         "ultima_data": "",
     }
@@ -2582,7 +2587,9 @@ def _load_pricing_sync_monitor_state():
 
     for row in rows:
         alojamento = _normalize_alojamento(row.get("Alojamento"))
-        count = int(row.get("RegistosPorSincronizar") or 0)
+        airbnb_count = int(row.get("RegistosAirbnb") or 0)
+        booking_count = int(row.get("RegistosBooking") or 0)
+        count = airbnb_count + booking_count
         first_date = row.get("PrimeiraData")
         last_date = row.get("UltimaData")
         robot_name = _pricing_sync_robot_for_alojamento(alojamento)
@@ -2590,6 +2597,8 @@ def _load_pricing_sync_monitor_state():
             "robot": robot_name,
             "alojamento": alojamento,
             "registos": count,
+            "registos_airbnb": airbnb_count,
+            "registos_booking": booking_count,
             "primeira_data": _iso_or_empty(first_date),
             "ultima_data": _iso_or_empty(last_date),
         }
@@ -2597,6 +2606,8 @@ def _load_pricing_sync_monitor_state():
 
         totals["total_alojamentos"] += 1
         totals["total_registos"] += count
+        totals["total_airbnb"] += airbnb_count
+        totals["total_booking"] += booking_count
 
         if first_date and (overall_first is None or first_date < overall_first):
             overall_first = first_date
@@ -2656,7 +2667,10 @@ def _load_pricing_sync_monitor_alojamento_detail(alojamento):
     rows = db.session.execute(
         text(
             """
-            SELECT CAST(D.[DATA] AS date) AS Dia
+            SELECT
+                CAST(D.[DATA] AS date) AS Dia,
+                CASE WHEN ISNULL(P.[SYNC], 0) = 1 AND ISNULL(D.[SYNC], 0) = 0 THEN 1 ELSE 0 END AS PendenteAirbnb,
+                CASE WHEN ISNULL(P.SYNC_BOOKING, 0) = 1 AND ISNULL(D.SYNC_BOOKING, 0) = 0 THEN 1 ELSE 0 END AS PendenteBooking
             FROM dbo.PR_CALC_DAY AS D
             JOIN dbo.PR_ALOJAMENTO AS P
               ON P.AL_NOME = D.AL_NOME
@@ -2664,8 +2678,10 @@ def _load_pricing_sync_monitor_alojamento_detail(alojamento):
               ON AL.NOME = D.AL_NOME
             WHERE
                 LTRIM(RTRIM(D.AL_NOME)) = :alojamento
-                AND P.SYNC = 1
-                AND ISNULL(D.SYNC, 0) = 0
+                AND (
+                    (ISNULL(P.[SYNC], 0) = 1 AND ISNULL(D.[SYNC], 0) = 0)
+                    OR (ISNULL(P.SYNC_BOOKING, 0) = 1 AND ISNULL(D.SYNC_BOOKING, 0) = 0)
+                )
                 AND D.[DATA] >= :date_from
                 AND D.[DATA] <= :date_to
                 AND NOT EXISTS (
@@ -2686,7 +2702,16 @@ def _load_pricing_sync_monitor_alojamento_detail(alojamento):
         },
     ).mappings().all()
 
-    unsynced_dates = {_iso_or_empty(row.get("Dia")) for row in rows if row.get("Dia")}
+    unsynced_airbnb_dates = {
+        _iso_or_empty(row.get("Dia"))
+        for row in rows
+        if row.get("Dia") and bool(row.get("PendenteAirbnb"))
+    }
+    unsynced_booking_dates = {
+        _iso_or_empty(row.get("Dia"))
+        for row in rows
+        if row.get("Dia") and bool(row.get("PendenteBooking"))
+    }
     occupied_rows = db.session.execute(
         text(
             """
@@ -2738,14 +2763,16 @@ def _load_pricing_sync_monitor_alojamento_detail(alojamento):
                     "date": iso_day,
                     "active": bool(in_scope),
                     "occupied": bool(in_scope and iso_day in occupied_dates),
-                    "unsynced": bool(in_scope and iso_day in unsynced_dates),
+                    "unsynced_airbnb": bool(in_scope and iso_day in unsynced_airbnb_dates),
+                    "unsynced_booking": bool(in_scope and iso_day in unsynced_booking_dates),
                 }
             )
         months.append(
             {
                 "month_start": current_start.isoformat(),
                 "label": current_start.strftime("%b %Y"),
-                "unsynced_count": sum(1 for item in cells if item.get("unsynced")),
+                "unsynced_airbnb_count": sum(1 for item in cells if item.get("unsynced_airbnb")),
+                "unsynced_booking_count": sum(1 for item in cells if item.get("unsynced_booking")),
                 "occupied_count": sum(1 for item in cells if item.get("occupied")),
                 "cells": cells,
             }
@@ -2757,7 +2784,9 @@ def _load_pricing_sync_monitor_alojamento_detail(alojamento):
         "alojamento": alojamento_norm,
         "date_from": today_value.isoformat(),
         "date_to": range_end.isoformat(),
-        "total_unsynced": len(unsynced_dates),
+        "total_unsynced": len(unsynced_airbnb_dates) + len(unsynced_booking_dates),
+        "total_unsynced_airbnb": len(unsynced_airbnb_dates),
+        "total_unsynced_booking": len(unsynced_booking_dates),
         "total_occupied": len(occupied_dates),
         "months": months,
     }

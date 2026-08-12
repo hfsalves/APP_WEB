@@ -345,7 +345,7 @@
 
   .sz_pricing_cell {
     position: relative;
-    min-height: 2.6rem;
+    min-height: 3.2rem;
     border: 1px solid color-mix(in srgb, var(--sz-color-border) 88%, transparent);
     border-radius: var(--sz-radius-md);
     padding: 0.26rem;
@@ -392,6 +392,10 @@
     color: inherit;
   }
 
+  .sz_pricing_cell.occupied .sz_pricing_sync_markers {
+    display: none;
+  }
+
   [data-sz-theme="dark"] .sz_pricing_cell.occupied {
     color: #08111a;
   }
@@ -424,10 +428,9 @@
   }
 
   .sz_pricing_sync_markers {
-    position: absolute;
-    right: 4px;
-    bottom: 4px;
     display: inline-flex;
+    align-self: flex-end;
+    min-height: 7px;
     gap: 3px;
     pointer-events: none;
   }
@@ -439,10 +442,11 @@
   }
 
   .sz_pricing_sync_marker.airbnb { background: #ec6b9a; }
-  .sz_pricing_sync_marker.booking { background: #4f9cf9; }
+  .sz_pricing_sync_marker.booking { background: #168cff; }
 
   .sz_pricing_day_price {
     margin-top: 0.22rem;
+    padding-bottom: 0;
     font-size: 0.72rem;
     font-weight: var(--sz-font-weight-bold);
     color: var(--sz-color-primary);
@@ -1409,18 +1413,18 @@
         const data = dayMap.get(iso);
         const cell = document.createElement('button');
         cell.type = 'button';
-        const airbnbPending = Boolean(data && data.sync_enabled && !data.synced);
-        const bookingPending = Boolean(data && data.sync_booking_enabled && !data.synced_booking);
+        const airbnbPending = Boolean(data && !data.occupied && data.sync_enabled && !data.synced);
+        const bookingPending = Boolean(data && !data.occupied && data.sync_booking_enabled && !data.synced_booking);
         cell.className = `sz_pricing_cell ${data ? 'has-data' : 'empty'} ${data && data.occupied ? 'occupied' : ''} ${airbnbPending ? 'unsynced-airbnb' : ''} ${bookingPending ? 'unsynced-booking' : ''} ${data && data.has_event ? 'event-day' : ''}`;
         if (data) {
           const titleParts = [];
           if (data.has_event && data.event_name) {
             titleParts.push(`Evento: ${data.event_name}`);
           }
-          if (data.sync_enabled) {
+          if (!data.occupied && data.sync_enabled) {
             titleParts.push(`Airbnb: ${data.synced ? `sincronizado${data.synced_at ? ` em ${data.synced_at}` : ''}` : 'por sincronizar'}`);
           }
-          if (data.sync_booking_enabled) {
+          if (!data.occupied && data.sync_booking_enabled) {
             titleParts.push(`Booking: ${data.synced_booking ? `sincronizado${data.synced_booking_at ? ` em ${data.synced_booking_at}` : ''}` : 'por sincronizar'}`);
           }
           if (titleParts.length) {

@@ -172,9 +172,35 @@
   }
 
   .pszm-aloj-registos {
-    font-size: 1.15rem;
+    display: flex;
+    align-items: center;
+    gap: .35rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .pszm-channel-count {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    padding: .22rem .42rem;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    font-size: .75rem;
     font-weight: var(--sz-font-weight-semibold);
     white-space: nowrap;
+  }
+
+  .pszm-channel-count.airbnb {
+    color: #ec6b9a;
+    border-color: color-mix(in srgb, #ec6b9a 58%, var(--sz-color-border));
+    background: color-mix(in srgb, #ec6b9a 13%, transparent);
+  }
+
+  .pszm-channel-count.booking {
+    color: #168cff;
+    border-color: color-mix(in srgb, #168cff 58%, var(--sz-color-border));
+    background: color-mix(in srgb, #168cff 13%, transparent);
   }
 
   .pszm-aloj-meta {
@@ -283,9 +309,19 @@
     border-color: color-mix(in srgb, var(--sz-color-border) 72%, transparent);
   }
 
-  .pszm-month-cell.is-unsynced {
-    background: color-mix(in srgb, var(--sz-color-danger) 88%, transparent);
-    border-color: color-mix(in srgb, var(--sz-color-danger) 55%, transparent);
+  .pszm-month-cell.is-unsynced-airbnb {
+    background: color-mix(in srgb, #ec6b9a 72%, transparent);
+    border-color: color-mix(in srgb, #ec6b9a 62%, transparent);
+  }
+
+  .pszm-month-cell.is-unsynced-booking {
+    background: color-mix(in srgb, #168cff 72%, transparent);
+    border-color: color-mix(in srgb, #168cff 62%, transparent);
+  }
+
+  .pszm-month-cell.is-unsynced-airbnb.is-unsynced-booking {
+    background: linear-gradient(135deg, color-mix(in srgb, #ec6b9a 72%, transparent) 0 50%, color-mix(in srgb, #168cff 72%, transparent) 50% 100%);
+    border-color: color-mix(in srgb, #9d77c9 72%, transparent);
   }
 
   .pszm-month-cell.is-occupied {
@@ -472,7 +508,10 @@
               <article class="pszm-aloj-card" data-row-key="{{ row.robot }}::{{ row.alojamento }}">
                 <div class="pszm-aloj-card-head">
                   <h2 class="pszm-aloj-title">{{ row.alojamento }}</h2>
-                  <div class="pszm-aloj-registos">{{ row.registos }}</div>
+                  <div class="pszm-aloj-registos">
+                    {% if row.registos_airbnb %}<span class="pszm-channel-count airbnb">{{ row.registos_airbnb }}</span>{% endif %}
+                    {% if row.registos_booking %}<span class="pszm-channel-count booking">{{ row.registos_booking }}</span>{% endif %}
+                  </div>
                 </div>
               </article>
             {% endfor %}
@@ -566,7 +605,8 @@
 
   function renderDetailMeta(detail) {
     const badges = [
-      `<span class="sz_badge sz_badge_info">${escapeHtml(detail.total_unsynced || 0)} dias por sincronizar</span>`,
+      `<span class="pszm-channel-count airbnb">${escapeHtml(detail.total_unsynced_airbnb || 0)}</span>`,
+      `<span class="pszm-channel-count booking">${escapeHtml(detail.total_unsynced_booking || 0)}</span>`,
       `<span class="sz_badge sz_badge_primary">${escapeHtml(detail.total_occupied || 0)} noites ocupadas</span>`,
       `<span class="sz_badge sz_badge_warning">${escapeHtml(fmtDate(detail.date_from))} -> ${escapeHtml(fmtDate(detail.date_to))}</span>`,
     ];
@@ -588,7 +628,8 @@
         const classes = ['pszm-month-cell'];
         if (cell.active) classes.push('is-active'); else classes.push('is-inactive');
         if (cell.occupied) classes.push('is-occupied');
-        if (cell.unsynced) classes.push('is-unsynced');
+        if (cell.unsynced_airbnb) classes.push('is-unsynced-airbnb');
+        if (cell.unsynced_booking) classes.push('is-unsynced-booking');
         return `<div class="${classes.join(' ')}" title="${escapeHtml(cell.date || '')}"></div>`;
       }).join('');
       return `
@@ -597,7 +638,8 @@
             <div class="pszm-month-title">${escapeHtml(month.label || '')}</div>
             <div style="display:flex; gap:6px; align-items:center;">
               <span class="sz_badge ${Number(month.occupied_count || 0) > 0 ? 'sz_badge_primary' : 'sz_badge_ghost'}">${escapeHtml(month.occupied_count || 0)}</span>
-              <span class="sz_badge ${Number(month.unsynced_count || 0) > 0 ? 'sz_badge_danger' : 'sz_badge_ghost'}">${escapeHtml(month.unsynced_count || 0)}</span>
+              <span class="pszm-channel-count airbnb">${escapeHtml(month.unsynced_airbnb_count || 0)}</span>
+              <span class="pszm-channel-count booking">${escapeHtml(month.unsynced_booking_count || 0)}</span>
             </div>
           </div>
           <div class="pszm-month-grid">${cellsHtml}</div>
@@ -662,13 +704,16 @@
     cardGridEl.innerHTML = rows.map((row) => {
       const rowKey = `${row.robot}::${row.alojamento}`;
       const prev = previousRows.get(rowKey);
-      const changed = !prev || Number(prev.registos || 0) !== Number(row.registos || 0);
+      const changed = !prev
+        || Number(prev.registos_airbnb || 0) !== Number(row.registos_airbnb || 0)
+        || Number(prev.registos_booking || 0) !== Number(row.registos_booking || 0);
       return `
         <article class="pszm-aloj-card${changed ? ' pszm-row-glow' : ''}" data-row-key="${escapeHtml(rowKey)}" data-alojamento="${escapeHtml(row.alojamento)}">
           <div class="pszm-aloj-card-head">
             <h2 class="pszm-aloj-title">${escapeHtml(row.alojamento)}</h2>
             <div class="pszm-aloj-registos">
-              <span class="pszm-registos-value${changed ? ' pszm-value-bump' : ''}">${escapeHtml(row.registos)}</span>
+              ${Number(row.registos_airbnb || 0) > 0 ? `<span class="pszm-channel-count airbnb"><span class="pszm-registos-value${changed ? ' pszm-value-bump' : ''}">${escapeHtml(row.registos_airbnb)}</span></span>` : ''}
+              ${Number(row.registos_booking || 0) > 0 ? `<span class="pszm-channel-count booking"><span class="pszm-registos-value${changed ? ' pszm-value-bump' : ''}">${escapeHtml(row.registos_booking)}</span></span>` : ''}
             </div>
           </div>
         </article>
