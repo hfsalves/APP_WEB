@@ -35,6 +35,7 @@ from modules.gr_subcontractor_measurements.service import (
     _user_inis,
     list_companies_for_user,
 )
+from services.opc_phc_info_service import _origin_phc_process_prefix, _phc_process_code
 
 
 MAX_RESULTS = 300
@@ -172,6 +173,11 @@ def _budget_can_be_edited(row: dict[str, Any]) -> bool:
         _bool_value(row.get(field))
         for field in ("FECHADA", "ADJUDICADO", "ANULADO")
     )
+
+
+def _budget_can_link_to_work(row: dict[str, Any]) -> bool:
+    """A won Devis can still be converted or attached to its work."""
+    return not any(_bool_value(row.get(field)) for field in ("FECHADA", "ANULADO"))
 
 
 def _business_date_iso(value: Any) -> str:
@@ -856,9 +862,11 @@ def get_budget_detail(feid: Any, bostamp: str, user) -> dict[str, Any]:
     default_vat_table, default_vat_rate = _budget_default_vat(lines, tax_rates, client_tax_table)
     header["default_vat_table"] = default_vat_table
     header["default_vat_rate"] = _percent(default_vat_rate)
+    work = _central_work_for_phc_process(company, header.get("process"))
     return {
         "company": company,
         "header": header,
+        "work": work,
         "lines": lines,
         "totals": _totals_payload(header, lines),
         "vat_rows": [_vat_payload(row) for row in tax_rows],
@@ -2117,6 +2125,351 @@ def set_budget_approval(feid: Any, bostamp: str, approved: bool, user) -> dict[s
     return {"bostamp": clean_stamp, "approved": target_approved, "credit": credit}
 
 
+def _execution_series(cursor) -> dict[str, Any]:
+    for series in _series_rows(cursor):
+        if _series_name_key(series.get("name")) == "etude et execution":
+            return series
+    raise BudgetsValidationError("A série Étude et Exécution não existe nesta empresa.")
+
+
+def _opc_origin_matches_company(origin: Any, company: dict[str, Any]) -> bool:
+    clean_origin = _text_value(origin)
+    expected_prefix = _origin_phc_process_prefix(
+        _text_value(company.get("name")),
+        _text_value(company.get("phc_db")),
+    )
+    if expected_prefix:
+        return _origin_phc_process_prefix(clean_origin) == expected_prefix
+    return _series_name_key(clean_origin) == _series_name_key(company.get("name"))
+
+
+def _opc_row_for_company(cursor, opcstamp: Any, company: dict[str, Any]) -> dict[str, Any]:
+    clean_stamp = _text_value(opcstamp)
+    if not clean_stamp:
+        raise BudgetsValidationError("Selecione uma obra existente.")
+    rows = _fetch_rows(
+        cursor,
+        """
+        SELECT TOP 1 OPCSTAMP, PROCESSO, DESCRICAO, NOME, U_ORIGEM
+        FROM dbo.OPC WITH (UPDLOCK, HOLDLOCK)
+        WHERE OPCSTAMP = ?
+        """,
+        (clean_stamp,),
+    )
+    if not rows or not _opc_origin_matches_company(rows[0].get("U_ORIGEM"), company):
+        raise BudgetsValidationError("A obra selecionada não está disponível nesta empresa.")
+    return rows[0]
+
+
+def _central_work_payload(row: dict[str, Any]) -> dict[str, str]:
+    return {
+        "opcstamp": _text_value(row.get("OPCSTAMP")),
+        "process": _text_value(row.get("PROCESSO")),
+        "description": _text_value(row.get("DESCRICAO")),
+        "client_name": _text_value(row.get("NOME")),
+    }
+
+
+def _central_work_for_phc_process(company: dict[str, Any], phc_process: Any) -> dict[str, str] | None:
+    """Resolve a PHC process (FR1234/IS1234) to its central OPC work."""
+    clean_process = _text_value(phc_process)
+    if not clean_process:
+        return None
+    suffix = re.search(r"(\d+)$", clean_process)
+    candidates = [clean_process]
+    if suffix:
+        candidates.append(f"HS{suffix.group(1)}")
+    placeholders = ", ".join("?" for _ in candidates)
+    with pyodbc.connect(_client_conn_str(), timeout=15) as conn:
+        rows = _fetch_rows(
+            conn.cursor(),
+            f"""
+            SELECT TOP 10 OPCSTAMP, PROCESSO, DESCRICAO, NOME, U_ORIGEM
+            FROM dbo.OPC
+            WHERE LTRIM(RTRIM(ISNULL(PROCESSO, ''))) IN ({placeholders})
+            ORDER BY CASE WHEN PROCESSO = ? THEN 0 ELSE 1 END, PROCESSO DESC
+            """,
+            (*candidates, f"HS{suffix.group(1)}" if suffix else clean_process),
+        )
+    for row in rows:
+        if _opc_origin_matches_company(row.get("U_ORIGEM"), company):
+            return _central_work_payload(row)
+    return None
+
+
+def search_budget_works(feid: Any, query: Any, user) -> dict[str, Any]:
+    """Search only central works belonging to the selected PHC company."""
+    company = _company_for_user(feid, user)
+    clean_query = _text_value(query)
+    if len(clean_query) < 2:
+        return {"rows": []}
+    pattern = f"%{clean_query}%"
+    with pyodbc.connect(_client_conn_str(), timeout=15) as conn:
+        cursor = conn.cursor()
+        rows = _fetch_rows(
+            cursor,
+            """
+            SELECT TOP 30
+                LTRIM(RTRIM(ISNULL(OPCSTAMP, ''))) AS OPCSTAMP,
+                LTRIM(RTRIM(ISNULL(PROCESSO, ''))) AS PROCESSO,
+                LTRIM(RTRIM(ISNULL(DESCRICAO, ''))) AS DESCRICAO,
+                LTRIM(RTRIM(ISNULL(NOME, ''))) AS NOME,
+                LTRIM(RTRIM(ISNULL(U_ORIGEM, ''))) AS U_ORIGEM
+            FROM dbo.OPC
+            WHERE PROCESSO LIKE ?
+               OR DESCRICAO LIKE ?
+               OR NOME LIKE ?
+            ORDER BY PROCESSO DESC
+            """,
+            (pattern, pattern, pattern),
+        )
+    return {
+        "rows": [
+            _central_work_payload(row)
+            for row in rows
+            if _opc_origin_matches_company(row.get("U_ORIGEM"), company)
+        ]
+    }
+
+
+def assign_budget_work(feid: Any, bostamp: str, opcstamp: Any, user) -> dict[str, Any]:
+    """Assign an existing central work without changing the dossier series or number."""
+    company = _company_for_user(feid, user)
+    clean_stamp = _text_value(bostamp)
+    if not clean_stamp:
+        raise BudgetsValidationError("Orçamento não indicado.")
+
+    with pyodbc.connect(_client_conn_str(), timeout=15) as client_conn:
+        work_row = _opc_row_for_company(client_conn.cursor(), opcstamp, company)
+    work = _central_work_payload(work_row)
+    phc_process = _phc_process_code(
+        work["process"],
+        _text_value(work_row.get("U_ORIGEM")) or _text_value(company.get("name")),
+        _text_value(company.get("phc_db")),
+    )
+    if not phc_process:
+        raise BudgetsError("Não foi possível determinar o processo PHC da obra.")
+
+    now_sql = datetime.now()
+    user_inis = _user_inis(user)
+    with pyodbc.connect(_phc_conn_str(company["phc_db"], company.get("phc_server", "")), timeout=30) as conn:
+        conn.autocommit = False
+        cursor = conn.cursor()
+        try:
+            visibility_sql, visibility_params = _budget_visibility_predicate(company, user, "B")
+            rows = _fetch_rows(
+                cursor,
+                f"""
+                SELECT TOP 1 B.BOSTAMP, B.FECHADA,
+                       ISNULL(B2.ADJUDICADO, 0) AS ADJUDICADO,
+                       ISNULL(B2.ANULADO, 0) AS ANULADO
+                FROM dbo.BO B WITH (UPDLOCK, HOLDLOCK)
+                LEFT JOIN dbo.BO2 B2 WITH (UPDLOCK, HOLDLOCK) ON B2.BO2STAMP = B.BOSTAMP
+                WHERE B.BOSTAMP = ? AND {visibility_sql}
+                """,
+                (clean_stamp, *visibility_params),
+            )
+            if not rows:
+                raise BudgetsNotFoundError("Orçamento não encontrado no PHC desta empresa.")
+            if not _budget_can_link_to_work(rows[0]):
+                raise BudgetsConflictError("O orçamento está fechado, adjudicado ou anulado e não pode ser alterado.")
+
+            audit_values = {
+                "usrinis": user_inis,
+                "usrdata": now_sql.date(),
+                "usrhora": now_sql.strftime("%H:%M:%S"),
+            }
+            _phc_update(cursor, "BO2", {"processo": phc_process, **audit_values}, "BO2STAMP", clean_stamp)
+            _phc_update(cursor, "BO", {"logi1": 1, **audit_values}, "BOSTAMP", clean_stamp)
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+
+    return {"bostamp": clean_stamp, "process": phc_process, "work": work}
+
+
+def _next_opc_process(cursor) -> str:
+    rows = _fetch_rows(cursor, "SELECT TOP 1 PROCESSO FROM HSOLS_MASTER.dbo.V_NEXT_OPC", ())
+    sequence = int(_number_value(rows[0].get("PROCESSO"))) if rows else 0
+    if sequence <= 0:
+        raise BudgetsError("Não foi possível obter a próxima numeração de obra.")
+    return f"HS{sequence}"
+
+
+def _create_central_work(company: dict[str, Any], budget: dict[str, Any]) -> dict[str, Any]:
+    """Create the OPC record before linking it to the converted PHC dossier."""
+    with pyodbc.connect(_client_conn_str(), timeout=20) as conn:
+        conn.autocommit = False
+        cursor = conn.cursor()
+        try:
+            process = _next_opc_process(cursor)
+            origin = _text_value(budget.get("MAQUINA")) or _text_value(company.get("name"))
+            prefix = _origin_phc_process_prefix(origin, _text_value(company.get("phc_db")))
+            description_parts = [part for part in (prefix, _text_value(budget.get("TRAB1")), _text_value(budget.get("OBRANOME"))) if part]
+            description = " | ".join(description_parts)[:35]
+            work = {
+                "opcstamp": _new_stamp(),
+                "process": process,
+                "description": description,
+                "client_name": _text_value(budget.get("NOME")),
+                "origin": origin,
+            }
+            _phc_insert(
+                cursor,
+                "OPC",
+                {
+                    "opcstamp": work["opcstamp"],
+                    "processo": work["process"],
+                    "descricao": work["description"],
+                    "no": int(_number_value(budget.get("NO"))),
+                    "nome": work["client_name"],
+                    "u_origem": work["origin"],
+                },
+            )
+            conn.commit()
+            return work
+        except Exception:
+            conn.rollback()
+            raise
+
+
+def _delete_central_work(opcstamp: str) -> None:
+    if not opcstamp:
+        return
+    try:
+        with pyodbc.connect(_client_conn_str(), timeout=15) as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM dbo.OPC WHERE OPCSTAMP = ?", (opcstamp,))
+            conn.commit()
+    except Exception:
+        # Do not mask the original PHC conversion error with a cleanup problem.
+        pass
+
+
+def convert_budget_to_execution(feid: Any, bostamp: str, target: Any, existing_opcstamp: Any, user) -> dict[str, Any]:
+    """Convert one Devis into Étude et Exécution, creating or linking its work."""
+    company = _company_for_user(feid, user)
+    clean_stamp = _text_value(bostamp)
+    mode = _text_value(target).casefold()
+    if not clean_stamp:
+        raise BudgetsValidationError("Orçamento não indicado.")
+    if mode not in {"new", "existing"}:
+        raise BudgetsValidationError("Indique se o orçamento cria uma obra nova ou é um aditamento.")
+
+    created_work: dict[str, Any] | None = None
+    conn_str = _phc_conn_str(company["phc_db"], company.get("phc_server", ""))
+    try:
+        with pyodbc.connect(conn_str, timeout=30) as conn:
+            conn.autocommit = False
+            cursor = conn.cursor()
+            try:
+                visibility_sql, visibility_params = _budget_visibility_predicate(company, user, "B")
+                rows = _fetch_rows(
+                    cursor,
+                    f"""
+                    SELECT TOP 1
+                        B.BOSTAMP, B.NDOS, B.NMDOS, B.BOANO, B.DATAOBRA,
+                        B.NO, B.NOME, B.MAQUINA, B.TRAB1, B.OBRANOME,
+                        B.FECHADA, ISNULL(B2.ADJUDICADO, 0) AS ADJUDICADO,
+                        ISNULL(B2.ANULADO, 0) AS ANULADO
+                    FROM dbo.BO B WITH (UPDLOCK, HOLDLOCK)
+                    LEFT JOIN dbo.BO2 B2 WITH (UPDLOCK, HOLDLOCK) ON B2.BO2STAMP = B.BOSTAMP
+                    WHERE B.BOSTAMP = ? AND {visibility_sql}
+                    """,
+                    (clean_stamp, *visibility_params),
+                )
+                if not rows:
+                    raise BudgetsNotFoundError("Orçamento não encontrado no PHC desta empresa.")
+                budget = rows[0]
+                if _series_name_key(budget.get("NMDOS")) != "devis":
+                    raise BudgetsValidationError("A conversão só está disponível para dossiers Devis.")
+                if not _budget_can_link_to_work(budget):
+                    raise BudgetsConflictError("O orçamento está fechado, adjudicado ou anulado e não pode ser alterado.")
+
+                execution_series = _execution_series(cursor)
+                dataobra = budget.get("DATAOBRA")
+                year = int(_number_value(budget.get("BOANO")))
+                if not year and isinstance(dataobra, (date, datetime)):
+                    year = dataobra.year
+                if year <= 1900:
+                    year = datetime.now().year
+
+                if mode == "new":
+                    created_work = _create_central_work(company, budget)
+                    work = created_work
+                else:
+                    with pyodbc.connect(_client_conn_str(), timeout=15) as client_conn:
+                        work = _opc_row_for_company(client_conn.cursor(), existing_opcstamp, company)
+
+                central_process = _text_value(work.get("process") or work.get("PROCESSO"))
+                work_origin = _text_value(work.get("origin") or work.get("U_ORIGEM") or company.get("name"))
+                phc_process = _phc_process_code(central_process, work_origin, _text_value(company.get("phc_db")))
+                if not phc_process:
+                    raise BudgetsError("Não foi possível determinar o processo PHC da obra.")
+                execution_ndos = int(_number_value(execution_series.get("ndos")))
+                execution_name = _text_value(execution_series.get("name"))
+                execution_number = _next_budget_number(cursor, execution_ndos, year)
+                now_sql = datetime.now()
+                audit_date = now_sql.date()
+                audit_time = now_sql.strftime("%H:%M:%S")
+                user_inis = _user_inis(user)
+
+                _phc_update(cursor, "BO", {
+                    "ndos": execution_ndos,
+                    "nmdos": execution_name,
+                    "obrano": execution_number,
+                    "boano": year,
+                    "ocupacao": int(_number_value(execution_series.get("occupation"))),
+                    "logi1": 1 if mode == "existing" else 0,
+                    "usrinis": user_inis,
+                    "usrdata": audit_date,
+                    "usrhora": audit_time,
+                }, "BOSTAMP", clean_stamp)
+                _phc_update(cursor, "BI", {
+                    "ndos": execution_ndos,
+                    "nmdos": execution_name,
+                    "obrano": execution_number,
+                    "armazem": int(_number_value(execution_series.get("warehouse"))) or 1,
+                    "usrinis": user_inis,
+                    "usrdata": audit_date,
+                    "usrhora": audit_time,
+                }, "BOSTAMP", clean_stamp)
+                _phc_update(cursor, "BO2", {
+                    "processo": phc_process,
+                    "armazem": int(_number_value(execution_series.get("warehouse"))) or 1,
+                    "tiposaft": _text_value(execution_series.get("saft_type")),
+                    "idserie": _text_value(execution_series.get("series_id")),
+                    "usrinis": user_inis,
+                    "usrdata": audit_date,
+                    "usrhora": audit_time,
+                }, "BO2STAMP", clean_stamp)
+                cursor.execute("SELECT OBJECT_ID('dbo.uSP_PUT_OPCVAL', 'P')")
+                if cursor.fetchone()[0]:
+                    cursor.execute(
+                        "EXEC dbo.uSP_PUT_OPCVAL @IN_ORIGEM = ?, @IN_STAMP = ?, @IN_USR = ?",
+                        ("BO", clean_stamp, user_inis),
+                    )
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+    except Exception:
+        if created_work:
+            _delete_central_work(_text_value(created_work.get("opcstamp")))
+        raise
+
+    return {
+        "bostamp": clean_stamp,
+        "ndos": execution_ndos,
+        "number": execution_number,
+        "year": year,
+        "process": central_process,
+        "mode": mode,
+        "created_work": bool(created_work),
+    }
+
+
 def _line_technical_rows(line: dict[str, Any]) -> list[dict[str, Any]]:
     rows = line.get("_ociRows")
     if not isinstance(rows, list):
@@ -2728,6 +3081,8 @@ def save_budget(payload: dict[str, Any], user) -> dict[str, Any]:
 __all__ = [
     "BudgetsCreditLimitError",
     "BudgetsError",
+    "assign_budget_work",
+    "convert_budget_to_execution",
     "get_budget_detail",
     "get_budget_line_oci",
     "get_budget_salespeople",
@@ -2736,6 +3091,7 @@ __all__ = [
     "list_budgets",
     "list_companies_for_user",
     "save_budget",
+    "search_budget_works",
     "set_budget_approval",
     "search_budget_clients",
 ]

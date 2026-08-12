@@ -11,9 +11,11 @@ from modules.gr_budgets.service import (
     _client_payload,
     _budget_is_in_preparation,
     _budget_can_be_edited,
+    _budget_can_link_to_work,
     _budget_visibility_predicate,
     _component_family_payload,
     _component_payload,
+    _execution_series,
     _header_payload,
     _intersol_budget_visibility_predicate,
     _line_item_sort_key,
@@ -22,6 +24,7 @@ from modules.gr_budgets.service import (
     _oci_payload,
     _ouvrage_payload,
     _pick_default_series,
+    _opc_origin_matches_company,
     _phc_currency,
     _plus_value_payload,
     _salesperson_payload,
@@ -115,6 +118,21 @@ class BudgetPayloadTests(unittest.TestCase):
                 (123, "Devis Perdu"),
             ],
         )
+
+    def test_execution_series_is_resolved_by_name_and_not_by_fixed_ndos(self):
+        series = [
+            {"ndos": 115, "name": "Devis"},
+            {"ndos": 911, "name": "Étude et Exécution"},
+        ]
+        with patch("modules.gr_budgets.service._series_rows", return_value=series):
+            self.assertEqual(_execution_series(object())["ndos"], 911)
+
+    def test_existing_work_must_belong_to_the_selected_company(self):
+        france = {"name": "HSOLS France", "phc_db": "HSOLS_FR"}
+        portugal = {"name": "Betãoconcept", "phc_db": "HSOLS_PT"}
+
+        self.assertTrue(_opc_origin_matches_company("HSOLS FRANCE", france))
+        self.assertFalse(_opc_origin_matches_company("HSOLS FRANCE", portugal))
 
     def test_maps_phc_header_fields_to_budget_header(self):
         header = _header_payload(
@@ -220,6 +238,11 @@ class BudgetPayloadTests(unittest.TestCase):
         self.assertFalse(_budget_can_be_edited({"FECHADA": True}))
         self.assertFalse(_budget_can_be_edited({"ADJUDICADO": 1}))
         self.assertFalse(_budget_can_be_edited({"ANULADO": "true"}))
+
+    def test_awarded_budget_can_still_be_linked_to_a_work(self):
+        self.assertTrue(_budget_can_link_to_work({"ADJUDICADO": True}))
+        self.assertFalse(_budget_can_link_to_work({"FECHADA": True}))
+        self.assertFalse(_budget_can_link_to_work({"ANULADO": True}))
 
     def test_approval_credit_matches_phc_plafond_formula(self):
         credit = _approval_credit_payload(

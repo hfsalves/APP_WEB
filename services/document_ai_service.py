@@ -53,6 +53,31 @@ DOC_AI_DOC_TYPES = [
 
 DOC_AI_PURCHASE_INVOICE_CORRESPONDENCE_TYPE = 'FAC'
 
+# A pasta-base da GED pertence à empresa configurada na FE. O nome fiscal não
+# é uma chave segura (por exemplo, Betãoconcept usa a base PHC HSOLS_PT).
+DOC_AI_GED_FOLDER_BY_PHC_DATABASE = {
+    'HSOLS_FR': 'HSOLS_FR',
+    'HSOLS_PT': 'HSOLS_PT',
+    'GR360': 'HSOLS_GR360_PT',
+    'HSOLS_DE': 'HSOLS_DE',
+    'HSOLS_ES': 'HSOLS_ES',
+    'HSOLS_MA': 'HSOLS_MA',
+    'HSOLS_CH': 'HSOLS_CH',
+    'INTERSOL': 'HSOLS_INTERSOL_AL',
+}
+
+
+def _ged_folder_from_phc_database(value: Any) -> str:
+    database_name = str(value or '').strip().upper()
+    mapped = DOC_AI_GED_FOLDER_BY_PHC_DATABASE.get(database_name, '')
+    if mapped:
+        return mapped
+    # As restantes empresas usam na GED exatamente a chave PHC indicada na FE
+    # (HSOLS_FR_GE, HSOLS_G2S, HSOLS_GHA, HSOLS_IND, etc.).
+    if re.fullmatch(r'(?:HSOLS|GR360)_[A-Z0-9_]+', database_name):
+        return database_name
+    return ''
+
 DOC_AI_DOC_TYPE_TERMS = {
     'invoice': {
         'strong': ['invoice', 'facture', 'fatura', 'factura'],
@@ -771,13 +796,31 @@ def _serialize_fe_row(row: dict[str, Any] | None, score: float = 0, matched_by: 
     if not row:
         return {}
     name = str(row.get('NOMEFISCAL') or row.get('NOME') or '').strip()
+    phc_database = str(row.get('PHC_DB') or '').strip()
     return {
         'feid': _safe_int(row.get('FEID'), 0) or None,
         'name': name,
         'tax_id': _digits_only(row.get('NIF')),
+        'phc_database': phc_database,
+        'ged_folder': _ged_folder_from_phc_database(phc_database),
         'score': round(float(score or 0), 4),
         'matched_by': matched_by,
     }
+
+
+def _fe_entity_by_id(feid: int | None) -> dict[str, Any]:
+    clean_feid = _safe_int(feid, 0)
+    if not clean_feid:
+        return {}
+    try:
+        entities = _load_fe_entities()
+    except RuntimeError:
+        # Mantém os helpers reutilizáveis em tarefas/testes sem contexto Flask.
+        return {}
+    for entity in entities:
+        if _safe_int(entity.get('FEID'), 0) == clean_feid:
+            return _serialize_fe_row(entity, 1, 'feid')
+    return {}
 
 
 def _load_fe_entities() -> list[dict[str, Any]]:
@@ -919,16 +962,26 @@ def _load_suppliers(feid: int | None = None) -> list[dict[str, Any]]:
             rows = cursor.execute("""
                 SELECT
                     CAST(ISNULL(FL.NO, 0) AS int) AS NO,
+                    CAST(ISNULL(FL.ESTAB, 0) AS int) AS ESTAB,
                     LTRIM(RTRIM(ISNULL(FL.NOME, ''))) AS NOME,
-                    LTRIM(RTRIM(CAST(ISNULL(FL.NCONT, '') AS varchar(40)))) AS NIF
+                    LTRIM(RTRIM(ISNULL(FL.NOME2, ''))) AS NOME2,
+                    LTRIM(RTRIM(CAST(ISNULL(FL.NCONT, '') AS varchar(40)))) AS NIF,
+                    LTRIM(RTRIM(ISNULL(FL.MORADA, ''))) AS MORADA,
+                    LTRIM(RTRIM(ISNULL(FL.LOCAL, ''))) AS LOCAL,
+                    LTRIM(RTRIM(ISNULL(FL.CODPOST, ''))) AS CODPOST
                 FROM dbo.FL FL
                 WHERE ISNULL(FL.NOME, '') <> ''
                 ORDER BY FL.NOME
             """).fetchall()
         return [{
             'NO': _safe_int(row[0], 0),
-            'NOME': str(row[1] or '').strip(),
-            'NIF': str(row[2] or '').strip(),
+            'ESTAB': _safe_int(row[1], 0),
+            'NOME': str(row[2] or '').strip(),
+            'NOME2': str(row[3] or '').strip(),
+            'NIF': str(row[4] or '').strip(),
+            'MORADA': str(row[5] or '').strip(),
+            'LOCAL': str(row[6] or '').strip(),
+            'CODPOST': str(row[7] or '').strip(),
             'FEID': _safe_int(feid, 0),
             'TAX_FIELD': 'ncont',
             'SOURCE': 'phc',
@@ -938,17 +991,29 @@ def _load_suppliers(feid: int | None = None) -> list[dict[str, Any]]:
     feid_select = "CAST(ISNULL(FL.FEID, 0) AS int)" if _column_exists('FL', 'FEID') else "CAST(0 AS int)"
     tax_column = _fl_tax_id_column()
     tax_select = f"LTRIM(RTRIM(CAST(ISNULL(FL.{tax_column}, '') AS varchar(40))))" if tax_column else "CAST('' AS varchar(40))"
+    estab_select = "CAST(ISNULL(FL.ESTAB, 0) AS int)" if _column_exists('FL', 'ESTAB') else "CAST(0 AS int)"
+    name2_select = "LTRIM(RTRIM(ISNULL(FL.NOME2, '')))" if _column_exists('FL', 'NOME2') else "CAST('' AS varchar(80))"
+    address_select = "LTRIM(RTRIM(ISNULL(FL.MORADA, '')))" if _column_exists('FL', 'MORADA') else "CAST('' AS varchar(80))"
+    city_select = "LTRIM(RTRIM(ISNULL(FL.LOCAL, '')))" if _column_exists('FL', 'LOCAL') else "CAST('' AS varchar(80))"
+    postal_select = "LTRIM(RTRIM(ISNULL(FL.CODPOST, '')))" if _column_exists('FL', 'CODPOST') else "CAST('' AS varchar(30))"
     rows = db.session.execute(text("""
         SELECT
             CAST(FL.NO AS int) AS NO,
+            {estab_select} AS ESTAB,
             LTRIM(RTRIM(ISNULL(FL.NOME, ''))) AS NOME,
+            {name2_select} AS NOME2,
             {tax_select} AS NIF,
+            {address_select} AS MORADA,
+            {city_select} AS LOCAL,
+            {postal_select} AS CODPOST,
             {feid_select} AS FEID
         FROM dbo.FL FL
         WHERE ISNULL(FL.NOME, '') <> ''
         {feid_filter}
         ORDER BY FL.NOME
-    """.format(feid_filter=feid_filter, feid_select=feid_select, tax_select=tax_select)), {'feid': int(feid or 0)}).mappings().all()
+    """.format(feid_filter=feid_filter, feid_select=feid_select, tax_select=tax_select,
+               estab_select=estab_select, name2_select=name2_select, address_select=address_select,
+               city_select=city_select, postal_select=postal_select)), {'feid': int(feid or 0)}).mappings().all()
     return [{
         **dict(row),
         'TAX_FIELD': str(source.get('tax_field') or 'unknown'),
@@ -956,7 +1021,25 @@ def _load_suppliers(feid: int | None = None) -> list[dict[str, Any]]:
     } for row in rows]
 
 
-def search_suppliers(value: str, feid: int | None = None, limit: int = 8) -> list[dict[str, Any]]:
+def _party_location_score(context: dict[str, Any] | None, party: dict[str, Any]) -> float:
+    context = dict(context or {})
+    wanted_postal = _normalize_text(context.get('postal_code'))
+    wanted_city = _normalize_text(context.get('city'))
+    wanted_address = _normalize_text(context.get('address'))
+    candidate_postal = _normalize_text(party.get('CODPOST') or party.get('postal_code'))
+    candidate_city = _normalize_text(party.get('LOCAL') or party.get('city'))
+    candidate_address = _normalize_text(party.get('MORADA') or party.get('address'))
+    scores = []
+    if wanted_postal and candidate_postal:
+        scores.append(1.0 if wanted_postal == candidate_postal else SequenceMatcher(None, wanted_postal, candidate_postal).ratio())
+    if wanted_city and candidate_city:
+        scores.append(1.0 if wanted_city == candidate_city else SequenceMatcher(None, wanted_city, candidate_city).ratio())
+    if wanted_address and candidate_address:
+        scores.append(SequenceMatcher(None, wanted_address, candidate_address).ratio())
+    return round(max(scores or [0.0]), 4)
+
+
+def search_suppliers(value: str, feid: int | None = None, limit: int = 8, context: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     if not _safe_int(feid, 0):
         raise ValueError('Identifica primeiro a Entidade FE do cliente.')
     raw = str(value or '').strip()
@@ -966,11 +1049,12 @@ def search_suppliers(value: str, feid: int | None = None, limit: int = 8) -> lis
         return []
 
     results: list[dict[str, Any]] = []
-    seen: set[tuple[int, int]] = set()
+    seen: set[tuple[int, int, int]] = set()
     for supplier in _load_suppliers(feid):
         supplier_no = _safe_int(supplier.get('NO'), 0)
         supplier_feid = _safe_int(supplier.get('FEID'), 0)
-        key = (supplier_feid, supplier_no)
+        supplier_estab = _safe_int(supplier.get('ESTAB'), 0)
+        key = (supplier_feid, supplier_no, supplier_estab)
         if key in seen:
             continue
         seen.add(key)
@@ -1020,16 +1104,22 @@ def search_suppliers(value: str, feid: int | None = None, limit: int = 8) -> lis
             continue
         results.append({
             'no': supplier_no,
+            'estab': supplier_estab,
             'name': name,
+            'short_name': str(supplier.get('NOME2') or '').strip(),
             'tax_id': tax_id,
             'feid': supplier_feid or (int(feid or 0) or None),
             'score': round(min(score, 0.99), 4),
             'matched_by': matched_by or 'name',
             'tax_field': str(supplier.get('TAX_FIELD') or 'unknown').lower(),
             'source': str(supplier.get('SOURCE') or 'app').lower(),
+            'address': str(supplier.get('MORADA') or '').strip(),
+            'city': str(supplier.get('LOCAL') or '').strip(),
+            'postal_code': str(supplier.get('CODPOST') or '').strip(),
+            'location_score': _party_location_score(context, supplier),
         })
 
-    results.sort(key=lambda item: (-float(item.get('score') or 0), str(item.get('name') or '')))
+    results.sort(key=lambda item: (-float(item.get('location_score') or 0), -float(item.get('score') or 0), str(item.get('name') or ''), int(item.get('estab') or 0)))
     return results[:max(1, min(int(limit or 8), 20))]
 
 
@@ -1045,15 +1135,22 @@ def _load_customers(feid: int) -> list[dict[str, Any]]:
         ) as connection:
             rows = connection.cursor().execute("""
                 SELECT CAST(ISNULL(CL.NO, 0) AS int),
+                       CAST(ISNULL(CL.ESTAB, 0) AS int),
                        LTRIM(RTRIM(ISNULL(CL.NOME, ''))),
-                       LTRIM(RTRIM(CAST(ISNULL(CL.NCONT, '') AS varchar(40))))
+                       LTRIM(RTRIM(ISNULL(CL.NOME2, ''))),
+                       LTRIM(RTRIM(CAST(ISNULL(CL.NCONT, '') AS varchar(40)))),
+                       LTRIM(RTRIM(ISNULL(CL.MORADA, ''))),
+                       LTRIM(RTRIM(ISNULL(CL.LOCAL, ''))),
+                       LTRIM(RTRIM(ISNULL(CL.CODPOST, '')))
                 FROM dbo.CL CL
                 WHERE ISNULL(CL.NOME, '') <> ''
                 ORDER BY CL.NOME
             """).fetchall()
         return [{
-            'NO': _safe_int(row[0], 0), 'NOME': str(row[1] or '').strip(),
-            'NIF': str(row[2] or '').strip(), 'FEID': feid,
+            'NO': _safe_int(row[0], 0), 'ESTAB': _safe_int(row[1], 0),
+            'NOME': str(row[2] or '').strip(), 'NOME2': str(row[3] or '').strip(),
+            'NIF': str(row[4] or '').strip(), 'MORADA': str(row[5] or '').strip(),
+            'LOCAL': str(row[6] or '').strip(), 'CODPOST': str(row[7] or '').strip(), 'FEID': feid,
             'TAX_FIELD': 'ncont', 'SOURCE': 'phc',
         } for row in rows]
 
@@ -1061,10 +1158,20 @@ def _load_customers(feid: int) -> list[dict[str, Any]]:
     feid_filter = "AND ISNULL(CL.FEID, 0) = :feid" if _column_exists('CL', 'FEID') else ''
     tax_column = _cl_tax_id_column()
     tax_select = f"LTRIM(RTRIM(CAST(ISNULL(CL.{tax_column}, '') AS varchar(40))))" if tax_column else "CAST('' AS varchar(40))"
+    estab_select = "CAST(ISNULL(CL.ESTAB, 0) AS int)" if _column_exists('CL', 'ESTAB') else "CAST(0 AS int)"
+    name2_select = "LTRIM(RTRIM(ISNULL(CL.NOME2, '')))" if _column_exists('CL', 'NOME2') else "CAST('' AS varchar(80))"
+    address_select = "LTRIM(RTRIM(ISNULL(CL.MORADA, '')))" if _column_exists('CL', 'MORADA') else "CAST('' AS varchar(80))"
+    city_select = "LTRIM(RTRIM(ISNULL(CL.LOCAL, '')))" if _column_exists('CL', 'LOCAL') else "CAST('' AS varchar(80))"
+    postal_select = "LTRIM(RTRIM(ISNULL(CL.CODPOST, '')))" if _column_exists('CL', 'CODPOST') else "CAST('' AS varchar(30))"
     rows = db.session.execute(text(f"""
         SELECT CAST(ISNULL(CL.NO, 0) AS int) AS NO,
+               {estab_select} AS ESTAB,
                LTRIM(RTRIM(ISNULL(CL.NOME, ''))) AS NOME,
+               {name2_select} AS NOME2,
                {tax_select} AS NIF,
+               {address_select} AS MORADA,
+               {city_select} AS LOCAL,
+               {postal_select} AS CODPOST,
                {feid_select} AS FEID
         FROM dbo.CL CL
         WHERE ISNULL(CL.NOME, '') <> '' {feid_filter}
@@ -1073,7 +1180,7 @@ def _load_customers(feid: int) -> list[dict[str, Any]]:
     return [{**dict(row), 'TAX_FIELD': tax_column.lower() or 'unknown', 'SOURCE': 'app'} for row in rows]
 
 
-def search_customers(value: str, feid: int | None = None, limit: int = 8) -> list[dict[str, Any]]:
+def search_customers(value: str, feid: int | None = None, limit: int = 8, context: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     clean_feid = _safe_int(feid, 0)
     if not clean_feid:
         raise ValueError('Identifica primeiro a Entidade FE.')
@@ -1086,7 +1193,8 @@ def search_customers(value: str, feid: int | None = None, limit: int = 8) -> lis
     seen = set()
     for customer in _load_customers(clean_feid):
         customer_no = _safe_int(customer.get('NO'), 0)
-        key = (_safe_int(customer.get('FEID'), clean_feid), customer_no)
+        customer_estab = _safe_int(customer.get('ESTAB'), 0)
+        key = (_safe_int(customer.get('FEID'), clean_feid), customer_no, customer_estab)
         if not customer_no or key in seen:
             continue
         seen.add(key)
@@ -1111,30 +1219,36 @@ def search_customers(value: str, feid: int | None = None, limit: int = 8) -> lis
         if score < 0.32:
             continue
         results.append({
-            'no': customer_no, 'name': name, 'tax_id': tax_id, 'feid': key[0],
+            'no': customer_no, 'estab': customer_estab, 'name': name,
+            'short_name': str(customer.get('NOME2') or '').strip(),
+            'tax_id': tax_id, 'feid': key[0],
             'score': round(min(score, 0.99), 4), 'matched_by': matched_by or 'name',
             'tax_field': str(customer.get('TAX_FIELD') or 'unknown').lower(),
             'source': str(customer.get('SOURCE') or 'app').lower(),
+            'address': str(customer.get('MORADA') or '').strip(),
+            'city': str(customer.get('LOCAL') or '').strip(),
+            'postal_code': str(customer.get('CODPOST') or '').strip(),
+            'location_score': _party_location_score(context, customer),
         })
-    results.sort(key=lambda item: (-float(item.get('score') or 0), str(item.get('name') or '')))
+    results.sort(key=lambda item: (-float(item.get('location_score') or 0), -float(item.get('score') or 0), str(item.get('name') or ''), int(item.get('estab') or 0)))
     return results[:max(1, min(int(limit or 8), 20))]
 
 
-def search_external_parties(value: str, feid: int | None = None, limit: int = 12) -> list[dict[str, Any]]:
+def search_external_parties(value: str, feid: int | None = None, limit: int = 12, context: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     clean_limit = max(1, min(int(limit or 12), 20))
     suppliers = []
     customers = []
     try:
         suppliers = [
             {**item, 'party_role': 'supplier', 'party_label': 'Fornecedor'}
-            for item in search_suppliers(value, feid=feid, limit=clean_limit)
+            for item in search_suppliers(value, feid=feid, limit=clean_limit, context=context)
         ]
     except Exception:
         current_app.logger.exception('Não foi possível pesquisar a FL durante a pesquisa de correio')
     try:
         customers = [
             {**item, 'party_role': 'customer', 'party_label': 'Cliente'}
-            for item in search_customers(value, feid=feid, limit=clean_limit)
+            for item in search_customers(value, feid=feid, limit=clean_limit, context=context)
         ]
     except Exception:
         current_app.logger.exception('Não foi possível pesquisar a CL durante a pesquisa de correio')
@@ -1168,6 +1282,8 @@ def reconcile_extracted_document(document_data: dict[str, Any] | None) -> dict[s
             'feid': customer_match.get('feid'),
             'name': customer_match.get('name') or llm_customer_name,
             'tax_id': customer_match.get('tax_id') or llm_customer_tax_id,
+            'phc_database': customer_match.get('phc_database') or '',
+            'ged_folder': customer_match.get('ged_folder') or '',
             'llm_name': llm_customer_name,
             'llm_tax_id': llm_customer_tax_id,
             'match_score': customer_match.get('score') or 0,
@@ -1188,12 +1304,12 @@ def reconcile_extracted_document(document_data: dict[str, Any] | None) -> dict[s
     llm_supplier_tax_id = _digits_only(supplier.get('tax_id'))
     feid = _safe_int(customer_match.get('feid'), 0)
     candidates: list[dict[str, Any]] = []
-    seen: set[tuple[str, int, int]] = set()
+    seen: set[tuple[str, int, int, int]] = set()
 
     def add_candidates(items: list[dict[str, Any]], party_role: str = 'supplier'):
         for item in items:
             role = str(item.get('party_role') or party_role or 'supplier')
-            key = (role, _safe_int(item.get('feid'), feid), _safe_int(item.get('no'), 0))
+            key = (role, _safe_int(item.get('feid'), feid), _safe_int(item.get('no'), 0), _safe_int(item.get('estab'), 0))
             if not key[2] or key in seen:
                 continue
             seen.add(key)
@@ -1203,30 +1319,42 @@ def reconcile_extracted_document(document_data: dict[str, Any] | None) -> dict[s
     try:
         if feid and llm_supplier_tax_id:
             if is_mail:
-                add_candidates(search_external_parties(llm_supplier_tax_id, feid=feid, limit=12))
+                add_candidates(search_external_parties(llm_supplier_tax_id, feid=feid, limit=12, context=supplier))
             else:
-                add_candidates(search_suppliers(llm_supplier_tax_id, feid=feid, limit=12))
+                add_candidates(search_suppliers(llm_supplier_tax_id, feid=feid, limit=12, context=supplier))
         if feid and llm_supplier_name:
             if is_mail:
-                add_candidates(search_external_parties(llm_supplier_name, feid=feid, limit=12))
+                add_candidates(search_external_parties(llm_supplier_name, feid=feid, limit=12, context=supplier))
             else:
-                add_candidates(search_suppliers(llm_supplier_name, feid=feid, limit=12))
+                add_candidates(search_suppliers(llm_supplier_name, feid=feid, limit=12, context=supplier))
     except Exception as exc:
         current_app.logger.exception('Erro ao reconciliar fornecedor extraído na FL')
         supplier_lookup_error = str(exc)
-    candidates.sort(key=lambda item: (-float(item.get('score') or 0), str(item.get('name') or '')))
+    candidates.sort(key=lambda item: (-float(item.get('location_score') or 0), -float(item.get('score') or 0), str(item.get('name') or ''), int(item.get('estab') or 0)))
     candidates = candidates[:12]
 
     selected = candidates[0] if candidates else {}
     selected_score = float(selected.get('score') or 0)
     next_score = float(candidates[1].get('score') or 0) if len(candidates) > 1 else 0
+    same_party_establishments = {
+        (str(item.get('party_role') or 'supplier'), _safe_int(item.get('no'), 0), _safe_int(item.get('estab'), 0))
+        for item in candidates
+        if _safe_int(item.get('no'), 0) == _safe_int(selected.get('no'), 0)
+        and str(item.get('party_role') or 'supplier') == str(selected.get('party_role') or 'supplier')
+    }
+    establishment_is_unambiguous = len(same_party_establishments) <= 1 or (
+        float(selected.get('location_score') or 0) >= 0.72
+        and float(selected.get('location_score') or 0) - float(candidates[1].get('location_score') or 0) >= 0.08
+    )
     tax_match = bool(
         selected
         and selected.get('matched_by') == 'tax_id'
         and selected_score >= 0.95
+        and establishment_is_unambiguous
     )
     confident_name_match = bool(
         selected
+        and establishment_is_unambiguous
         and (
             selected_score >= 0.86
             or (selected_score >= 0.72 and selected_score - next_score >= 0.12)
@@ -1247,8 +1375,13 @@ def reconcile_extracted_document(document_data: dict[str, Any] | None) -> dict[s
             result['external_party_role'] = selected_role
             supplier.update({
                 ('customer_no' if selected_role == 'customer' else 'supplier_no'): selected.get('no'),
+                'estab': selected.get('estab') or 0,
                 'name': selected.get('name') or llm_supplier_name,
+                'short_name': selected.get('short_name') or '',
                 'tax_id': selected.get('tax_id') or llm_supplier_tax_id,
+                'address': selected.get('address') or supplier.get('address') or '',
+                'city': selected.get('city') or supplier.get('city') or '',
+                'postal_code': selected.get('postal_code') or supplier.get('postal_code') or '',
                 'match_score': selected_score,
                 'matched_by': selected.get('matched_by') or '',
             })
@@ -1258,8 +1391,13 @@ def reconcile_extracted_document(document_data: dict[str, Any] | None) -> dict[s
     elif auto_matched:
         supplier.update({
             'supplier_no': selected.get('no'),
+            'estab': selected.get('estab') or 0,
             'name': selected.get('name') or llm_supplier_name,
+            'short_name': selected.get('short_name') or '',
             'tax_id': selected.get('tax_id') or llm_supplier_tax_id,
+            'address': selected.get('address') or supplier.get('address') or '',
+            'city': selected.get('city') or supplier.get('city') or '',
+            'postal_code': selected.get('postal_code') or supplier.get('postal_code') or '',
             'feid': selected.get('feid') or feid,
             'match_score': selected_score,
             'matched_by': selected.get('matched_by') or '',
@@ -1602,36 +1740,21 @@ def _correspondence_safe_part(value: Any, fallback: str = '') -> str:
     return cleaned or fallback
 
 
+def _phc_party_number(value: Any, establishment: Any = None) -> str:
+    number = _safe_int(value, 0)
+    if not number:
+        return ''
+    estab = _safe_int(establishment, 0)
+    return f'{number}_{estab}' if estab > 0 else str(number)
+
+
 def _correspondence_company_folder(customer: dict[str, Any], source: dict[str, Any]) -> str:
     explicit = _correspondence_safe_part(customer.get('ged_folder'), '')
     if explicit:
         return explicit
-    name = _correspondence_safe_part(customer.get('name'), '')
-    mappings = [
-        (r'INTERSOL.*LOR', 'HSOLS_INTERSOL_LOR'),
-        (r'INTERSOL.*CH', 'HSOLS_INTERSOL_CH'),
-        (r'INTERSOL.*(ALSACE|[_ ]AL\b)', 'HSOLS_INTERSOL_AL'),
-        (r'INTERSOL', 'HSOLS_INTERSOL_AL'),
-        (r'GR.?360', 'HSOLS_GR360_PT'),
-        (r'HSOLS.*FRANCE|HSOLS_FR', 'HSOLS_FR'),
-        (r'HSOLS.*DE|HSOLS_DE', 'HSOLS_DE'),
-        (r'HSOLS.*ES|HSOLS_ES', 'HSOLS_ES'),
-        (r'HSOLS.*MA|HSOLS_MA', 'HSOLS_MA'),
-        (r'HSOLS.*PT|HSOLS_PT|BET[ÃA]OCONCEPT', 'HSOLS_PT'),
-    ]
-    for pattern, folder in mappings:
-        if re.search(pattern, name, flags=re.IGNORECASE):
-            return folder
-    database_folders = {
-        'HSOLS_FR': 'HSOLS_FR',
-        'HSOLS_PT': 'HSOLS_PT',
-        'GR360': 'HSOLS_GR360_PT',
-        'HSOLS_DE': 'HSOLS_DE',
-        'HSOLS_ES': 'HSOLS_ES',
-        'HSOLS_MA': 'HSOLS_MA',
-        'INTERSOL': 'HSOLS_INTERSOL_AL',
-    }
-    return database_folders.get(str(source.get('phc_db') or '').strip().upper(), '')
+    return _ged_folder_from_phc_database(
+        customer.get('phc_database') or source.get('phc_db')
+    )
 
 
 def _correspondence_month_folder(moment: datetime) -> str:
@@ -1644,20 +1767,20 @@ def _correspondence_file_name(
     reference: int,
     party: dict[str, Any],
 ) -> str:
-    legal = str(document_data.get('mail_category') or '').strip().lower() == 'legal'
     role = str(document_data.get('external_party_role') or '').strip().lower()
     party_number = _safe_int(
         party.get('customer_no') if role == 'customer' else party.get('supplier_no') or party.get('no'),
         0,
     )
-    party_name = _correspondence_safe_part(party.get('name') or party.get('llm_name'), 'REMETENTE')
+    party_number_label = _phc_party_number(party_number, party.get('estab'))
+    party_name = _correspondence_safe_part(party.get('short_name') or party.get('name2') or party.get('name') or party.get('llm_name'), 'REMETENTE')
     party_name = re.sub(r'\b(SARL|EURL|LDA|LIMITADA|SA|SAS|SPA|SL|SRL)\b[\s.,]*$', '', party_name, flags=re.IGNORECASE).strip() or 'REMETENTE'
     party_name = party_name[:60]
     title = _correspondence_safe_part(document_data.get('mail_title'), '')[:25]
     document_date = _safe_date_iso(document_data.get('document_date')) or date.today().isoformat()
-    parts = ['JUR' if legal else 'COR', str(reference).zfill(3)]
-    if role in {'customer', 'supplier'} and party_number:
-        parts.append(str(party_number))
+    parts = ['L', str(reference).zfill(3)]
+    if role in {'customer', 'supplier'} and party_number_label:
+        parts.append(party_number_label)
     parts.append(party_name)
     if title:
         parts.append(title)
@@ -1675,14 +1798,22 @@ def _correspondence_ged_paths(
     company_folder = _correspondence_company_folder(document_data.get('customer') or {}, source)
     if not company_folder:
         raise ValueError('Não foi possível determinar a pasta GED da entidade.')
-    category = 'JURIDIQUE' if str(document_data.get('mail_category') or '').strip().lower() == 'legal' else 'COURRIER_INTERNE_EXTERIEUR'
+    category = 'COURRIER_INTERNE_EXTERIEUR'
+    inbox_folder = 'Courriers Reçus'
     file_name = _correspondence_file_name(document_data, reference, party)
     unc_root = str(
         current_app.config.get('PHC_GED_UNC_ROOT')
         or os.environ.get('PHC_GED_UNC_ROOT')
         or r'\\10.0.1.11\ged'
     ).strip().rstrip('\\/')
-    relative_parts = (company_folder, category, str(received_at.year), _correspondence_month_folder(received_at), file_name)
+    relative_parts = (
+        company_folder,
+        category,
+        inbox_folder,
+        str(received_at.year),
+        _correspondence_month_folder(received_at),
+        file_name,
+    )
     unc_path = '\\'.join((unc_root, *relative_parts))
     write_root = str(
         current_app.config.get('PHC_GED_WRITE_ROOT')
@@ -1694,6 +1825,7 @@ def _correspondence_ged_paths(
     return {
         'company_folder': company_folder,
         'category': category,
+        'inbox_folder': inbox_folder,
         'file_name': file_name,
         'unc_path': unc_path,
         'write_path': write_path,
@@ -1749,14 +1881,15 @@ def _phc_correspondence_party(cursor, document_data: dict[str, Any]) -> dict[str
     role = str(document_data.get('external_party_role') or '').strip().lower()
     table_name = 'CL' if role == 'customer' else ('FL' if role == 'supplier' else '')
     number = _safe_int(supplied.get('customer_no') if role == 'customer' else supplied.get('supplier_no') or supplied.get('no'), 0)
+    estab = _safe_int(supplied.get('estab'), 0)
     if table_name and number:
         row = cursor.execute(
-            f"SELECT TOP 1 CAST(ISNULL(NO, 0) AS int), LTRIM(RTRIM(ISNULL(NOME, ''))) FROM dbo.{table_name} WITH (NOLOCK) WHERE NO = ? ORDER BY ISNULL(ESTAB, 0)",
-            number,
+            f"SELECT TOP 1 CAST(ISNULL(NO, 0) AS int), LTRIM(RTRIM(ISNULL(NOME, ''))), CAST(ISNULL(ESTAB, 0) AS int), LTRIM(RTRIM(ISNULL(NOME2, ''))) FROM dbo.{table_name} WITH (NOLOCK) WHERE NO = ? AND ISNULL(ESTAB, 0) = ?",
+            number, estab,
         ).fetchone()
         if not row:
             raise ValueError(f'O {"cliente" if table_name == "CL" else "fornecedor"} nº {number} já não existe no PHC.')
-        return {'name': str(row[1] or '').strip()[:80], 'no': _safe_int(row[0], 0), 'estab': 0, 'origin': table_name, 'role': role}
+        return {'name': str(row[1] or '').strip()[:80], 'short_name': str(row[3] or '').strip()[:80], 'no': _safe_int(row[0], 0), 'estab': _safe_int(row[2], 0), 'origin': table_name, 'role': role}
     name = str(supplied.get('name') or supplied.get('llm_name') or '').strip()
     if not name:
         raise ValueError('Identifica ou escreve o nome do remetente antes de submeter.')
@@ -1843,7 +1976,6 @@ def submit_correspondence_to_phc(
         document_date = _document_date_value(document.get('document_date'))
         title = str(document.get('mail_title') or '').strip()[:80]
         subject = os.path.splitext(ged['file_name'])[0][:80]
-        legal = str(document.get('mail_category') or '').strip().lower() == 'legal'
         crstamp = _new_stamp()
         anexosstamp = _new_stamp()
         _phc_insert_values(cursor, 'CR', {
@@ -1871,7 +2003,7 @@ def submit_correspondence_to_phc(
             'usrdata': received_at,
             'usrhora': now_time,
             'marcada': 0,
-            'pasta': 'JURIDICO' if legal else 'LETTRE',
+            'pasta': 'LETTRE',
             'wtwd': '',
             'wtwstamp': '',
             'intid': '',
@@ -1880,7 +2012,7 @@ def submit_correspondence_to_phc(
         attachment_origin = (
             f'Correspondência\rData da correspondência: {document_date.strftime("%d.%m.%Y %H:%M:%S")}\r'
             f'Empresa: {party["name"]}\rAssunto: {subject}\rReferência: {reference:10d}\r'
-            f'Observações: \rPasta: {"JURIDICO" if legal else "LETTRE"}\r'
+            'Observações: \rPasta: LETTRE\r'
         )
         _phc_insert_values(cursor, 'ANEXOS', {
             'anexosstamp': anexosstamp,
@@ -1989,6 +2121,7 @@ def _expand_phc_invoice_lines(lines: list[dict[str, Any]]) -> list[dict[str, Any
 def _phc_provisional_supplier(cursor, supplier_data: dict[str, Any]) -> dict[str, Any]:
     matched = _phc_origin_supplier(cursor, supplier_data)
     supplier_no = _safe_int(matched.get('no'), 0)
+    supplier_estab = _safe_int(matched.get('estab'), 0)
     if not supplier_no:
         raise ValueError('Escolhe um fornecedor existente no PHC antes de submeter a Facture Provisoire.')
     row = cursor.execute("""
@@ -2002,9 +2135,8 @@ def _phc_provisional_supplier(cursor, supplier_data: dict[str, Any]) -> dict[str
             LTRIM(RTRIM(ISNULL(LANG, ''))), LTRIM(RTRIM(ISNULL(CCUSTO, ''))),
             LTRIM(RTRIM(ISNULL(NCUSTO, '')))
         FROM dbo.FL WITH (UPDLOCK, HOLDLOCK)
-        WHERE NO = ?
-        ORDER BY CASE WHEN ESTAB = 0 THEN 0 ELSE 1 END, ESTAB
-    """, supplier_no).fetchone()
+        WHERE NO = ? AND ISNULL(ESTAB, 0) = ?
+    """, supplier_no, supplier_estab).fetchone()
     if not row:
         raise ValueError(f'O fornecedor nº {supplier_no} já não existe no PHC.')
     keys = ('no', 'estab', 'name', 'name2', 'address', 'city', 'postal_code', 'tax_id',
@@ -2112,9 +2244,10 @@ def _provisional_invoice_ged_paths(
     company_folder = _correspondence_company_folder(document.get('customer') or {}, source)
     if not company_folder:
         raise ValueError('Não foi possível determinar a pasta GED da entidade.')
-    supplier_name = _correspondence_safe_part(supplier.get('name'), 'FORNECEDOR')[:55]
+    supplier_name = _correspondence_safe_part(supplier.get('short_name') or supplier.get('name2') or supplier.get('name'), 'FORNECEDOR')[:55]
     document_number = _correspondence_safe_part(document.get('document_number'), 'SEM-DOCUMENTO')[:45]
-    file_name = f'FAC-{str(reference).zfill(3)}-{supplier["no"]}-{supplier_name}-{document_number}.pdf'
+    supplier_number = _phc_party_number(supplier.get('no'), supplier.get('estab'))
+    file_name = f'FAC-{str(reference).zfill(3)}-{supplier_number}-{supplier_name}-{document_number}.pdf'
     unc_root = str(
         current_app.config.get('PHC_GED_UNC_ROOT')
         or os.environ.get('PHC_GED_UNC_ROOT')
@@ -2127,11 +2260,18 @@ def _provisional_invoice_ged_paths(
     ).strip()
     storage = 'local' if write_root or os.name == 'nt' else 'smb'
     results = []
-    for key, label, category in (
-        ('correspondence', 'Correio recebido', 'COURRIER_INTERNE_EXTERIEUR'),
-        ('purchase', 'Faturas de fornecedor', 'FACTURATION_FOURNISSEURS'),
+    for key, label, category, subfolders in (
+        ('correspondence', 'Correio recebido', 'COURRIER_INTERNE_EXTERIEUR', ('Courriers Reçus',)),
+        ('purchase', 'Faturas de fornecedor', 'FACTURATION_FOURNISSEURS', ()),
     ):
-        parts = (company_folder, category, str(received_at.year), _correspondence_month_folder(received_at), file_name)
+        parts = (
+            company_folder,
+            category,
+            *subfolders,
+            str(received_at.year),
+            _correspondence_month_folder(received_at),
+            file_name,
+        )
         unc_path = '\\'.join((unc_root, *parts))
         results.append({
             'key': key,
@@ -2522,6 +2662,7 @@ def submit_provisional_invoice_to_phc(
                 'descricao': f'{docname} {document_number}'[:100], 'bdados': pyodbc.Binary(b''),
                 'fullname': target['unc_path'], 'fname': os.path.splitext(target['file_name'])[0][:150],
                 'fext': 'pdf', 'flen': len(file_bytes), 'tipo': 2, 'tpdoc': DOC_AI_PURCHASE_INVOICE_DOCCODE if oritable == 'FO' else 0,
+                'original': 1 if oritable == 'FO' else 0,
                 'ausrinis': initials, 'ausrdata': received_at, 'ausrhora': time_text,
                 'usnoopen': user['no'], 'usnaopen': str(user['name'])[:55], 'u_enviado': 1,
                 'ousrinis': initials, 'ousrdata': received_at, 'ousrhora': time_text,
@@ -2559,31 +2700,36 @@ def submit_provisional_invoice_to_phc(
 
 def _phc_origin_supplier(cursor, supplier: dict[str, Any]) -> dict[str, Any]:
     supplier_no = _safe_int(supplier.get('supplier_no') or supplier.get('no'), 0)
+    supplier_estab = _safe_int(supplier.get('estab'), 0)
     supplier_tax = _digits_only(supplier.get('tax_id'))
     supplier_name = str(supplier.get('name') or supplier.get('llm_name') or '').strip()
     if supplier_no:
         row = cursor.execute("""
             SELECT TOP 1 NO, LTRIM(RTRIM(ISNULL(NOME, ''))) NOME,
-                LTRIM(RTRIM(CONVERT(varchar(40), ISNULL(NCONT, '')))) NCONT
-            FROM dbo.FL WHERE NO = ?
-        """, supplier_no).fetchone()
+                LTRIM(RTRIM(CONVERT(varchar(40), ISNULL(NCONT, '')))) NCONT,
+                CAST(ISNULL(ESTAB, 0) AS int) ESTAB
+            FROM dbo.FL WHERE NO = ? AND ISNULL(ESTAB, 0) = ?
+        """, supplier_no, supplier_estab).fetchone()
         if row:
-            return {'no': _safe_int(row[0], 0), 'name': str(row[1] or '').strip(), 'tax_id': _digits_only(row[2]), 'matched_by': 'number'}
+            return {'no': _safe_int(row[0], 0), 'name': str(row[1] or '').strip(), 'tax_id': _digits_only(row[2]), 'estab': _safe_int(row[3], 0), 'matched_by': 'number'}
     if supplier_tax:
         row = cursor.execute("""
             SELECT TOP 1 NO, LTRIM(RTRIM(ISNULL(NOME, ''))) NOME,
-                LTRIM(RTRIM(CONVERT(varchar(40), ISNULL(NCONT, '')))) NCONT
+                LTRIM(RTRIM(CONVERT(varchar(40), ISNULL(NCONT, '')))) NCONT,
+                CAST(ISNULL(ESTAB, 0) AS int) ESTAB
             FROM dbo.FL
             WHERE REPLACE(REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(CONVERT(varchar(40), ISNULL(NCONT, '')))), ' ', ''), '-', ''), '.', ''), '/', '') = ?
-        """, supplier_tax).fetchone()
+            ORDER BY CASE WHEN ISNULL(ESTAB, 0) = ? THEN 0 ELSE 1 END, ISNULL(ESTAB, 0)
+        """, supplier_tax, supplier_estab).fetchone()
         if row:
-            return {'no': _safe_int(row[0], 0), 'name': str(row[1] or '').strip(), 'tax_id': _digits_only(row[2]), 'matched_by': 'ncont'}
+            return {'no': _safe_int(row[0], 0), 'name': str(row[1] or '').strip(), 'tax_id': _digits_only(row[2]), 'estab': _safe_int(row[3], 0), 'matched_by': 'ncont'}
     normalized_name = _normalize_text(supplier_name)
     if not normalized_name:
         return {}
     rows = cursor.execute("""
         SELECT NO, LTRIM(RTRIM(ISNULL(NOME, ''))) NOME,
-            LTRIM(RTRIM(CONVERT(varchar(40), ISNULL(NCONT, '')))) NCONT
+            LTRIM(RTRIM(CONVERT(varchar(40), ISNULL(NCONT, '')))) NCONT,
+            CAST(ISNULL(ESTAB, 0) AS int) ESTAB
         FROM dbo.FL WHERE ISNULL(NOME, '') <> ''
     """).fetchall()
     best_row = None
@@ -2601,6 +2747,7 @@ def _phc_origin_supplier(cursor, supplier: dict[str, Any]) -> dict[str, Any]:
             'no': _safe_int(best_row[0], 0),
             'name': str(best_row[1] or '').strip(),
             'tax_id': _digits_only(best_row[2]),
+            'estab': _safe_int(best_row[3], 0),
             'matched_by': 'name',
             'score': round(best_score, 4),
         }
@@ -3237,14 +3384,32 @@ def get_cached_llm_extraction(document_stamp: str) -> dict[str, Any] | None:
         or not isinstance(cached.get('document'), dict)
     ):
         return None
+    cached_document = dict(cached.get('document') or {})
+    customer = dict(cached_document.get('customer') or {})
+    entity = _fe_entity_by_id(customer.get('feid') or getattr(document, 'feid', None))
+    if entity:
+        customer.update({
+            'feid': entity.get('feid'),
+            'phc_database': entity.get('phc_database') or '',
+            'ged_folder': entity.get('ged_folder') or '',
+        })
+        cached_document['customer'] = customer
+
+    cached_matching = dict(cached.get('matching') or {})
+    if entity:
+        cached_matching['customer'] = {
+            **dict(cached_matching.get('customer') or {}),
+            **entity,
+        }
+
     return {
         'ok': True,
         'available': True,
         'cached': True,
         'document_id': document.docinstamp,
         'model': str(cached.get('model') or 'LLM'),
-        'document': dict(cached.get('document') or {}),
-        'matching': dict(cached.get('matching') or {}),
+        'document': cached_document,
+        'matching': cached_matching,
         'saved_at': str(cached.get('saved_at') or ''),
     }
 

@@ -169,6 +169,29 @@ class DocumentAiLlmServiceTests(unittest.TestCase):
             '516006108',
         )
 
+    def test_confirming_mbcp_is_forced_to_invoice(self):
+        normalized = llm_service._normalize_full_extraction_line_origins({
+            'document_type': 'mail', 'mail_title': 'Confirming MBCP',
+            'supplier': {'name': 'Millennium BCP'}, 'notes': ['Comissão de confirming'], 'lines': [],
+        })
+        self.assertEqual(normalized['document_type'], 'invoice')
+        self.assertEqual(normalized['mail_title'], '')
+
+    def test_tradsafty_receipt_is_forced_to_invoice(self):
+        normalized = llm_service._normalize_full_extraction_line_origins({
+            'document_type': 'mail', 'mail_title': 'Recibo',
+            'supplier': {'name': 'TRADSAFTY'}, 'notes': [], 'lines': [],
+        })
+        self.assertEqual(normalized['document_type'], 'invoice')
+
+    def test_silver_statement_gets_recipient_initials(self):
+        normalized = llm_service._normalize_full_extraction_line_origins({
+            'document_type': 'mail', 'mail_title': 'Extrato bancário',
+            'supplier': {'name': 'Millennium BCP'},
+            'notes': ['Silver Empresas da Dra. Maria João'], 'lines': [],
+        })
+        self.assertEqual(normalized['mail_title'], 'Extrato Silver MJ')
+
     def test_full_visual_extraction_preserves_error(self):
         failed_result = {
             'ok': False,

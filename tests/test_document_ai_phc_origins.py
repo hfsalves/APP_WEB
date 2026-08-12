@@ -2,10 +2,13 @@ import json
 import os
 import tempfile
 import unittest
+from datetime import datetime
 from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import patch
 from unittest.mock import MagicMock
+
+from flask import Flask
 
 from services.document_ai_service import (
     DOC_AI_PHC_PURCHASE_FLOW,
@@ -28,6 +31,7 @@ from services.document_ai_service import (
     _normalize_document_integration_access,
     _correspondence_file_name,
     _correspondence_company_folder,
+    _correspondence_ged_paths,
     _ensure_phc_provisional_article,
     _is_provisional_purchase_source_type,
     _write_document_ai_pdf,
@@ -207,7 +211,25 @@ class DocumentAiPhcOriginTests(unittest.TestCase):
 
         self.assertEqual(result['feid'], 1)
         self.assertEqual(result['name'], 'HSOLS FRANCE SAS')
+        self.assertEqual(result['phc_database'], 'HSOLS_FR')
+        self.assertEqual(result['ged_folder'], 'HSOLS_FR')
         self.assertEqual(result['matched_by'], 'name')
+
+    def test_betaoconcept_ged_folder_comes_from_fe_phc_database(self):
+        configured = [{
+            'FEID': 2,
+            'NOME': 'Betãoconcept',
+            'NOMEFISCAL': 'Betãoconcept, Lda',
+            'NIF': '510000000',
+            'PHC_DB': 'HSOLS_PT',
+            'PHC_SERVER': '10.0.1.12',
+        }]
+        with patch.object(document_ai_service, '_configured_phc_sources', return_value=configured):
+            result = resolve_fe_entity('Betãoconcept')
+
+        self.assertEqual(result['feid'], 2)
+        self.assertEqual(result['phc_database'], 'HSOLS_PT')
+        self.assertEqual(result['ged_folder'], 'HSOLS_PT')
 
     def test_contract_dossiers_are_discovered_from_each_phc_catalog(self):
         cursor = MagicMock()
@@ -274,18 +296,41 @@ class DocumentAiPhcOriginTests(unittest.TestCase):
         }, 404, {
             'name': 'Caroline Pires',
             'customer_no': 1234,
+            'estab': 1,
         })
 
-        self.assertEqual(result, 'JUR-404-1234-CAROLINE PIRES-MISE EN DEMEURE-2026-07-10.pdf')
+        self.assertEqual(result, 'L-404-1234_1-CAROLINE PIRES-MISE EN DEMEURE-2026-07-10.pdf')
 
-    def test_correspondence_company_folder_supports_all_intersol_variants(self):
+    def test_correspondence_company_folder_uses_fe_database_and_explicit_branch(self):
         self.assertEqual(
-            _correspondence_company_folder({'name': 'INTERSOL ALSACE'}, {'phc_db': 'INTERSOL'}),
+            _correspondence_company_folder({'name': 'INTERSOL SAS'}, {'phc_db': 'INTERSOL'}),
             'HSOLS_INTERSOL_AL',
         )
         self.assertEqual(
-            _correspondence_company_folder({'name': 'INTERSOL LORRAINE'}, {'phc_db': 'INTERSOL'}),
+            _correspondence_company_folder(
+                {'name': 'INTERSOL SAS', 'ged_folder': 'HSOLS_INTERSOL_LOR'},
+                {'phc_db': 'INTERSOL'},
+            ),
             'HSOLS_INTERSOL_LOR',
+        )
+
+    def test_correspondence_ged_path_uses_received_mail_structure(self):
+        application = Flask(__name__)
+        with application.app_context():
+            result = _correspondence_ged_paths({
+                'customer': {'ged_folder': 'HSOLS_PT'},
+                'mail_category': 'legal',
+                'mail_title': 'Mise en demeure',
+                'document_date': '2026-08-11',
+            }, {'phc_db': 'HSOLS_PT'}, 15, {
+                'name': 'Remetente',
+            }, datetime(2026, 8, 11, 10, 30))
+
+        self.assertEqual(result['category'], 'COURRIER_INTERNE_EXTERIEUR')
+        self.assertEqual(result['inbox_folder'], 'Courriers Reçus')
+        self.assertIn(
+            r'\HSOLS_PT\COURRIER_INTERNE_EXTERIEUR\Courriers Reçus\2026\8 AOUT 26',
+            result['unc_path'],
         )
 
     def test_submit_correspondence_inserts_cr_and_linked_attachment(self):
@@ -341,6 +386,8 @@ class DocumentAiPhcOriginTests(unittest.TestCase):
         self.assertEqual(result['reference'], 2865)
         self.assertEqual([item[0] for item in inserted], ['CR', 'ANEXOS'])
         self.assertEqual(inserted[0][1]['origem'], 'FL')
+        self.assertEqual(inserted[0][1]['tipo'], 'L')
+        self.assertEqual(inserted[0][1]['pasta'], 'LETTRE')
         self.assertEqual(inserted[1][1]['oritable'], 'CR')
         self.assertEqual(inserted[1][1]['recstamp'], inserted[0][1]['crstamp'])
         self.assertTrue(inserted[1][1]['uniqueid'].startswith('DOC_AI:'))

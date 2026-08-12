@@ -36,6 +36,9 @@ document.addEventListener('DOMContentLoaded', () => {
     gedStatus: document.getElementById('docAiExtractGedStatus'),
     gedFileName: document.getElementById('docAiExtractGedFileName'),
     gedPath: document.getElementById('docAiExtractGedPath'),
+    gedFolderControl: document.getElementById('docAiExtractGedFolderControl'),
+    gedFolderSelect: document.getElementById('docAiExtractGedFolderSelect'),
+    gedFolderHint: document.getElementById('docAiExtractGedFolderHint'),
     projectCard: document.getElementById('docAiExtractProjectCard'),
     projectName: document.getElementById('docAiExtractProjectName'),
     projectMeta: document.getElementById('docAiExtractProjectMeta'),
@@ -142,6 +145,7 @@ document.addEventListener('DOMContentLoaded', () => {
     submittingPhc: false,
     integratedPhc: false,
     integrationResult: null,
+    gedFolderManuallySelected: false,
   };
 
   const typeLabels = {
@@ -153,7 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
     proforma_invoice: 'Fatura pró-forma',
     provisional_invoice: 'Facture Provisoire',
     receipt: 'Recibo',
-    mail: 'Correio',
+    mail: 'Lettre',
     unknown: 'Tipo desconhecido',
     other: 'Outro documento',
   };
@@ -227,22 +231,83 @@ document.addEventListener('DOMContentLoaded', () => {
       .trim() || 'NOME-POR-IDENTIFICAR';
   }
 
+  function phcPartyNumber(value, establishment = 0) {
+    const number = Number(value || 0);
+    if (!number) return '';
+    const estab = Number(establishment || 0);
+    return estab > 0 ? `${number}_${estab}` : String(number);
+  }
+
   function gedCompanyFolder(customer = {}) {
     if (customer.ged_folder) return gedSafePart(customer.ged_folder, 'PASTA-POR-CONFIGURAR');
-    const name = gedSafePart(customer.name, '');
-    const mappings = [
-      [/INTERSOL.*ALSACE|INTERSOL_AL/, 'HSOLS_INTERSOL_AL'],
-      [/HSOLS.*FRANCE|HSOLS_FR/, 'HSOLS_FR'],
-      [/INTERSOL.*LORRAINE|INTERSOL_LOR/, 'HSOLS_INTERSOL_LOR'],
-      [/INTERSOL.*CH|INTERSOL_CH/, 'HSOLS_INTERSOL_CH'],
-      [/INTERSOL/, 'HSOLS_INTERSOL_AL'],
-      [/GR.?360/, 'HSOLS_GR360_PT'],
-      [/HSOLS.*CH|HSOLS_CH/, 'HSOLS_CH'],
-      [/HSOLS.*DE|HSOLS_DE/, 'HSOLS_DE'],
-      [/HSOLS.*ES|HSOLS_ES/, 'HSOLS_ES'],
-      [/HSOLS.*PT|HSOLS_PT/, 'HSOLS_PT'],
-    ];
-    return mappings.find(([pattern]) => pattern.test(name))?.[1] || 'PASTA-EMPRESA-POR-CONFIGURAR';
+    return 'PASTA-EMPRESA-POR-CONFIGURAR';
+  }
+
+  const intersolGedFolders = [
+    { value: 'HSOLS_INTERSOL_AL', label: 'INTERSOL Alsace' },
+    { value: 'HSOLS_INTERSOL_LOR', label: 'INTERSOL Lorraine' },
+    { value: 'HSOLS_INTERSOL_CH', label: 'INTERSOL Champagne' },
+  ];
+
+  function normalizedSearchText(value) {
+    return String(value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toUpperCase();
+  }
+
+  function suggestIntersolGedFolder(documentData = {}) {
+    const customer = documentData.customer || {};
+    const supplier = documentData.supplier || {};
+    const text = normalizedSearchText([
+      state.file?.name,
+      customer.name,
+      customer.llm_name,
+      customer.address,
+      customer.postal_code,
+      customer.city,
+      supplier.name,
+      supplier.address,
+      supplier.postal_code,
+      supplier.city,
+      documentData.mail_title,
+      ...(documentData.notes || []),
+    ].filter(Boolean).join(' '));
+    if (/\b(CHAMPAGNE|REIMS|TROYES|EPERNAY|CHALONS EN CHAMPAGNE|CHARLEVILLE MEZIERES|CHAUMONT)\b|\b(08|10|51|52)\d{3}\b/.test(text)) {
+      return { value: 'HSOLS_INTERSOL_CH', reason: 'Sugerida pela morada/agência Champagne' };
+    }
+    if (/\b(LORRAINE|METZ|NANCY|THIONVILLE|SARREGUEMINES|EPINAL|VANDOEUVRE)\b|\b(54|55|57|88)\d{3}\b/.test(text)) {
+      return { value: 'HSOLS_INTERSOL_LOR', reason: 'Sugerida pela morada/agência Lorraine' };
+    }
+    if (/\b(ALSACE|STRASBOURG|COLMAR|MULHOUSE|MOLSHEIM|HAGUENAU|SELESTAT|GEISPOLSHEIM)\b|\b(67|68)\d{3}\b/.test(text)) {
+      return { value: 'HSOLS_INTERSOL_AL', reason: 'Sugerida pela morada/agência Alsace' };
+    }
+    return null;
+  }
+
+  function configureGedFolderControl() {
+    const customer = state.documentData?.customer || {};
+    const isIntersol = customer.phc_database === 'INTERSOL'
+      || String(customer.ged_folder || '').startsWith('HSOLS_INTERSOL_');
+    els.gedFolderControl.hidden = !isIntersol;
+    if (!isIntersol) return;
+
+    const suggestion = suggestIntersolGedFolder(state.documentData);
+    if (!state.gedFolderManuallySelected && suggestion) {
+      customer.ged_folder = suggestion.value;
+      customer.ged_folder_suggested_by = suggestion.reason;
+    }
+    const selectedFolder = customer.ged_folder || 'HSOLS_INTERSOL_AL';
+    els.gedFolderSelect.replaceChildren(...intersolGedFolders.map((option) => {
+      const element = document.createElement('option');
+      element.value = option.value;
+      element.textContent = option.label;
+      element.selected = option.value === selectedFolder;
+      return element;
+    }));
+    els.gedFolderHint.textContent = state.gedFolderManuallySelected
+      ? 'Destino escolhido manualmente'
+      : (customer.ged_folder_suggested_by || 'Alsace por defeito; confirma antes de submeter');
   }
 
   function gedPeriodFolders() {
@@ -256,13 +321,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const documentData = state.documentData;
     if (!documentData) return;
     const customer = documentData.customer || {};
+    configureGedFolderControl();
     const party = documentData.supplier || {};
     const isMail = documentData.document_type === 'mail';
     const isCustomerParty = isMail && documentData.external_party_role === 'customer';
     const isUnregisteredMailParty = isMail && !['customer', 'supplier'].includes(documentData.external_party_role);
     const partyNumber = Number(isCustomerParty ? party.customer_no : party.supplier_no || party.no || 0);
-    const partyNumberPart = partyNumber ? String(partyNumber) : 'SEM-NUMERO';
-    const partyNamePart = gedPartyName(party.name || party.llm_name);
+    const partyNumberPart = phcPartyNumber(partyNumber, party.estab) || 'SEM-NUMERO';
+    const partyNamePart = gedPartyName(party.short_name || party.name2 || party.name || party.llm_name);
     const documentNumber = gedSafePart(documentData.document_number, 'SEM-DOCUMENTO');
     const mailTitlePart = isMail ? gedSafePart(documentData.mail_title, '') : '';
     const project = gedSafePart(state.selectedProject?.ccusto || documentData.origin_project?.ccusto, '');
@@ -273,15 +339,15 @@ document.addEventListener('DOMContentLoaded', () => {
     let trailingPart = documentNumber;
 
     if (isMail) {
-      prefix = documentData.mail_category === 'legal' ? 'JUR' : 'COR';
-      category = documentData.mail_category === 'legal' ? 'JURIDIQUE' : 'COURRIER_INTERNE_EXTERIEUR';
-      destinations = [{ label: documentData.mail_category === 'legal' ? 'Jurídico' : 'Correio recebido', category }];
+      prefix = 'L';
+      category = 'COURRIER_INTERNE_EXTERIEUR';
+      destinations = [{ label: 'Correio recebido', category, subfolders: ['Courriers Reçus'] }];
       trailingPart = documentDate;
     } else if (['invoice', 'credit_note', 'debit_note', 'proforma_invoice', 'provisional_invoice'].includes(documentData.document_type)) {
       prefix = 'FAC';
       category = 'FACTURATION_FOURNISSEURS';
       destinations = [
-        { label: 'Correio recebido', category: 'COURRIER_INTERNE_EXTERIEUR' },
+        { label: 'Correio recebido', category: 'COURRIER_INTERNE_EXTERIEUR', subfolders: ['Courriers Reçus'] },
         { label: 'Faturas de fornecedor', category },
       ];
     } else if (documentData.document_type === 'delivery_note') {
@@ -308,7 +374,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const period = gedPeriodFolders();
     const paths = destinations.map((destination) => ({
       ...destination,
-      path: `\\\\10.0.1.11\\ged\\${companyFolder}\\${destination.category}\\${period.year}\\${period.month}\\${fileName}`,
+      path: `\\\\10.0.1.11\\ged\\${[
+        companyFolder,
+        destination.category,
+        ...(destination.subfolders || []),
+        period.year,
+        period.month,
+        fileName,
+      ].join('\\')}`,
     }));
     const incomplete = !state.correspondenceReference
       || (!isUnregisteredMailParty && !partyNumber)
@@ -863,6 +936,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const isMail = state.documentData?.document_type === 'mail';
     const isCustomerMail = isMail && state.documentData?.external_party_role === 'customer';
     const supplierNo = Number(isCustomerMail ? supplier.customer_no : (supplier.supplier_no || supplier.no) || 0);
+    const supplierNumberLabel = phcPartyNumber(supplierNo, supplier.estab);
     const matched = Boolean(supplierNo);
     els.partyLabel.textContent = isMail ? 'Remetente' : 'Fornecedor';
     els.supplierName.textContent = supplier.name || supplier.llm_name || '--';
@@ -872,7 +946,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (isMail) {
       els.supplierNo.hidden = false;
       const roleLabel = isCustomerMail ? 'cliente' : (state.documentData?.external_party_role === 'supplier' ? 'fornecedor' : 'entidade');
-      els.supplierNo.textContent = `Nº ${roleLabel}: ${supplierNo || '--'}`;
+      els.supplierNo.textContent = `Nº ${roleLabel}: ${supplierNumberLabel || '--'}`;
       els.supplierCard.classList.toggle('is-unmatched', !matched);
       els.supplierCard.classList.toggle('is-matched', matched);
       if (supplier.manually_named) {
@@ -886,7 +960,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     els.supplierNo.hidden = false;
-    els.supplierNo.textContent = `Nº fornecedor: ${supplierNo || '--'}`;
+    els.supplierNo.textContent = `Nº fornecedor: ${supplierNumberLabel || '--'}`;
     els.supplierCard.classList.toggle('is-unmatched', !matched);
     els.supplierCard.classList.toggle('is-matched', matched);
     els.supplierHint.innerHTML = matched
@@ -967,7 +1041,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const endpoint = isMail ? 'external-parties' : 'suppliers';
     try {
       const items = await fetchJson(`/api/document_ai/${endpoint}/search?q=${encodeURIComponent(query)}&feid=${feid}&limit=12`);
-      const selected = Array.isArray(items) && Number(items[0]?.score || 0) >= 0.72 ? items[0] : null;
+      const first = Array.isArray(items) ? items[0] : null;
+      const sameNumber = first ? items.filter((item) => item.party_role === first.party_role && Number(item.no || 0) === Number(first.no || 0)) : [];
+      const selected = first && Number(first.score || 0) >= 0.72 && sameNumber.length <= 1 ? first : null;
       const isCustomer = isMail && selected?.party_role === 'customer';
       state.matching.supplier_candidates = Array.isArray(items) ? items : [];
       state.supplierCandidates = state.matching.supplier_candidates;
@@ -978,9 +1054,14 @@ document.addEventListener('DOMContentLoaded', () => {
           supplier_no: null,
           customer_no: null,
           name: selected.name || party.name,
+          short_name: selected.short_name || '',
           tax_id: selected.tax_id || party.tax_id,
+          address: selected.address || party.address || '',
+          city: selected.city || party.city || '',
+          postal_code: selected.postal_code || party.postal_code || '',
           feid,
           ...(isCustomer ? { customer_no: selected.no } : { supplier_no: selected.no }),
+          estab: Number(selected.estab || 0),
           match_score: selected.score,
           matched_by: selected.matched_by,
         };
@@ -1012,12 +1093,15 @@ document.addEventListener('DOMContentLoaded', () => {
       state.originLineMatches = [];
       state.originLineReferenceLabel = '';
       renderProjectCard();
+      state.gedFolderManuallySelected = false;
     }
     state.documentData.customer = {
       ...state.documentData.customer,
       feid: selected.feid,
       name: selected.name,
       tax_id: selected.tax_id || '',
+      phc_database: selected.phc_database || '',
+      ged_folder: selected.ged_folder || '',
       manually_selected: true,
       matched_by: 'manual',
     };
@@ -1043,7 +1127,7 @@ document.addEventListener('DOMContentLoaded', () => {
     els.originFlow.hidden = false;
     els.originSource.hidden = !payload.available;
     els.originSource.textContent = payload.available
-      ? `${payload.phc_database || 'PHC'} · Fornecedor nº ${payload.supplier?.no || '--'}${payload.selected_project?.ccusto ? ` · Obra ${payload.selected_project.ccusto}` : ''}`
+      ? `${payload.phc_database || 'PHC'} · Fornecedor nº ${phcPartyNumber(payload.supplier?.no, payload.supplier?.estab) || '--'}${payload.selected_project?.ccusto ? ` · Obra ${payload.selected_project.ccusto}` : ''}`
       : '';
     if (!options.skipLineMapping) applyOriginLineReferences(payload);
 
@@ -1578,11 +1662,13 @@ document.addEventListener('DOMContentLoaded', () => {
       const taxLabel = String(item.tax_field || 'nif').toUpperCase();
       const matchLabel = item.matched_by === 'tax_id' ? `${taxLabel} coincidente` : 'Nome semelhante';
       const partyLabel = item.party_role === 'customer' ? 'Cliente' : 'Fornecedor';
+      const location = [item.address, item.postal_code, item.city].filter(Boolean).join(' · ');
       return `
         <button type="button" class="docai-supplier-match-option" data-supplier-index="${index}">
           <span class="docai-supplier-match-main">
             <strong>${escapeHtml(item.name || '--')}</strong>
-            <span>Nº ${escapeHtml(item.no || '--')} · ${escapeHtml(taxLabel)} ${escapeHtml(item.tax_id || '--')}</span>
+            <span>Nº ${escapeHtml(phcPartyNumber(item.no, item.estab) || '--')} · ${escapeHtml(taxLabel)} ${escapeHtml(item.tax_id || '--')}</span>
+            ${location ? `<span>${escapeHtml(location)}</span>` : ''}
           </span>
           <span class="docai-supplier-match-score">${isMail ? `${escapeHtml(partyLabel)} · ` : ''}${escapeHtml(matchLabel)} · ${score}%</span>
         </button>
@@ -1671,8 +1757,13 @@ document.addEventListener('DOMContentLoaded', () => {
       supplier_no: null,
       customer_no: null,
       ...(isCustomer ? { customer_no: selected.no } : { supplier_no: selected.no }),
+      estab: Number(selected.estab || 0),
       name: selected.name || current.name || '',
+      short_name: selected.short_name || '',
       tax_id: selected.tax_id || current.tax_id || '',
+      address: selected.address || current.address || '',
+      city: selected.city || current.city || '',
+      postal_code: selected.postal_code || current.postal_code || '',
       feid: selected.feid || state.documentData.customer?.feid || null,
       match_score: selected.score || 0,
       matched_by: selected.matched_by || 'manual',
@@ -1683,7 +1774,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderSupplierCard(state.documentData.supplier, state.matching);
     renderGedDestination();
     closeSupplierModal();
-    setStatus(`${isCustomer ? 'Cliente' : 'Fornecedor'} ${selected.name} (#${selected.no}) selecionado.`);
+    setStatus(`${isCustomer ? 'Cliente' : 'Fornecedor'} ${selected.name} (#${phcPartyNumber(selected.no, selected.estab)}) selecionado.`);
     showMessage(`${isCustomer ? 'Cliente' : 'Fornecedor'} selecionado.`, 'success');
     if (state.documentData.document_type !== 'mail') loadOriginCandidates(state.documentData);
   }
@@ -1697,6 +1788,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const isMail = documentData.document_type === 'mail';
 
     state.documentData = documentData;
+    state.gedFolderManuallySelected = Boolean(documentData.customer?.ged_folder_manually_selected);
     state.submittingPhc = false;
     state.integratedPhc = false;
     state.integrationResult = null;
@@ -1894,6 +1986,15 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   els.backBtn?.addEventListener('click', () => { window.location.href = '/document_ai/inbox'; });
+  els.gedFolderSelect?.addEventListener('change', () => {
+    if (!state.documentData?.customer) return;
+    state.gedFolderManuallySelected = true;
+    state.documentData.customer.ged_folder = els.gedFolderSelect.value;
+    state.documentData.customer.ged_folder_manually_selected = true;
+    state.documentData.customer.ged_folder_suggested_by = '';
+    renderGedDestination();
+    setStatus(`Destino GED alterado para ${els.gedFolderSelect.selectedOptions[0]?.textContent || els.gedFolderSelect.value}.`);
+  });
   els.accessBtn?.addEventListener('click', openAccessModal);
   els.accessCloseTop?.addEventListener('click', closeAccessModal);
   els.accessClose?.addEventListener('click', closeAccessModal);

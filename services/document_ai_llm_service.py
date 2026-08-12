@@ -4,6 +4,7 @@ import re
 import socket
 import base64
 import io
+import unicodedata
 from typing import Any
 from urllib import error as urllib_error
 from urllib import request as urllib_request
@@ -216,8 +217,11 @@ def _document_classification_schema() -> dict[str, Any]:
                     'supplier_no': {'type': 'number'},
                     'tax_id': {'type': 'string'},
                     'name': {'type': 'string'},
+                    'address': {'type': 'string'},
+                    'postal_code': {'type': 'string'},
+                    'city': {'type': 'string'},
                 },
-                'required': ['supplier_no', 'tax_id', 'name'],
+                'required': ['supplier_no', 'tax_id', 'name', 'address', 'postal_code', 'city'],
             },
             'customer': {
                 'type': 'object',
@@ -225,8 +229,11 @@ def _document_classification_schema() -> dict[str, Any]:
                 'properties': {
                     'tax_id': {'type': 'string'},
                     'name': {'type': 'string'},
+                    'address': {'type': 'string'},
+                    'postal_code': {'type': 'string'},
+                    'city': {'type': 'string'},
                 },
-                'required': ['tax_id', 'name'],
+                'required': ['tax_id', 'name', 'address', 'postal_code', 'city'],
             },
             'totals': {
                 'type': 'object',
@@ -420,6 +427,7 @@ def _normalize_document_batch(document: dict[str, Any], actual_page_count: int) 
 
 
 def _normalize_full_extraction_line_origins(document: dict[str, Any]) -> dict[str, Any]:
+    document = _apply_known_document_rules(dict(document or {}))
     delivery_numbers = {
         re.sub(r'[^a-z0-9]', '', str(item.get('document_number') or '').lower())
         for item in document.get('origin_references') or []
@@ -446,6 +454,44 @@ def _normalize_full_extraction_line_origins(document: dict[str, Any]) -> dict[st
     document['mail_title'] = _normalize_mail_title(
         document.get('mail_title') if str(document.get('document_type') or '').strip().lower() == 'mail' else ''
     )
+    return document
+
+
+def _rule_text(value: Any) -> str:
+    return re.sub(
+        r'\s+', ' ',
+        unicodedata.normalize('NFKD', str(value or '')).encode('ascii', 'ignore').decode().lower(),
+    ).strip()
+
+
+def _apply_known_document_rules(document: dict[str, Any]) -> dict[str, Any]:
+    supplier = dict(document.get('supplier') or {})
+    fragments = [
+        supplier.get('name'), document.get('document_number'), document.get('mail_title'),
+        document.get('reason'), *(document.get('notes') or []),
+    ]
+    for line in document.get('lines') or []:
+        if isinstance(line, dict):
+            fragments.extend((line.get('description'), line.get('ref')))
+    text_value = _rule_text(' '.join(str(item or '') for item in fragments))
+
+    invoice_override = False
+    if ('millennium' in text_value or 'mbcp' in text_value) and ('confirming' in text_value or 'comissao' in text_value or 'commission' in text_value):
+        invoice_override = True
+    if 'tradsafty' in text_value and ('recibo' in text_value or 'receipt' in text_value):
+        invoice_override = True
+    if invoice_override:
+        document['document_type'] = 'invoice'
+        document['external_party_role'] = 'supplier'
+        document['mail_category'] = 'unknown'
+        document['mail_title'] = ''
+
+    if 'silver empresas' in text_value:
+        document['document_type'] = 'mail'
+        if 'maria joao' in text_value or re.search(r'\bdra\.?\s+maria\b', text_value):
+            document['mail_title'] = 'Extrato Silver MJ'
+        elif 'antonio cruz' in text_value:
+            document['mail_title'] = 'Extrato Silver AC'
     return document
 
 
@@ -708,6 +754,7 @@ def classify_document_visual(context: dict[str, Any]) -> dict[str, Any]:
             'Dates must be ISO yyyy-mm-dd when visible; otherwise empty string.',
             'Amounts must be numeric values without currency symbols.',
             'Extract supplier name and tax/VAT id from the issuer/seller section.',
+            'Extract the supplier and customer street address, postal code and city when visible; otherwise return empty strings.',
             'The supplier is the legal issuer shown in the logo/header/footer/contact/tax block, not an operational site.',
             'Use known_supplier_candidates as the preferred supplier list. If a visible company/logo/header/footer name matches one of those candidates, choose that candidate.',
             'When a candidate matches the visible supplier, return its supplier_no and tax_id when provided.',
@@ -717,6 +764,12 @@ def classify_document_visual(context: dict[str, Any]) -> dict[str, Any]:
             'Extract customer name and tax/VAT id from the buyer/delivery/customer section.',
             'Use document_type mail for correspondence, notices, declarations, requests, statements, certificates, legal or administrative letters and other incoming mail that is not a commercial document type listed above.',
             'A document titled Note d’honoraires, Note d’honoraires fournisseur, Honoraires or Fee note is a supplier invoice for professional services. Always classify it as document_type invoice, never as mail, credit_note or unknown merely because the word Note is used.',
+            'A document titled Avoir, Note de crédit, Credit note, Gutschrift or Nota de crédito is a supplier credit note and belongs to the FAC/commercial circuit; classify it as credit_note, never as mail.',
+            'A Mise en demeure or Rappel without invoice/credit-note evidence is incoming mail (Lettre), even when it refers to unpaid invoices.',
+            'Known exception: a Millennium BCP document headed Confirming or charging a commission is a supplier invoice and belongs to FAC, not mail.',
+            'Known exception: a Tradsafty document headed Recibo/Receipt is a supplier invoice and belongs to FAC, not mail.',
+            'For Millennium BCP Extrato Silver Empresas correspondence, use mail_title "Extrato Silver MJ" when addressed to Dra. Maria João and "Extrato Silver AC" when addressed to António Cruz.',
+            'Scanned retail invoices, including Auchan invoices, remain invoices even when OCR is weak. Use the visible seller identity, invoice number, date, tax and total blocks and do not downgrade them to mail only because item text is hard to read.',
             'When the document itself is explicitly titled Facture Provisoire or Fatura Provisória, classify it as document_type provisional_invoice. Do not use provisional_invoice merely because an ordinary invoice is awaiting internal approval.',
             'For a Note d’honoraires, the professional, consultant, lawyer or other service provider issuing the document is the supplier and the recipient group company is the customer. Treat the visible services/fees as invoice lines even when there are no product references or physical quantities.',
             'On French Notes d’honoraires, identify the issuer from the logo/brand plus the legal, VAT, bank and contact details in the footer. A large company-and-address block on the upper right is commonly the addressee/customer, not the issuer. Do not reverse supplier and customer because the recipient name is large or appears near the date.',

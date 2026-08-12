@@ -1179,6 +1179,7 @@ def create_app():
                 RS.DATAOUT,
                 RS.HORAIN,
                 RS.HORAOUT,
+                ISNULL(RS.CANCELADA,0) AS CANCELADA,
                 ISNULL(RS.BERCO,0) AS BERCO,
                 RS.ADULTOS,
                 RS.CRIANCAS,
@@ -1210,7 +1211,8 @@ def create_app():
                = LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO,''))) COLLATE SQL_Latin1_General_CP1_CI_AI
             WHERE LTRIM(RTRIM(ISNULL(RS.RESERVA,''))) COLLATE SQL_Latin1_General_CP1_CI_AI
                 = LTRIM(RTRIM(:r)) COLLATE SQL_Latin1_General_CP1_CI_AI
-              AND ISNULL(RS.BLOQ, 0) = 0
+              -- O portal público nunca pode expor reservas canceladas.
+              AND ISNULL(RS.CANCELADA, 0) = 0
             ORDER BY ISNULL(RS.DATAIN, RS.DATAOUT) DESC
         """), {'r': reserva_code}).mappings().first()
         if not row:

@@ -250,6 +250,8 @@ def _load_existing_prices(session, start_date, end_date, alojamento=None):
             PRECO_FINAL,
             ISNULL([SYNC], 0) AS [SYNC],
             SYNCED_AT,
+            ISNULL(SYNC_BOOKING, 0) AS SYNC_BOOKING,
+            SYNCED_BOOKING_AT,
             FLAGS
         FROM dbo.PR_CALC_DAY
         WHERE CAST([DATA] AS date) BETWEEN :start_date AND :end_date
@@ -267,6 +269,8 @@ def _load_existing_prices(session, start_date, end_date, alojamento=None):
             "preco_final": _quantize_money(row.get("PRECO_FINAL") or 0),
             "sync": bool(row.get("SYNC")),
             "synced_at": row.get("SYNCED_AT"),
+            "sync_booking": bool(row.get("SYNC_BOOKING")),
+            "synced_booking_at": row.get("SYNCED_BOOKING_AT"),
             "flags": row.get("FLAGS") or "",
         }
     return existing
@@ -394,9 +398,11 @@ def ensure_pricing_schema(session):
                 PRECO_MIN DECIMAL(10,2) NOT NULL,
                 PRECO_BASE DECIMAL(10,2) NOT NULL,
                 PRECO_MAX DECIMAL(10,2) NOT NULL,
+                FATOR_BOOKING DECIMAL(9,6) NOT NULL CONSTRAINT DF_PR_ALOJAMENTO_FATOR_BOOKING DEFAULT (1),
                 LAST_MIN_DISC DECIMAL(9,2) NOT NULL CONSTRAINT DF_PR_ALOJAMENTO_LAST_MIN_DISC DEFAULT (0),
                 LAST_MIN_DAYS INT NOT NULL CONSTRAINT DF_PR_ALOJAMENTO_LAST_MIN_DAYS DEFAULT (0),
                 SYNC BIT NOT NULL CONSTRAINT DF_PR_ALOJAMENTO_SYNC DEFAULT (0),
+                SYNC_BOOKING BIT NOT NULL CONSTRAINT DF_PR_ALOJAMENTO_SYNC_BOOKING DEFAULT (0),
                 ATIVO BIT NOT NULL CONSTRAINT DF_PR_ALOJAMENTO_ATIVO DEFAULT (1),
                 CONSTRAINT FK_PR_ALOJAMENTO_AL FOREIGN KEY (AL_NOME) REFERENCES dbo.AL (NOME),
                 CONSTRAINT FK_PR_ALOJAMENTO_PERFIL FOREIGN KEY (PERFIL_ID) REFERENCES dbo.PR_PERFIL (PERFIL_ID),
@@ -418,6 +424,14 @@ def ensure_pricing_schema(session):
         END
         """,
         """
+        IF COL_LENGTH('dbo.PR_ALOJAMENTO', 'SYNC_BOOKING') IS NULL
+        BEGIN
+            ALTER TABLE dbo.PR_ALOJAMENTO
+            ADD SYNC_BOOKING BIT NOT NULL
+                CONSTRAINT DF_PR_ALOJAMENTO_SYNC_BOOKING DEFAULT (0);
+        END
+        """,
+        """
         IF COL_LENGTH('dbo.PR_ALOJAMENTO', 'LAST_MIN_DISC') IS NULL
         BEGIN
             ALTER TABLE dbo.PR_ALOJAMENTO
@@ -429,6 +443,14 @@ def ensure_pricing_schema(session):
         BEGIN
             ALTER TABLE dbo.PR_ALOJAMENTO
             ADD LAST_MIN_DAYS INT NOT NULL CONSTRAINT DF_PR_ALOJAMENTO_LAST_MIN_DAYS DEFAULT (0);
+        END
+        """,
+        """
+        IF COL_LENGTH('dbo.PR_ALOJAMENTO', 'FATOR_BOOKING') IS NULL
+        BEGIN
+            ALTER TABLE dbo.PR_ALOJAMENTO
+            ADD FATOR_BOOKING DECIMAL(9,6) NOT NULL
+                CONSTRAINT DF_PR_ALOJAMENTO_FATOR_BOOKING DEFAULT (1);
         END
         """,
         """
@@ -550,6 +572,8 @@ def ensure_pricing_schema(session):
                 PRECO_FINAL DECIMAL(10,2) NOT NULL,
                 [SYNC] BIT NOT NULL CONSTRAINT DF_PR_CALC_DAY_SYNC DEFAULT (0),
                 SYNCED_AT DATETIME2(0) NULL,
+                SYNC_BOOKING BIT NOT NULL CONSTRAINT DF_PR_CALC_DAY_SYNC_BOOKING DEFAULT (0),
+                SYNCED_BOOKING_AT DATETIME2(0) NULL,
                 FLAGS NVARCHAR(MAX) NULL,
                 UPDATED_AT DATETIME2(0) NOT NULL,
                 CONSTRAINT PK_PR_CALC_DAY PRIMARY KEY (AL_NOME, [DATA]),
@@ -579,6 +603,21 @@ def ensure_pricing_schema(session):
         BEGIN
             ALTER TABLE dbo.PR_CALC_DAY
             ADD SYNCED_AT DATETIME2(0) NULL;
+        END
+        """,
+        """
+        IF COL_LENGTH('dbo.PR_CALC_DAY', 'SYNC_BOOKING') IS NULL
+        BEGIN
+            ALTER TABLE dbo.PR_CALC_DAY
+            ADD SYNC_BOOKING BIT NOT NULL
+                CONSTRAINT DF_PR_CALC_DAY_SYNC_BOOKING DEFAULT (0);
+        END
+        """,
+        """
+        IF COL_LENGTH('dbo.PR_CALC_DAY', 'SYNCED_BOOKING_AT') IS NULL
+        BEGIN
+            ALTER TABLE dbo.PR_CALC_DAY
+            ADD SYNCED_BOOKING_AT DATETIME2(0) NULL;
         END
         """,
         """
@@ -1312,6 +1351,8 @@ def recalculate_prices(days=DEFAULT_HORIZON_DAYS, alojamento=None, from_date=Non
                     "PRECO_FINAL": preco_final,
                     "SYNC": 1 if preserve_sync and existing_row.get("sync") else 0,
                     "SYNCED_AT": existing_row.get("synced_at") if preserve_sync and existing_row else None,
+                    "SYNC_BOOKING": 1 if preserve_sync and existing_row.get("sync_booking") else 0,
+                    "SYNCED_BOOKING_AT": existing_row.get("synced_booking_at") if preserve_sync and existing_row else None,
                     "FLAGS": flags,
                     "UPDATED_AT": run_ts,
                 }
@@ -1331,6 +1372,8 @@ def recalculate_prices(days=DEFAULT_HORIZON_DAYS, alojamento=None, from_date=Non
                     :PRECO_FINAL AS PRECO_FINAL,
                     :SYNC AS [SYNC],
                     :SYNCED_AT AS SYNCED_AT,
+                    :SYNC_BOOKING AS SYNC_BOOKING,
+                    :SYNCED_BOOKING_AT AS SYNCED_BOOKING_AT,
                     :FLAGS AS FLAGS,
                     :UPDATED_AT AS UPDATED_AT
             ) AS source
@@ -1343,11 +1386,13 @@ def recalculate_prices(days=DEFAULT_HORIZON_DAYS, alojamento=None, from_date=Non
                     PRECO_FINAL = source.PRECO_FINAL,
                     [SYNC] = source.[SYNC],
                     SYNCED_AT = source.SYNCED_AT,
+                    SYNC_BOOKING = source.SYNC_BOOKING,
+                    SYNCED_BOOKING_AT = source.SYNCED_BOOKING_AT,
                     FLAGS = source.FLAGS,
                     UPDATED_AT = source.UPDATED_AT
             WHEN NOT MATCHED THEN
-                INSERT (AL_NOME, [DATA], ISO_WEEK, PRECO_CALC, PRECO_FINAL, [SYNC], SYNCED_AT, FLAGS, UPDATED_AT)
-                VALUES (source.AL_NOME, source.[DATA], source.ISO_WEEK, source.PRECO_CALC, source.PRECO_FINAL, source.[SYNC], source.SYNCED_AT, source.FLAGS, source.UPDATED_AT);
+                INSERT (AL_NOME, [DATA], ISO_WEEK, PRECO_CALC, PRECO_FINAL, [SYNC], SYNCED_AT, SYNC_BOOKING, SYNCED_BOOKING_AT, FLAGS, UPDATED_AT)
+                VALUES (source.AL_NOME, source.[DATA], source.ISO_WEEK, source.PRECO_CALC, source.PRECO_FINAL, source.[SYNC], source.SYNCED_AT, source.SYNC_BOOKING, source.SYNCED_BOOKING_AT, source.FLAGS, source.UPDATED_AT);
             """
         )
         db.session.execute(merge_sql, rows_to_upsert)
@@ -1465,9 +1510,11 @@ def _load_alojamento_config(alojamento):
                 pa.PRECO_MIN,
                 pa.PRECO_BASE,
                 pa.PRECO_MAX,
+                ISNULL(pa.FATOR_BOOKING, 1) AS FATOR_BOOKING,
                 ISNULL(pa.LAST_MIN_DISC, 0) AS LAST_MIN_DISC,
                 ISNULL(pa.LAST_MIN_DAYS, 0) AS LAST_MIN_DAYS,
                 ISNULL(pa.SYNC, 0) AS SYNC,
+                ISNULL(pa.SYNC_BOOKING, 0) AS SYNC_BOOKING,
                 ISNULL(pa.ATIVO, 0) AS ATIVO,
                 ISNULL(pp.NOME, '') AS PERFIL_NOME,
                 ISNULL(al.TIPOLOGIA, '') AS TIPOLOGIA
@@ -1501,9 +1548,11 @@ def _load_alojamento_config(alojamento):
         "preco_min": _to_float(row.get("PRECO_MIN")),
         "preco_base": _to_float(row.get("PRECO_BASE")),
         "preco_max": _to_float(row.get("PRECO_MAX")),
+        "fator_booking": _to_float(row.get("FATOR_BOOKING")),
         "last_min_disc": _to_float(row.get("LAST_MIN_DISC")),
         "last_min_days": int(row.get("LAST_MIN_DAYS") or 0),
         "sync": bool(row.get("SYNC")),
+        "sync_booking": bool(row.get("SYNC_BOOKING")),
         "ativo": bool(row.get("ATIVO")),
         "profiles": [
             {"perfil_id": int(item["PERFIL_ID"]), "nome": item.get("NOME") or ""}
@@ -2962,16 +3011,20 @@ def pricing_api_alojamento_config_save():
     preco_min = _safe_decimal(payload.get("preco_min"), "0")
     preco_base = _safe_decimal(payload.get("preco_base"), "0")
     preco_max = _safe_decimal(payload.get("preco_max"), "0")
+    fator_booking = _safe_decimal(payload.get("fator_booking"), "1")
     last_min_disc = _safe_decimal(payload.get("last_min_disc"), "0")
     try:
         last_min_days = int(payload.get("last_min_days") or 0)
     except Exception:
         return jsonify({"error": "LAST_MIN_DAYS invalido."}), 400
     sync = 1 if _as_bool(payload.get("sync")) else 0
+    sync_booking = 1 if _as_bool(payload.get("sync_booking")) else 0
     ativo = 1 if _as_bool(payload.get("ativo")) else 0
 
     if preco_min > preco_base or preco_base > preco_max:
         return jsonify({"error": "A regra PRECO_MIN <= PRECO_BASE <= PRECO_MAX tem de ser respeitada."}), 400
+    if fator_booking < 0:
+        return jsonify({"error": "FATOR_BOOKING nao pode ser negativo."}), 400
     if last_min_disc < 0:
         return jsonify({"error": "LAST_MIN_DISC nao pode ser negativo."}), 400
     if last_min_days < 0:
@@ -2993,9 +3046,11 @@ def pricing_api_alojamento_config_save():
                 PRECO_MIN = :preco_min,
                 PRECO_BASE = :preco_base,
                 PRECO_MAX = :preco_max,
+                FATOR_BOOKING = :fator_booking,
                 LAST_MIN_DISC = :last_min_disc,
                 LAST_MIN_DAYS = :last_min_days,
                 SYNC = :sync,
+                SYNC_BOOKING = :sync_booking,
                 ATIVO = :ativo
             WHERE AL_NOME = :alojamento
             """
@@ -3007,9 +3062,11 @@ def pricing_api_alojamento_config_save():
             "preco_min": preco_min,
             "preco_base": preco_base,
             "preco_max": preco_max,
+            "fator_booking": fator_booking,
             "last_min_disc": last_min_disc,
             "last_min_days": last_min_days,
             "sync": sync,
+            "sync_booking": sync_booking,
             "ativo": ativo,
         },
     )
@@ -3606,16 +3663,21 @@ def pricing_api_planner():
         text(
             """
             SELECT
-                [DATA] AS DIA,
-                ISO_WEEK,
-                PRECO_FINAL,
-                ISNULL([SYNC], 0) AS [SYNC],
-                SYNCED_AT,
-                UPDATED_AT
-            FROM dbo.PR_CALC_DAY
-            WHERE AL_NOME = :alojamento
-              AND [DATA] BETWEEN :start_date AND :end_date
-            ORDER BY [DATA] ASC
+                D.[DATA] AS DIA,
+                D.ISO_WEEK,
+                D.PRECO_FINAL,
+                ISNULL(D.[SYNC], 0) AS [SYNC],
+                D.SYNCED_AT,
+                ISNULL(D.SYNC_BOOKING, 0) AS SYNC_BOOKING,
+                D.SYNCED_BOOKING_AT,
+                ISNULL(PA.[SYNC], 0) AS SYNC_ENABLED,
+                ISNULL(PA.SYNC_BOOKING, 0) AS SYNC_BOOKING_ENABLED,
+                D.UPDATED_AT
+            FROM dbo.PR_CALC_DAY AS D
+            LEFT JOIN dbo.PR_ALOJAMENTO AS PA ON PA.AL_NOME = D.AL_NOME
+            WHERE D.AL_NOME = :alojamento
+              AND D.[DATA] BETWEEN :start_date AND :end_date
+            ORDER BY D.[DATA] ASC
             """
         ),
         {"alojamento": alojamento, "start_date": start_date, "end_date": horizon_end},
@@ -3633,6 +3695,10 @@ def pricing_api_planner():
                 "occupied_price": _to_float(occupied_prices.get(row["DIA"])) if row["DIA"] in occupied_prices else None,
                 "synced": bool(row.get("SYNC")),
                 "synced_at": row["SYNCED_AT"].isoformat() if row.get("SYNCED_AT") else "",
+                "sync_enabled": bool(row.get("SYNC_ENABLED")),
+                "synced_booking": bool(row.get("SYNC_BOOKING")),
+                "synced_booking_at": row["SYNCED_BOOKING_AT"].isoformat() if row.get("SYNCED_BOOKING_AT") else "",
+                "sync_booking_enabled": bool(row.get("SYNC_BOOKING_ENABLED")),
                 "has_event": bool(planner_event),
                 "event_name": (planner_event or {}).get("nome", ""),
                 "updated_at": row["UPDATED_AT"].isoformat() if row.get("UPDATED_AT") else "",
@@ -4008,13 +4074,18 @@ def pricing_api_planner_sync():
         text(
             """
             SELECT
-                [DATA] AS DIA,
-                ISNULL([SYNC], 0) AS [SYNC],
-                SYNCED_AT
-            FROM dbo.PR_CALC_DAY
-            WHERE AL_NOME = :alojamento
-              AND [DATA] BETWEEN :start_date AND :end_date
-            ORDER BY [DATA] ASC
+                D.[DATA] AS DIA,
+                ISNULL(D.[SYNC], 0) AS [SYNC],
+                D.SYNCED_AT,
+                ISNULL(D.SYNC_BOOKING, 0) AS SYNC_BOOKING,
+                D.SYNCED_BOOKING_AT,
+                ISNULL(PA.[SYNC], 0) AS SYNC_ENABLED,
+                ISNULL(PA.SYNC_BOOKING, 0) AS SYNC_BOOKING_ENABLED
+            FROM dbo.PR_CALC_DAY AS D
+            LEFT JOIN dbo.PR_ALOJAMENTO AS PA ON PA.AL_NOME = D.AL_NOME
+            WHERE D.AL_NOME = :alojamento
+              AND D.[DATA] BETWEEN :start_date AND :end_date
+            ORDER BY D.[DATA] ASC
             """
         ),
         {"alojamento": alojamento, "start_date": start_date, "end_date": horizon_end},
@@ -4029,6 +4100,10 @@ def pricing_api_planner_sync():
                     "date": row["DIA"].isoformat(),
                     "synced": bool(row.get("SYNC")),
                     "synced_at": row["SYNCED_AT"].isoformat() if row.get("SYNCED_AT") else "",
+                    "sync_enabled": bool(row.get("SYNC_ENABLED")),
+                    "synced_booking": bool(row.get("SYNC_BOOKING")),
+                    "synced_booking_at": row["SYNCED_BOOKING_AT"].isoformat() if row.get("SYNCED_BOOKING_AT") else "",
+                    "sync_booking_enabled": bool(row.get("SYNC_BOOKING_ENABLED")),
                 }
                 for row in rows
             ],
@@ -4056,6 +4131,8 @@ def pricing_api_day():
                 PRECO_FINAL,
                 ISNULL([SYNC], 0) AS [SYNC],
                 SYNCED_AT,
+                ISNULL(SYNC_BOOKING, 0) AS SYNC_BOOKING,
+                SYNCED_BOOKING_AT,
                 FLAGS,
                 UPDATED_AT
             FROM dbo.PR_CALC_DAY
@@ -4140,6 +4217,8 @@ def pricing_api_day():
             "preco_final": _to_float(row.get("PRECO_FINAL")),
             "synced": bool(row.get("SYNC")),
             "synced_at": row.get("SYNCED_AT").isoformat() if row.get("SYNCED_AT") else "",
+            "synced_booking": bool(row.get("SYNC_BOOKING")),
+            "synced_booking_at": row.get("SYNCED_BOOKING_AT").isoformat() if row.get("SYNCED_BOOKING_AT") else "",
             "flags": flags,
             "updated_at": row.get("UPDATED_AT").isoformat() if row.get("UPDATED_AT") else "",
             "promotions": [

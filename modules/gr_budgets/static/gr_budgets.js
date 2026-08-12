@@ -30,6 +30,8 @@
     printBudget: document.getElementById('budgetPrint'),
     approvalBudget: document.getElementById('budgetApproval'),
     approvalBudgetLabel: document.getElementById('budgetApprovalLabel'),
+    convertExecution: document.getElementById('budgetConvertExecution'),
+    assignWork: document.getElementById('budgetAssignWork'),
     duplicateBudget: document.getElementById('budgetDuplicate'),
     finalPriceBudget: document.getElementById('budgetFinalPrice'),
     discountBudget: document.getElementById('budgetDiscount'),
@@ -52,6 +54,7 @@
     clientEstablishment: document.getElementById('budgetClientEstablishment'),
     clientMeta: document.getElementById('budgetClientMeta'),
     workInput: document.getElementById('budgetWorkInput'),
+    associatedWork: document.getElementById('budgetAssociatedWork'),
     localityInput: document.getElementById('budgetLocalityInput'),
     dateInput: document.getElementById('budgetDateInput'),
     salesperson: document.getElementById('budgetSalespersonSelect'),
@@ -134,6 +137,19 @@
     approvalError: document.getElementById('budgetApprovalError'),
     approvalApply: document.getElementById('budgetApprovalApply'),
     approvalApplyLabel: document.getElementById('budgetApprovalApplyLabel'),
+    convertExecutionConfirm: document.getElementById('budgetConvertExecutionConfirm'),
+    convertExecutionApply: document.getElementById('budgetConvertExecutionApply'),
+    convertExecutionError: document.getElementById('budgetConvertExecutionError'),
+    convertWorkField: document.getElementById('budgetConvertWorkField'),
+    convertWorkSearch: document.getElementById('budgetConvertWorkSearch'),
+    convertWorkResults: document.getElementById('budgetConvertWorkResults'),
+    convertWorkMeta: document.getElementById('budgetConvertWorkMeta'),
+    assignWorkConfirm: document.getElementById('budgetAssignWorkConfirm'),
+    assignWorkApply: document.getElementById('budgetAssignWorkApply'),
+    assignWorkError: document.getElementById('budgetAssignWorkError'),
+    assignWorkSearch: document.getElementById('budgetAssignWorkSearch'),
+    assignWorkResults: document.getElementById('budgetAssignWorkResults'),
+    assignWorkMeta: document.getElementById('budgetAssignWorkMeta'),
     lineDeleteConfirm: document.getElementById('budgetLineDeleteConfirm'),
     lineDeleteText: document.getElementById('budgetLineDeleteText'),
     lineDeleteApply: document.getElementById('budgetLineDeleteApply'),
@@ -164,6 +180,14 @@
     pendingPositionDuplicate: null,
     commercialAdjustmentMode: '',
     approvalTarget: null,
+    convertWorkRows: [],
+    convertWorkStamp: '',
+    convertWorkSearchTimer: 0,
+    convertWorkRequestVersion: 0,
+    assignWorkRows: [],
+    assignWorkStamp: '',
+    assignWorkSearchTimer: 0,
+    assignWorkRequestVersion: 0,
     pendingLineDelete: null,
     draftSequence: 0,
     ociPriceLocked: true,
@@ -378,7 +402,7 @@
         elements.document,
         state.budgets,
         'bostamp',
-        (row) => `${row.series} ${row.number} · ${row.client_name || tr('gr_budgets.label.no_client')}${row.work_name ? ` — ${row.work_name}` : ''}`,
+        (row) => `${row.series} ${row.number} · ${row.client_name || tr('gr_budgets.label.no_client')}${row.process ? ` · ${row.process}` : ''}${row.work_name ? ` — ${row.work_name}` : ''}`,
         selected && selected.bostamp
       );
       elements.resultCount.textContent = plural('gr_budgets.count.budget_one', 'gr_budgets.count.budget_other', state.budgets.length);
@@ -537,6 +561,7 @@
       )
       : tr('gr_budgets.client.meta_unselected');
     setInputValue(elements.workInput, header.work_name);
+    renderAssociatedWork(payload.work, header.process);
     setInputValue(elements.localityInput, header.locality || header.place);
     setInputValue(elements.dateInput, header.date);
     setInputValue(elements.attentionInput, header.attention);
@@ -556,6 +581,23 @@
     renderLines(lines, header.currency, totals);
   }
 
+  function renderAssociatedWork(work, process) {
+    if (!elements.associatedWork) return;
+    const associated = work && typeof work === 'object' ? work : null;
+    const label = associated
+      ? [associated.process, associated.description].filter(Boolean).join(' · ')
+      : (process ? tr('gr_budgets.assign_work.process_without_opc', { process }) : tr('gr_budgets.assign_work.unassigned'));
+    elements.associatedWork.replaceChildren();
+    const icon = document.createElement('i');
+    icon.className = `fa-solid ${associated ? 'fa-link' : 'fa-link-slash'}`;
+    icon.setAttribute('aria-hidden', 'true');
+    const textValue = document.createElement('strong');
+    textValue.textContent = label;
+    elements.associatedWork.append(icon, textValue);
+    elements.associatedWork.classList.toggle('is-unlinked', !associated);
+    elements.associatedWork.title = label;
+  }
+
   function renderStatuses(header) {
     const statuses = [];
     if (header._draft) statuses.push(['warning', 'fa-pen', tr('gr_budgets.status.new_editing')]);
@@ -573,6 +615,13 @@
   function budgetApprovalAvailable() {
     const header = state.detail && state.detail.header;
     if (!header || !budgetCanBeEdited()) return false;
+    const series = String(header.series || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+    return series === 'devis';
+  }
+
+  function budgetConversionAvailable() {
+    const header = state.detail && state.detail.header;
+    if (!header || header.closed || header.cancelled) return false;
     const series = String(header.series || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
     return series === 'devis';
   }
@@ -651,6 +700,263 @@
       elements.approvalError.hidden = false;
       showApprovalCredit(error.payload && error.payload.credit, currency);
       elements.approvalApply.disabled = false;
+    } finally {
+      showLoading(false);
+    }
+  }
+
+  function conversionTarget() {
+    return root.querySelector('input[name="budgetConvertTarget"]:checked')?.value || 'new';
+  }
+
+  function closeConvertWorkLookup() {
+    window.clearTimeout(state.convertWorkSearchTimer);
+    state.convertWorkRequestVersion += 1;
+    state.convertWorkRows = [];
+    elements.convertWorkResults.hidden = true;
+    elements.convertWorkResults.replaceChildren();
+  }
+
+  function renderConvertWorkRows(rows) {
+    state.convertWorkRows = Array.isArray(rows) ? rows : [];
+    elements.convertWorkResults.replaceChildren();
+    if (!state.convertWorkRows.length) {
+      const empty = document.createElement('div');
+      empty.className = 'sz_table_lookup_empty';
+      empty.textContent = tr('gr_budgets.convert.work_empty');
+      elements.convertWorkResults.append(empty);
+      elements.convertWorkResults.hidden = false;
+      return;
+    }
+    state.convertWorkRows.forEach((row) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'sz_table_lookup_item';
+      const title = document.createElement('span');
+      title.className = 'sz_table_lookup_item_label';
+      title.textContent = [row.process, row.description].filter(Boolean).join(' · ');
+      const meta = document.createElement('span');
+      meta.className = 'sz_table_lookup_item_value';
+      meta.textContent = row.client_name || '';
+      button.append(title, meta);
+      button.addEventListener('mousedown', (event) => {
+        event.preventDefault();
+        state.convertWorkStamp = String(row.opcstamp || '');
+        elements.convertWorkSearch.value = [row.process, row.description].filter(Boolean).join(' · ');
+        elements.convertWorkMeta.textContent = tr('gr_budgets.convert.work_selected', { process: row.process || '' });
+        closeConvertWorkLookup();
+      });
+      elements.convertWorkResults.append(button);
+    });
+    elements.convertWorkResults.hidden = false;
+  }
+
+  function scheduleConvertWorkSearch() {
+    window.clearTimeout(state.convertWorkSearchTimer);
+    state.convertWorkStamp = '';
+    elements.convertWorkMeta.textContent = tr('gr_budgets.convert.work_unselected');
+    const query = elements.convertWorkSearch.value.trim();
+    if (query.length < 2) {
+      closeConvertWorkLookup();
+      return;
+    }
+    state.convertWorkSearchTimer = window.setTimeout(async () => {
+      const version = ++state.convertWorkRequestVersion;
+      try {
+        const payload = await getJson('/obras', { feid: elements.company.value, q: query });
+        if (version !== state.convertWorkRequestVersion) return;
+        renderConvertWorkRows(payload.rows || []);
+      } catch (error) {
+        if (version !== state.convertWorkRequestVersion) return;
+        elements.convertWorkMeta.textContent = error.message;
+      }
+    }, 250);
+  }
+
+  function updateConvertTarget() {
+    const existing = conversionTarget() === 'existing';
+    elements.convertWorkField.hidden = !existing;
+    if (!existing) {
+      state.convertWorkStamp = '';
+      elements.convertWorkSearch.value = '';
+      elements.convertWorkMeta.textContent = tr('gr_budgets.convert.work_unselected');
+      closeConvertWorkLookup();
+    } else {
+      elements.convertWorkSearch.focus();
+    }
+  }
+
+  function closeBudgetConversion() {
+    elements.convertExecutionConfirm.classList.remove('sz_is_open');
+    elements.convertExecutionConfirm.setAttribute('aria-hidden', 'true');
+    elements.convertExecutionError.hidden = true;
+    elements.convertExecutionError.textContent = '';
+    elements.convertExecutionApply.disabled = false;
+    root.querySelector('input[name="budgetConvertTarget"][value="new"]').checked = true;
+    updateConvertTarget();
+  }
+
+  function closeAssignWorkLookup() {
+    window.clearTimeout(state.assignWorkSearchTimer);
+    state.assignWorkRequestVersion += 1;
+    state.assignWorkRows = [];
+    elements.assignWorkResults.hidden = true;
+    elements.assignWorkResults.replaceChildren();
+  }
+
+  function renderAssignWorkRows(rows) {
+    state.assignWorkRows = Array.isArray(rows) ? rows : [];
+    elements.assignWorkResults.replaceChildren();
+    if (!state.assignWorkRows.length) {
+      const empty = document.createElement('div');
+      empty.className = 'sz_table_lookup_empty';
+      empty.textContent = tr('gr_budgets.convert.work_empty');
+      elements.assignWorkResults.append(empty);
+      elements.assignWorkResults.hidden = false;
+      return;
+    }
+    state.assignWorkRows.forEach((row) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'sz_table_lookup_item';
+      const title = document.createElement('span');
+      title.className = 'sz_table_lookup_item_label';
+      title.textContent = [row.process, row.description].filter(Boolean).join(' · ');
+      const meta = document.createElement('span');
+      meta.className = 'sz_table_lookup_item_value';
+      meta.textContent = row.client_name || '';
+      button.append(title, meta);
+      button.addEventListener('mousedown', (event) => {
+        event.preventDefault();
+        state.assignWorkStamp = String(row.opcstamp || '');
+        elements.assignWorkSearch.value = [row.process, row.description].filter(Boolean).join(' · ');
+        elements.assignWorkMeta.textContent = tr('gr_budgets.convert.work_selected', { process: row.process || '' });
+        closeAssignWorkLookup();
+      });
+      elements.assignWorkResults.append(button);
+    });
+    elements.assignWorkResults.hidden = false;
+  }
+
+  function scheduleAssignWorkSearch() {
+    window.clearTimeout(state.assignWorkSearchTimer);
+    state.assignWorkStamp = '';
+    elements.assignWorkMeta.textContent = tr('gr_budgets.convert.work_unselected');
+    const query = elements.assignWorkSearch.value.trim();
+    if (query.length < 2) {
+      closeAssignWorkLookup();
+      return;
+    }
+    state.assignWorkSearchTimer = window.setTimeout(async () => {
+      const version = ++state.assignWorkRequestVersion;
+      try {
+        const payload = await getJson('/obras', { feid: elements.company.value, q: query });
+        if (version !== state.assignWorkRequestVersion) return;
+        renderAssignWorkRows(payload.rows || []);
+      } catch (error) {
+        if (version !== state.assignWorkRequestVersion) return;
+        elements.assignWorkMeta.textContent = error.message;
+      }
+    }, 250);
+  }
+
+  function closeAssignWork() {
+    elements.assignWorkConfirm.classList.remove('sz_is_open');
+    elements.assignWorkConfirm.setAttribute('aria-hidden', 'true');
+    elements.assignWorkError.hidden = true;
+    elements.assignWorkError.textContent = '';
+    elements.assignWorkApply.disabled = false;
+    state.assignWorkStamp = '';
+    elements.assignWorkSearch.value = '';
+    elements.assignWorkMeta.textContent = tr('gr_budgets.convert.work_unselected');
+    closeAssignWorkLookup();
+  }
+
+  function openAssignWork() {
+    const header = state.detail && state.detail.header;
+    if (isEditing() || state.loadingCount || !selectedBudgetStamp() || !header || header.closed || header.cancelled) return;
+    elements.assignWorkError.hidden = true;
+    elements.assignWorkError.textContent = '';
+    const work = state.detail && state.detail.work;
+    if (work && work.opcstamp) {
+      state.assignWorkStamp = String(work.opcstamp);
+      elements.assignWorkSearch.value = [work.process, work.description].filter(Boolean).join(' · ');
+      elements.assignWorkMeta.textContent = tr('gr_budgets.convert.work_selected', { process: work.process || '' });
+    } else {
+      state.assignWorkStamp = '';
+      elements.assignWorkSearch.value = '';
+      elements.assignWorkMeta.textContent = tr('gr_budgets.convert.work_unselected');
+    }
+    elements.assignWorkConfirm.classList.add('sz_is_open');
+    elements.assignWorkConfirm.setAttribute('aria-hidden', 'false');
+    elements.assignWorkSearch.focus();
+  }
+
+  async function applyAssignWork() {
+    const bostamp = selectedBudgetStamp();
+    if (!bostamp || state.loadingCount) return;
+    if (!state.assignWorkStamp) {
+      elements.assignWorkError.textContent = tr('gr_budgets.convert.work_required');
+      elements.assignWorkError.hidden = false;
+      return;
+    }
+    elements.assignWorkApply.disabled = true;
+    elements.assignWorkError.hidden = true;
+    showLoading(true);
+    try {
+      await postJson(`/orcamento/${encodeURIComponent(bostamp)}/obra`, {
+        feid: elements.company.value,
+        opcstamp: state.assignWorkStamp
+      });
+      closeAssignWork();
+      await loadBudgets(bostamp);
+    } catch (error) {
+      elements.assignWorkError.textContent = error.message;
+      elements.assignWorkError.hidden = false;
+      elements.assignWorkApply.disabled = false;
+    } finally {
+      showLoading(false);
+    }
+  }
+
+  function openBudgetConversion() {
+    if (isEditing() || state.loadingCount || !selectedBudgetStamp() || !budgetConversionAvailable()) return;
+    elements.convertExecutionError.hidden = true;
+    elements.convertExecutionError.textContent = '';
+    root.querySelector('input[name="budgetConvertTarget"][value="new"]').checked = true;
+    updateConvertTarget();
+    elements.convertExecutionConfirm.classList.add('sz_is_open');
+    elements.convertExecutionConfirm.setAttribute('aria-hidden', 'false');
+    elements.convertExecutionApply.focus();
+  }
+
+  async function applyBudgetConversion() {
+    const bostamp = selectedBudgetStamp();
+    const target = conversionTarget();
+    if (!bostamp || state.loadingCount) return;
+    if (target === 'existing' && !state.convertWorkStamp) {
+      elements.convertExecutionError.textContent = tr('gr_budgets.convert.work_required');
+      elements.convertExecutionError.hidden = false;
+      return;
+    }
+    elements.convertExecutionApply.disabled = true;
+    elements.convertExecutionError.hidden = true;
+    showLoading(true);
+    try {
+      const payload = await postJson(`/orcamento/${encodeURIComponent(bostamp)}/converter-estudo-execucao`, {
+        feid: elements.company.value,
+        target,
+        opcstamp: state.convertWorkStamp
+      });
+      closeBudgetConversion();
+      await loadSeries();
+      elements.series.value = String(payload.ndos || elements.series.value);
+      elements.year.value = String(payload.year || elements.year.value);
+      await loadBudgets(bostamp);
+    } catch (error) {
+      elements.convertExecutionError.textContent = error.message;
+      elements.convertExecutionError.hidden = false;
+      elements.convertExecutionApply.disabled = false;
     } finally {
       showLoading(false);
     }
@@ -2310,6 +2616,8 @@
     elements.discountBudget.disabled = busy || !state.detail || !selectedBudgetStamp() || !elements.company.value || !budgetCanBeEdited();
     elements.applyVatBudget.disabled = busy || !state.detail || !selectedBudgetStamp() || !elements.company.value || !budgetCanBeEdited() || !availableVatRates().length;
     elements.approvalBudget.disabled = navigationLocked || !state.detail || !selectedBudgetStamp() || !elements.company.value || !budgetApprovalAvailable();
+    elements.convertExecution.disabled = navigationLocked || !state.detail || !selectedBudgetStamp() || !elements.company.value || !budgetConversionAvailable();
+    elements.assignWork.disabled = navigationLocked || !state.detail || !selectedBudgetStamp() || !elements.company.value || state.detail.header.closed || state.detail.header.cancelled;
     elements.actionsMenu.hidden = editing;
     elements.actionsToggle.disabled = busy || !state.detail || !selectedBudgetStamp() || !elements.company.value;
     elements.newBudget.hidden = editing;
@@ -2552,6 +2860,7 @@
   elements.previous.addEventListener('click', () => moveSelection(-1));
   elements.next.addEventListener('click', () => moveSelection(1));
   elements.approvalBudget.addEventListener('click', openApprovalConfirm);
+  elements.convertExecution.addEventListener('click', openBudgetConversion);
   elements.printBudget.addEventListener('click', printBudget);
   elements.duplicateBudget.addEventListener('click', startDuplicateBudget);
   elements.finalPriceBudget.addEventListener('click', () => openCommercialAdjustment('final'));
@@ -2699,6 +3008,28 @@
     if (event.target === elements.approvalConfirm) closeApprovalConfirm();
   });
   elements.approvalApply.addEventListener('click', applyBudgetApproval);
+  root.querySelectorAll('[data-convert-execution-cancel]').forEach((button) => {
+    button.addEventListener('click', closeBudgetConversion);
+  });
+  elements.convertExecutionConfirm.addEventListener('click', (event) => {
+    if (event.target === elements.convertExecutionConfirm) closeBudgetConversion();
+  });
+  root.querySelectorAll('input[name="budgetConvertTarget"]').forEach((input) => {
+    input.addEventListener('change', updateConvertTarget);
+  });
+  elements.convertWorkSearch.addEventListener('input', scheduleConvertWorkSearch);
+  elements.convertWorkSearch.addEventListener('blur', () => window.setTimeout(closeConvertWorkLookup, 150));
+  elements.convertExecutionApply.addEventListener('click', applyBudgetConversion);
+  elements.assignWork.addEventListener('click', openAssignWork);
+  root.querySelectorAll('[data-assign-work-cancel]').forEach((button) => {
+    button.addEventListener('click', closeAssignWork);
+  });
+  elements.assignWorkConfirm.addEventListener('click', (event) => {
+    if (event.target === elements.assignWorkConfirm) closeAssignWork();
+  });
+  elements.assignWorkSearch.addEventListener('input', scheduleAssignWorkSearch);
+  elements.assignWorkSearch.addEventListener('blur', () => window.setTimeout(closeAssignWorkLookup, 150));
+  elements.assignWorkApply.addEventListener('click', applyAssignWork);
   root.querySelectorAll('[data-line-delete-cancel]').forEach((button) => {
     button.addEventListener('click', closeLineDeleteConfirm);
   });
@@ -2790,6 +3121,10 @@
       closeVatApply();
     } else if (elements.lineDeleteConfirm.classList.contains('sz_is_open')) {
       closeLineDeleteConfirm();
+    } else if (elements.assignWorkConfirm.classList.contains('sz_is_open')) {
+      closeAssignWork();
+    } else if (elements.convertExecutionConfirm.classList.contains('sz_is_open')) {
+      closeBudgetConversion();
     } else if (elements.approvalConfirm.classList.contains('sz_is_open')) {
       closeApprovalConfirm();
     } else if (elements.commercialAdjustment.classList.contains('sz_is_open')) {

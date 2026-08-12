@@ -1410,6 +1410,27 @@
   font-size: 1.15rem;
 }
 
+.docai-extract-ged-folder-control {
+  display: grid;
+  gap: 0.25rem;
+  min-width: min(18rem, 42vw);
+  margin-left: auto;
+}
+
+.docai-extract-ged-folder-control label {
+  color: var(--sz-color-text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.docai-extract-ged-folder-control select {
+  min-height: 2.25rem;
+}
+
+.docai-extract-ged-folder-control span {
+  font-size: 0.72rem;
+}
+
 .docai-extract-ged-fields {
   margin-top: var(--sz-space-3);
 }
@@ -1462,6 +1483,18 @@
 .docai-extract-ged-destination.is-incomplete {
   border-color: color-mix(in srgb, var(--sz-color-warning) 62%, var(--sz-color-border));
   background: color-mix(in srgb, var(--sz-color-warning) 8%, var(--sz-color-surface-alt));
+}
+
+@media (max-width: 760px) {
+  .docai-extract-ged-head {
+    flex-wrap: wrap;
+  }
+
+  .docai-extract-ged-folder-control {
+    width: 100%;
+    min-width: 0;
+    order: 3;
+  }
 }
 
 .docai-extract-footer-grid > .docai-extract-section,

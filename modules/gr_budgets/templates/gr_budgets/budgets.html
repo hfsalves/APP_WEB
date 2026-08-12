@@ -4,7 +4,7 @@
 
 {% block extra_head %}
   {{ super() }}
-  <link rel="stylesheet" href="{{ url_for('gr_budgets.static', filename='gr_budgets.css') }}?v={{ config.get('STATIC_VERSION', 1) }}-apply-vat-1">
+  <link rel="stylesheet" href="{{ url_for('gr_budgets.static', filename='gr_budgets.css') }}?v={{ config.get('STATIC_VERSION', 1) }}-work-link-2">
 {% endblock %}
 
 {% block content %}
@@ -101,6 +101,14 @@
                     <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
                     <span id="budgetApprovalLabel">{{ _('gr_budgets.action.approve') }}</span>
                   </button>
+                  <button id="budgetConvertExecution" type="button" class="dropdown-item gr-budget-action-item" disabled>
+                    <i class="fa-solid fa-diagram-project" aria-hidden="true"></i>
+                    <span>{{ _('gr_budgets.action.convert_execution') }}</span>
+                  </button>
+                  <button id="budgetAssignWork" type="button" class="dropdown-item gr-budget-action-item" disabled>
+                    <i class="fa-solid fa-link" aria-hidden="true"></i>
+                    <span>{{ _('gr_budgets.action.assign_work') }}</span>
+                  </button>
                   <div class="dropdown-divider"></div>
                   <button id="budgetPrint" type="button" class="dropdown-item gr-budget-action-item" title="{{ _('gr_budgets.title.print') }}" disabled>
                     <i class="fa-solid fa-print" aria-hidden="true"></i>
@@ -153,6 +161,10 @@
                   <span class="sz_label">{{ _('gr_budgets.field.work_name') }}</span>
                   <input id="budgetWorkInput" class="sz_input" type="text" autocomplete="off">
                 </label>
+                <div class="sz_field gr-budget-associated-work-field">
+                  <span class="sz_label">{{ _('gr_budgets.field.associated_work') }}</span>
+                  <div id="budgetAssociatedWork" class="gr-budget-associated-work"></div>
+                </div>
                 <label class="sz_field">
                   <span class="sz_label">{{ _('gr_budgets.field.locality') }}</span>
                   <input id="budgetLocalityInput" class="sz_input" type="text" autocomplete="off">
@@ -563,6 +575,82 @@
     </div>
   </div>
 
+  <div id="budgetConvertExecutionConfirm" class="sz_modal gr-budget-position-confirm" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="budgetConvertExecutionTitle">
+    <div class="sz_panel gr-budget-position-confirm-panel gr-budget-convert-panel">
+      <div class="sz_modal_header">
+        <div>
+          <span class="sz_caption">{{ _('gr_budgets.convert.caption') }}</span>
+          <h3 id="budgetConvertExecutionTitle" class="sz_modal_title">{{ _('gr_budgets.convert.title') }}</h3>
+        </div>
+      </div>
+      <div class="sz_modal_body gr-budget-position-confirm-body gr-budget-adjustment-body">
+        <p>{{ _('gr_budgets.convert.text') }}</p>
+        <div class="gr-budget-convert-options" role="radiogroup" aria-label="{{ _('gr_budgets.convert.choice_label') }}">
+          <label class="gr-budget-convert-option">
+            <input type="radio" name="budgetConvertTarget" value="new" checked>
+            <span>
+              <strong>{{ _('gr_budgets.convert.new_work') }}</strong>
+              <small>{{ _('gr_budgets.convert.new_work_help') }}</small>
+            </span>
+          </label>
+          <label class="gr-budget-convert-option">
+            <input type="radio" name="budgetConvertTarget" value="existing">
+            <span>
+              <strong>{{ _('gr_budgets.convert.existing_work') }}</strong>
+              <small>{{ _('gr_budgets.convert.existing_work_help') }}</small>
+            </span>
+          </label>
+        </div>
+        <div id="budgetConvertWorkField" class="sz_field sz_table_lookup_field" hidden>
+          <label class="sz_label" for="budgetConvertWorkSearch">{{ _('gr_budgets.convert.work_label') }}</label>
+          <div class="sz_table_lookup">
+            <input id="budgetConvertWorkSearch" class="sz_input" type="search" autocomplete="off" spellcheck="false" placeholder="{{ _('gr_budgets.convert.work_placeholder') }}">
+            <div id="budgetConvertWorkResults" class="sz_table_lookup_dropdown" hidden></div>
+          </div>
+          <span id="budgetConvertWorkMeta" class="sz_help">{{ _('gr_budgets.convert.work_unselected') }}</span>
+        </div>
+        <p id="budgetConvertExecutionError" class="sz_alert sz_alert_danger" hidden></p>
+      </div>
+      <div class="sz_modal_footer gr-budget-position-confirm-actions">
+        <button type="button" class="sz_button sz_button_ghost" data-convert-execution-cancel>{{ _('gr_budgets.action.cancel') }}</button>
+        <button id="budgetConvertExecutionApply" type="button" class="sz_button sz_button_primary">
+          <i class="fa-solid fa-diagram-project" aria-hidden="true"></i>
+          <span>{{ _('gr_budgets.action.convert_execution') }}</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="budgetAssignWorkConfirm" class="sz_modal gr-budget-position-confirm" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="budgetAssignWorkTitle">
+    <div class="sz_panel gr-budget-position-confirm-panel gr-budget-convert-panel">
+      <div class="sz_modal_header">
+        <div>
+          <span class="sz_caption">{{ _('gr_budgets.assign_work.caption') }}</span>
+          <h3 id="budgetAssignWorkTitle" class="sz_modal_title">{{ _('gr_budgets.assign_work.title') }}</h3>
+        </div>
+      </div>
+      <div class="sz_modal_body gr-budget-position-confirm-body gr-budget-adjustment-body">
+        <p>{{ _('gr_budgets.assign_work.text') }}</p>
+        <div class="sz_field sz_table_lookup_field">
+          <label class="sz_label" for="budgetAssignWorkSearch">{{ _('gr_budgets.assign_work.work_label') }}</label>
+          <div class="sz_table_lookup">
+            <input id="budgetAssignWorkSearch" class="sz_input" type="search" autocomplete="off" spellcheck="false" placeholder="{{ _('gr_budgets.convert.work_placeholder') }}">
+            <div id="budgetAssignWorkResults" class="sz_table_lookup_dropdown" hidden></div>
+          </div>
+          <span id="budgetAssignWorkMeta" class="sz_help">{{ _('gr_budgets.convert.work_unselected') }}</span>
+        </div>
+        <p id="budgetAssignWorkError" class="sz_alert sz_alert_danger" hidden></p>
+      </div>
+      <div class="sz_modal_footer gr-budget-position-confirm-actions">
+        <button type="button" class="sz_button sz_button_ghost" data-assign-work-cancel>{{ _('gr_budgets.action.cancel') }}</button>
+        <button id="budgetAssignWorkApply" type="button" class="sz_button sz_button_primary">
+          <i class="fa-solid fa-link" aria-hidden="true"></i>
+          <span>{{ _('gr_budgets.action.assign_work') }}</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <div id="budgetLineDeleteConfirm" class="sz_modal gr-budget-position-confirm" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="budgetLineDeleteTitle">
     <div class="sz_panel gr-budget-position-confirm-panel">
       <div class="sz_modal_header">
@@ -618,5 +706,5 @@
   <script>
     window.SZ_I18N = Object.assign({}, window.SZ_I18N || {}, {{ gr_budgets_i18n|tojson }});
   </script>
-  <script src="{{ url_for('gr_budgets.static', filename='gr_budgets.js') }}?v={{ config.get('STATIC_VERSION', 1) }}-vat-inherit-1" defer></script>
+  <script src="{{ url_for('gr_budgets.static', filename='gr_budgets.js') }}?v={{ config.get('STATIC_VERSION', 1) }}-work-link-1" defer></script>
 {% endblock %}

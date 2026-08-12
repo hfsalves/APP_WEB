@@ -107,6 +107,34 @@ class ReconcileExtractedDocumentTests(unittest.TestCase):
         self.assertEqual(result[0]['tax_field'], 'ncont')
         self.assertEqual(result[0]['source'], 'phc')
 
+    def test_supplier_search_keeps_establishments_and_prefers_visible_location(self):
+        suppliers = [
+            {'NO': 10022, 'ESTAB': 0, 'NOME': 'KILOUTOU SAS', 'NOME2': 'KILOUTOU', 'NIF': 'FR001', 'MORADA': 'Rue A', 'LOCAL': 'METZ', 'CODPOST': '57000', 'FEID': 5, 'TAX_FIELD': 'ncont', 'SOURCE': 'phc'},
+            {'NO': 10022, 'ESTAB': 1, 'NOME': 'KILOUTOU SAS', 'NOME2': 'KILOUTOU', 'NIF': 'FR001', 'MORADA': 'Rue B', 'LOCAL': 'STRASBOURG', 'CODPOST': '67000', 'FEID': 5, 'TAX_FIELD': 'ncont', 'SOURCE': 'phc'},
+        ]
+        with patch.object(document_ai_service, '_load_suppliers', return_value=suppliers):
+            result = document_ai_service.search_suppliers('FR001', feid=5, context={'city': 'Strasbourg', 'postal_code': '67000'})
+
+        self.assertEqual([(item['no'], item['estab']) for item in result], [(10022, 1), (10022, 0)])
+
+    def test_same_tax_number_needs_choice_when_establishment_is_ambiguous(self):
+        document = {
+            'customer': {'name': 'HSOLS FRANCE'},
+            'supplier': {'name': 'KILOUTOU SAS', 'tax_id': 'FR001'},
+        }
+        fe_match = {'feid': 7, 'name': 'HSOLS FRANCE', 'score': 0.9, 'matched_by': 'name'}
+        candidates = [
+            {'no': 10022, 'estab': 0, 'name': 'KILOUTOU SAS', 'score': 0.99, 'matched_by': 'tax_id'},
+            {'no': 10022, 'estab': 1, 'name': 'KILOUTOU SAS', 'score': 0.99, 'matched_by': 'tax_id'},
+        ]
+        with patch.object(document_ai_service, 'resolve_fe_entity', return_value=fe_match), patch.object(
+            document_ai_service, 'search_suppliers', return_value=candidates
+        ):
+            result = document_ai_service.reconcile_extracted_document(document)
+
+        self.assertIsNone(result['document']['supplier']['supplier_no'])
+        self.assertTrue(result['matching']['supplier_needs_selection'])
+
     def test_mail_rejects_external_recipient_as_group_entity(self):
         document = {
             'document_type': 'mail',

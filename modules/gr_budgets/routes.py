@@ -11,8 +11,10 @@ from models import Acessos, db
 from modules.gr_subcontractor_measurements.service import SubcontractorMeasurementsError
 
 from .service import (
+    assign_budget_work,
     BudgetsCreditLimitError,
     BudgetsError,
+    convert_budget_to_execution,
     get_budget_detail,
     get_budget_detail_by_number,
     get_budget_line_oci,
@@ -23,6 +25,7 @@ from .service import (
     render_budget_pdf_html,
     decorate_budget_browser_pdf,
     save_budget,
+    search_budget_works,
     set_budget_approval,
     list_companies_for_user,
     search_budget_clients,
@@ -70,6 +73,12 @@ _BUDGET_ERROR_KEYS = {
     "Existem linhas duplicadas no orçamento.": "gr_budgets.error.budget_lines_duplicate",
     "A aprovação só está disponível para dossiers Devis.": "gr_budgets.error.approval_devis_only",
     "Não existe plafond suficiente para aprovar este orçamento.": "gr_budgets.error.approval_credit_limit",
+    "A série Étude et Exécution não existe nesta empresa.": "gr_budgets.error.execution_series_missing",
+    "A conversão só está disponível para dossiers Devis.": "gr_budgets.error.conversion_devis_only",
+    "Indique se o orçamento cria uma obra nova ou é um aditamento.": "gr_budgets.error.conversion_target_invalid",
+    "Selecione uma obra existente.": "gr_budgets.error.work_required",
+    "A obra selecionada não está disponível nesta empresa.": "gr_budgets.error.work_unavailable",
+    "Não foi possível determinar o processo PHC da obra.": "gr_budgets.error.work_process_unavailable",
 }
 
 
@@ -226,6 +235,26 @@ def api_clients():
         return _handle_error(exc)
 
 
+@bp.route("/api/gr_orcamentos/obras")
+@login_required
+def api_works():
+    if not _has_acl():
+        return _forbidden()
+    try:
+        return jsonify(
+            {
+                "ok": True,
+                **search_budget_works(
+                    request.args.get("feid"),
+                    request.args.get("q") or "",
+                    current_user,
+                ),
+            }
+        )
+    except Exception as exc:
+        return _handle_error(exc)
+
+
 @bp.route("/api/gr_orcamentos/opcoes-tecnicas")
 @login_required
 def api_technical_options():
@@ -318,6 +347,51 @@ def api_budget_approval(bostamp):
                     payload.get("feid"),
                     bostamp,
                     payload.get("approved"),
+                    current_user,
+                ),
+            }
+        )
+    except Exception as exc:
+        return _handle_error(exc)
+
+
+@bp.route("/api/gr_orcamentos/orcamento/<bostamp>/converter-estudo-execucao", methods=["POST"])
+@login_required
+def api_budget_convert_execution(bostamp):
+    if not _has_write_acl(False):
+        return jsonify({"error": translate("gr_budgets.error.forbidden_edit")}), 403
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(
+            {
+                "ok": True,
+                **convert_budget_to_execution(
+                    payload.get("feid"),
+                    bostamp,
+                    payload.get("target"),
+                    payload.get("opcstamp"),
+                    current_user,
+                ),
+            }
+        )
+    except Exception as exc:
+        return _handle_error(exc)
+
+
+@bp.route("/api/gr_orcamentos/orcamento/<bostamp>/obra", methods=["POST"])
+@login_required
+def api_budget_assign_work(bostamp):
+    if not _has_write_acl(False):
+        return jsonify({"error": translate("gr_budgets.error.forbidden_edit")}), 403
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(
+            {
+                "ok": True,
+                **assign_budget_work(
+                    payload.get("feid"),
+                    bostamp,
+                    payload.get("opcstamp"),
                     current_user,
                 ),
             }
