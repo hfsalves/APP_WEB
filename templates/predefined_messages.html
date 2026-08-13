@@ -57,7 +57,7 @@
     <div class="modal-content pm-modal-content">
       <div class="modal-header">
         <h5 class="modal-title" id="pmMessageModalTitle">Mensagem</h5>
-        <button type="button" class="sz_icon_button" data-bs-dismiss="modal" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
+        <button type="button" class="sz_icon_button pm-icon-button" data-bs-dismiss="modal" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <form id="pmMessageForm">
         <div class="modal-body">
@@ -67,9 +67,15 @@
             <label class="sz_field" for="pmCategory"><span class="sz_label">Categoria</span><input id="pmCategory" class="sz_input" maxlength="60" placeholder="Ex.: Check-in"></label>
             <label class="sz_field" for="pmOrder"><span class="sz_label">Ordem</span><input id="pmOrder" class="sz_input" type="number" value="0" step="1"></label>
           </div>
-          <label class="sz_field" for="pmBody"><span class="sz_label">Mensagem</span><textarea id="pmBody" class="sz_textarea pm-textarea" required placeholder="Escreve a mensagem que queres copiar."></textarea></label>
+          <div class="sz_field">
+            <span class="sz_label">Mensagem</span>
+            <div id="pmBody" class="pm-message-editor" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Escreve a mensagem que queres copiar."></div>
+          </div>
           <label class="sz_field" for="pmTags"><span class="sz_label">Tags</span><input id="pmTags" class="sz_input" maxlength="500" placeholder="Ex.: &#123;&#123;hospede&#125;&#125;, &#123;&#123;alojamento&#125;&#125;, &#123;&#123;checkin&#125;&#125;"></label>
-          <div class="pm-tags-help">Disponíveis: <code>&#123;&#123;hospede&#125;&#125;</code>, <code>&#123;&#123;alojamento&#125;&#125;</code>, <code>&#123;&#123;reserva&#125;&#125;</code>, <code>&#123;&#123;checkin&#125;&#125;</code>, <code>&#123;&#123;checkout&#125;&#125;</code>, <code>&#123;&#123;noites&#125;&#125;</code>, <code>&#123;&#123;adultos&#125;&#125;</code>, <code>&#123;&#123;criancas&#125;&#125;</code>, <code>&#123;&#123;tipologia&#125;&#125;</code>, <code>&#123;&#123;morada&#125;&#125;</code>, <code>&#123;&#123;local&#125;&#125;</code>, <code>&#123;&#123;codpost&#125;&#125;</code>, <code>&#123;&#123;licenca&#125;&#125;.</div>
+          <div class="pm-tags-help">
+            <span>Tags disponíveis</span>
+            <div id="pmTagButtons" class="pm-tag-buttons" aria-label="Tags disponíveis"></div>
+          </div>
           <label class="pm-active-field" for="pmActive"><input id="pmActive" type="checkbox" checked><span>Mensagem ativa</span></label>
         </div>
         <div class="modal-footer">
@@ -128,19 +134,75 @@
   .pm-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sz-space-2); }
   .pm-card-title { margin: 0; font-size: var(--sz-font-size-lg); line-height: 1.2; }
   .pm-card-category { margin-top: .3rem; color: var(--sz-color-text-muted); font-size: var(--sz-font-size-xs); font-weight: 700; text-transform: uppercase; }
+  .pm-icon-button,
+  .pm-card-actions .sz_icon_button {
+    width: 2rem;
+    height: 2rem;
+    min-width: 2rem;
+    min-height: 2rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-sm);
+    background: transparent;
+    color: var(--sz-color-text-muted);
+    box-shadow: none;
+  }
+  .pm-icon-button:hover,
+  .pm-card-actions .sz_icon_button:hover { border-color: var(--sz-color-primary); background: color-mix(in srgb, var(--sz-color-primary) 12%, transparent); color: var(--sz-color-primary); }
+  .pm-icon-button:focus-visible,
+  .pm-card-actions .sz_icon_button:focus-visible { outline: 2px solid var(--sz-color-primary); outline-offset: 2px; }
   .pm-card-actions { display: flex; gap: .25rem; flex: 0 0 auto; }
-  .pm-card-actions .sz_icon_button { width: 2rem; height: 2rem; }
+  .pm-card-actions [data-delete-id]:hover { border-color: var(--sz-color-danger, #ec6b9a); background: color-mix(in srgb, var(--sz-color-danger, #ec6b9a) 12%, transparent); color: var(--sz-color-danger, #ec6b9a); }
   .pm-card-message { flex: 1 1 auto; margin: var(--sz-space-3) 0; color: var(--sz-color-text-muted); font-size: var(--sz-font-size-sm); line-height: 1.45; white-space: pre-wrap; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; }
   .pm-card-footer { display: flex; align-items: center; justify-content: space-between; gap: var(--sz-space-2); color: var(--sz-color-text-muted); font-size: var(--sz-font-size-xs); }
   .pm-card-copy { color: var(--sz-color-primary); font-weight: 700; }
+  .pm-card.is-copied .pm-card-copy { color: var(--sz-color-success, #28b98b); }
+  .pm-card.is-copied .pm-card-copy i { color: inherit; }
   .pm-empty { min-height: 15rem; grid-column: 1 / -1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .65rem; border: 1px dashed var(--sz-color-border); border-radius: var(--sz-radius-md); color: var(--sz-color-text-muted); }
   .pm-empty i { font-size: 1.8rem; }
   .pm-modal-content { background: var(--sz-color-surface); color: var(--sz-color-text); border-color: var(--sz-color-border); }
   .pm-modal-content .modal-header, .pm-modal-content .modal-footer { border-color: var(--sz-color-border); }
   .pm-form-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, .65fr) 7rem; gap: var(--sz-space-3); margin-bottom: var(--sz-space-3); }
-  .pm-textarea { min-height: 14rem; resize: vertical; }
-  .pm-tags-help { margin-top: .4rem; color: var(--sz-color-text-muted); font-size: var(--sz-font-size-xs); line-height: 1.55; }
-  .pm-tags-help code { color: var(--sz-color-primary); }
+  .pm-message-editor {
+    min-height: 14rem;
+    padding: .65rem .75rem;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-sm);
+    background: var(--sz-color-bg-input, transparent);
+    color: var(--sz-color-text);
+    line-height: 1.55;
+    white-space: pre-wrap;
+    overflow-y: auto;
+    cursor: text;
+  }
+  .pm-message-editor:focus { outline: 0; border-color: var(--sz-color-primary); box-shadow: 0 0 0 2px color-mix(in srgb, var(--sz-color-primary) 18%, transparent); }
+  .pm-message-editor:empty::before { content: attr(data-placeholder); color: var(--sz-color-text-muted); pointer-events: none; }
+  .pm-editor-tag {
+    display: inline-flex;
+    align-items: center;
+    margin: 0 .12rem;
+    padding: .08rem .38rem;
+    border: 1px solid color-mix(in srgb, var(--sz-color-primary) 58%, var(--sz-color-border));
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--sz-color-primary) 15%, transparent);
+    color: var(--sz-color-primary);
+    font-size: .86em;
+    font-weight: var(--sz-font-weight-semibold);
+    line-height: 1.35;
+    vertical-align: baseline;
+    cursor: grab;
+    user-select: none;
+  }
+  .pm-editor-tag:active { cursor: grabbing; }
+  .pm-message-editor.is-drop-target { border-color: var(--sz-color-primary); background: color-mix(in srgb, var(--sz-color-primary) 7%, transparent); }
+  .pm-tags-help { display: flex; flex-direction: column; gap: .45rem; margin-top: .55rem; color: var(--sz-color-text-muted); font-size: var(--sz-font-size-xs); line-height: 1.4; }
+  .pm-tag-buttons { display: flex; flex-wrap: wrap; gap: .35rem; }
+  .pm-tag-button { padding: .24rem .46rem; border: 1px solid color-mix(in srgb, var(--sz-color-primary) 45%, var(--sz-color-border)); border-radius: 999px; background: transparent; color: var(--sz-color-primary); font: inherit; font-weight: var(--sz-font-weight-semibold); cursor: grab; }
+  .pm-tag-button:hover { background: color-mix(in srgb, var(--sz-color-primary) 13%, transparent); }
+  .pm-tag-button:active { cursor: grabbing; }
   .pm-active-field { display: inline-flex; align-items: center; gap: .5rem; margin-top: var(--sz-space-3); font-size: var(--sz-font-size-sm); }
   @media (max-width: 1100px) { .pm-contextbar { align-items: stretch; flex-wrap: wrap; } .pm-contextbar-left { flex-basis: 100%; max-width: none; } .pm-contextbar-right { flex-wrap: wrap; justify-content: flex-start; } .pm-search-field { flex: 1 1 18rem; width: auto; } }
   @media (max-width: 720px) { .pm-page { padding-inline: var(--sz-space-2); } .pm-contextbar-right { align-items: stretch; } .pm-search-field, .pm-contextbar-right > .sz_button { width: 100%; flex-basis: 100%; } .pm-form-grid { grid-template-columns: 1fr; } .pm-grid { grid-template-columns: 1fr; } }
@@ -162,13 +224,125 @@
   const selectionTitleEl = document.getElementById('pmSelectionTitle');
   const selectionMetaEl = document.getElementById('pmSelectionMeta');
   const formEl = document.getElementById('pmMessageForm');
+  const messageEditorEl = document.getElementById('pmBody');
+  const tagButtonsEl = document.getElementById('pmTagButtons');
   const modalEl = document.getElementById('pmMessageModal');
   const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-  const state = { messages: [], reservation: null, reservationTimer: null };
+  const state = { messages: [], reservation: null, reservationTimer: null, draggedEditorTag: null };
+  const messageTags = [
+    ['hospede', 'Hóspede'], ['alojamento', 'Alojamento'], ['reserva', 'Reserva'],
+    ['checkin', 'Check-in'], ['checkout', 'Check-out'], ['noites', 'Noites'],
+    ['adultos', 'Adultos'], ['criancas', 'Crianças'], ['tipologia', 'Tipologia'],
+    ['morada', 'Morada'], ['local', 'Local'], ['codpost', 'Código postal'], ['licenca', 'Licença'],
+  ];
 
   const esc = (value) => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   const fmtDate = (value) => value ? new Intl.DateTimeFormat('pt-PT').format(new Date(`${value}T00:00:00`)) : '--';
   const toast = (message, type = 'success') => { if (window.szToast) window.szToast(message, type); else window.alert(message); };
+
+  function tagToken(tag) { return '{' + '{' + tag + '}' + '}'; }
+
+  function createEditorTag(tag) {
+    const label = messageTags.find(([key]) => key === tag)?.[1] || tag;
+    const node = document.createElement('span');
+    node.className = 'pm-editor-tag';
+    node.contentEditable = 'false';
+    node.draggable = true;
+    node.dataset.tag = tag;
+    node.textContent = label;
+    node.title = tagToken(tag);
+    return node;
+  }
+
+  function editorTemplate() {
+    const walk = (node) => {
+      if (node.nodeType === Node.TEXT_NODE) return node.nodeValue || '';
+      if (node.nodeType !== Node.ELEMENT_NODE) return '';
+      if (node.dataset?.tag) return tagToken(node.dataset.tag);
+      if (node.tagName === 'BR') return '\n';
+      let value = Array.from(node.childNodes).map(walk).join('');
+      if (node.tagName === 'DIV' || node.tagName === 'P') value += '\n';
+      return value;
+    };
+    return Array.from(messageEditorEl.childNodes).map(walk).join('').replace(/\n+$/, '');
+  }
+
+  function setEditorTemplate(template) {
+    const value = String(template || '');
+    messageEditorEl.replaceChildren();
+    const matcher = new RegExp('\\{\\{\\s*([a-zA-Z0-9_]+)\\s*\\}\\}', 'g');
+    let lastIndex = 0;
+    let match;
+    while ((match = matcher.exec(value))) {
+      if (match.index > lastIndex) messageEditorEl.append(document.createTextNode(value.slice(lastIndex, match.index)));
+      messageEditorEl.append(createEditorTag(match[1].toLowerCase()));
+      lastIndex = matcher.lastIndex;
+    }
+    if (lastIndex < value.length) messageEditorEl.append(document.createTextNode(value.slice(lastIndex)));
+  }
+
+  function placeCaretAfter(node) {
+    const range = document.createRange();
+    range.setStartAfter(node);
+    range.collapse(true);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+
+  function insertTag(tag, range = null) {
+    messageEditorEl.focus();
+    const selection = window.getSelection();
+    const insertionRange = range || (selection.rangeCount && messageEditorEl.contains(selection.getRangeAt(0).commonAncestorContainer) ? selection.getRangeAt(0) : null);
+    const node = createEditorTag(tag);
+    if (insertionRange) {
+      insertionRange.deleteContents();
+      insertionRange.insertNode(node);
+    } else {
+      messageEditorEl.append(node);
+    }
+    const space = document.createTextNode(' ');
+    node.after(space);
+    placeCaretAfter(space);
+  }
+
+  function moveEditorTag(node, range) {
+    if (!node || !range || node.contains(range.startContainer)) return;
+    const marker = document.createElement('span');
+    marker.className = 'pm-editor-drop-marker';
+    marker.contentEditable = 'false';
+    range.insertNode(marker);
+    node.remove();
+    marker.replaceWith(node);
+    placeCaretAfter(node);
+  }
+
+  function rangeAtPointer(event) {
+    if (document.caretRangeFromPoint) return document.caretRangeFromPoint(event.clientX, event.clientY);
+    if (document.caretPositionFromPoint) {
+      const point = document.caretPositionFromPoint(event.clientX, event.clientY);
+      if (!point) return null;
+      const range = document.createRange();
+      range.setStart(point.offsetNode, point.offset);
+      range.collapse(true);
+      return range;
+    }
+    return null;
+  }
+
+  function renderTagButtons() {
+    tagButtonsEl.replaceChildren();
+    messageTags.forEach(([tag, label]) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'pm-tag-button';
+      button.draggable = true;
+      button.dataset.tag = tag;
+      button.textContent = label;
+      button.title = tagToken(tag);
+      tagButtonsEl.append(button);
+    });
+  }
 
   function filteredMessages() {
     const query = messageSearchEl.value.trim().toLocaleLowerCase('pt-PT');
@@ -187,8 +361,8 @@
         <div class="pm-card-head">
           <div><h2 class="pm-card-title">${esc(item.titulo)}</h2>${item.categoria ? `<div class="pm-card-category">${esc(item.categoria)}</div>` : ''}</div>
           <div class="pm-card-actions">
-            <button class="sz_icon_button" type="button" data-edit-id="${esc(item.id)}" title="Editar mensagem" aria-label="Editar mensagem"><i class="fa-solid fa-pen"></i></button>
-            <button class="sz_icon_button" type="button" data-delete-id="${esc(item.id)}" title="Eliminar mensagem" aria-label="Eliminar mensagem"><i class="fa-solid fa-trash"></i></button>
+            <button class="sz_icon_button pm-icon-button" type="button" data-edit-id="${esc(item.id)}" title="Editar mensagem" aria-label="Editar mensagem"><i class="fa-solid fa-pen"></i></button>
+            <button class="sz_icon_button pm-icon-button" type="button" data-delete-id="${esc(item.id)}" title="Eliminar mensagem" aria-label="Eliminar mensagem"><i class="fa-solid fa-trash"></i></button>
           </div>
         </div>
         <div class="pm-card-message">${esc(item.mensagem)}</div>
@@ -227,6 +401,20 @@
     renderReservationResults(payload.items || []);
   }
 
+  function showCardCopied(messageId) {
+    const card = cardsEl.querySelector(`[data-copy-id="${CSS.escape(String(messageId))}"]`);
+    if (!card) return;
+    const label = card.querySelector('.pm-card-copy');
+    if (!label) return;
+    const original = label.innerHTML;
+    card.classList.add('is-copied');
+    label.innerHTML = '<i class="fa-solid fa-check"></i> Copiado';
+    window.setTimeout(() => {
+      card.classList.remove('is-copied');
+      label.innerHTML = original;
+    }, 2500);
+  }
+
   async function copyMessage(messageId) {
     const response = await fetch(`${baseUrl}/${encodeURIComponent(messageId)}/render`, {
       method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
@@ -236,7 +424,7 @@
     if (!response.ok || !payload.ok) throw new Error(payload.error || 'Não foi possível preparar a mensagem.');
     try { await navigator.clipboard.writeText(payload.message); }
     catch (_) { const area = document.createElement('textarea'); area.value = payload.message; document.body.append(area); area.select(); document.execCommand('copy'); area.remove(); }
-    toast('Mensagem copiada para a área de transferência.');
+    showCardCopied(messageId);
   }
 
   function openEditor(item = null) {
@@ -244,7 +432,7 @@
     document.getElementById('pmTitle').value = item?.titulo || '';
     document.getElementById('pmCategory').value = item?.categoria || '';
     document.getElementById('pmOrder').value = item?.ordem || 0;
-    document.getElementById('pmBody').value = item?.mensagem || '';
+    setEditorTemplate(item?.mensagem || '');
     document.getElementById('pmTags').value = item?.tags || '';
     document.getElementById('pmActive').checked = item?.ativa !== false;
     document.getElementById('pmMessageModalTitle').textContent = item ? 'Editar mensagem' : 'Nova mensagem';
@@ -254,18 +442,20 @@
   async function saveEditor(event) {
     event.preventDefault();
     const id = document.getElementById('pmMessageId').value;
+    const message = editorTemplate().trim();
+    if (!message) throw new Error('Indica o texto da mensagem.');
     const body = {
       titulo: document.getElementById('pmTitle').value,
       categoria: document.getElementById('pmCategory').value,
       ordem: document.getElementById('pmOrder').value,
-      mensagem: document.getElementById('pmBody').value,
+      mensagem: message,
       tags: document.getElementById('pmTags').value,
       ativa: document.getElementById('pmActive').checked,
     };
     const response = await fetch(id ? `${baseUrl}/${encodeURIComponent(id)}` : baseUrl, { method: id ? 'PUT' : 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const payload = await response.json();
     if (!response.ok || !payload.ok) throw new Error(payload.error || 'Não foi possível gravar a mensagem.');
-    modal.hide(); await loadMessages(); toast('Mensagem gravada.');
+    modal.hide(); await loadMessages();
   }
 
   async function deleteMessage(id) {
@@ -273,10 +463,58 @@
     const response = await fetch(`${baseUrl}/${encodeURIComponent(id)}`, { method: 'DELETE', credentials: 'same-origin' });
     const payload = await response.json();
     if (!response.ok || !payload.ok) throw new Error(payload.error || 'Não foi possível eliminar a mensagem.');
-    await loadMessages(); toast('Mensagem eliminada.');
+    await loadMessages();
   }
 
   messageSearchEl.addEventListener('input', renderCards);
+  tagButtonsEl.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-tag]');
+    if (button) insertTag(button.dataset.tag);
+  });
+  tagButtonsEl.addEventListener('dragstart', (event) => {
+    const button = event.target.closest('[data-tag]');
+    if (!button) return;
+    event.dataTransfer.effectAllowed = 'copy';
+    event.dataTransfer.setData('text/plain', button.dataset.tag);
+  });
+  messageEditorEl.addEventListener('dragstart', (event) => {
+    const tag = event.target.closest('.pm-editor-tag');
+    if (!tag) return;
+    state.draggedEditorTag = tag;
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('application/x-pm-editor-tag', tag.dataset.tag || '');
+    event.dataTransfer.setData('text/plain', tag.dataset.tag || '');
+  });
+  messageEditorEl.addEventListener('dragend', () => {
+    state.draggedEditorTag = null;
+    messageEditorEl.classList.remove('is-drop-target');
+  });
+  messageEditorEl.addEventListener('dragover', (event) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = state.draggedEditorTag ? 'move' : 'copy';
+    messageEditorEl.classList.add('is-drop-target');
+  });
+  messageEditorEl.addEventListener('dragleave', (event) => {
+    if (!messageEditorEl.contains(event.relatedTarget)) messageEditorEl.classList.remove('is-drop-target');
+  });
+  messageEditorEl.addEventListener('drop', (event) => {
+    event.preventDefault();
+    messageEditorEl.classList.remove('is-drop-target');
+    const tag = event.dataTransfer.getData('text/plain');
+    const range = rangeAtPointer(event);
+    if (state.draggedEditorTag) {
+      moveEditorTag(state.draggedEditorTag, range);
+      state.draggedEditorTag = null;
+    } else if (messageTags.some(([key]) => key === tag)) {
+      insertTag(tag, range);
+    }
+  });
+  messageEditorEl.addEventListener('input', () => {
+    const template = editorTemplate();
+    const match = template.match(new RegExp('\\{\\{\\s*([a-zA-Z0-9_]+)\\s*\\}\\}'));
+    if (!match) return;
+    window.setTimeout(() => setEditorTemplate(template), 0);
+  });
   reservationSearchEl.addEventListener('input', () => { clearTimeout(state.reservationTimer); state.reservationTimer = setTimeout(() => searchReservations().catch((error) => toast(error.message, 'error')), 220); });
   reservationResultsEl.addEventListener('click', (event) => { const option = event.target.closest('[data-reservation]'); if (!option) return; showReservation(JSON.parse(option.dataset.reservation)); reservationSearchEl.value = ''; reservationResultsEl.hidden = true; });
   document.getElementById('pmClearReservation').addEventListener('click', () => showReservation(null));
@@ -285,6 +523,7 @@
   cardsEl.addEventListener('click', (event) => { const edit = event.target.closest('[data-edit-id]'); const remove = event.target.closest('[data-delete-id]'); const card = event.target.closest('[data-copy-id]'); if (edit) { event.stopPropagation(); openEditor(state.messages.find((item) => item.id === edit.dataset.editId)); } else if (remove) { event.stopPropagation(); deleteMessage(remove.dataset.deleteId).catch((error) => toast(error.message, 'error')); } else if (card) copyMessage(card.dataset.copyId).catch((error) => toast(error.message, 'error')); });
   cardsEl.addEventListener('keydown', (event) => { if ((event.key === 'Enter' || event.key === ' ') && event.target.matches('[data-copy-id]')) { event.preventDefault(); copyMessage(event.target.dataset.copyId).catch((error) => toast(error.message, 'error')); } });
   document.addEventListener('click', (event) => { if (!event.target.closest('.pm-search-field')) reservationResultsEl.hidden = true; });
+  renderTagButtons();
   loadMessages().catch((error) => { cardsEl.innerHTML = `<div class="pm-empty"><i class="fa-solid fa-triangle-exclamation"></i><strong>${esc(error.message)}</strong></div>`; });
 })();
 </script>
