@@ -148,10 +148,7 @@ def fetch_dicts(cursor, sql: str, params: tuple[Any, ...] = ()) -> list[dict[str
 
 def get_tax_code(cursor, rate: Decimal) -> int:
     rows = fetch_dicts(cursor, "SELECT CODIGO, TAXA FROM dbo.TAXASIVA")
-    # Consume in the same business order as the source BC: each workbook row
-    # can then be assigned to a concrete BC line, even where the same
-    # article/price is repeated several times in the source document.
-    for row in sorted(rows, key=lambda item: (item["bc"], valid_date(item["delivery_date"]), item["invoice"])):
+    for row in rows:
         if dec(row["TAXA"]) == rate:
             return int(dec(row["CODIGO"]))
     raise ImportError(f"Não existe taxa de IVA {rate}% na HSOLS_FR.")
@@ -198,7 +195,9 @@ def allocate(rows: list[dict[str, Any]], source_lines: list[dict[str, Any]],
         lines_by_bc[int(line["BC"])].append(line)
     result: dict[str, list[dict[str, Any]]] = defaultdict(list)
 
-    for row in rows:
+    # Consume in delivery order so each repeated reference/price is assigned
+    # to the corresponding source line in the BC.
+    for row in sorted(rows, key=lambda item: (item["bc"], valid_date(item["delivery_date"]), item["invoice"])):
         candidates = [line for line in lines_by_bc[row["bc"]] if line["remaining"] > ZERO and line["price"] == row["price"]]
         # Exact reference has priority. Description+price is the safe fallback
         # for the gasoil lines whose Excel reference is P.02 but PHC uses S.03.

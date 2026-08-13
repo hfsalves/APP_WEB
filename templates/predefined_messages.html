@@ -205,7 +205,60 @@
   .pm-tag-button:active { cursor: grabbing; }
   .pm-active-field { display: inline-flex; align-items: center; gap: .5rem; margin-top: var(--sz-space-3); font-size: var(--sz-font-size-sm); }
   @media (max-width: 1100px) { .pm-contextbar { align-items: stretch; flex-wrap: wrap; } .pm-contextbar-left { flex-basis: 100%; max-width: none; } .pm-contextbar-right { flex-wrap: wrap; justify-content: flex-start; } .pm-search-field { flex: 1 1 18rem; width: auto; } }
-  @media (max-width: 720px) { .pm-page { padding-inline: var(--sz-space-2); } .pm-contextbar-right { align-items: stretch; } .pm-search-field, .pm-contextbar-right > .sz_button { width: 100%; flex-basis: 100%; } .pm-form-grid { grid-template-columns: 1fr; } .pm-grid { grid-template-columns: 1fr; } }
+  @media (max-width: 720px) {
+    .pm-page { height: 100%; min-height: 0; padding: var(--sz-space-2); overflow: hidden; }
+    .pm-container {
+      height: 100%;
+      min-height: 0;
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      display: block;
+      overflow-y: auto;
+      overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
+    }
+    .pm-contextbar {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      gap: var(--sz-space-3);
+      padding: var(--sz-space-3);
+    }
+    .pm-contextbar-left,
+    .pm-contextbar-right {
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+    }
+    .pm-contextbar-left { display: block; }
+    .pm-contextbar-left .sz_page_title { display: block; }
+    .pm-contextbar-left .sz_page_subtitle { display: block; margin-top: .35rem; }
+    .pm-contextbar-right { display: grid; grid-template-columns: minmax(0, 1fr); align-items: stretch; gap: var(--sz-space-2); }
+    .pm-search-field,
+    .pm-search-field[for="pmReservationSearch"],
+    .pm-contextbar-right > .sz_button {
+      width: 100%;
+      min-width: 0;
+      max-width: 100%;
+      flex: none;
+    }
+    .pm-contextbar-right > .sz_button { justify-content: center; }
+    .pm-body { min-height: auto; overflow: visible; padding-bottom: var(--sz-space-3); }
+    .pm-selection { align-items: flex-start; }
+    .pm-selection-copy strong { white-space: normal; }
+    .pm-form-grid { grid-template-columns: 1fr; }
+    .pm-grid { grid-template-columns: 1fr; }
+    .pm-card { min-height: 9rem; padding: .75rem; }
+    .pm-card-title { font-size: 1rem; }
+    .pm-card-actions { gap: .2rem; }
+    .pm-icon-button,
+    .pm-card-actions .sz_icon_button { width: 1.9rem; height: 1.9rem; min-width: 1.9rem; min-height: 1.9rem; }
+    .pm-card-message { margin: .65rem 0; -webkit-line-clamp: 3; }
+    .pm-empty { min-height: 11rem; }
+  }
 </style>
 
 {% endblock %}
