@@ -35,7 +35,7 @@
   }
 
   .pszm-contextbar {
-    align-items: flex-start;
+    align-items: center;
   }
 
   .pszm-contextbar-left {
@@ -46,7 +46,9 @@
   .pszm-contextbar-right {
     flex: 0 0 auto;
     display: flex;
-    align-items: flex-end;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
     gap: var(--sz-space-2);
   }
 
@@ -57,8 +59,8 @@
   }
 
   .pszm-header-sync-total {
-    min-width: 7.25rem;
-    padding: .4rem .6rem;
+    min-width: 6.4rem;
+    padding: .32rem .55rem;
     border: 1px solid var(--sz-color-border);
     border-radius: var(--sz-radius-md);
     display: flex;
@@ -85,7 +87,7 @@
   }
 
   .pszm-header-sync-value {
-    font-size: var(--sz-font-size-lg);
+    font-size: 1rem;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
   }
@@ -98,24 +100,23 @@
   }
 
   .pszm-kpis {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: var(--sz-space-3);
+    display: block;
   }
 
   .pszm-kpi {
-    padding: var(--sz-space-4);
+    min-height: 4.6rem;
+    padding: .65rem .9rem;
     display: flex;
-    flex-direction: column;
-    gap: var(--sz-space-2);
+    align-items: center;
+    gap: var(--sz-space-4);
   }
 
   .pszm-kpi-head {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-start;
     gap: var(--sz-space-2);
-    flex-wrap: wrap;
+    flex: 0 0 auto;
   }
 
   .pszm-kpi-badges {
@@ -130,6 +131,7 @@
     text-transform: uppercase;
     letter-spacing: .06em;
     color: var(--sz-color-text-muted);
+    white-space: nowrap;
   }
 
   .pszm-rate-badge {
@@ -147,9 +149,11 @@
   }
 
   .pszm-kpi-value {
-    font-size: clamp(1.1rem, 1.8vw, 1.5rem);
+    font-size: 1.25rem;
     font-weight: var(--sz-font-weight-semibold);
     transition: color .28s ease, transform .28s ease;
+    min-width: 3.5rem;
+    text-align: right;
   }
 
   .pszm-kpi-meta {
@@ -158,6 +162,7 @@
     gap: var(--sz-space-2);
     color: var(--sz-color-text-muted);
     font-size: var(--sz-font-size-sm);
+    flex: 1 1 auto;
   }
 
   .pszm-panel {
@@ -384,7 +389,8 @@
 
   .pszm-generated {
     color: var(--sz-color-text-muted);
-    font-size: var(--sz-font-size-sm);
+    font-size: var(--sz-font-size-xs);
+    white-space: nowrap;
   }
 
   .pszm-registos-value {
@@ -444,8 +450,24 @@
   }
 
   @media (max-width: 1100px) {
-    .pszm-kpis {
-      grid-template-columns: 1fr;
+    .pszm-contextbar {
+      align-items: stretch;
+      flex-wrap: wrap;
+    }
+
+    .pszm-contextbar-left {
+      flex-basis: 100%;
+    }
+
+    .pszm-contextbar-right {
+      flex: 1 1 auto;
+      justify-content: flex-start;
+      flex-wrap: wrap;
+    }
+
+    .pszm-kpi {
+      flex-wrap: wrap;
+      gap: var(--sz-space-2);
     }
   }
 
@@ -541,15 +563,15 @@
           <article class="sz_card pszm-kpi">
             <div class="pszm-kpi-head">
               <div class="pszm-kpi-label">R2-D2 | A-ZZZ</div>
-              <div class="pszm-kpi-badges">
-                <span id="pszmRobotARate" class="sz_badge sz_badge_info pszm-rate-badge">--/reg</span>
-                <span id="pszmRobotAEta" class="sz_badge sz_badge_warning pszm-eta-badge">--</span>
-              </div>
             </div>
             <div class="pszm-kpi-value" id="pszmRobotARegistos">{{ robot_a.total_registos or 0 }}</div>
             <div class="pszm-kpi-meta">
               <span id="pszmRobotAAlojamentos">{{ robot_a.total_alojamentos or 0 }} alojamentos</span>
               <span id="pszmRobotAIntervalo">{{ (robot_a.primeira_data ~ ' -> ' ~ robot_a.ultima_data) if robot_a.primeira_data and robot_a.ultima_data and robot_a.primeira_data != robot_a.ultima_data else (robot_a.primeira_data or robot_a.ultima_data or '--') }}</span>
+            </div>
+            <div class="pszm-kpi-badges">
+              <span id="pszmRobotARate" class="sz_badge sz_badge_info pszm-rate-badge">--/reg</span>
+              <span id="pszmRobotAEta" class="sz_badge sz_badge_warning pszm-eta-badge">--</span>
             </div>
           </article>
         </section>
