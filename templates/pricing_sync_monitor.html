@@ -50,6 +50,46 @@
     gap: var(--sz-space-2);
   }
 
+  .pszm-header-sync-totals {
+    display: flex;
+    align-items: stretch;
+    gap: var(--sz-space-2);
+  }
+
+  .pszm-header-sync-total {
+    min-width: 7.25rem;
+    padding: .4rem .6rem;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    line-height: 1.15;
+  }
+
+  .pszm-header-sync-total.airbnb {
+    color: #ec6b9a;
+    border-color: color-mix(in srgb, #ec6b9a 52%, var(--sz-color-border));
+    background: color-mix(in srgb, #ec6b9a 8%, transparent);
+  }
+
+  .pszm-header-sync-total.booking {
+    color: #168cff;
+    border-color: color-mix(in srgb, #168cff 52%, var(--sz-color-border));
+    background: color-mix(in srgb, #168cff 8%, transparent);
+  }
+
+  .pszm-header-sync-label {
+    font-size: var(--sz-font-size-xs);
+    font-weight: 600;
+  }
+
+  .pszm-header-sync-value {
+    font-size: var(--sz-font-size-lg);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+
   .pszm-subtitle {
     display: flex;
     flex-wrap: wrap;
@@ -453,6 +493,7 @@
     .pszm-contextbar-right {
       width: 100%;
       justify-content: flex-start;
+      flex-wrap: wrap;
     }
 
   }
@@ -476,6 +517,16 @@
         </div>
       </div>
       <div class="sz_contextbar_right pszm-contextbar-right">
+        <div class="pszm-header-sync-totals" aria-label="Precos por sincronizar">
+          <div class="pszm-header-sync-total airbnb">
+            <span class="pszm-header-sync-label">Airbnb</span>
+            <strong id="pszmTotalAirbnb" class="pszm-header-sync-value">{{ totals.total_airbnb or 0 }}</strong>
+          </div>
+          <div class="pszm-header-sync-total booking">
+            <span class="pszm-header-sync-label">Booking</span>
+            <strong id="pszmTotalBooking" class="pszm-header-sync-value">{{ totals.total_booking or 0 }}</strong>
+          </div>
+        </div>
         <div id="pszmGenerated" class="pszm-generated">{% if initial_state and initial_state.generated_at %}Gerado em {{ initial_state.generated_at }}{% else %}--{% endif %}</div>
         <button id="pszmReload" type="button" class="sz_button sz_button_primary">
           <i class="fa-solid fa-rotate"></i>
@@ -560,6 +611,8 @@
   const robotAIntervaloEl = document.getElementById('pszmRobotAIntervalo');
   const robotARateEl = document.getElementById('pszmRobotARate');
   const robotAEtaEl = document.getElementById('pszmRobotAEta');
+  const totalAirbnbEl = document.getElementById('pszmTotalAirbnb');
+  const totalBookingEl = document.getElementById('pszmTotalBooking');
   const generatedEl = document.getElementById('pszmGenerated');
   const cardGridEl = document.getElementById('pszmCardGrid');
   const reloadBtn = document.getElementById('pszmReload');
@@ -789,11 +842,14 @@
   function applyState(payload) {
     const robots = Array.isArray(payload?.robots) ? payload.robots : [];
     const rows = Array.isArray(payload?.rows) ? payload.rows : [];
+    const totals = payload?.totals || {};
     const robotAData = robots.find((item) => item.robot === 'R2-D2') || {};
 
     updateTextWithBump(robotARegistosEl, String(robotAData.total_registos || 0));
     robotAAlojamentosEl.textContent = `${robotAData.total_alojamentos || 0} alojamentos`;
     robotAIntervaloEl.textContent = fmtInterval(robotAData.primeira_data, robotAData.ultima_data);
+    updateTextWithBump(totalAirbnbEl, String(totals.total_airbnb || 0));
+    updateTextWithBump(totalBookingEl, String(totals.total_booking || 0));
 
     generatedEl.textContent = payload?.generated_at
       ? `Gerado em ${new Date(payload.generated_at).toLocaleString('pt-PT')}`

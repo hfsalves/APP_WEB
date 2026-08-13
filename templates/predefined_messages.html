@@ -1,0 +1,291 @@
+{% extends "base.html" %}
+{% block title %}Mensagens pré-definidas{% endblock %}
+
+{% block content %}
+<div class="sz_page pm-page">
+  <div class="sz_page_container pm-container">
+    <header class="sz_contextbar sz_page_contextbar pm-contextbar">
+      <div class="sz_contextbar_left pm-contextbar-left">
+        <div class="sz_page_title">Mensagens pré-definidas</div>
+        <div class="sz_page_subtitle">Escolhe uma mensagem para copiar. As tags são preenchidas pela reserva selecionada.</div>
+      </div>
+      <div class="sz_contextbar_right pm-contextbar-right">
+        <label class="sz_field pm-search-field" for="pmMessageSearch">
+          <span class="sz_label">Mensagens</span>
+          <div class="pm-search-wrap">
+            <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+            <input id="pmMessageSearch" class="sz_input" type="search" autocomplete="off" placeholder="Procurar mensagem">
+          </div>
+        </label>
+        <label class="sz_field pm-search-field" for="pmReservationSearch">
+          <span class="sz_label">Reserva</span>
+          <div class="pm-search-wrap">
+            <i class="fa-solid fa-calendar-days" aria-hidden="true"></i>
+            <input id="pmReservationSearch" class="sz_input" type="search" autocomplete="off" placeholder="Alojamento, hóspede, reserva ou ddmm">
+          </div>
+          <div id="pmReservationResults" class="pm-reservation-results" hidden></div>
+        </label>
+        <button id="pmNewMessage" type="button" class="sz_button sz_button_primary">
+          <i class="fa-solid fa-plus"></i><span>Nova mensagem</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="sz_page_body pm-body">
+      <section id="pmSelection" class="pm-selection" hidden>
+        <div class="pm-selection-copy">
+          <i class="fa-solid fa-calendar-check" aria-hidden="true"></i>
+          <div>
+            <strong id="pmSelectionTitle"></strong>
+            <span id="pmSelectionMeta"></span>
+          </div>
+        </div>
+        <button id="pmClearReservation" type="button" class="sz_icon_button pm-clear-reservation" title="Remover reserva selecionada" aria-label="Remover reserva selecionada">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </section>
+
+      <section id="pmCards" class="pm-grid" aria-live="polite">
+        <div class="pm-empty"><i class="fa-regular fa-message"></i><strong>A carregar mensagens...</strong></div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<div class="modal fade" id="pmMessageModal" tabindex="-1" aria-labelledby="pmMessageModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content pm-modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="pmMessageModalTitle">Mensagem</h5>
+        <button type="button" class="sz_icon_button" data-bs-dismiss="modal" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <form id="pmMessageForm">
+        <div class="modal-body">
+          <input id="pmMessageId" type="hidden">
+          <div class="pm-form-grid">
+            <label class="sz_field" for="pmTitle"><span class="sz_label">Título</span><input id="pmTitle" class="sz_input" maxlength="120" required></label>
+            <label class="sz_field" for="pmCategory"><span class="sz_label">Categoria</span><input id="pmCategory" class="sz_input" maxlength="60" placeholder="Ex.: Check-in"></label>
+            <label class="sz_field" for="pmOrder"><span class="sz_label">Ordem</span><input id="pmOrder" class="sz_input" type="number" value="0" step="1"></label>
+          </div>
+          <label class="sz_field" for="pmBody"><span class="sz_label">Mensagem</span><textarea id="pmBody" class="sz_textarea pm-textarea" required placeholder="Escreve a mensagem que queres copiar."></textarea></label>
+          <label class="sz_field" for="pmTags"><span class="sz_label">Tags</span><input id="pmTags" class="sz_input" maxlength="500" placeholder="Ex.: &#123;&#123;hospede&#125;&#125;, &#123;&#123;alojamento&#125;&#125;, &#123;&#123;checkin&#125;&#125;"></label>
+          <div class="pm-tags-help">Disponíveis: <code>&#123;&#123;hospede&#125;&#125;</code>, <code>&#123;&#123;alojamento&#125;&#125;</code>, <code>&#123;&#123;reserva&#125;&#125;</code>, <code>&#123;&#123;checkin&#125;&#125;</code>, <code>&#123;&#123;checkout&#125;&#125;</code>, <code>&#123;&#123;noites&#125;&#125;</code>, <code>&#123;&#123;adultos&#125;&#125;</code>, <code>&#123;&#123;criancas&#125;&#125;</code>, <code>&#123;&#123;tipologia&#125;&#125;</code>, <code>&#123;&#123;morada&#125;&#125;</code>, <code>&#123;&#123;local&#125;&#125;</code>, <code>&#123;&#123;codpost&#125;&#125;</code>, <code>&#123;&#123;licenca&#125;&#125;.</div>
+          <label class="pm-active-field" for="pmActive"><input id="pmActive" type="checkbox" checked><span>Mensagem ativa</span></label>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="sz_button sz_button_secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="sz_button sz_button_primary"><i class="fa-solid fa-floppy-disk"></i><span>Gravar</span></button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<style>
+  .pm-page { height: 100%; min-height: 0; padding: var(--sz-space-3) var(--sz-space-4); background: var(--sz-color-bg-main); }
+  .pm-container { height: 100%; min-height: 0; display: flex; flex-direction: column; gap: var(--sz-space-3); }
+  .pm-contextbar { align-items: center; flex-wrap: nowrap; gap: var(--sz-space-3); }
+  .pm-contextbar-left { flex: 0 1 31rem; width: auto; min-width: 15rem; }
+  .pm-contextbar-right { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: row; flex-wrap: nowrap; align-items: flex-end; justify-content: flex-end; gap: var(--sz-space-2); }
+  .pm-search-field { flex: 1 1 14rem; width: auto; min-width: 11rem; position: relative; }
+  .pm-search-field[for="pmReservationSearch"] { flex-basis: 19rem; }
+  .pm-search-wrap { position: relative; }
+  .pm-search-wrap > i { position: absolute; z-index: 1; top: 50%; left: .7rem; transform: translateY(-50%); color: var(--sz-color-text-muted); pointer-events: none; }
+  .pm-search-wrap .sz_input { width: 100%; padding-left: 2.15rem; }
+  .pm-reservation-results { position: absolute; z-index: 1050; top: calc(100% + .35rem); left: 0; right: 0; max-height: 21rem; overflow-y: auto; border: 1px solid var(--sz-color-border); border-radius: var(--sz-radius-md); background: var(--sz-color-surface); box-shadow: var(--sz-shadow-lg); }
+  .pm-reservation-option { width: 100%; display: flex; flex-direction: column; gap: .1rem; padding: .6rem .7rem; text-align: left; border: 0; border-bottom: 1px solid var(--sz-color-border); background: transparent; color: var(--sz-color-text); }
+  .pm-reservation-option:last-child { border-bottom: 0; }
+  .pm-reservation-option:hover { background: color-mix(in srgb, var(--sz-color-primary) 10%, transparent); }
+  .pm-reservation-option strong { font-size: var(--sz-font-size-sm); }
+  .pm-reservation-option span { color: var(--sz-color-text-muted); font-size: var(--sz-font-size-xs); }
+  .pm-body { min-height: 0; overflow: auto; padding-right: .1rem; }
+  .pm-selection { display: flex; align-items: center; justify-content: space-between; gap: var(--sz-space-3); margin-bottom: var(--sz-space-3); padding: .65rem .8rem; border: 1px solid color-mix(in srgb, var(--sz-color-primary) 42%, var(--sz-color-border)); border-radius: var(--sz-radius-md); background: color-mix(in srgb, var(--sz-color-primary) 8%, var(--sz-color-surface)); }
+  .pm-selection-copy { display: flex; align-items: center; gap: .65rem; min-width: 0; }
+  .pm-selection-copy > i { color: var(--sz-color-primary); }
+  .pm-selection-copy div { min-width: 0; display: flex; flex-direction: column; }
+  .pm-selection-copy strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pm-selection-copy span { color: var(--sz-color-text-muted); font-size: var(--sz-font-size-sm); }
+  .pm-clear-reservation {
+    width: 2.35rem;
+    height: 2.35rem;
+    min-width: 2.35rem;
+    min-height: 2.35rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-sm);
+    background: transparent;
+    color: var(--sz-color-text-muted);
+  }
+  .pm-clear-reservation:hover { border-color: var(--sz-color-danger, #ec6b9a); background: color-mix(in srgb, var(--sz-color-danger, #ec6b9a) 12%, transparent); color: var(--sz-color-danger, #ec6b9a); }
+  .pm-clear-reservation i { line-height: 1; }
+  .pm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: var(--sz-space-3); align-content: start; }
+  .pm-card { position: relative; min-height: 12.5rem; display: flex; flex-direction: column; padding: var(--sz-space-3); border: 1px solid var(--sz-color-border); border-radius: var(--sz-radius-md); background: var(--sz-color-surface); color: var(--sz-color-text); cursor: pointer; transition: border-color .16s ease, transform .16s ease; }
+  .pm-card:hover { border-color: var(--sz-color-primary); transform: translateY(-1px); }
+  .pm-card:focus-visible { outline: 2px solid var(--sz-color-primary); outline-offset: 2px; }
+  .pm-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sz-space-2); }
+  .pm-card-title { margin: 0; font-size: var(--sz-font-size-lg); line-height: 1.2; }
+  .pm-card-category { margin-top: .3rem; color: var(--sz-color-text-muted); font-size: var(--sz-font-size-xs); font-weight: 700; text-transform: uppercase; }
+  .pm-card-actions { display: flex; gap: .25rem; flex: 0 0 auto; }
+  .pm-card-actions .sz_icon_button { width: 2rem; height: 2rem; }
+  .pm-card-message { flex: 1 1 auto; margin: var(--sz-space-3) 0; color: var(--sz-color-text-muted); font-size: var(--sz-font-size-sm); line-height: 1.45; white-space: pre-wrap; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; }
+  .pm-card-footer { display: flex; align-items: center; justify-content: space-between; gap: var(--sz-space-2); color: var(--sz-color-text-muted); font-size: var(--sz-font-size-xs); }
+  .pm-card-copy { color: var(--sz-color-primary); font-weight: 700; }
+  .pm-empty { min-height: 15rem; grid-column: 1 / -1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .65rem; border: 1px dashed var(--sz-color-border); border-radius: var(--sz-radius-md); color: var(--sz-color-text-muted); }
+  .pm-empty i { font-size: 1.8rem; }
+  .pm-modal-content { background: var(--sz-color-surface); color: var(--sz-color-text); border-color: var(--sz-color-border); }
+  .pm-modal-content .modal-header, .pm-modal-content .modal-footer { border-color: var(--sz-color-border); }
+  .pm-form-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, .65fr) 7rem; gap: var(--sz-space-3); margin-bottom: var(--sz-space-3); }
+  .pm-textarea { min-height: 14rem; resize: vertical; }
+  .pm-tags-help { margin-top: .4rem; color: var(--sz-color-text-muted); font-size: var(--sz-font-size-xs); line-height: 1.55; }
+  .pm-tags-help code { color: var(--sz-color-primary); }
+  .pm-active-field { display: inline-flex; align-items: center; gap: .5rem; margin-top: var(--sz-space-3); font-size: var(--sz-font-size-sm); }
+  @media (max-width: 1100px) { .pm-contextbar { align-items: stretch; flex-wrap: wrap; } .pm-contextbar-left { flex-basis: 100%; max-width: none; } .pm-contextbar-right { flex-wrap: wrap; justify-content: flex-start; } .pm-search-field { flex: 1 1 18rem; width: auto; } }
+  @media (max-width: 720px) { .pm-page { padding-inline: var(--sz-space-2); } .pm-contextbar-right { align-items: stretch; } .pm-search-field, .pm-contextbar-right > .sz_button { width: 100%; flex-basis: 100%; } .pm-form-grid { grid-template-columns: 1fr; } .pm-grid { grid-template-columns: 1fr; } }
+</style>
+
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+(() => {
+  const baseUrl = {{ url_for('predefined_messages.api_predefined_messages_list') | tojson }};
+  const reservationUrl = {{ url_for('predefined_messages.api_predefined_messages_reservations') | tojson }};
+  const cardsEl = document.getElementById('pmCards');
+  const messageSearchEl = document.getElementById('pmMessageSearch');
+  const reservationSearchEl = document.getElementById('pmReservationSearch');
+  const reservationResultsEl = document.getElementById('pmReservationResults');
+  const selectionEl = document.getElementById('pmSelection');
+  const selectionTitleEl = document.getElementById('pmSelectionTitle');
+  const selectionMetaEl = document.getElementById('pmSelectionMeta');
+  const formEl = document.getElementById('pmMessageForm');
+  const modalEl = document.getElementById('pmMessageModal');
+  const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+  const state = { messages: [], reservation: null, reservationTimer: null };
+
+  const esc = (value) => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  const fmtDate = (value) => value ? new Intl.DateTimeFormat('pt-PT').format(new Date(`${value}T00:00:00`)) : '--';
+  const toast = (message, type = 'success') => { if (window.szToast) window.szToast(message, type); else window.alert(message); };
+
+  function filteredMessages() {
+    const query = messageSearchEl.value.trim().toLocaleLowerCase('pt-PT');
+    if (!query) return state.messages;
+    return state.messages.filter((item) => `${item.titulo} ${item.categoria} ${item.mensagem} ${item.tags}`.toLocaleLowerCase('pt-PT').includes(query));
+  }
+
+  function renderCards() {
+    const items = filteredMessages();
+    if (!items.length) {
+      cardsEl.innerHTML = `<div class="pm-empty"><i class="fa-regular fa-message"></i><strong>${state.messages.length ? 'Sem mensagens com esta pesquisa.' : 'Ainda não existem mensagens.'}</strong><span>${state.messages.length ? '' : 'Cria a primeira mensagem para começar.'}</span></div>`;
+      return;
+    }
+    cardsEl.innerHTML = items.map((item) => `
+      <article class="pm-card" tabindex="0" role="button" data-copy-id="${esc(item.id)}" title="Copiar mensagem">
+        <div class="pm-card-head">
+          <div><h2 class="pm-card-title">${esc(item.titulo)}</h2>${item.categoria ? `<div class="pm-card-category">${esc(item.categoria)}</div>` : ''}</div>
+          <div class="pm-card-actions">
+            <button class="sz_icon_button" type="button" data-edit-id="${esc(item.id)}" title="Editar mensagem" aria-label="Editar mensagem"><i class="fa-solid fa-pen"></i></button>
+            <button class="sz_icon_button" type="button" data-delete-id="${esc(item.id)}" title="Eliminar mensagem" aria-label="Eliminar mensagem"><i class="fa-solid fa-trash"></i></button>
+          </div>
+        </div>
+        <div class="pm-card-message">${esc(item.mensagem)}</div>
+        <div class="pm-card-footer"><span>${item.tags ? `${esc(item.tags)}` : 'Mensagem geral'}</span><span class="pm-card-copy"><i class="fa-regular fa-copy"></i> Copiar</span></div>
+      </article>`).join('');
+  }
+
+  async function loadMessages() {
+    const response = await fetch(baseUrl, { credentials: 'same-origin', cache: 'no-store' });
+    const payload = await response.json();
+    if (!response.ok || !payload.ok) throw new Error(payload.error || 'Não foi possível ler as mensagens.');
+    state.messages = payload.items || [];
+    renderCards();
+  }
+
+  function showReservation(reservation) {
+    state.reservation = reservation || null;
+    if (!state.reservation) { selectionEl.hidden = true; return; }
+    selectionTitleEl.textContent = `${state.reservation.alojamento} · ${state.reservation.hospede || state.reservation.reserva}`;
+    selectionMetaEl.textContent = `${state.reservation.reserva || 'Reserva'} · ${fmtDate(state.reservation.checkin)} - ${fmtDate(state.reservation.checkout)}`;
+    selectionEl.hidden = false;
+  }
+
+  function renderReservationResults(items) {
+    if (!items.length) { reservationResultsEl.hidden = true; return; }
+    reservationResultsEl.innerHTML = items.map((item) => `<button class="pm-reservation-option" type="button" data-reservation='${esc(JSON.stringify(item))}'><strong>${esc(item.alojamento)} · ${esc(item.hospede || item.reserva)}</strong><span>${esc(item.reserva)} · ${fmtDate(item.checkin)} - ${fmtDate(item.checkout)}</span></button>`).join('');
+    reservationResultsEl.hidden = false;
+  }
+
+  async function searchReservations() {
+    const query = reservationSearchEl.value.trim();
+    if (query.length < 2) { reservationResultsEl.hidden = true; return; }
+    const response = await fetch(`${reservationUrl}?q=${encodeURIComponent(query)}`, { credentials: 'same-origin', cache: 'no-store' });
+    const payload = await response.json();
+    if (!response.ok || !payload.ok) throw new Error(payload.error || 'Não foi possível procurar reservas.');
+    renderReservationResults(payload.items || []);
+  }
+
+  async function copyMessage(messageId) {
+    const response = await fetch(`${baseUrl}/${encodeURIComponent(messageId)}/render`, {
+      method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reserva: state.reservation || {} }),
+    });
+    const payload = await response.json();
+    if (!response.ok || !payload.ok) throw new Error(payload.error || 'Não foi possível preparar a mensagem.');
+    try { await navigator.clipboard.writeText(payload.message); }
+    catch (_) { const area = document.createElement('textarea'); area.value = payload.message; document.body.append(area); area.select(); document.execCommand('copy'); area.remove(); }
+    toast('Mensagem copiada para a área de transferência.');
+  }
+
+  function openEditor(item = null) {
+    document.getElementById('pmMessageId').value = item?.id || '';
+    document.getElementById('pmTitle').value = item?.titulo || '';
+    document.getElementById('pmCategory').value = item?.categoria || '';
+    document.getElementById('pmOrder').value = item?.ordem || 0;
+    document.getElementById('pmBody').value = item?.mensagem || '';
+    document.getElementById('pmTags').value = item?.tags || '';
+    document.getElementById('pmActive').checked = item?.ativa !== false;
+    document.getElementById('pmMessageModalTitle').textContent = item ? 'Editar mensagem' : 'Nova mensagem';
+    modal.show();
+  }
+
+  async function saveEditor(event) {
+    event.preventDefault();
+    const id = document.getElementById('pmMessageId').value;
+    const body = {
+      titulo: document.getElementById('pmTitle').value,
+      categoria: document.getElementById('pmCategory').value,
+      ordem: document.getElementById('pmOrder').value,
+      mensagem: document.getElementById('pmBody').value,
+      tags: document.getElementById('pmTags').value,
+      ativa: document.getElementById('pmActive').checked,
+    };
+    const response = await fetch(id ? `${baseUrl}/${encodeURIComponent(id)}` : baseUrl, { method: id ? 'PUT' : 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const payload = await response.json();
+    if (!response.ok || !payload.ok) throw new Error(payload.error || 'Não foi possível gravar a mensagem.');
+    modal.hide(); await loadMessages(); toast('Mensagem gravada.');
+  }
+
+  async function deleteMessage(id) {
+    if (!window.confirm('Eliminar esta mensagem?')) return;
+    const response = await fetch(`${baseUrl}/${encodeURIComponent(id)}`, { method: 'DELETE', credentials: 'same-origin' });
+    const payload = await response.json();
+    if (!response.ok || !payload.ok) throw new Error(payload.error || 'Não foi possível eliminar a mensagem.');
+    await loadMessages(); toast('Mensagem eliminada.');
+  }
+
+  messageSearchEl.addEventListener('input', renderCards);
+  reservationSearchEl.addEventListener('input', () => { clearTimeout(state.reservationTimer); state.reservationTimer = setTimeout(() => searchReservations().catch((error) => toast(error.message, 'error')), 220); });
+  reservationResultsEl.addEventListener('click', (event) => { const option = event.target.closest('[data-reservation]'); if (!option) return; showReservation(JSON.parse(option.dataset.reservation)); reservationSearchEl.value = ''; reservationResultsEl.hidden = true; });
+  document.getElementById('pmClearReservation').addEventListener('click', () => showReservation(null));
+  document.getElementById('pmNewMessage').addEventListener('click', () => openEditor());
+  formEl.addEventListener('submit', (event) => saveEditor(event).catch((error) => toast(error.message, 'error')));
+  cardsEl.addEventListener('click', (event) => { const edit = event.target.closest('[data-edit-id]'); const remove = event.target.closest('[data-delete-id]'); const card = event.target.closest('[data-copy-id]'); if (edit) { event.stopPropagation(); openEditor(state.messages.find((item) => item.id === edit.dataset.editId)); } else if (remove) { event.stopPropagation(); deleteMessage(remove.dataset.deleteId).catch((error) => toast(error.message, 'error')); } else if (card) copyMessage(card.dataset.copyId).catch((error) => toast(error.message, 'error')); });
+  cardsEl.addEventListener('keydown', (event) => { if ((event.key === 'Enter' || event.key === ' ') && event.target.matches('[data-copy-id]')) { event.preventDefault(); copyMessage(event.target.dataset.copyId).catch((error) => toast(error.message, 'error')); } });
+  document.addEventListener('click', (event) => { if (!event.target.closest('.pm-search-field')) reservationResultsEl.hidden = true; });
+  loadMessages().catch((error) => { cardsEl.innerHTML = `<div class="pm-empty"><i class="fa-solid fa-triangle-exclamation"></i><strong>${esc(error.message)}</strong></div>`; });
+})();
+</script>
+{% endblock %}

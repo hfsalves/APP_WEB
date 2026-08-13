@@ -671,6 +671,12 @@ def create_app():
     from blueprints.analytics_revpar import bp as analytics_revpar_bp
     app.register_blueprint(analytics_revpar_bp)
 
+    from blueprints.predefined_messages import bp as predefined_messages_bp
+    app.register_blueprint(predefined_messages_bp)
+    from services.predefined_messages_service import ensure_predefined_messages_menu
+    with app.app_context():
+        ensure_predefined_messages_menu()
+
     from blueprints.guestspa_ferias import bp as guestspa_ferias_bp
     app.register_blueprint(guestspa_ferias_bp)
 
