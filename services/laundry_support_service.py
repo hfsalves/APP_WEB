@@ -156,12 +156,46 @@ def _linen_for_cleaning(tipologia: str, lotacao: int, sofa_cama: bool) -> dict[s
     }
 
 
+def _empty_day(key: str) -> dict[str, Any]:
+    return {
+        'data': key,
+        'limpezas': 0,
+        'reservas': 0,
+        'previsoes': 0,
+        'lencois': 0,
+        'capas': 0,
+        'fronhas': 0,
+        'toalhas_rosto': 0,
+        'toalhas_banho': 0,
+        'items': [],
+    }
+
+
+def _accommodation_key(value: Any) -> str:
+    return _text(value).upper()
+
+
 def _scope_sql(lp_cols: frozenset[str], al_cols: frozenset[str], current_feid: int) -> tuple[str, dict[str, int]]:
     if not current_feid or _is_admin():
         return '', {}
     parts: list[str] = []
     if 'FEID' in lp_cols:
         parts.append('ISNULL(LP.FEID, 0) = :current_feid')
+    if 'FEID' in al_cols:
+        parts.append('ISNULL(AL.FEID, 0) = :current_feid')
+    if 'FEID_GESTOR' in al_cols:
+        parts.append('ISNULL(AL.FEID_GESTOR, 0) = :current_feid')
+    if not parts:
+        return '', {}
+    return f"AND ({' OR '.join(parts)})", {'current_feid': current_feid}
+
+
+def _reservation_scope_sql(rs_cols: frozenset[str], al_cols: frozenset[str], current_feid: int) -> tuple[str, dict[str, int]]:
+    if not current_feid or _is_admin():
+        return '', {}
+    parts: list[str] = []
+    if 'FEID' in rs_cols:
+        parts.append('ISNULL(RS.FEID, 0) = :current_feid')
     if 'FEID' in al_cols:
         parts.append('ISNULL(AL.FEID, 0) = :current_feid')
     if 'FEID_GESTOR' in al_cols:
@@ -191,7 +225,9 @@ def laundry_plan(data_ini: date, data_fim: date) -> dict[str, Any]:
     lp_stamp_sql = "LTRIM(RTRIM(ISNULL(LP.LPSTAMP, '')))" if 'LPSTAMP' in lp_cols else "''"
     hour_sql = "LTRIM(RTRIM(ISNULL(LP.HORA, '')))" if 'HORA' in lp_cols else "''"
     finished_sql = 'ISNULL(LP.TERMINADA, 0)' if 'TERMINADA' in lp_cols else '0'
-    scope_sql, scope_params = _scope_sql(lp_cols, al_cols, _current_feid())
+    current_feid = _current_feid()
+    scope_sql, scope_params = _scope_sql(lp_cols, al_cols, current_feid)
+    reservation_scope_sql, reservation_scope_params = _reservation_scope_sql(rs_cols, al_cols, current_feid)
     active_sql = ''
     if 'INATIVO' in al_cols:
         active_sql += ' AND ISNULL(AL.INATIVO, 0) = 0'
@@ -235,6 +271,33 @@ def laundry_plan(data_ini: date, data_fim: date) -> dict[str, Any]:
         **scope_params,
     }).mappings().all()
 
+    if not {'DATAIN', 'ALOJAMENTO'}.issubset(rs_cols):
+        reservation_rows = []
+    else:
+        reservation_rows = db.session.execute(text(f"""
+            SELECT
+                CAST(RS.DATAIN AS date) AS DATA,
+                LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, ''))) AS ALOJAMENTO,
+                LTRIM(RTRIM(ISNULL(AL.TIPOLOGIA, ''))) AS TIPOLOGIA,
+                {lotacao_sql} AS LOTACAO,
+                {rs_code_sql} AS RESERVA,
+                {rs_name_sql} AS HOSPEDE,
+                {rs_sofa_sql} AS SOFACAMA
+            FROM dbo.RS AS RS
+            INNER JOIN dbo.AL AS AL
+              ON UPPER(LTRIM(RTRIM(ISNULL(AL.NOME, '')))) = UPPER(LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, ''))))
+            WHERE CAST(RS.DATAIN AS date) BETWEEN :data_ini AND :data_fim
+              AND LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, ''))) <> ''
+              {cancelled_sql}
+              {active_sql}
+              {reservation_scope_sql}
+            ORDER BY CAST(RS.DATAIN AS date), LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, ''))), {rs_stamp_sql}
+        """), {
+            'data_ini': data_ini,
+            'data_fim': data_fim,
+            **reservation_scope_params,
+        }).mappings().all()
+
     totals = {
         'limpezas': 0,
         'lencois': 0,
@@ -254,16 +317,7 @@ def laundry_plan(data_ini: date, data_fim: date) -> dict[str, Any]:
             bool(_to_int(row.get('SOFACAMA'))),
         )
         key = row_date.isoformat()
-        day = days_by_key.setdefault(key, {
-            'data': key,
-            'limpezas': 0,
-            'lencois': 0,
-            'capas': 0,
-            'fronhas': 0,
-            'toalhas_rosto': 0,
-            'toalhas_banho': 0,
-            'items': [],
-        })
+        day = days_by_key.setdefault(key, _empty_day(key))
         item = {
             'lpstamp': _text(row.get('LPSTAMP')),
             'hora': _text(row.get('HORA')),
@@ -273,6 +327,7 @@ def laundry_plan(data_ini: date, data_fim: date) -> dict[str, Any]:
             'terminada': bool(_to_int(row.get('TERMINADA'))),
             'reserva': _text(row.get('RESERVA')),
             'hospede': _text(row.get('HOSPEDE')),
+            'origem': 'PLANEADA',
             **pieces,
         }
         day['items'].append(item)
@@ -282,9 +337,50 @@ def laundry_plan(data_ini: date, data_fim: date) -> dict[str, Any]:
             day[piece] += pieces[piece]
             totals[piece] += pieces[piece]
 
+    planned_accommodations = {
+        (day_key, _accommodation_key(item.get('alojamento')))
+        for day_key, day in days_by_key.items()
+        for item in day['items']
+        if item.get('origem') == 'PLANEADA'
+    }
+    for row in reservation_rows:
+        row_date = row.get('DATA')
+        if not isinstance(row_date, date):
+            continue
+        key = row_date.isoformat()
+        day = days_by_key.setdefault(key, _empty_day(key))
+        day['reservas'] += 1
+
+        # A limpeza já preparada para este alojamento cobre a roupa da chegada.
+        # Só acrescentamos uma previsão para reservas que ainda não chegaram a LP.
+        accommodation = _text(row.get('ALOJAMENTO'))
+        if (key, _accommodation_key(accommodation)) in planned_accommodations:
+            continue
+        pieces = _linen_for_cleaning(
+            _text(row.get('TIPOLOGIA')),
+            _to_int(row.get('LOTACAO')),
+            bool(_to_int(row.get('SOFACAMA'))),
+        )
+        day['items'].append({
+            'lpstamp': '',
+            'hora': '',
+            'alojamento': accommodation,
+            'tipologia': _text(row.get('TIPOLOGIA')),
+            'lotacao': _to_int(row.get('LOTACAO')),
+            'terminada': False,
+            'reserva': _text(row.get('RESERVA')),
+            'hospede': _text(row.get('HOSPEDE')),
+            'origem': 'PREVISAO',
+            **pieces,
+        })
+        day['previsoes'] += 1
+        for piece in ('lencois', 'capas', 'fronhas', 'toalhas_rosto', 'toalhas_banho'):
+            day[piece] += pieces[piece]
+            totals[piece] += pieces[piece]
+
     return {
         'data_ini': data_ini.isoformat(),
         'data_fim': data_fim.isoformat(),
         'totals': totals,
-        'days': list(days_by_key.values()),
+        'days': [days_by_key[key] for key in sorted(days_by_key)],
     }

@@ -20,7 +20,7 @@ def laundry_support_page():
         ensure_laundry_support_menu()
     except Exception:
         db.session.rollback()
-    return render_template('laundry_support.html', page_title='Apoio à Lavandaria')
+    return render_template('laundry_support.html', page_title='Lavandaria')
 
 
 @bp.route('/api/apoio-lavandaria')

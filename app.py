@@ -26248,6 +26248,7 @@ def create_app():
             ensure_dashboard_links_for_user(getattr(current_user, 'USSTAMP', ''))
             _ensure_gr_management_summary_widget_for_current_user()
             _ensure_obra_360_search_widget_for_current_user()
+            _ensure_all_dashboard_widgets_for_current_admin()
         except Exception:
             db.session.rollback()
             app.logger.exception('Erro ao preparar Dashboard Links.')
@@ -26839,6 +26840,59 @@ def create_app():
                 CREATE INDEX IX_CONTRATO_CADASTRO_CONTRATOSTAMP
                 ON dbo.CONTRATO_CADASTRO (CONTRATOSTAMP, DTCRI DESC)
         """))
+        db.session.commit()
+
+    def _ensure_all_dashboard_widgets_for_current_admin():
+        """Assign every active GR360 widget to administrators without showing it.
+
+        This keeps the normal add/remove and layout controls in charge while
+        ensuring an administrator can always select any active widget.
+        """
+        from services.obra_360_service import is_gr360_hub_context
+
+        if not bool(getattr(current_user, 'ADMIN', False)) or not is_gr360_hub_context():
+            return
+
+        login = str(getattr(current_user, 'LOGIN', '') or '').strip()
+        if not login:
+            return
+
+        next_order = db.session.execute(text("""
+            SELECT ISNULL(MAX(ISNULL(ORDEM, 0)), 0) + 10
+            FROM dbo.USWIDGETS
+            WHERE LTRIM(RTRIM(ISNULL(UTILIZADOR, ''))) = :utilizador
+        """), {'utilizador': login}).scalar() or 10
+        widget_names = db.session.execute(text("""
+            SELECT LTRIM(RTRIM(ISNULL(NOME, ''))) AS NOME
+            FROM dbo.WIDGETS
+            WHERE ISNULL(ATIVO, 1) = 1
+              AND LTRIM(RTRIM(ISNULL(NOME, ''))) <> ''
+            ORDER BY ISNULL(TITULO, ''), NOME
+        """)).scalars().all()
+
+        for index, raw_name in enumerate(widget_names):
+            widget_name = str(raw_name or '').strip()
+            if not widget_name:
+                continue
+            assigned = db.session.execute(text("""
+                SELECT TOP 1 1
+                FROM dbo.USWIDGETS
+                WHERE LTRIM(RTRIM(ISNULL(UTILIZADOR, ''))) = :utilizador
+                  AND LTRIM(RTRIM(ISNULL(WIDGET, ''))) = :widget
+            """), {'utilizador': login, 'widget': widget_name}).first()
+            if assigned:
+                continue
+            db.session.execute(text("""
+                INSERT INTO dbo.USWIDGETS
+                    (USWIDGETSSTAMP, UTILIZADOR, WIDGET, COLUNA, ORDEM, VISIVEL, MAXHEIGHT)
+                VALUES
+                    (:stamp, :utilizador, :widget, 1, :ordem, 0, 0)
+            """), {
+                'stamp': uuid.uuid4().hex.upper()[:25],
+                'utilizador': login,
+                'widget': widget_name,
+                'ordem': int(next_order) + (index * 10),
+            })
         db.session.commit()
 
     def _contratos_stamp():
@@ -28525,6 +28579,7 @@ def create_app():
             ensure_dashboard_links_for_user(getattr(current_user, 'USSTAMP', ''))
             _ensure_gr_management_summary_widget_for_current_user()
             _ensure_obra_360_search_widget_for_current_user()
+            _ensure_all_dashboard_widgets_for_current_admin()
         except Exception:
             db.session.rollback()
             app.logger.exception('Erro ao preparar Dashboard Links.')

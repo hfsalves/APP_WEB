@@ -1,12 +1,12 @@
 {% extends "base.html" %}
-{% block title %}Apoio à Lavandaria{% endblock %}
+{% block title %}Lavandaria{% endblock %}
 
 {% block content %}
 <div class="sz_page laundry-page">
   <div class="sz_page_container laundry-container">
     <header class="sz_contextbar sz_page_contextbar laundry-contextbar">
       <div class="sz_contextbar_left laundry-contextbar-left">
-        <div class="sz_page_title">Apoio à Lavandaria</div>
+        <div class="sz_page_title">Lavandaria</div>
         <div class="sz_page_subtitle">Estimativa de roupa por limpezas planeadas e reserva de check-in.</div>
       </div>
       <div class="sz_contextbar_right laundry-contextbar-right">
@@ -39,54 +39,118 @@
   </div>
 </div>
 
+<div class="modal fade" id="laundryDayModal" tabindex="-1" aria-labelledby="laundryDayModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content laundry-modal-content">
+      <div class="modal-header laundry-modal-header">
+        <div class="laundry-modal-heading">
+          <h5 class="modal-title" id="laundryDayModalTitle">Limpezas planeadas</h5>
+          <div id="laundryDayModalSubtitle" class="laundry-modal-subtitle"></div>
+        </div>
+        <button type="button" class="sz_icon_button laundry-modal-close" data-bs-dismiss="modal" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div id="laundryDayModalKpis" class="laundry-modal-kpis"></div>
+      <div class="modal-body p-0">
+        <div class="laundry-table-wrap">
+          <table class="laundry-table laundry-modal-table">
+            <thead><tr>
+              <th>Origem</th><th>Hora</th><th>Alojamento</th><th>Reserva / hóspede</th><th>Camas</th><th>Roupa</th>
+            </tr></thead>
+            <tbody id="laundryDayModalRows"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <style>
-  .laundry-page { min-height: 100%; padding: var(--sz-space-3) var(--sz-space-4); background: var(--sz-color-bg-main); }
-  .laundry-container { display: flex; flex-direction: column; gap: var(--sz-space-3); min-width: 0; }
-  .laundry-contextbar { align-items: center; gap: var(--sz-space-3); }
-  .laundry-contextbar-left { flex: 1 1 auto; min-width: 14rem; }
-  .laundry-contextbar-right { flex: 0 0 auto; display: flex; align-items: flex-end; justify-content: flex-end; gap: var(--sz-space-2); }
-  .laundry-date-field { width: 9.8rem; }
+  .laundry-page { height: auto; min-height: 100%; overflow: visible; padding: var(--sz-space-3) var(--sz-space-4); background: var(--sz-color-bg-main); }
+  .laundry-container { height: auto; min-height: 100%; display: flex; flex-direction: column; gap: var(--sz-space-3); min-width: 0; }
+  .laundry-contextbar { align-items: center; flex-wrap: nowrap; gap: var(--sz-space-3); }
+  .laundry-contextbar-left { flex: 0 1 29rem; width: auto; min-width: 14rem; max-width: 40%; }
+  .laundry-contextbar-right { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: row; flex-wrap: nowrap; align-items: flex-end; justify-content: flex-end; gap: var(--sz-space-2); }
+  .laundry-date-field { flex: 0 0 9.8rem; width: 9.8rem; }
   .laundry-date-field .sz_input { width: 100%; }
   .laundry-kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--sz-space-2); }
   .laundry-kpi { min-height: 4.6rem; display: flex; flex-direction: column; justify-content: center; gap: .2rem; padding: .7rem .85rem; border: 1px solid var(--sz-color-border); border-radius: var(--sz-radius-md); background: var(--sz-color-surface); }
   .laundry-kpi span { color: var(--sz-color-text-muted); font-size: var(--sz-font-size-xs); font-weight: 700; text-transform: uppercase; }
   .laundry-kpi strong { color: var(--sz-color-text); font-size: 1.35rem; line-height: 1; text-align: right; font-variant-numeric: tabular-nums; }
-  .laundry-days { display: grid; gap: var(--sz-space-3); align-content: start; min-width: 0; }
-  .laundry-day { overflow: hidden; border: 1px solid var(--sz-color-border); border-radius: var(--sz-radius-md); background: var(--sz-color-surface); }
-  .laundry-day-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sz-space-3); padding: .8rem 1rem; border-bottom: 1px solid var(--sz-color-border); }
-  .laundry-day-title { display: flex; flex-direction: column; gap: .15rem; }
-  .laundry-day-title strong { font-size: var(--sz-font-size-md); }
-  .laundry-day-title span { color: var(--sz-color-text-muted); font-size: var(--sz-font-size-sm); }
-  .laundry-day-totals { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .35rem .75rem; color: var(--sz-color-text-muted); font-size: var(--sz-font-size-sm); }
-  .laundry-day-totals b { color: var(--sz-color-text); font-variant-numeric: tabular-nums; }
+  .laundry-days { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--sz-space-2); align-content: start; min-width: 0; }
+  .laundry-day { min-height: 15rem; display: flex; flex-direction: column; padding: 0; overflow: hidden; border: 1px solid var(--sz-color-border); border-radius: var(--sz-radius-md); background: var(--sz-color-surface); color: var(--sz-color-text); text-align: left; cursor: pointer; transition: border-color .16s ease, background .16s ease; }
+  .laundry-day:hover { border-color: var(--sz-color-primary); background: color-mix(in srgb, var(--sz-color-primary) 5%, var(--sz-color-surface)); }
+  .laundry-day:focus-visible { outline: 2px solid var(--sz-color-primary); outline-offset: 2px; }
+  .laundry-day-head { min-height: 5.5rem; display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .8rem .9rem; border-bottom: 1px solid var(--sz-color-border); }
+  .laundry-day-date { min-width: 0; display: flex; align-items: center; gap: .55rem; }
+  .laundry-day-number { color: var(--sz-color-text); font-size: 2rem; font-weight: var(--sz-font-weight-bold); line-height: .92; font-variant-numeric: tabular-nums; }
+  .laundry-day-date-copy { min-width: 0; display: flex; flex-direction: column; gap: .1rem; }
+  .laundry-day-title { color: var(--sz-color-text-muted); font-size: var(--sz-font-size-xs); font-weight: 700; line-height: 1.2; text-transform: uppercase; }
+  .laundry-day-month { color: var(--sz-color-text); font-size: var(--sz-font-size-sm); font-weight: var(--sz-font-weight-semibold); white-space: nowrap; }
+  .laundry-day-activity { display: flex; flex-direction: column; align-items: flex-end; gap: .12rem; color: var(--sz-color-text-muted); font-size: var(--sz-font-size-xs); text-align: right; white-space: nowrap; }
+  .laundry-day-activity b { color: var(--sz-color-text); font-size: var(--sz-font-size-sm); font-variant-numeric: tabular-nums; }
+  .laundry-day-forecast { color: var(--sz-color-primary); font-weight: 700; }
+  .laundry-day-pieces { display: flex; flex-direction: column; gap: 0; padding: .5rem .9rem .75rem; }
+  .laundry-piece { display: flex; align-items: center; justify-content: space-between; min-height: 1.8rem; gap: .75rem; border-bottom: 1px solid color-mix(in srgb, var(--sz-color-border) 70%, transparent); color: var(--sz-color-text-muted); font-size: var(--sz-font-size-sm); }
+  .laundry-piece:last-child { border-bottom: 0; }
+  .laundry-piece b { color: var(--sz-color-text); font-size: 1.05rem; line-height: 1; font-variant-numeric: tabular-nums; }
   .laundry-table-wrap { overflow-x: auto; }
-  .laundry-table { width: 100%; min-width: 53rem; border-collapse: collapse; }
+  .laundry-table { width: 100%; min-width: 44rem; border-collapse: collapse; }
   .laundry-table th, .laundry-table td { padding: .62rem .75rem; border-bottom: 1px solid var(--sz-color-border); white-space: nowrap; }
   .laundry-table tr:last-child td { border-bottom: 0; }
   .laundry-table th { color: var(--sz-color-text-muted); background: color-mix(in srgb, var(--sz-color-surface) 88%, var(--sz-color-bg-main)); font-size: var(--sz-font-size-xs); font-weight: 700; text-align: left; text-transform: uppercase; }
   .laundry-table td { color: var(--sz-color-text); font-size: var(--sz-font-size-sm); }
   .laundry-table .laundry-number { text-align: right; font-variant-numeric: tabular-nums; }
   .laundry-table .laundry-accommodation { font-weight: 700; }
-  .laundry-reservation { display: flex; flex-direction: column; gap: .12rem; min-width: 9rem; }
+  .laundry-reservation { display: flex; flex-direction: column; gap: .12rem; min-width: 10rem; }
   .laundry-reservation small { color: var(--sz-color-text-muted); overflow: hidden; text-overflow: ellipsis; }
-  .laundry-sofa { color: var(--sz-color-primary); font-weight: 700; }
-  .laundry-empty { min-height: 15rem; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .65rem; border: 1px dashed var(--sz-color-border); border-radius: var(--sz-radius-md); color: var(--sz-color-text-muted); }
+  .laundry-origin { color: var(--sz-color-text-muted); font-size: var(--sz-font-size-xs); font-weight: 700; text-transform: uppercase; }
+  .laundry-origin.is-forecast { color: var(--sz-color-primary); }
+  .laundry-modal-content { overflow: hidden; border-color: var(--sz-color-border); border-radius: var(--sz-radius-lg); background: var(--sz-color-surface); color: var(--sz-color-text); }
+  .laundry-modal-header { display: flex; align-items: flex-start; gap: 1rem; padding: 1rem 1.25rem .8rem; border-color: var(--sz-color-border); background: color-mix(in srgb, var(--sz-color-surface) 92%, var(--sz-color-bg-main)); }
+  .laundry-modal-heading { min-width: 0; }
+  .laundry-modal-content .modal-title { color: var(--sz-color-text); font-size: 1.25rem; }
+  .laundry-modal-subtitle { margin-top: .25rem; color: var(--sz-color-text-muted); font-size: var(--sz-font-size-sm); }
+  .laundry-modal-close { width: 2rem; height: 2rem; min-width: 2rem; min-height: 2rem; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 1px solid var(--sz-color-border); border-radius: var(--sz-radius-sm); background: transparent; color: var(--sz-color-text-muted); }
+  .laundry-modal-close:hover { border-color: var(--sz-color-primary); color: var(--sz-color-primary); }
+  .laundry-modal-kpis { display: flex; flex-wrap: wrap; gap: .45rem; padding: .75rem 1.25rem; border-bottom: 1px solid var(--sz-color-border); background: var(--sz-color-surface); }
+  .laundry-modal-kpi { display: inline-flex; align-items: baseline; gap: .35rem; padding: .35rem .55rem; border: 1px solid var(--sz-color-border); border-radius: var(--sz-radius-sm); color: var(--sz-color-text-muted); font-size: var(--sz-font-size-xs); }
+  .laundry-modal-kpi b { color: var(--sz-color-text); font-size: var(--sz-font-size-sm); font-variant-numeric: tabular-nums; }
+  .laundry-modal-kpi.is-forecast b { color: var(--sz-color-primary); }
+  .laundry-modal-table th { position: sticky; top: 0; z-index: 1; }
+  .laundry-modal-table td { vertical-align: middle; }
+  .laundry-modal-table tbody tr:hover { background: color-mix(in srgb, var(--sz-color-primary) 4%, transparent); }
+  .laundry-modal-accommodation { display: flex; flex-direction: column; gap: .12rem; min-width: 9rem; }
+  .laundry-modal-accommodation strong { color: var(--sz-color-text); }
+  .laundry-modal-accommodation small { color: var(--sz-color-text-muted); font-size: var(--sz-font-size-xs); }
+  .laundry-bed-summary { display: flex; flex-direction: column; gap: .1rem; color: var(--sz-color-text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .laundry-bed-summary small { color: var(--sz-color-text-muted); font-size: var(--sz-font-size-xs); }
+  .laundry-linen-summary { display: flex; gap: .25rem; min-width: 11rem; }
+  .laundry-linen-summary span { display: inline-flex; align-items: baseline; gap: .13rem; min-width: 1.75rem; color: var(--sz-color-text-muted); font-size: var(--sz-font-size-xs); }
+  .laundry-linen-summary b { color: var(--sz-color-text); font-size: var(--sz-font-size-sm); font-variant-numeric: tabular-nums; }
+  .laundry-empty { grid-column: 1 / -1; min-height: 15rem; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .65rem; border: 1px dashed var(--sz-color-border); border-radius: var(--sz-radius-md); color: var(--sz-color-text-muted); }
   .laundry-empty i { font-size: 1.75rem; }
   .laundry-error { color: var(--sz-color-danger, #dc5a7b); }
   @media (max-width: 1050px) {
     .laundry-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .laundry-contextbar { align-items: stretch; flex-wrap: wrap; }
+    .laundry-contextbar-left { flex: 1 1 100%; max-width: none; }
+    .laundry-contextbar-right { flex: 1 1 auto; }
+    .laundry-days { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   }
+  @media (max-width: 820px) { .laundry-days { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   @media (max-width: 720px) {
     .laundry-page { padding: var(--sz-space-2); }
-    .laundry-contextbar { align-items: stretch; flex-wrap: wrap; }
-    .laundry-contextbar-left { flex-basis: 100%; }
-    .laundry-contextbar-right { width: 100%; display: grid; grid-template-columns: 1fr 1fr; align-items: end; }
+    .laundry-contextbar { align-items: stretch; flex-direction: column; flex-wrap: nowrap; }
+    .laundry-contextbar-left { flex: 0 0 auto; width: 100%; max-width: 100%; }
+    .laundry-contextbar-right { flex: 0 0 auto; width: 100%; max-width: 100%; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: end; justify-content: stretch; }
     .laundry-date-field { width: auto; }
+    .laundry-date-field .sz_input { min-width: 0; }
     .laundry-contextbar-right .sz_button { grid-column: 1 / -1; justify-content: center; }
     .laundry-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .laundry-kpi { min-height: 4.1rem; }
-    .laundry-day-head { align-items: flex-start; flex-direction: column; }
-    .laundry-day-totals { justify-content: flex-start; }
+    .laundry-days { grid-template-columns: 1fr; }
+    .laundry-modal-header { padding: .9rem 1rem .7rem; }
+    .laundry-modal-kpis { padding: .65rem 1rem; }
   }
 </style>
 
@@ -97,6 +161,11 @@
       end: document.getElementById('laundryEnd'),
       refresh: document.getElementById('laundryRefresh'),
       days: document.getElementById('laundryDays'),
+      modal: document.getElementById('laundryDayModal'),
+      modalTitle: document.getElementById('laundryDayModalTitle'),
+      modalSubtitle: document.getElementById('laundryDayModalSubtitle'),
+      modalKpis: document.getElementById('laundryDayModalKpis'),
+      modalRows: document.getElementById('laundryDayModalRows'),
       totals: {
         limpezas: document.getElementById('laundryTotalCleanings'),
         lencois: document.getElementById('laundryTotalSheets'),
@@ -111,6 +180,8 @@
     const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
     const toIso = (value) => value.toISOString().slice(0, 10);
     const parseDate = (value) => new Date(`${value}T12:00:00`);
+    const weekdays = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'];
+    let plannedDays = [];
 
     function defaultDates() {
       const today = new Date();
@@ -126,51 +197,75 @@
       });
     }
 
-    function dayTotals(day) {
+    function dayPieces(day) {
       return `
-        <span>Lençóis <b>${number.format(day.lencois)}</b></span>
-        <span>Capas <b>${number.format(day.capas)}</b></span>
-        <span>Fronhas <b>${number.format(day.fronhas)}</b></span>
-        <span>Rosto <b>${number.format(day.toalhas_rosto)}</b></span>
-        <span>Banho <b>${number.format(day.toalhas_banho)}</b></span>`;
+        <span class="laundry-piece">Lençóis <b>${number.format(day.lencois)}</b></span>
+        <span class="laundry-piece">Capas <b>${number.format(day.capas)}</b></span>
+        <span class="laundry-piece">Fronhas <b>${number.format(day.fronhas)}</b></span>
+        <span class="laundry-piece">Toalhas rosto <b>${number.format(day.toalhas_rosto)}</b></span>
+        <span class="laundry-piece">Toalhas banho <b>${number.format(day.toalhas_banho)}</b></span>`;
+    }
+
+    function daySummary(day) {
+      const cleanings = `${number.format(day.limpezas)} limpeza${Number(day.limpezas) === 1 ? '' : 's'} planeada${Number(day.limpezas) === 1 ? '' : 's'}`;
+      const reservations = Number(day.reservas) ? ` de ${number.format(day.reservas)} reserva${Number(day.reservas) === 1 ? '' : 's'}` : '';
+      const forecastLabel = Number(day.previsoes) === 1 ? 'previsão' : 'previsões';
+      const forecasts = Number(day.previsoes) ? ` · ${number.format(day.previsoes)} ${forecastLabel} de roupa` : '';
+      return `${cleanings}${reservations}${forecasts}`;
     }
 
     function renderDays(days) {
       if (!days?.length) {
-        fields.days.innerHTML = '<section class="laundry-empty"><i class="fa-solid fa-shirt" aria-hidden="true"></i><strong>Não existem limpezas planeadas neste período.</strong></section>';
+        fields.days.innerHTML = '<section class="laundry-empty"><i class="fa-solid fa-shirt" aria-hidden="true"></i><strong>Não existem limpezas planeadas nem reservas com check-in neste período.</strong></section>';
         return;
       }
       fields.days.innerHTML = days.map((day) => `
-        <section class="laundry-day">
-          <header class="laundry-day-head">
-            <div class="laundry-day-title">
-              <strong>${escapeHtml(dateFormat.format(parseDate(day.data)))}</strong>
-              <span>${number.format(day.limpezas)} limpeza${Number(day.limpezas) === 1 ? '' : 's'} planeada${Number(day.limpezas) === 1 ? '' : 's'}</span>
-            </div>
-            <div class="laundry-day-totals">${dayTotals(day)}</div>
-          </header>
-          <div class="laundry-table-wrap">
-            <table class="laundry-table">
-              <thead><tr>
-                <th>Hora</th><th>Alojamento</th><th>Tipologia</th><th>Lotação</th><th>Reserva check-in</th>
-                <th class="laundry-number">Camas</th><th class="laundry-number">Sofá-cama</th><th class="laundry-number">Lençóis</th>
-                <th class="laundry-number">Capas</th><th class="laundry-number">Fronhas</th><th class="laundry-number">Rosto</th><th class="laundry-number">Banho</th>
-              </tr></thead>
-              <tbody>${day.items.map((item) => `
-                <tr>
-                  <td>${escapeHtml(item.hora || '-')}</td>
-                  <td class="laundry-accommodation">${escapeHtml(item.alojamento)}</td>
-                  <td>${escapeHtml(item.tipologia || '-')}</td>
-                  <td class="laundry-number">${item.lotacao ? number.format(item.lotacao) : '-'}</td>
-                  <td><div class="laundry-reservation"><strong>${escapeHtml(item.reserva || 'Sem check-in')}</strong>${item.hospede ? `<small>${escapeHtml(item.hospede)}</small>` : ''}</div></td>
-                  <td class="laundry-number">${number.format(item.camas)}</td>
-                  <td class="laundry-number ${item.sofa_cama ? 'laundry-sofa' : ''}">${number.format(item.sofa_cama)}</td>
-                  <td class="laundry-number">${number.format(item.lencois)}</td><td class="laundry-number">${number.format(item.capas)}</td>
-                  <td class="laundry-number">${number.format(item.fronhas)}</td><td class="laundry-number">${number.format(item.toalhas_rosto)}</td><td class="laundry-number">${number.format(item.toalhas_banho)}</td>
-                </tr>`).join('')}</tbody>
-            </table>
-          </div>
-        </section>`).join('');
+        <button class="laundry-day" type="button" data-laundry-day="${escapeHtml(day.data)}" aria-label="Abrir limpezas de ${escapeHtml(dateFormat.format(parseDate(day.data)))}">
+          <span class="laundry-day-head">
+            <span class="laundry-day-date">
+              <span class="laundry-day-number">${parseDate(day.data).getDate()}</span>
+              <span class="laundry-day-date-copy">
+                <span class="laundry-day-title">${weekdays[parseDate(day.data).getDay()]}</span>
+                <span class="laundry-day-month">${day.data.slice(8, 10)}/${day.data.slice(5, 7)}/${day.data.slice(0, 4)}</span>
+              </span>
+            </span>
+            <span class="laundry-day-activity">
+              <span><b>${number.format(day.limpezas)}</b> planeadas</span>
+              <span><b>${number.format(day.reservas || 0)}</b> reservas</span>
+              <span class="laundry-day-forecast">${Number(day.previsoes) ? `${number.format(day.previsoes)} a prever` : '&nbsp;'}</span>
+            </span>
+          </span>
+          <span class="laundry-day-pieces">${dayPieces(day)}</span>
+        </button>`).join('');
+      fields.days.querySelectorAll('[data-laundry-day]').forEach((card) => {
+        card.addEventListener('click', () => openDayModal(plannedDays.find((day) => day.data === card.dataset.laundryDay)));
+      });
+    }
+
+    function openDayModal(day) {
+      if (!day) return;
+      fields.modalTitle.textContent = dateFormat.format(parseDate(day.data));
+      fields.modalSubtitle.textContent = daySummary(day);
+      fields.modalKpis.innerHTML = [
+        ['Limpezas', day.limpezas],
+        ['Reservas', day.reservas || 0],
+        ['A prever', day.previsoes || 0, 'is-forecast'],
+        ['Lençóis', day.lencois],
+        ['Capas', day.capas],
+        ['Fronhas', day.fronhas],
+        ['Rosto', day.toalhas_rosto],
+        ['Banho', day.toalhas_banho],
+      ].map(([label, value, extraClass = '']) => `<span class="laundry-modal-kpi ${extraClass}"><b>${number.format(value)}</b>${label}</span>`).join('');
+      fields.modalRows.innerHTML = day.items.map((item) => `
+        <tr>
+          <td><span class="laundry-origin ${item.origem === 'PREVISAO' ? 'is-forecast' : ''}">${item.origem === 'PREVISAO' ? 'Previsão' : 'Planeada'}</span></td>
+          <td>${escapeHtml(item.hora || '-')}</td>
+          <td><span class="laundry-modal-accommodation"><strong>${escapeHtml(item.alojamento)}</strong><small>${escapeHtml(item.tipologia || '-')} · Lotação ${item.lotacao ? number.format(item.lotacao) : '-'}</small></span></td>
+          <td><div class="laundry-reservation"><strong>${escapeHtml(item.reserva || 'Sem check-in')}</strong>${item.hospede ? `<small>${escapeHtml(item.hospede)}</small>` : ''}</div></td>
+          <td><span class="laundry-bed-summary"><span>${number.format(item.camas)} cama${Number(item.camas) === 1 ? '' : 's'}</span><small>${number.format(item.sofa_cama)} sofá-cama</small></span></td>
+          <td><span class="laundry-linen-summary"><span>L <b>${number.format(item.lencois)}</b></span><span>C <b>${number.format(item.capas)}</b></span><span>F <b>${number.format(item.fronhas)}</b></span><span>R <b>${number.format(item.toalhas_rosto)}</b></span><span>B <b>${number.format(item.toalhas_banho)}</b></span></span></td>
+        </tr>`).join('');
+      window.bootstrap?.Modal.getOrCreateInstance(fields.modal).show();
     }
 
     async function load() {
@@ -182,9 +277,11 @@
         const data = await response.json();
         if (!response.ok || !data.ok) throw new Error(data.error || 'Não foi possível carregar o plano de lavandaria.');
         setTotals(data.totals);
-        renderDays(data.days);
+        plannedDays = data.days || [];
+        renderDays(plannedDays);
       } catch (error) {
         setTotals({});
+        plannedDays = [];
         fields.days.innerHTML = `<section class="laundry-empty laundry-error"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><strong>${escapeHtml(error.message)}</strong></section>`;
       } finally {
         fields.refresh.disabled = false;
@@ -192,9 +289,19 @@
     }
 
     defaultDates();
+    let dateInputTimer = null;
+    function refreshAfterDateInput() {
+      window.clearTimeout(dateInputTimer);
+      dateInputTimer = window.setTimeout(() => {
+        if (fields.start.value && fields.end.value) load();
+      }, 350);
+    }
+
     fields.refresh.addEventListener('click', load);
     fields.start.addEventListener('change', load);
     fields.end.addEventListener('change', load);
+    fields.start.addEventListener('input', refreshAfterDateInput);
+    fields.end.addEventListener('input', refreshAfterDateInput);
     load();
   })();
 </script>

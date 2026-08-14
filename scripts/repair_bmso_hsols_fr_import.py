@@ -95,9 +95,13 @@ def imported_delivery_notes(cursor) -> list[str]:
         """
         SELECT B.BOSTAMP
         FROM dbo.BO B
+        LEFT JOIN dbo.BO3 B3 ON B3.BO3STAMP = B.BOSTAMP
         WHERE B.NO = ? AND B.NDOS = ?
           AND B.OBRANO BETWEEN ? AND ?
-          AND LTRIM(RTRIM(ISNULL(B.FREF, ''))) LIKE 'B4-%'
+          AND (
+              LTRIM(RTRIM(ISNULL(B.FREF, ''))) LIKE 'B4-%'
+              OR LTRIM(RTRIM(ISNULL(B3.DOCUMENTNUMBERORI, ''))) LIKE 'B4-%'
+          )
         """,
         (SUPPLIER_NO, BL_NDOS, IMPORTED_BL_MIN, IMPORTED_DOC_MAX),
     )
@@ -109,9 +113,9 @@ def repair_headers_and_lines(
 ) -> tuple[int, int, int]:
     """Repair only the PF documents selected before any values are cleared.
 
-    In this PHC screen ``BO.FREF`` is rendered in the field labelled
-    *Equipe*. A PF must leave both fields blank. A BL must leave FREF blank
-    and retain the B4 number in ``BO3.DOCUMENTNUMBERORI`` (Nº Document).
+    PF and BL use different screen mappings. A PF must leave both fields
+    blank. For BL the B4 number belongs in FREF (Nº Document), while
+    DOCUMENTNUMBERORI feeds the field labelled Equipe.
     """
     stamps = [str(document["BOSTAMP"] or "").strip() for document in documents]
     stamps = [stamp for stamp in stamps if stamp]
@@ -133,13 +137,22 @@ def repair_headers_and_lines(
         placeholders_bl = ", ".join("?" for _ in bl_stamps)
         cursor.execute(
             f"""
-            UPDATE B SET FREF = ''
+            UPDATE B SET FREF = ISNULL(B3.DOCUMENTNUMBERORI, '')
             FROM dbo.BO B
+            INNER JOIN dbo.BO3 B3 ON B3.BO3STAMP = B.BOSTAMP
             WHERE B.BOSTAMP IN ({placeholders_bl})
             """,
             bl_stamps,
         )
         bl_headers = cursor.rowcount
+        cursor.execute(
+            f"""
+            UPDATE B3 SET DOCUMENTNUMBERORI = ''
+            FROM dbo.BO3 B3
+            WHERE B3.BO3STAMP IN ({placeholders_bl})
+            """,
+            bl_stamps,
+        )
     cursor.execute(
         f"""
         UPDATE B3 SET DOCUMENTNUMBERORI = ''
