@@ -7,7 +7,7 @@ BI.OBISTAMP: BC line -> BL line -> pre-invoice line.
 
 The script is deliberately dry-run by default.  Use --execute only after the
 validation summary is clean.  Re-running is safe: pre-invoices are identified
-by their external invoice number in BO.FREF / BO3.DOCUMENTNUMBERORI.
+by their external invoice number in BO.FREF.
 """
 
 from __future__ import annotations
@@ -36,7 +36,6 @@ from modules.gr_subcontractor_measurements.service import (  # noqa: E402
     _new_stamp,
     _phc_columns,
     _phc_conn_str,
-    _phc_insert,
     _phc_value,
 )
 
@@ -52,10 +51,32 @@ PF_NAME = "Pré-Facture"
 ZERO = Decimal("0")
 QTY_STEP = Decimal("0.0001")
 MONEY_STEP = Decimal("0.01")
+_TABLE_COLUMNS: dict[str, set[str]] = {}
 
 
 class ImportError(Exception):
     pass
+
+
+def _phc_insert(cursor, table_name: str, values: dict[str, Any]) -> dict[str, Any]:
+    """Cached version of the shared PHC insert helper.
+
+    This import has thousands of lines. Looking up INFORMATION_SCHEMA for every
+    individual insert makes a correct import needlessly slow and risks a client
+    timeout before the transaction can finish.
+    """
+    columns = _TABLE_COLUMNS.get(table_name)
+    if columns is None:
+        columns = _phc_columns(cursor, table_name)
+        _TABLE_COLUMNS[table_name] = columns
+    filtered = {key: value for key, value in values.items() if key.lower() in columns}
+    if not filtered:
+        raise ImportError(f"Sem colunas válidas para inserir em {table_name}.")
+    cursor.execute(
+        f"INSERT INTO dbo.{table_name} ({', '.join(filtered)}) VALUES ({', '.join('?' for _ in filtered)})",
+        tuple(filtered.values()),
+    )
+    return filtered
 
 
 def text(value: Any) -> str:
@@ -160,7 +181,7 @@ def load_source(cursor, bcs: set[int]) -> tuple[dict[int, dict[str, Any]], list[
         SELECT B.OBRANO, B.BOSTAMP, B.BOANO, B.DATAOBRA, B.CCUSTO, B.FREF,
                B.MOEDA, B.NO, B.NOME, B.NCONT, B.MORADA, B.LOCAL, B.CODPOST, B.ESTAB,
                B.FECHADA
-        FROM dbo.BO B WITH (UPDLOCK, HOLDLOCK)
+        FROM dbo.BO B
         WHERE B.NDOS = {BC_NDOS} AND B.NO = ? AND B.OBRANO IN ({placeholders})
     """, tuple([SUPPLIER_NO, *sorted(bcs)]))
     by_bc = {int(dec(row["OBRANO"])): row for row in headers}
@@ -173,8 +194,8 @@ def load_source(cursor, bcs: set[int]) -> tuple[dict[int, dict[str, Any]], list[
 
     lines = fetch_dicts(cursor, f"""
         SELECT I.*, I2.QTTCOMPRA, I2.QTTENC
-        FROM dbo.BI I WITH (UPDLOCK, HOLDLOCK)
-        LEFT JOIN dbo.BI2 I2 WITH (UPDLOCK, HOLDLOCK) ON I2.BI2STAMP = I.BISTAMP
+        FROM dbo.BI I
+        LEFT JOIN dbo.BI2 I2 ON I2.BI2STAMP = I.BISTAMP
         WHERE I.NDOS = {BC_NDOS} AND I.BOSTAMP IN ({','.join('?' for _ in by_bc)})
         ORDER BY I.BOSTAMP, I.LORDEM, I.BISTAMP
     """, tuple(row["BOSTAMP"] for row in by_bc.values()))
@@ -287,8 +308,13 @@ def insert_header(cursor, stamp: str, ndos: int, name: str, number: int, doc_dat
         "armazem": 1, "ousrinis": "APP", "ousrdata": now, "ousrhora": hour,
         "usrinis": "APP", "usrdata": now, "usrhora": hour,
     })
+    # PHC presents BO3.DOCUMENTNUMBERORI in the "Equipe" field of these
+    # dossiers.  Native PF do not populate it; BL mirror their external BL
+    # reference here.  The invoice number remains only in BO.FREF for safe
+    # idempotence of this import.
+    document_number = external_ref[:60] if ndos == BL_NDOS else ""
     _phc_insert(cursor, "BO3", {
-        "bo3stamp": stamp, "documentnumberori": external_ref[:60], "arquivadodigital": 0,
+        "bo3stamp": stamp, "documentnumberori": document_number, "arquivadodigital": 0,
         "ousrinis": "APP", "ousrdata": now, "ousrhora": hour,
         "usrinis": "APP", "usrdata": now, "usrhora": hour,
     })
@@ -331,14 +357,20 @@ def insert_line(cursor, *, header_stamp: str, ndos: int, name: str, number: int,
         "ousrinis": "APP", "ousrdata": now, "ousrhora": hour,
         "usrinis": "APP", "usrdata": now, "usrhora": hour,
     }
-    if pf_number is not None:
+    if ndos == PF_NDOS:
+        # Match PHC-created pre-invoices. This lets the UI recognise the
+        # pending supplier-invoice movement instead of showing an orphan line.
+        values["ndoc"] = 55
+        values["nmdoc"] = "V/Facture"
+        values["fno"] = 0
+    elif pf_number is not None:
         values["ndoc"] = PF_NDOS
         values["nmdoc"] = PF_NAME
         values["fno"] = pf_number
     _phc_insert(cursor, "BI", values)
     _phc_insert(cursor, "BI2", {
         "bi2stamp": stamp, "bostamp": header_stamp, "fnstamp": "", "fodocnome": "", "foadoc": "",
-        "fistamp": "", "origbistamp": parent_bistamp, "qttcompra": line_qty if ndos == BL_NDOS else ZERO,
+        "fistamp": "", "origbistamp": "" if ndos == PF_NDOS else parent_bistamp,
         "qttenc": line_qty if ndos == BL_NDOS else ZERO,
         "ousrinis": "APP", "ousrdata": now, "ousrhora": hour,
         "usrinis": "APP", "usrdata": now, "usrhora": hour,
@@ -363,7 +395,7 @@ def existing_invoices(cursor, invoices: set[str]) -> set[str]:
     return found
 
 
-def apply_import(cursor, allocations: dict[str, list[dict[str, Any]]], headers: dict[int, dict[str, Any]], vat_code: int) -> dict[str, int]:
+def apply_import(conn, cursor, allocations: dict[str, list[dict[str, Any]]], headers: dict[int, dict[str, Any]], vat_code: int) -> dict[str, int]:
     grouped: dict[str, list[dict[str, Any]]] = allocations
     first_dates: dict[int, date] = {}
     for parts in grouped.values():
@@ -371,7 +403,7 @@ def apply_import(cursor, allocations: dict[str, list[dict[str, Any]]], headers: 
             first_dates.setdefault(part["excel"]["bc"], valid_date(part["excel"]["delivery_date"]))
 
     counters = {"bl": 0, "pf": 0, "lines": 0}
-    for invoice, parts in grouped.items():
+    for invoice, parts in sorted(grouped.items(), key=lambda item: (valid_date(item[1][0]["excel"]["delivery_date"]), item[0])):
         excel = parts[0]["excel"]
         delivery_date = valid_date(excel["delivery_date"])
         invoice_date = valid_date(excel["invoice_date"])
@@ -379,43 +411,54 @@ def apply_import(cursor, allocations: dict[str, list[dict[str, Any]]], headers: 
         source_header = headers[bc]
         net = amount(sum((amount(p["qty"] * p["source"]["price"]) for p in parts), ZERO))
         vat = amount(net * Decimal("0.20"))
-        bl_number = next_number(cursor, BL_NDOS, delivery_date.year)
-        pf_number = next_number(cursor, PF_NDOS, invoice_date.year)
-        bl_stamp, pf_stamp = _new_stamp(), _new_stamp()
-
-        insert_header(cursor, bl_stamp, BL_NDOS, BL_NAME, bl_number, delivery_date, source_header,
-                      excel["delivery"], net, vat, True)
-        insert_header(cursor, pf_stamp, PF_NDOS, PF_NAME, pf_number, invoice_date, source_header,
-                      invoice, net, vat, False)
-        insert_tax(cursor, bl_stamp, vat_code, net, vat)
-        insert_tax(cursor, pf_stamp, vat_code, net, vat)
-        for index, part in enumerate(parts, start=1):
-            source = part["source"]
-            bl_line = insert_line(
-                cursor, header_stamp=bl_stamp, ndos=BL_NDOS, name=BL_NAME, number=bl_number,
-                doc_date=delivery_date, source_header=source_header, source=source, line_qty=part["qty"],
-                external_design=part["excel"]["design"], parent_bistamp=text(source["BISTAMP"]), closed=True,
-                lordem=index * 1000, vat_code=vat_code, pf_number=pf_number,
-            )
-            insert_line(
-                cursor, header_stamp=pf_stamp, ndos=PF_NDOS, name=PF_NAME, number=pf_number,
-                doc_date=invoice_date, source_header=source_header, source=source, line_qty=part["qty"],
-                external_design=part["excel"]["design"], parent_bistamp=bl_line, closed=False,
-                lordem=index * 1000, vat_code=vat_code,
-            )
-            counters["lines"] += 1
-        counters["bl"] += 1; counters["pf"] += 1
+        try:
+            # Each supplier document commits independently. This keeps the
+            # numbering lock very short and does not block active PHC users.
+            bl_number = next_number(cursor, BL_NDOS, delivery_date.year)
+            pf_number = next_number(cursor, PF_NDOS, invoice_date.year)
+            bl_stamp, pf_stamp = _new_stamp(), _new_stamp()
+            insert_header(cursor, bl_stamp, BL_NDOS, BL_NAME, bl_number, delivery_date, source_header,
+                          excel["delivery"], net, vat, True)
+            insert_header(cursor, pf_stamp, PF_NDOS, PF_NAME, pf_number, invoice_date, source_header,
+                          invoice, net, vat, False)
+            insert_tax(cursor, bl_stamp, vat_code, net, vat)
+            insert_tax(cursor, pf_stamp, vat_code, net, vat)
+            for index, part in enumerate(parts, start=1):
+                source = part["source"]
+                bl_line = insert_line(
+                    cursor, header_stamp=bl_stamp, ndos=BL_NDOS, name=BL_NAME, number=bl_number,
+                    doc_date=delivery_date, source_header=source_header, source=source, line_qty=part["qty"],
+                    external_design=part["excel"]["design"], parent_bistamp=text(source["BISTAMP"]), closed=True,
+                    lordem=index * 1000, vat_code=vat_code, pf_number=pf_number,
+                )
+                insert_line(
+                    cursor, header_stamp=pf_stamp, ndos=PF_NDOS, name=PF_NAME, number=pf_number,
+                    doc_date=invoice_date, source_header=source_header, source=source, line_qty=part["qty"],
+                    external_design=part["excel"]["design"], parent_bistamp=bl_line, closed=False,
+                    lordem=index * 1000, vat_code=vat_code,
+                )
+                counters["lines"] += 1
+            conn.commit()
+            counters["bl"] += 1; counters["pf"] += 1
+        except Exception as exc:
+            conn.rollback()
+            raise ImportError(f"Falha ao gravar a fatura {invoice}: {exc}") from exc
 
     # All quantities were allocated exactly.  PHC therefore sees all three BC
     # and their lines as fully satisfied/closed.
-    for number, header in headers.items():
-        cursor.execute("UPDATE dbo.BI SET FECHADA = 1 WHERE BOSTAMP = ?", header["BOSTAMP"])
-        cursor.execute("""
-            UPDATE I2 SET QTTENC = I.QTT, QTTCOMPRA = I.QTT
-            FROM dbo.BI2 I2 INNER JOIN dbo.BI I ON I.BISTAMP = I2.BI2STAMP
-            WHERE I.BOSTAMP = ?
-        """, header["BOSTAMP"])
-        cursor.execute("UPDATE dbo.BO SET FECHADA = 1, DATAFECHO = ? WHERE BOSTAMP = ?", (date.today(), header["BOSTAMP"]))
+    try:
+        for number, header in headers.items():
+            cursor.execute("UPDATE dbo.BI SET FECHADA = 1 WHERE BOSTAMP = ?", header["BOSTAMP"])
+            cursor.execute("""
+                UPDATE I2 SET QTTENC = I.QTT, QTTCOMPRA = I.QTT
+                FROM dbo.BI2 I2 INNER JOIN dbo.BI I ON I.BISTAMP = I2.BI2STAMP
+                WHERE I.BOSTAMP = ?
+            """, header["BOSTAMP"])
+            cursor.execute("UPDATE dbo.BO SET FECHADA = 1, DATAFECHO = ? WHERE BOSTAMP = ?", (date.today(), header["BOSTAMP"]))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
     return counters
 
 
@@ -440,6 +483,7 @@ def main() -> int:
         conn = pyodbc.connect(_phc_conn_str(PHC_DB, PHC_SERVER), timeout=60)
         conn.autocommit = False
         cursor = conn.cursor()
+        cursor.execute("SET LOCK_TIMEOUT 5000")
         try:
             headers, source_lines = load_source(cursor, bcs)
             allocations = allocate(usable, source_lines, credit_rows)
@@ -454,8 +498,7 @@ def main() -> int:
                 conn.rollback()
                 print("Dry-run concluído. Nenhum registo foi alterado.")
                 return 0
-            counters = apply_import(cursor, allocations, headers, vat_code)
-            conn.commit()
+            counters = apply_import(conn, cursor, allocations, headers, vat_code)
             print(f"IMPORTAÇÃO CONCLUÍDA: {counters['bl']} BL fechados, {counters['pf']} pré-faturas abertas, {counters['lines']} linhas; BC 1047/1088/1137 fechados.")
             return 0
         except Exception:

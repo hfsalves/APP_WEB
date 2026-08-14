@@ -677,6 +677,12 @@ def create_app():
     with app.app_context():
         ensure_predefined_messages_menu()
 
+    from blueprints.laundry_support import bp as laundry_support_bp
+    app.register_blueprint(laundry_support_bp)
+    from services.laundry_support_service import ensure_laundry_support_menu
+    with app.app_context():
+        ensure_laundry_support_menu()
+
     from blueprints.guestspa_ferias import bp as guestspa_ferias_bp
     app.register_blueprint(guestspa_ferias_bp)
 

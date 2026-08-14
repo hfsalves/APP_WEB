@@ -59,8 +59,8 @@ VALUES
     ('U_RFT', 'RFT', 'DECIMAL', 72, 2, 102, 10, 0, 0, 0, 0, 0, 0),
     ('U_CODE', 'Código', 'TEXT', 73, 2, 111, 10, 0, 0, 0, 0, 0, 0),
     ('U_FACTOR', 'Factor', 'BIT', 81, 2, 121, 10, 0, 0, 0, 0, 0, 0),
-    ('U_NMARCHE', 'Nº mercado', 'TEXT', 82, 3, 131, 20, 0, 0, 0, 0, 0, 0),
-    ('U_CONTAFAC', 'Conta faturação', 'TEXT', 83, 3, 141, 20, 0, 0, 0, 0, 0, 0);
+    ('U_NMARCHE', 'Nº mercado', 'TEXT', 82, 3, 131, 20, 0, 0, 0, 1, 0, 0),
+    ('U_CONTAFAC', 'Conta faturação', 'TEXT', 83, 3, 141, 20, 0, 0, 0, 1, 0, 0);
 
 MERGE dbo.CAMPOS AS target
 USING @fields AS source

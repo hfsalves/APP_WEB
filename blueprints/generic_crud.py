@@ -841,6 +841,14 @@ def _normalise_write_values(table, table_name: str, values: dict) -> dict:
                 normalized[name] = value.strip().lower() in {'1', 'true', 'sim', 'yes', 'on'}
             else:
                 normalized[name] = bool(value)
+        elif isinstance(column.type, String):
+            max_length = getattr(column.type, 'length', None)
+            if value is not None and isinstance(max_length, int) and max_length > 0:
+                text_value = str(value)
+                if len(text_value) > max_length:
+                    raise ValueError(
+                        f'O campo "{name}" não pode ter mais de {max_length} caracteres.'
+                    )
     return normalized
 
 

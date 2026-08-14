@@ -208,7 +208,10 @@ def list_budgets(filters: dict[str, Any], user) -> dict[str, Any]:
                     ABI.BISTAMP AS AUTO_LINE_STAMP,
                     ISNULL(ABI.ETTDEB, 0) AS AUTO_VALUE,
                     ABI.BISTAMP AS CURRENT_LINE_STAMP,
-                    ABI.OOBISTAMP AS PARENT_LINE_STAMP,
+                    COALESCE(
+                        NULLIF(LTRIM(RTRIM(ABI.OOBISTAMP)), ''),
+                        NULLIF(LTRIM(RTRIM(ABI.OBISTAMP)), '')
+                    ) AS PARENT_LINE_STAMP,
                     0 AS DEPTH
                 FROM dbo.BO A WITH (NOLOCK)
                 INNER JOIN dbo.BO2 A2 WITH (NOLOCK) ON A2.BO2STAMP = A.BOSTAMP
@@ -222,7 +225,10 @@ def list_budgets(filters: dict[str, Any], user) -> dict[str, Any]:
                     LC.AUTO_LINE_STAMP,
                     LC.AUTO_VALUE,
                     P.BISTAMP,
-                    P.OOBISTAMP,
+                    COALESCE(
+                        NULLIF(LTRIM(RTRIM(P.OOBISTAMP)), ''),
+                        NULLIF(LTRIM(RTRIM(P.OBISTAMP)), '')
+                    ),
                     LC.DEPTH + 1
                 FROM line_chain LC
                 INNER JOIN dbo.BI P WITH (NOLOCK) ON P.BISTAMP = LC.PARENT_LINE_STAMP
@@ -348,7 +354,10 @@ def get_budget_detail(feid: Any, bostamp: str, user) -> dict[str, Any]:
                     ISNULL(ABI.QTT, 0) AS AUTO_QTY,
                     ISNULL(ABI.ETTDEB, 0) AS AUTO_VALUE,
                     ABI.BISTAMP AS CURRENT_LINE_STAMP,
-                    ABI.OOBISTAMP AS PARENT_LINE_STAMP,
+                    COALESCE(
+                        NULLIF(LTRIM(RTRIM(ABI.OOBISTAMP)), ''),
+                        NULLIF(LTRIM(RTRIM(ABI.OBISTAMP)), '')
+                    ) AS PARENT_LINE_STAMP,
                     0 AS DEPTH
                 FROM dbo.BO A WITH (NOLOCK)
                 INNER JOIN dbo.BO2 A2 WITH (NOLOCK) ON A2.BO2STAMP = A.BOSTAMP
@@ -358,7 +367,12 @@ def get_budget_detail(feid: Any, bostamp: str, user) -> dict[str, Any]:
                 UNION ALL
 
                 SELECT LC.AUTO_LINE_STAMP, LC.AUTO_QTY, LC.AUTO_VALUE,
-                       P.BISTAMP, P.OOBISTAMP, LC.DEPTH + 1
+                       P.BISTAMP,
+                       COALESCE(
+                           NULLIF(LTRIM(RTRIM(P.OOBISTAMP)), ''),
+                           NULLIF(LTRIM(RTRIM(P.OBISTAMP)), '')
+                       ),
+                       LC.DEPTH + 1
                 FROM line_chain LC
                 INNER JOIN dbo.BI P WITH (NOLOCK) ON P.BISTAMP = LC.PARENT_LINE_STAMP
                 WHERE LC.DEPTH < 20
@@ -394,13 +408,20 @@ def get_budget_detail(feid: Any, bostamp: str, user) -> dict[str, Any]:
             """
             WITH line_chain AS (
                 SELECT A.BOSTAMP AUTO_STAMP, BI.BISTAMP CURRENT_LINE_STAMP,
-                       BI.OOBISTAMP PARENT_LINE_STAMP, 0 DEPTH
+                       COALESCE(
+                           NULLIF(LTRIM(RTRIM(BI.OOBISTAMP)), ''),
+                           NULLIF(LTRIM(RTRIM(BI.OBISTAMP)), '')
+                       ) PARENT_LINE_STAMP, 0 DEPTH
                 FROM dbo.BO A WITH (NOLOCK)
                 INNER JOIN dbo.BO2 A2 WITH (NOLOCK) ON A2.BO2STAMP=A.BOSTAMP
                 INNER JOIN dbo.BI BI WITH (NOLOCK) ON BI.BOSTAMP=A.BOSTAMP
                 WHERE A.NDOS=? AND ISNULL(A2.ANULADO,0)=0
                 UNION ALL
-                SELECT LC.AUTO_STAMP,P.BISTAMP,P.OOBISTAMP,LC.DEPTH+1
+                SELECT LC.AUTO_STAMP,P.BISTAMP,
+                       COALESCE(
+                           NULLIF(LTRIM(RTRIM(P.OOBISTAMP)), ''),
+                           NULLIF(LTRIM(RTRIM(P.OBISTAMP)), '')
+                       ),LC.DEPTH+1
                 FROM line_chain LC INNER JOIN dbo.BI P WITH (NOLOCK)
                     ON P.BISTAMP=LC.PARENT_LINE_STAMP
                 WHERE LC.DEPTH<20
@@ -504,13 +525,20 @@ def get_budget_autos(feid: Any, bostamp: str, user) -> dict[str, Any]:
             """
             WITH line_chain AS (
                 SELECT A.BOSTAMP AUTO_STAMP, BI.BISTAMP CURRENT_LINE_STAMP,
-                       BI.OOBISTAMP PARENT_LINE_STAMP, 0 DEPTH
+                       COALESCE(
+                           NULLIF(LTRIM(RTRIM(BI.OOBISTAMP)), ''),
+                           NULLIF(LTRIM(RTRIM(BI.OBISTAMP)), '')
+                       ) PARENT_LINE_STAMP, 0 DEPTH
                 FROM dbo.BO A WITH (NOLOCK)
                 INNER JOIN dbo.BO2 A2 WITH (NOLOCK) ON A2.BO2STAMP=A.BOSTAMP
                 INNER JOIN dbo.BI BI WITH (NOLOCK) ON BI.BOSTAMP=A.BOSTAMP
                 WHERE A.NDOS=? AND ISNULL(A2.ANULADO,0)=0
                 UNION ALL
-                SELECT LC.AUTO_STAMP,P.BISTAMP,P.OOBISTAMP,LC.DEPTH+1
+                SELECT LC.AUTO_STAMP,P.BISTAMP,
+                       COALESCE(
+                           NULLIF(LTRIM(RTRIM(P.OOBISTAMP)), ''),
+                           NULLIF(LTRIM(RTRIM(P.OBISTAMP)), '')
+                       ),LC.DEPTH+1
                 FROM line_chain LC INNER JOIN dbo.BI P WITH (NOLOCK)
                     ON P.BISTAMP=LC.PARENT_LINE_STAMP
                 WHERE LC.DEPTH<20
@@ -542,7 +570,12 @@ def get_budget_autos(feid: Any, bostamp: str, user) -> dict[str, Any]:
             line_rows = _fetch_rows(
                 cursor,
                 f"""
-                SELECT BI.BOSTAMP,BI.BISTAMP,BI.OOBISTAMP,BI.REF,BI.DESIGN,
+                SELECT BI.BOSTAMP,BI.BISTAMP,
+                       COALESCE(
+                           NULLIF(LTRIM(RTRIM(BI.OOBISTAMP)), ''),
+                           NULLIF(LTRIM(RTRIM(BI.OBISTAMP)), '')
+                       ) AS OOBISTAMP,
+                       BI.REF,BI.DESIGN,
                        BI.UNIDADE,BI.QTT,BI.EDEBITO,BI.ETTDEB,BI.IVA,
                        BI.TABIVA,BI.CCUSTO,BI.LORDEM,BI2.PERCNEW,
                        BI2.QTTMEDIDA,BI2.QTTFALTA,BI2.QTTNEW,
@@ -789,7 +822,10 @@ def _next_budget_autono(cursor, budget_ndos: int, auto_ndos: int, budget_bostamp
         """
         WITH line_chain AS (
             SELECT A.BOSTAMP AS AUTO_STAMP, BI.BISTAMP AS CURRENT_LINE_STAMP,
-                   BI.OOBISTAMP AS PARENT_LINE_STAMP, 0 AS DEPTH
+                   COALESCE(
+                       NULLIF(LTRIM(RTRIM(BI.OOBISTAMP)), ''),
+                       NULLIF(LTRIM(RTRIM(BI.OBISTAMP)), '')
+                   ) AS PARENT_LINE_STAMP, 0 AS DEPTH
             FROM dbo.BO A WITH (UPDLOCK, HOLDLOCK)
             INNER JOIN dbo.BO2 A2 WITH (UPDLOCK, HOLDLOCK) ON A2.BO2STAMP = A.BOSTAMP
             INNER JOIN dbo.BI BI WITH (UPDLOCK, HOLDLOCK) ON BI.BOSTAMP = A.BOSTAMP
@@ -797,7 +833,11 @@ def _next_budget_autono(cursor, budget_ndos: int, auto_ndos: int, budget_bostamp
 
             UNION ALL
 
-            SELECT LC.AUTO_STAMP, P.BISTAMP, P.OOBISTAMP, LC.DEPTH + 1
+            SELECT LC.AUTO_STAMP, P.BISTAMP,
+                   COALESCE(
+                       NULLIF(LTRIM(RTRIM(P.OOBISTAMP)), ''),
+                       NULLIF(LTRIM(RTRIM(P.OBISTAMP)), '')
+                   ), LC.DEPTH + 1
             FROM line_chain LC
             INNER JOIN dbo.BI P WITH (UPDLOCK, HOLDLOCK) ON P.BISTAMP = LC.PARENT_LINE_STAMP
             WHERE LC.DEPTH < 20
@@ -866,7 +906,10 @@ def _load_budget_for_insert(
                    ISNULL(ABI.QTT, 0) AS AUTO_QTY,
                    ISNULL(ABI.ETTDEB, 0) AS AUTO_VALUE,
                    ABI.BISTAMP AS CURRENT_LINE_STAMP,
-                   ABI.OOBISTAMP AS PARENT_LINE_STAMP,
+                   COALESCE(
+                       NULLIF(LTRIM(RTRIM(ABI.OOBISTAMP)), ''),
+                       NULLIF(LTRIM(RTRIM(ABI.OBISTAMP)), '')
+                   ) AS PARENT_LINE_STAMP,
                    0 AS DEPTH
             FROM dbo.BO A WITH (UPDLOCK, HOLDLOCK)
             INNER JOIN dbo.BO2 A2 WITH (UPDLOCK, HOLDLOCK) ON A2.BO2STAMP = A.BOSTAMP
@@ -876,7 +919,12 @@ def _load_budget_for_insert(
             UNION ALL
 
             SELECT LC.AUTO_LINE_STAMP, LC.AUTO_QTY, LC.AUTO_VALUE,
-                   P.BISTAMP, P.OOBISTAMP, LC.DEPTH + 1
+                   P.BISTAMP,
+                   COALESCE(
+                       NULLIF(LTRIM(RTRIM(P.OOBISTAMP)), ''),
+                       NULLIF(LTRIM(RTRIM(P.OBISTAMP)), '')
+                   ),
+                   LC.DEPTH + 1
             FROM line_chain LC
             INNER JOIN dbo.BI P WITH (UPDLOCK, HOLDLOCK) ON P.BISTAMP = LC.PARENT_LINE_STAMP
             WHERE LC.DEPTH < 20
