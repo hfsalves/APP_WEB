@@ -114,6 +114,36 @@ class BudgetPdfTests(unittest.TestCase):
         self.assertIn("BI.DGERAL - descrição comercial impressa", html)
         self.assertNotIn("BI.DESIGN - catálogo", html)
 
+    def test_item_thickness_is_appended_in_the_company_language(self):
+        french_detail = self._detail_1415()
+        french_detail["lines"][0]["description"] = "Dallage industriel"
+        french_detail["lines"][0]["thickness"] = Decimal("0.15")
+        french_detail["lines"][1]["description"] = "Sous-position"
+        french_detail["lines"][1]["thickness"] = Decimal("0.155")
+
+        french_document = budget_print_payload(french_detail)
+        self.assertEqual(
+            french_document["articles"][0]["designation"],
+            "Dallage industriel - Épaisseur 15 cm",
+        )
+
+        portuguese_detail = self._detail_1415()
+        portuguese_detail["company"]["phc_db"] = "HSOLS_PT"
+        portuguese_detail["lines"][0]["description"] = "Pavimento industrial - Epaisseur 12 cm"
+        portuguese_detail["lines"][0]["thickness"] = Decimal("0.155")
+        portuguese_document = budget_print_payload(portuguese_detail)
+        self.assertEqual(
+            portuguese_document["articles"][0]["designation"],
+            "Pavimento industrial - Espessura 15,5 cm",
+        )
+
+        app = Flask(__name__, template_folder="../modules/gr_budgets/templates")
+        with app.app_context():
+            french_html = render_budget_pdf_html(french_detail)
+            portuguese_html = render_budget_pdf_html(portuguese_detail)
+        self.assertIn("Dallage industriel - Épaisseur 15 cm", french_html)
+        self.assertIn("Pavimento industrial - Espessura 15,5 cm", portuguese_html)
+
     def test_mvl_prints_as_moins_value_and_pvl_as_plus_value(self):
         detail = self._detail_1415()
         detail["lines"].insert(
@@ -385,6 +415,20 @@ class BudgetPdfTests(unittest.TestCase):
         render_statuses = script.index("renderStatuses(", start_edit)
         self.assertLess(render_lines, render_statuses)
 
+    def test_technical_line_unit_uses_phc_dytable_options_with_square_metre_default(self):
+        root = Path(__file__).resolve().parents[1]
+        template = (root / "modules/gr_budgets/templates/gr_budgets/budgets.html").read_text(encoding="utf-8")
+        script = (root / "modules/gr_budgets/static/gr_budgets.js").read_text(encoding="utf-8")
+        service = (root / "modules/gr_budgets/service.py").read_text(encoding="utf-8")
+
+        self.assertIn('<select id="budgetOciUnit" class="sz_select"></select>', template)
+        self.assertIn("function populateLineUnitOptions(selectedUnit)", script)
+        self.assertIn("const defaultUnit = 'M²';", script)
+        self.assertIn("unit: 'M²',", script)
+        self.assertIn("populateLineUnitOptions(line.unit || 'M²');", script)
+        self.assertIn("populateLineUnitOptions(elements.ociUnit.value || 'M²');", script)
+        self.assertIn("UPPER(LTRIM(RTRIM(ISNULL(ENTITYNAME, '')))) = 'ST_UNIDADE'", service)
+
     def test_budget_and_position_duplication_controls_are_available(self):
         root = Path(__file__).resolve().parents[1]
         template = (root / "modules/gr_budgets/templates/gr_budgets/budgets.html").read_text(encoding="utf-8")
@@ -418,6 +462,18 @@ class BudgetPdfTests(unittest.TestCase):
         profit_cell = script.index('Number(line.profit || 0)')
         action_cell = script.index('gr-budget-line-actions-column', profit_cell)
         self.assertGreater(action_cell, profit_cell)
+
+    def test_budget_grid_keeps_unit_and_technical_columns_readable(self):
+        root = Path(__file__).resolve().parents[1]
+        template = (root / "modules/gr_budgets/templates/gr_budgets/budgets.html").read_text(encoding="utf-8")
+        script = (root / "modules/gr_budgets/static/gr_budgets.js").read_text(encoding="utf-8")
+        styles = (root / "modules/gr_budgets/static/gr_budgets.css").read_text(encoding="utf-8")
+
+        self.assertIn('class="gr-budget-col-unit"', template)
+        self.assertIn('<td class="gr-budget-col-unit">', script)
+        self.assertIn(".gr-budget-col-unit {", styles)
+        self.assertIn("width: 4.75rem;", styles)
+        self.assertIn("text-overflow: clip !important;", styles)
 
     def test_duplicate_lines_receive_new_draft_identifiers(self):
         root = Path(__file__).resolve().parents[1]

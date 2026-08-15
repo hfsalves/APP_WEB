@@ -1052,6 +1052,38 @@ def _vat_payload(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _budget_designation_with_thickness(
+    designation: Any,
+    thickness: Any,
+    language: str,
+) -> str:
+    """Append BI thickness to the client-facing designation in centimetres."""
+    text = _text_value(designation)
+    centimetres = _decimal(thickness) * Decimal("100")
+    if centimetres <= 0:
+        return text
+
+    # BI.U_ESPESS is stored in metres. Keep the meaningful precision without
+    # printing values such as ``15,000 cm``.
+    value = format(centimetres.quantize(Decimal("0.001")).normalize(), "f")
+    if "." in value:
+        value = value.rstrip("0").rstrip(".")
+    value = value.replace(".", ",")
+    label = "Espessura" if language == "pt" else "Épaisseur"
+
+    # Some older dossiers already include a manually typed thickness at the
+    # end of BI.DGERAL. Replace it with the value from BI.U_ESPESS so the PDF
+    # contains one authoritative, localised suffix.
+    base = re.sub(
+        r"\s*-\s*(?:espessura|[eé]paisseur)\s+[-+]?\d+(?:[.,]\d+)?\s*cm\s*$",
+        "",
+        text,
+        flags=re.IGNORECASE,
+    ).rstrip()
+    suffix = f"{label} {value} cm"
+    return f"{base} - {suffix}" if base else suffix
+
+
 def budget_print_payload(detail: dict[str, Any]) -> dict[str, Any]:
     """Transform a raw Devis detail into its client-facing print model."""
     language = _budget_print_language(detail.get("company") or {})
@@ -1085,6 +1117,11 @@ def budget_print_payload(detail: dict[str, Any]) -> dict[str, Any]:
             _text_value(article.get("item_label")).upper(),
         }:
             article["designation"] = "DESCONTO" if language == "pt" else "ESCOMPTE"
+        article["designation"] = _budget_designation_with_thickness(
+            article.get("designation"),
+            article.get("thickness"),
+            language,
+        )
         article["plus_values"] = children.get(str(line.get("item_label") or "").strip(), [])
         article["technical_lines"] = list(line.get("technical_lines") or [])
         article["display_total"] = _budget_line_display_total(article)
@@ -1581,7 +1618,7 @@ def get_budget_technical_options(feid: Any, user) -> dict[str, Any]:
                 """
                 SELECT DISTINCT LTRIM(RTRIM(ISNULL(CAMPO, ''))) AS CAMPO
                 FROM dbo.DYTABLE
-                WHERE ENTITYNAME = 'st_unidade'
+                WHERE UPPER(LTRIM(RTRIM(ISNULL(ENTITYNAME, '')))) = 'ST_UNIDADE'
                   AND LTRIM(RTRIM(ISNULL(CAMPO, ''))) <> ''
                 ORDER BY CAMPO
                 """,

@@ -1214,7 +1214,7 @@
         <td>${escapeHtml(line.reference || '—')}</td>
         <td title="${escapeHtml(secondary || title)}"><div class="gr-budget-line-title">${escapeHtml(title)}</div>${secondary ? `<div class="gr-budget-line-subtitle">${escapeHtml(secondary)}</div>` : ''}</td>
         <td class="gr-budget-num">${quantityFormatter.format(Number(line.quantity || 0))}</td>
-        <td>${escapeHtml(line.unit || '—')}</td>
+        <td class="gr-budget-col-unit">${escapeHtml(line.unit || '—')}</td>
         <td class="gr-budget-num">${quantityFormatter.format(Number(line.thickness || 0))}</td>
         <td class="gr-budget-num">${lineAmountFormatter.format(Number(line.unit_price || 0))}</td>
         <td class="gr-budget-num"><strong>${lineAmountFormatter.format(Number(line.total || 0))}</strong></td>
@@ -1419,7 +1419,7 @@
       description: '',
       quantity: 0,
       surface: 0,
-      unit: 'm²',
+      unit: 'M²',
       thickness: 0,
       volume: 0,
       unit_cost: 0,
@@ -1939,6 +1939,36 @@
     elements.ociOuvrage.value = selectedReference || '';
   }
 
+  function populateLineUnitOptions(selectedUnit) {
+    const unitKey = (value) => String(value || '').trim().toLocaleUpperCase();
+    const defaultUnit = 'M²';
+    const uniqueUnits = [];
+    const seen = new Set();
+    [defaultUnit, ...((state.technicalOptions && state.technicalOptions.units) || [])].forEach((value) => {
+      const unit = String(value || '').trim();
+      const key = unitKey(unit);
+      if (!unit || seen.has(key)) return;
+      seen.add(key);
+      uniqueUnits.push(unit);
+    });
+
+    const requested = String(selectedUnit || '').trim() || defaultUnit;
+    let selected = uniqueUnits.find((unit) => unitKey(unit) === unitKey(requested));
+    if (!selected) {
+      selected = requested;
+      uniqueUnits.push(requested);
+    }
+
+    elements.ociUnit.replaceChildren();
+    uniqueUnits.forEach((unit) => {
+      const option = document.createElement('option');
+      option.value = unit;
+      option.textContent = unit;
+      elements.ociUnit.appendChild(option);
+    });
+    elements.ociUnit.value = selected;
+  }
+
   function budgetProrata() {
     const lines = ((state.detail && state.detail.lines) || []).slice().reverse();
     const line = lines.find((row) => Number(row.discount_2 || 0) > 0);
@@ -1947,12 +1977,12 @@
 
   function renderOciView(line, rows, newLine) {
     populateOuvrageOptions(line.reference);
+    populateLineUnitOptions(line.unit || 'M²');
     setInputValue(elements.ociPosition, line.item);
     setInputValue(elements.ociReference, line.reference);
     setInputValue(elements.ociDesignation, line.designation);
     setInputValue(elements.ociDescription, line.description || line.designation);
     setNumericInput(elements.ociSurface, line.surface == null ? line.quantity : line.surface, 4);
-    setInputValue(elements.ociUnit, line.unit || 'm²');
     setNumericInput(elements.ociThickness, line.thickness, 4);
     setNumericInput(elements.ociSalePrice, line.unit_price, 2);
     setNumericInput(elements.ociProrata, Number(line.discount_2 || 0) > 0 ? line.discount_2 : budgetProrata(), 2);
@@ -3108,7 +3138,9 @@
     setInputValue(elements.ociReference, ouvrage.reference);
     setInputValue(elements.ociDesignation, ouvrage.designation);
     setInputValue(elements.ociDescription, ouvrage.designation);
-    setInputValue(elements.ociUnit, ouvrage.unit || 'm²');
+    // A new position always starts in square metres. Changing the ouvrage
+    // must not silently replace a unit that the user has already selected.
+    populateLineUnitOptions(elements.ociUnit.value || 'M²');
     if (!numericInput(elements.ociSalePrice) && ouvrage.sale_price) {
       setNumericInput(elements.ociSalePrice, ouvrage.sale_price, 2);
     }

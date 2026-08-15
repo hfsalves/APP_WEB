@@ -230,7 +230,7 @@
                   <th>{{ _('gr_budgets.field.reference') }}</th>
                   <th class="gr-budget-col-description">{{ _('gr_budgets.field.designation') }}</th>
                   <th class="gr-budget-num">{{ _('gr_budgets.field.quantity') }}</th>
-                  <th>{{ _('gr_budgets.field.unit') }}</th>
+                  <th class="gr-budget-col-unit">{{ _('gr_budgets.field.unit') }}</th>
                   <th class="gr-budget-num">{{ _('gr_budgets.field.thickness') }}</th>
                   <th class="gr-budget-num">{{ _('gr_budgets.field.price') }}</th>
                   <th class="gr-budget-num">{{ _('gr_budgets.field.total') }}</th>
@@ -309,7 +309,7 @@
               </label>
               <label class="sz_field">
                 <span class="sz_label">{{ _('gr_budgets.field.unit') }}</span>
-                <input id="budgetOciUnit" class="sz_input" type="text" maxlength="4">
+                <select id="budgetOciUnit" class="sz_select"></select>
               </label>
               <label class="sz_field">
                 <span class="sz_label">{{ _('gr_budgets.field.thickness') }}</span>

@@ -1130,18 +1130,18 @@
 }
 
 .gr-budget-col-description {
-  width: 22rem;
-  min-width: 22rem;
+  width: 18.5rem;
+  min-width: 18.5rem;
 }
 
 .gr-budget-table th:nth-child(2),
 .gr-budget-table td:nth-child(2) { width: 5.25rem; }
 .gr-budget-table th:nth-child(3),
-.gr-budget-table td:nth-child(3) { width: 22rem; }
+.gr-budget-table td:nth-child(3) { width: 18.5rem; }
 .gr-budget-table th:nth-child(4),
 .gr-budget-table td:nth-child(4) { width: 5.25rem; }
 .gr-budget-table th:nth-child(5),
-.gr-budget-table td:nth-child(5) { width: 3.25rem; }
+.gr-budget-table td:nth-child(5) { width: 4.5rem; }
 .gr-budget-table th:nth-child(6),
 .gr-budget-table td:nth-child(6) { width: 4.5rem; }
 .gr-budget-table th:nth-child(7),
@@ -1161,8 +1161,17 @@
 }
 
 .gr-budget-check {
-  width: 2.5rem;
+  width: 4.75rem;
+  min-width: 4.75rem;
+  padding-inline: 0.35rem !important;
+  overflow: hidden !important;
+  text-overflow: clip !important;
   text-align: center !important;
+}
+
+.gr-budget-col-unit {
+  width: 4.5rem;
+  min-width: 4.5rem;
 }
 
 .gr-budget-line-actions-column {
@@ -1218,7 +1227,11 @@
 }
 
 .gr-budget-technical-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-size: var(--sz-font-size-md);
+  vertical-align: middle;
 }
 
 .gr-budget-duplicate-line-button {
