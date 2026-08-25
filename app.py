@@ -374,6 +374,11 @@ def create_app():
         'GR360_HUB_SOURCE_DATABASE',
         os.environ.get('DB_CLIENT_NAME', 'GR360_CORE'),
     )
+    app.config['GR360_TICKET_API_ENABLED'] = os.environ.get('GR360_TICKET_API_ENABLED', '1')
+    app.config['GR360_TICKET_API_EXPECTED_DATABASE'] = os.environ.get(
+        'GR360_TICKET_API_EXPECTED_DATABASE',
+        'GR360_CORE',
+    )
     app.config['DB_CONN_STRS'] = {
         db_target_prod: prod_conn_str,
         db_target_client: _build_pyodbc_conn_str(
@@ -661,6 +666,9 @@ def create_app():
 
     from blueprints.push_notifications import bp as push_notifications_bp
     app.register_blueprint(push_notifications_bp)
+
+    from blueprints.gr360_ticket_api import bp as gr360_ticket_api_bp
+    app.register_blueprint(gr360_ticket_api_bp)
 
     from blueprints.document_ai import bp as document_ai_bp
     app.register_blueprint(document_ai_bp)

@@ -31,6 +31,11 @@
     vehicleStamp: document.getElementById('workshopVehicleStamp'),
     vehicleSearch: document.getElementById('workshopVehicleSearch'),
     vehicleResults: document.getElementById('workshopVehicleResults'),
+    vehicleResponsible: document.getElementById('workshopVehicleResponsible'),
+    vehicleSerial: document.getElementById('workshopVehicleSerial'),
+    kms: document.getElementById('workshopKms'),
+    nextKms: document.getElementById('workshopNextKms'),
+    nextDate: document.getElementById('workshopNextDate'),
     typeStamp: document.getElementById('workshopTypeStamp'),
     typeSearch: document.getElementById('workshopTypeSearch'),
     typeResults: document.getElementById('workshopTypeResults'),
@@ -234,6 +239,11 @@
     els.sheetNo.value = '';
     els.vehicleStamp.value = '';
     els.vehicleSearch.value = '';
+    els.vehicleResponsible.value = '';
+    els.vehicleSerial.value = '';
+    els.kms.value = '';
+    els.nextKms.value = '';
+    els.nextDate.value = '';
     els.typeStamp.value = '';
     els.typeSearch.value = '';
     els.jobText.value = '';
@@ -258,6 +268,11 @@
     els.sheetNo.value = sheet.NO || '';
     els.vehicleStamp.value = sheet.VASTAMP || '';
     els.vehicleSearch.value = sheet.MATRICULA || '';
+    els.vehicleResponsible.value = sheet.RESPONSAVEL || '';
+    els.vehicleSerial.value = sheet.CHASSIS || '';
+    els.kms.value = sheet.KMS || sheet.VEICULO_KMS || '';
+    els.nextKms.value = sheet.PROX_INTERV_KMS || '';
+    els.nextDate.value = sheet.PROX_INTERV_DATA || '';
     els.typeStamp.value = sheet.OFICINA_TRABSTAMP || '';
     els.typeSearch.value = sheet.TRAB_DESCRICAO || '';
     els.jobText.value = sheet.TRABALHO || '';
@@ -304,6 +319,9 @@
       OFICINA_FOLHASTAMP: els.sheetStamp.value,
       VASTAMP: els.vehicleStamp.value,
       MATRICULA: els.vehicleSearch.value,
+      KMS: els.kms.value,
+      PROX_INTERV_KMS: els.nextKms.value,
+      PROX_INTERV_DATA: els.nextDate.value,
       OFICINA_TRABSTAMP: els.typeStamp.value,
       TRABALHO: els.jobText.value,
       DATA: els.date.value,
@@ -382,7 +400,7 @@
     els.aiSuggestBtn.disabled = true;
     setSheetStatus('A gerar sugestão AI...');
     const controller = new AbortController();
-    const requestTimeout = window.setTimeout(() => controller.abort(), 60000);
+    const requestTimeout = window.setTimeout(() => controller.abort(), 85000);
     try {
       const payload = await api(cfg.aiSuggestionUrl, {
         method: 'POST',
@@ -537,6 +555,9 @@
     const plate = String(row.value || source.MATRICULA || '').trim();
     els.vehicleStamp.value = source.VASTAMP || row.VASTAMP || '';
     els.vehicleSearch.value = plate;
+    els.vehicleResponsible.value = source.RESPONSAVEL || row.RESPONSAVEL || '';
+    els.vehicleSerial.value = source.CHASSIS || row.CHASSIS || '';
+    els.kms.value = source.KMS || row.KMS || '';
     closeVehicleLookup();
     els.vehicleSearch.focus();
     refreshAiSuggestionButton();

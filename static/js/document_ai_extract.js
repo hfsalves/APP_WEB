@@ -157,6 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
     proforma_invoice: 'Fatura pró-forma',
     provisional_invoice: 'Facture Provisoire',
     receipt: 'Recibo',
+    bank_statement: 'RB',
     mail: 'Lettre',
     unknown: 'Tipo desconhecido',
     other: 'Outro documento',
@@ -324,8 +325,9 @@ document.addEventListener('DOMContentLoaded', () => {
     configureGedFolderControl();
     const party = documentData.supplier || {};
     const isMail = documentData.document_type === 'mail';
-    const isCustomerParty = isMail && documentData.external_party_role === 'customer';
-    const isUnregisteredMailParty = isMail && !['customer', 'supplier'].includes(documentData.external_party_role);
+    const isCorrespondence = ['mail', 'bank_statement'].includes(documentData.document_type);
+    const isCustomerParty = isCorrespondence && documentData.external_party_role === 'customer';
+    const isUnregisteredMailParty = isCorrespondence && !['customer', 'supplier'].includes(documentData.external_party_role);
     const partyNumber = Number(isCustomerParty ? party.customer_no : party.supplier_no || party.no || 0);
     const partyNumberPart = phcPartyNumber(partyNumber, party.estab) || 'SEM-NUMERO';
     const partyNamePart = gedPartyName(party.short_name || party.name2 || party.name || party.llm_name);
@@ -338,8 +340,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let destinations = [{ label: 'Documentos de fornecedores', category }];
     let trailingPart = documentNumber;
 
-    if (isMail) {
-      prefix = 'L';
+    if (isCorrespondence) {
+      prefix = documentData.document_type === 'bank_statement' ? 'RB' : 'L';
       category = 'COURRIER_INTERNE_EXTERIEUR';
       destinations = [{ label: 'Correio recebido', category, subfolders: ['Courriers Reçus'] }];
       trailingPart = documentDate;
@@ -416,9 +418,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!els.submitPhcBtn) return;
     const documentData = state.documentData || {};
     const party = documentData.supplier || {};
-    const isMail = documentData.document_type === 'mail';
-    const isProvisionalInvoice = ['invoice', 'provisional_invoice'].includes(documentData.document_type);
-    const allowed = (isMail && els.submitPhcBtn.dataset.canCorrespondence === '1')
+    const isCorrespondence = ['mail', 'bank_statement'].includes(documentData.document_type);
+    const isProvisionalInvoice = ['invoice', 'provisional_invoice', 'credit_note'].includes(documentData.document_type);
+    const allowed = (isCorrespondence && els.submitPhcBtn.dataset.canCorrespondence === '1')
       || (isProvisionalInvoice && els.submitPhcBtn.dataset.canProvisionalInvoice === '1');
     els.submitPhcBtn.hidden = !allowed;
     if (!allowed) return;
@@ -426,9 +428,9 @@ document.addEventListener('DOMContentLoaded', () => {
       state.file
       && documentData.customer?.feid
       && String(party.name || party.llm_name || '').trim()
-      && (isMail || Number(party.supplier_no || party.no || 0) > 0)
+      && (isCorrespondence || Number(party.supplier_no || party.no || 0) > 0)
       && state.correspondenceReference
-      && (isMail || (String(documentData.document_number || '').trim() && Array.isArray(documentData.lines) && documentData.lines.length))
+      && (isCorrespondence || (String(documentData.document_number || '').trim() && Array.isArray(documentData.lines) && documentData.lines.length))
     );
     els.submitPhcBtn.disabled = !ready || state.submittingPhc || state.integratedPhc;
     if (state.integratedPhc) {
@@ -933,17 +935,17 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function renderSupplierCard(supplier = {}, matching = {}) {
-    const isMail = state.documentData?.document_type === 'mail';
-    const isCustomerMail = isMail && state.documentData?.external_party_role === 'customer';
+    const isCorrespondence = ['mail', 'bank_statement'].includes(state.documentData?.document_type);
+    const isCustomerMail = isCorrespondence && state.documentData?.external_party_role === 'customer';
     const supplierNo = Number(isCustomerMail ? supplier.customer_no : (supplier.supplier_no || supplier.no) || 0);
     const supplierNumberLabel = phcPartyNumber(supplierNo, supplier.estab);
     const matched = Boolean(supplierNo);
-    els.partyLabel.textContent = isMail ? 'Remetente' : 'Fornecedor';
+    els.partyLabel.textContent = isCorrespondence ? 'Remetente' : 'Fornecedor';
     els.supplierName.textContent = supplier.name || supplier.llm_name || '--';
     els.supplierTax.textContent = supplier.tax_id
       ? `${isCustomerMail ? 'NIF' : 'NIF/NCONT'}: ${supplier.tax_id}`
       : `${isCustomerMail ? 'NIF' : 'NIF/NCONT'} não identificado`;
-    if (isMail) {
+    if (isCorrespondence) {
       els.supplierNo.hidden = false;
       const roleLabel = isCustomerMail ? 'cliente' : (state.documentData?.external_party_role === 'supplier' ? 'fornecedor' : 'entidade');
       els.supplierNo.textContent = `Nº ${roleLabel}: ${supplierNumberLabel || '--'}`;
@@ -968,7 +970,7 @@ document.addEventListener('DOMContentLoaded', () => {
       : '<i class="fa-solid fa-hand-pointer"></i> Escolher fornecedor semelhante';
     els.supplierCard.setAttribute('aria-label', matched ? 'Alterar fornecedor' : 'Escolher fornecedor semelhante');
     if (!matching?.supplier_query?.feid) {
-      els.supplierHint.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> ${state.documentData?.document_type === 'mail' ? 'Entidade' : 'Empresa cliente'} não identificada na FE`;
+      els.supplierHint.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> ${['mail', 'bank_statement'].includes(state.documentData?.document_type) ? 'Entidade' : 'Empresa cliente'} não identificada na FE`;
     } else if (matching?.supplier_lookup_error) {
       els.supplierHint.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> Não foi possível consultar a FL';
     }
@@ -1037,18 +1039,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const party = state.documentData?.supplier || {};
     const query = party.llm_tax_id || party.tax_id || party.llm_name || party.name || '';
     if (!feid || String(query).trim().length < 2) return;
-    const isMail = state.documentData.document_type === 'mail';
-    const endpoint = isMail ? 'external-parties' : 'suppliers';
+    const isCorrespondence = ['mail', 'bank_statement'].includes(state.documentData.document_type);
+    const endpoint = isCorrespondence ? 'external-parties' : 'suppliers';
     try {
       const items = await fetchJson(`/api/document_ai/${endpoint}/search?q=${encodeURIComponent(query)}&feid=${feid}&limit=12`);
       const first = Array.isArray(items) ? items[0] : null;
       const sameNumber = first ? items.filter((item) => item.party_role === first.party_role && Number(item.no || 0) === Number(first.no || 0)) : [];
       const selected = first && Number(first.score || 0) >= 0.72 && sameNumber.length <= 1 ? first : null;
-      const isCustomer = isMail && selected?.party_role === 'customer';
+      const isCustomer = isCorrespondence && selected?.party_role === 'customer';
       state.matching.supplier_candidates = Array.isArray(items) ? items : [];
       state.supplierCandidates = state.matching.supplier_candidates;
       if (selected) {
-        if (isMail) state.documentData.external_party_role = isCustomer ? 'customer' : 'supplier';
+        if (isCorrespondence) state.documentData.external_party_role = isCustomer ? 'customer' : 'supplier';
         state.documentData.supplier = {
           ...party,
           supplier_no: null,
@@ -1085,7 +1087,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const selected = state.entityCandidates[Number(index)];
     if (!selected || !state.documentData) return;
     const previousFeid = Number(state.documentData.customer?.feid || 0);
-    const isMail = state.documentData.document_type === 'mail';
+    const isCorrespondence = ['mail', 'bank_statement'].includes(state.documentData.document_type);
     if (previousFeid !== Number(selected.feid || 0)) {
       state.selectedOrigins = [];
       state.selectedProject = null;
@@ -1111,7 +1113,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderCustomerCard(state.documentData.customer, state.matching);
     closeEntityModal();
     await Promise.all([rematchExternalParty(), loadCorrespondenceReference()]);
-    if (!isMail) loadOriginCandidates(state.documentData);
+    if (!isCorrespondence) loadOriginCandidates(state.documentData);
   }
 
   function renderOriginCandidates(payload = {}, options = {}) {
@@ -1651,10 +1653,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function renderSupplierCandidates(items) {
-    const isMail = state.documentData?.document_type === 'mail';
+    const isCorrespondence = ['mail', 'bank_statement'].includes(state.documentData?.document_type);
     state.supplierCandidates = Array.isArray(items) ? items : [];
     if (!state.supplierCandidates.length) {
-      els.supplierModalList.innerHTML = `<div class="docai-empty-state">Não foram encontrados ${isMail ? 'clientes ou fornecedores' : 'fornecedores'} semelhantes nesta entidade.</div>`;
+      els.supplierModalList.innerHTML = `<div class="docai-empty-state">Não foram encontrados ${isCorrespondence ? 'clientes ou fornecedores' : 'fornecedores'} semelhantes nesta entidade.</div>`;
       return;
     }
     els.supplierModalList.innerHTML = state.supplierCandidates.map((item, index) => {
@@ -1670,14 +1672,14 @@ document.addEventListener('DOMContentLoaded', () => {
             <span>Nº ${escapeHtml(phcPartyNumber(item.no, item.estab) || '--')} · ${escapeHtml(taxLabel)} ${escapeHtml(item.tax_id || '--')}</span>
             ${location ? `<span>${escapeHtml(location)}</span>` : ''}
           </span>
-          <span class="docai-supplier-match-score">${isMail ? `${escapeHtml(partyLabel)} · ` : ''}${escapeHtml(matchLabel)} · ${score}%</span>
+          <span class="docai-supplier-match-score">${isCorrespondence ? `${escapeHtml(partyLabel)} · ` : ''}${escapeHtml(matchLabel)} · ${score}%</span>
         </button>
       `;
     }).join('');
   }
 
   function openSupplierModal() {
-    const isMail = state.documentData?.document_type === 'mail';
+    const isCorrespondence = ['mail', 'bank_statement'].includes(state.documentData?.document_type);
     const feid = Number(state.matching?.supplier_query?.feid || state.documentData?.customer?.feid || 0);
     if (!feid) {
       showMessage('Não foi possível identificar a entidade na tabela FE.', 'error');
@@ -1685,10 +1687,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     const customerName = state.documentData?.customer?.name || `FE ${feid}`;
     const supplier = state.documentData?.supplier || {};
-    els.supplierModalTitle.textContent = isMail ? 'Escolher cliente ou fornecedor' : 'Escolher fornecedor';
-    els.supplierModalContext.textContent = `${isMail ? 'Clientes e fornecedores' : 'Fornecedores'} de ${customerName} · FEID ${feid}`;
+    els.supplierModalTitle.textContent = isCorrespondence ? 'Escolher cliente ou fornecedor' : 'Escolher fornecedor';
+    els.supplierModalContext.textContent = `${isCorrespondence ? 'Clientes e fornecedores' : 'Fornecedores'} de ${customerName} · FEID ${feid}`;
     els.supplierModalSearch.value = supplier.llm_name || supplier.name || supplier.llm_tax_id || supplier.tax_id || '';
-    els.supplierManualBtn.hidden = !isMail;
+    els.supplierManualBtn.hidden = !isCorrespondence;
     renderSupplierCandidates(state.matching?.supplier_candidates || []);
     els.supplierModal.classList.add('sz_is_open');
     els.supplierModal.setAttribute('aria-hidden', 'false');
@@ -1696,7 +1698,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function searchSupplierCandidates() {
-    const isMail = state.documentData?.document_type === 'mail';
+    const isCorrespondence = ['mail', 'bank_statement'].includes(state.documentData?.document_type);
     const feid = Number(state.matching?.supplier_query?.feid || state.documentData?.customer?.feid || 0);
     const query = els.supplierModalSearch.value.trim();
     if (!feid || query.length < 2) {
@@ -1704,11 +1706,11 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     els.supplierModalSearchBtn.disabled = true;
-    els.supplierModalList.innerHTML = `<div class="docai-empty-state">A procurar ${isMail ? 'clientes e fornecedores' : 'fornecedores'} semelhantes...</div>`;
+    els.supplierModalList.innerHTML = `<div class="docai-empty-state">A procurar ${isCorrespondence ? 'clientes e fornecedores' : 'fornecedores'} semelhantes...</div>`;
     try {
       const searchToken = ++state.supplierSearchToken;
       const params = new URLSearchParams({ q: query, feid: String(feid), limit: '12' });
-      const items = await fetchJson(`/api/document_ai/${isMail ? 'external-parties' : 'suppliers'}/search?${params.toString()}`);
+      const items = await fetchJson(`/api/document_ai/${isCorrespondence ? 'external-parties' : 'suppliers'}/search?${params.toString()}`);
       if (searchToken !== state.supplierSearchToken) return;
       renderSupplierCandidates(items);
     } catch (error) {
@@ -1720,7 +1722,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function useManualSenderName() {
     const name = els.supplierModalSearch.value.trim();
-    if (state.documentData?.document_type !== 'mail' || name.length < 2) {
+    if (!['mail', 'bank_statement'].includes(state.documentData?.document_type) || name.length < 2) {
       showMessage('Escreve pelo menos dois caracteres para o nome do remetente.', 'error');
       return;
     }
@@ -1749,9 +1751,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const selected = state.supplierCandidates[index];
     if (!selected || !state.documentData) return;
     const current = state.documentData.supplier || {};
-    const isMail = state.documentData.document_type === 'mail';
-    const isCustomer = isMail && selected.party_role === 'customer';
-    if (isMail) state.documentData.external_party_role = isCustomer ? 'customer' : 'supplier';
+    const isCorrespondence = ['mail', 'bank_statement'].includes(state.documentData.document_type);
+    const isCustomer = isCorrespondence && selected.party_role === 'customer';
+    if (isCorrespondence) state.documentData.external_party_role = isCustomer ? 'customer' : 'supplier';
     state.documentData.supplier = {
       ...current,
       supplier_no: null,
@@ -1776,7 +1778,7 @@ document.addEventListener('DOMContentLoaded', () => {
     closeSupplierModal();
     setStatus(`${isCustomer ? 'Cliente' : 'Fornecedor'} ${selected.name} (#${phcPartyNumber(selected.no, selected.estab)}) selecionado.`);
     showMessage(`${isCustomer ? 'Cliente' : 'Fornecedor'} selecionado.`, 'success');
-    if (state.documentData.document_type !== 'mail') loadOriginCandidates(state.documentData);
+    if (!['mail', 'bank_statement'].includes(state.documentData.document_type)) loadOriginCandidates(state.documentData);
   }
 
   function renderResult(payload) {
@@ -1786,6 +1788,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const totals = documentData.totals || {};
     const currency = documentData.currency || '';
     const isMail = documentData.document_type === 'mail';
+    const isCorrespondence = ['mail', 'bank_statement'].includes(documentData.document_type);
 
     state.documentData = documentData;
     state.gedFolderManuallySelected = Boolean(documentData.customer?.ged_folder_manually_selected);
@@ -1796,17 +1799,19 @@ document.addEventListener('DOMContentLoaded', () => {
     state.matching = payload.matching || {};
     state.supplierCandidates = state.matching.supplier_candidates || [];
     renderDocumentBatch(documentData.document_batch || {});
-    if (isMail) els.batchAlert.hidden = true;
+    if (isCorrespondence) els.batchAlert.hidden = true;
     renderCustomerCard(customer, state.matching);
     renderSupplierCard(supplier, state.matching);
     renderProjectCard();
-    els.projectCard.hidden = isMail;
-    els.originSection.hidden = isMail;
-    els.linesSection.hidden = isMail;
-    els.totalsSection.hidden = isMail;
+    els.projectCard.hidden = isCorrespondence;
+    els.originSection.hidden = isCorrespondence;
+    els.linesSection.hidden = isCorrespondence;
+    els.totalsSection.hidden = isCorrespondence;
     els.persistenceNote.textContent = isMail
       ? 'O correio foi analisado apenas neste ecrã e não foi adicionado ao inbox.'
-      : 'O PDF e a leitura ficam guardados no inbox para evitar novas chamadas ao LLM.';
+      : (documentData.document_type === 'bank_statement'
+        ? 'O relevé fica no inbox e pode ser integrado como correspondência RB no PHC.'
+        : 'O PDF e a leitura ficam guardados no inbox para evitar novas chamadas ao LLM.');
     state.correspondenceReference = null;
     state.correspondenceYear = new Date().getFullYear();
     renderDocumentCard();
@@ -1837,7 +1842,7 @@ document.addEventListener('DOMContentLoaded', () => {
     els.empty.hidden = true;
     els.loading.hidden = true;
     els.results.hidden = false;
-    if (isMail) {
+    if (isCorrespondence) {
       state.originSearchToken += 1;
       state.originPayload = null;
       state.originCandidates = [];
@@ -1941,15 +1946,15 @@ document.addEventListener('DOMContentLoaded', () => {
   async function submitDocumentToPhc() {
     if (!els.submitPhcBtn || state.submittingPhc || state.integratedPhc) return;
     const documentType = state.documentData?.document_type;
-    if (!state.file || !['mail', 'invoice', 'provisional_invoice'].includes(documentType)) {
+    if (!state.file || !['mail', 'bank_statement', 'invoice', 'provisional_invoice', 'credit_note'].includes(documentType)) {
       showMessage('Carrega e valida primeiro um documento compatível.', 'error');
       return;
     }
     state.submittingPhc = true;
     updateSubmitPhcButton();
-    const isProvisionalInvoice = ['invoice', 'provisional_invoice'].includes(documentType);
+    const isProvisionalInvoice = ['invoice', 'provisional_invoice', 'credit_note'].includes(documentType);
     setStatus(isProvisionalInvoice
-      ? 'A criar a correspondência, a Facture Provisoire, as linhas e os anexos no PHC...'
+      ? 'A criar a correspondência, o documento provisório, as linhas e os anexos no PHC...'
       : 'A reservar a numeração, guardar o PDF no GED e criar a correspondência no PHC...');
     const formData = new FormData();
     formData.append('file', state.file);
@@ -1973,7 +1978,7 @@ document.addEventListener('DOMContentLoaded', () => {
       renderGedDestination();
       els.persistenceNote.textContent = payload.duplicate
         ? 'Este PDF já se encontrava integrado no PHC; não foi criado um duplicado.'
-        : (isProvisionalInvoice ? 'A fatura foi integrada como V/Facture, com linhas e anexos.' : 'O correio foi guardado no GED e integrado no PHC.');
+        : (isProvisionalInvoice ? 'O documento foi integrado no PHC, com linhas e anexos.' : 'O correio foi guardado no GED e integrado no PHC.');
       setStatus(payload.message || 'Documento integrado no PHC.');
       showMessage(payload.message || 'Documento integrado no PHC.', 'success');
     } catch (error) {

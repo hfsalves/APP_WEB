@@ -309,10 +309,8 @@ def insert_header(cursor, stamp: str, ndos: int, name: str, number: int, doc_dat
         "usrinis": "APP", "usrdata": now, "usrhora": hour,
     })
     # PHC presents BO3.DOCUMENTNUMBERORI in the "Equipe" field of these
-    # dossiers.  Native PF do not populate it; BL mirror their external BL
-    # reference here.  The invoice number remains only in BO.FREF for safe
-    # idempotence of this import.
-    document_number = external_ref[:60] if ndos == BL_NDOS else ""
+    # dossiers. The external document number belongs in BO.FREF only.
+    document_number = ""
     _phc_insert(cursor, "BO3", {
         "bo3stamp": stamp, "documentnumberori": document_number, "arquivadodigital": 0,
         "ousrinis": "APP", "ousrdata": now, "ousrhora": hour,

@@ -1206,6 +1206,9 @@
       const duplicateControl = nonTechnicalLine || !budgetCanBeEdited()
         ? ''
         : `<button type="button" class="sz_button sz_button_ghost gr-budget-duplicate-line-button" data-duplicate-line="${index}" data-tooltip="${escapeHtml(tr('gr_budgets.title.duplicate_position'))}" aria-label="${escapeHtml(tr('gr_budgets.action.duplicate_position_aria', { position: line.item_label || line.item || index + 1 }))}"><i class="fa-solid fa-copy" aria-hidden="true"></i></button>`;
+      const editControl = nonTechnicalLine || !budgetCanBeEdited()
+        ? ''
+        : `<button type="button" class="sz_button sz_button_ghost gr-budget-edit-line-button" data-edit-line="${index}" title="${escapeHtml(tr('gr_budgets.action.edit'))}" aria-label="${escapeHtml(tr('gr_budgets.action.edit'))}"><i class="fa-solid fa-pen" aria-hidden="true"></i></button>`;
       const deleteControl = !isEditing()
         ? ''
         : `<button type="button" class="sz_button sz_button_ghost gr-budget-delete-line-button" data-delete-line="${index}" title="${escapeHtml(tr('gr_budgets.action.delete_position'))}" aria-label="${escapeHtml(tr('gr_budgets.action.delete_position_aria', { position: line.item_label || line.item || index + 1 }))}"><i class="fa-solid fa-trash-can" aria-hidden="true"></i></button>`;
@@ -1223,7 +1226,7 @@
         <td class="gr-budget-num">${lineAmountFormatter.format(Number(line.cost_total || 0))}</td>
         <td class="gr-budget-num">${percentFormatter.format(Number(line.margin_percentage || 0))}%</td>
         <td class="gr-budget-num">${lineAmountFormatter.format(Number(line.profit || 0))}</td>
-        <td class="gr-budget-line-actions-column"><span class="gr-budget-line-actions">${duplicateControl}${deleteControl}</span></td>
+        <td class="gr-budget-line-actions-column"><span class="gr-budget-line-actions">${editControl}${duplicateControl}${deleteControl}</span></td>
       </tr>`;
     }).join('');
     elements.linesFooter.innerHTML = `<tr>
@@ -2945,6 +2948,13 @@
     line.vat_rate = vatRateForTable(vatTable, 0);
   });
   elements.lines.addEventListener('click', (event) => {
+    const editButton = event.target.closest('[data-edit-line]');
+    if (editButton && state.detail && budgetCanBeEdited()) {
+      const lineIndex = Number(editButton.dataset.editLine);
+      if (!isEditing()) startEditBudget();
+      if (isEditing()) openOci(lineIndex, false);
+      return;
+    }
     const technicalButton = event.target.closest('[data-technical-line]');
     if (technicalButton && state.detail) {
       openOci(Number(technicalButton.dataset.technicalLine), false);

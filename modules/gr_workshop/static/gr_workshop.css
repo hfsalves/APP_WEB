@@ -201,8 +201,14 @@
 .gr-workshop-field-duration,
 .gr-workshop-field-mechanic,
 .gr-workshop-field-plan-date,
-.gr-workshop-field-plan-time {
+.gr-workshop-field-plan-time,
+.gr-workshop-field-kms,
+.gr-workshop-field-next-date {
   grid-column: span 2;
+}
+
+.gr-workshop-field-vehicle-meta {
+  grid-column: span 3;
 }
 
 .gr-workshop-field-type {
@@ -494,6 +500,9 @@
   .gr-workshop-field-state,
   .gr-workshop-field-date,
   .gr-workshop-field-time,
+  .gr-workshop-field-vehicle-meta,
+  .gr-workshop-field-kms,
+  .gr-workshop-field-next-date,
   .gr-workshop-field-duration,
   .gr-workshop-field-mechanic,
   .gr-workshop-field-plan-date,
@@ -531,6 +540,9 @@
   .gr-workshop-field-state,
   .gr-workshop-field-date,
   .gr-workshop-field-time,
+  .gr-workshop-field-vehicle-meta,
+  .gr-workshop-field-kms,
+  .gr-workshop-field-next-date,
   .gr-workshop-field-duration,
   .gr-workshop-field-mechanic,
   .gr-workshop-field-plan-date,

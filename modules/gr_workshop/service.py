@@ -9,6 +9,7 @@ import uuid
 from urllib import error as urllib_error
 from urllib import request as urllib_request
 
+import pyodbc
 from flask import current_app
 from sqlalchemy import text
 
@@ -371,7 +372,10 @@ def list_vehicles(term: str = "", limit: int = 40) -> list[dict[str, Any]]:
                 LTRIM(RTRIM(ISNULL(MATRICULA, ''))) AS MATRICULA,
                 LTRIM(RTRIM(ISNULL(MARCA, ''))) AS MARCA,
                 LTRIM(RTRIM(ISNULL(MODELO, ''))) AS MODELO,
-                LTRIM(RTRIM(ISNULL(NOFROTA, ''))) AS NOFROTA
+                LTRIM(RTRIM(ISNULL(NOFROTA, ''))) AS NOFROTA,
+                LTRIM(RTRIM(ISNULL(RESPONSAVEL, ''))) AS RESPONSAVEL,
+                LTRIM(RTRIM(ISNULL(CHASSIS, ''))) AS CHASSIS,
+                ISNULL(KMS, 0) AS KMS
             FROM dbo.VA
             WHERE ISNULL(INATIVO, 0) = 0
               AND LTRIM(RTRIM(ISNULL(MATRICULA, ''))) <> ''
@@ -381,6 +385,8 @@ def list_vehicles(term: str = "", limit: int = 40) -> list[dict[str, Any]]:
                  OR MARCA LIKE :query
                  OR MODELO LIKE :query
                  OR NOFROTA LIKE :query
+                 OR RESPONSAVEL LIKE :query
+                 OR CHASSIS LIKE :query
               )
             ORDER BY LTRIM(RTRIM(ISNULL(MATRICULA, '')))
             """
@@ -394,11 +400,15 @@ def list_vehicles(term: str = "", limit: int = 40) -> list[dict[str, Any]]:
             "MARCA": row["MARCA"],
             "MODELO": row["MODELO"],
             "NOFROTA": row["NOFROTA"],
+            "RESPONSAVEL": row["RESPONSAVEL"],
+            "CHASSIS": row["CHASSIS"],
+            "KMS": float(row["KMS"] or 0),
             "value": row["MATRICULA"],
             "display": [
                 row["MATRICULA"],
                 " ".join(part for part in (row["MARCA"], row["MODELO"]) if part),
                 row["NOFROTA"],
+                row["RESPONSAVEL"],
             ],
             "row": {
                 "VASTAMP": row["VASTAMP"],
@@ -406,6 +416,9 @@ def list_vehicles(term: str = "", limit: int = 40) -> list[dict[str, Any]]:
                 "MARCA": row["MARCA"],
                 "MODELO": row["MODELO"],
                 "NOFROTA": row["NOFROTA"],
+                "RESPONSAVEL": row["RESPONSAVEL"],
+                "CHASSIS": row["CHASSIS"],
+                "KMS": float(row["KMS"] or 0),
             },
             "LABEL": " ".join(
                 part for part in (row["MATRICULA"], row["MARCA"], row["MODELO"], row["NOFROTA"]) if part
@@ -470,7 +483,7 @@ def list_articles(term: str = "", limit: int = 40) -> list[dict[str, Any]]:
         ),
         {"feid": feid, "query": query},
     ).mappings().all()
-    return [
+    result = [
         {
             "STSTAMP": row["STSTAMP"],
             "REF": row["REF"],
@@ -481,6 +494,79 @@ def list_articles(term: str = "", limit: int = 40) -> list[dict[str, Any]]:
             "FAMINOME": row["FAMINOME"],
         }
         for row in rows
+    ]
+    if result:
+        return result
+    return _list_phc_articles(feid, term, safe_limit)
+
+
+def _list_phc_articles(feid: int, term: str, limit: int) -> list[dict[str, Any]]:
+    source = db.session.execute(
+        text(
+            """
+            SELECT TOP 1
+                LTRIM(RTRIM(ISNULL(PHC_DB, ''))) AS PHC_DB,
+                LTRIM(RTRIM(ISNULL(PHC_SERVER, ''))) AS PHC_SERVER
+            FROM dbo.FE
+            WHERE FEID = :feid
+              AND ISNULL(ATIVA, 0) = 1
+            """
+        ),
+        {"feid": feid},
+    ).mappings().first()
+    if not source or not _text(source.get("PHC_DB")):
+        return []
+
+    from services.opc_phc_info_service import _phc_conn_str
+
+    query = f"%{_text(term)}%"
+    try:
+        with pyodbc.connect(
+            _phc_conn_str(_text(source["PHC_DB"]), _text(source.get("PHC_SERVER"))),
+            timeout=10,
+        ) as connection:
+            cursor = connection.cursor()
+            cursor.execute(
+                f"""
+                SELECT TOP ({max(1, min(int(limit or 40), 100))})
+                    LTRIM(RTRIM(ISNULL(STSTAMP, ''))) AS STSTAMP,
+                    LTRIM(RTRIM(ISNULL(REF, ''))) AS REF,
+                    LTRIM(RTRIM(ISNULL(DESIGN, ''))) AS DESIGN,
+                    LTRIM(RTRIM(ISNULL(UNIDADE, ''))) AS UNIDADE,
+                    COALESCE(NULLIF(PCUSTO, 0), EPV1, 0) AS EPV,
+                    LTRIM(RTRIM(ISNULL(FAMILIA, ''))) AS FAMILIA,
+                    LTRIM(RTRIM(ISNULL(FAMINOME, ''))) AS FAMINOME
+                FROM dbo.ST
+                WHERE ISNULL(INACTIVO, 0) = 0
+                  AND LTRIM(RTRIM(ISNULL(REF, ''))) <> ''
+                  AND (
+                        ? = '%%'
+                     OR REF LIKE ?
+                     OR DESIGN LIKE ?
+                     OR FAMILIA LIKE ?
+                     OR FAMINOME LIKE ?
+                  )
+                ORDER BY LTRIM(RTRIM(ISNULL(REF, '')))
+                """,
+                (query, query, query, query, query),
+            )
+            columns = [item[0] for item in cursor.description]
+            phc_rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
+    except Exception:
+        current_app.logger.exception("Erro a pesquisar artigos PHC para a oficina (FEID %s).", feid)
+        return []
+
+    return [
+        {
+            "STSTAMP": _text(row.get("STSTAMP")),
+            "REF": _text(row.get("REF")),
+            "DESIGN": _text(row.get("DESIGN")),
+            "UNIDADE": _text(row.get("UNIDADE")),
+            "PUNIT": float(row.get("EPV") or 0),
+            "FAMILIA": _text(row.get("FAMILIA")),
+            "FAMINOME": _text(row.get("FAMINOME")),
+        }
+        for row in phc_rows
     ]
 
 
@@ -817,14 +903,36 @@ def suggest_workshop_job(payload: dict[str, Any]) -> dict[str, Any]:
     try:
         # A chamada ocorre dentro de uma interação do utilizador. Nunca deve
         # prender o modal por vários minutos quando a pesquisa externa atrasa.
-        with urllib_request.urlopen(req, timeout=50) as response:
+        with urllib_request.urlopen(req, timeout=42) as response:
             result = json.loads(response.read().decode("utf-8"))
     except urllib_error.HTTPError as exc:
         last_http_error = exc
     except Exception as exc:
-        raise WorkshopError(
-            "A pesquisa AI demorou demasiado a responder. Tenta novamente dentro de instantes."
-        ) from exc
+        # A pesquisa web pode ultrapassar o tempo aceitável numa interação.
+        # Nesse caso ainda devolvemos uma estimativa conservadora, sem fingir
+        # que foram confirmadas referências externas.
+        fallback_body = json.loads(json.dumps(request_body))
+        fallback_body.pop("tools", None)
+        fallback_body.pop("tool_choice", None)
+        fallback_body["input"][0]["content"][0]["text"] += (
+            " A pesquisa externa não respondeu a tempo. Baseia a estimativa apenas nos dados fornecidos, "
+            "deixa supplier_reference e source_url vazios e assinala o que deve ser confirmado pelo mecânico."
+        )
+        fallback_req = urllib_request.Request(
+            "https://api.openai.com/v1/responses",
+            data=json.dumps(fallback_body).encode("utf-8"),
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib_request.urlopen(fallback_req, timeout=30) as response:
+                result = json.loads(response.read().decode("utf-8"))
+        except urllib_error.HTTPError as fallback_http_error:
+            last_http_error = fallback_http_error
+        except Exception as fallback_exc:
+            raise WorkshopError(
+                "A pesquisa AI demorou demasiado a responder. Tenta novamente dentro de instantes."
+            ) from fallback_exc
 
     if last_http_error:
         if last_http_error.code in {401, 403}:
@@ -916,11 +1024,17 @@ def list_sheets(args: dict[str, Any]) -> dict[str, Any]:
                 F.PLAN_DATA,
                 F.PLAN_HORAINI,
                 F.PLAN_HORAFIM,
+                F.KMS,
+                F.PROX_INTERV_KMS,
+                F.PROX_INTERV_DATA,
                 F.ESTADO,
                 F.TOTAL,
                 ISNULL(V.MARCA, '') AS MARCA,
                 ISNULL(V.MODELO, '') AS MODELO,
-                ISNULL(V.NOFROTA, '') AS NOFROTA
+                ISNULL(V.NOFROTA, '') AS NOFROTA,
+                ISNULL(V.RESPONSAVEL, '') AS RESPONSAVEL,
+                ISNULL(V.CHASSIS, '') AS CHASSIS,
+                ISNULL(V.KMS, 0) AS VEICULO_KMS
             FROM dbo.OFICINA_FOLHA F
             LEFT JOIN dbo.OFICINA_TRAB T
               ON T.OFICINA_TRABSTAMP = F.OFICINA_TRABSTAMP
@@ -978,6 +1092,12 @@ def _sheet_row(row: Any) -> dict[str, Any]:
         "PLAN_DATA": _date_only_iso(row["PLAN_DATA"]),
         "PLAN_HORAINI": _text(row["PLAN_HORAINI"], 5),
         "PLAN_HORAFIM": _text(row["PLAN_HORAFIM"], 5),
+        "KMS": float(row.get("KMS") or 0),
+        "PROX_INTERV_KMS": float(row.get("PROX_INTERV_KMS") or 0),
+        "PROX_INTERV_DATA": _date_only_iso(row.get("PROX_INTERV_DATA")),
+        "RESPONSAVEL": _text(row.get("RESPONSAVEL"), 80),
+        "CHASSIS": _text(row.get("CHASSIS"), 80),
+        "VEICULO_KMS": float(row.get("VEICULO_KMS") or 0),
         "ESTADO": state["code"],
         "ESTADO_LABEL": state["label"],
         "ESTADO_TONE": state["tone"],
@@ -1012,12 +1132,18 @@ def get_sheet(stamp: str) -> dict[str, Any]:
                 F.PLAN_DATA,
                 F.PLAN_HORAINI,
                 F.PLAN_HORAFIM,
+                F.KMS,
+                F.PROX_INTERV_KMS,
+                F.PROX_INTERV_DATA,
                 F.ESTADO,
                 F.OBS,
                 F.TOTAL,
                 ISNULL(V.MARCA, '') AS MARCA,
                 ISNULL(V.MODELO, '') AS MODELO,
-                ISNULL(V.NOFROTA, '') AS NOFROTA
+                ISNULL(V.NOFROTA, '') AS NOFROTA,
+                ISNULL(V.RESPONSAVEL, '') AS RESPONSAVEL,
+                ISNULL(V.CHASSIS, '') AS CHASSIS,
+                ISNULL(V.KMS, 0) AS VEICULO_KMS
             FROM dbo.OFICINA_FOLHA F
             LEFT JOIN dbo.OFICINA_TRAB T
               ON T.OFICINA_TRABSTAMP = F.OFICINA_TRABSTAMP
@@ -1068,11 +1194,17 @@ def list_planning_week(args: dict[str, Any]) -> dict[str, Any]:
         F.PLAN_DATA,
         F.PLAN_HORAINI,
         F.PLAN_HORAFIM,
+        F.KMS,
+        F.PROX_INTERV_KMS,
+        F.PROX_INTERV_DATA,
         F.ESTADO,
         F.TOTAL,
         ISNULL(V.MARCA, '') AS MARCA,
         ISNULL(V.MODELO, '') AS MODELO,
-        ISNULL(V.NOFROTA, '') AS NOFROTA
+        ISNULL(V.NOFROTA, '') AS NOFROTA,
+        ISNULL(V.RESPONSAVEL, '') AS RESPONSAVEL,
+        ISNULL(V.CHASSIS, '') AS CHASSIS,
+        ISNULL(V.KMS, 0) AS VEICULO_KMS
     """
     from_sql = """
         FROM dbo.OFICINA_FOLHA F
@@ -1460,6 +1592,11 @@ def save_sheet(payload: dict[str, Any], user_login: str = "", stamp: str = "") -
     if horafim and horafim < horaini:
         raise WorkshopValidationError("Hora de fim não pode ser anterior à hora de início.")
     tempo = _int_value(payload.get("TEMPO"), default=0, minimum=0, label="Tempo")
+    kms = _decimal(payload.get("KMS"))
+    prox_interv_kms = _decimal(payload.get("PROX_INTERV_KMS"))
+    if kms < 0 or prox_interv_kms < 0:
+        raise WorkshopValidationError("Quilometragem inválida.")
+    prox_interv_data = _date_value(payload.get("PROX_INTERV_DATA"), label="Data da próxima intervenção")
     plan_data = _date_value(payload.get("PLAN_DATA"), label="Data planeada")
     plan_horaini = _time_value(payload.get("PLAN_HORAINI"), label="Hora planeada de início")
     plan_horafim = _time_value(payload.get("PLAN_HORAFIM"), label="Hora planeada de fim")
@@ -1486,6 +1623,9 @@ def save_sheet(payload: dict[str, Any], user_login: str = "", stamp: str = "") -
         "horaini": horaini,
         "horafim": horafim,
         "tempo": tempo,
+        "kms": kms,
+        "prox_interv_kms": prox_interv_kms,
+        "prox_interv_data": prox_interv_data,
         "mechanic": mechanic_stamp,
         "plan_data": plan_data,
         "plan_horaini": plan_horaini,
@@ -1519,6 +1659,9 @@ def save_sheet(payload: dict[str, Any], user_login: str = "", stamp: str = "") -
                        HORAINI = :horaini,
                        HORAFIM = :horafim,{legacy_set}
                        TEMPO = :tempo,
+                       KMS = :kms,
+                       PROX_INTERV_KMS = :prox_interv_kms,
+                       PROX_INTERV_DATA = :prox_interv_data,
                        OFICINA_MECSTAMP = :mechanic,
                        PLAN_DATA = :plan_data,
                        PLAN_HORAINI = :plan_horaini,
@@ -1549,15 +1692,30 @@ def save_sheet(payload: dict[str, Any], user_login: str = "", stamp: str = "") -
                 f"""
                 INSERT INTO dbo.OFICINA_FOLHA
                     (OFICINA_FOLHASTAMP, FEID, NO, VASTAMP, MATRICULA, OFICINA_TRABSTAMP,
-                     TRABALHO, DATA, HORAINI, HORAFIM, TEMPO, OFICINA_MECSTAMP, PLAN_DATA, PLAN_HORAINI, PLAN_HORAFIM{legacy_columns},
+                     TRABALHO, DATA, HORAINI, HORAFIM, TEMPO, KMS, PROX_INTERV_KMS, PROX_INTERV_DATA,
+                     OFICINA_MECSTAMP, PLAN_DATA, PLAN_HORAINI, PLAN_HORAFIM{legacy_columns},
                      ESTADO, OBS, TOTAL, USERCRIACAO, USERALTERACAO)
                 VALUES
                     (:stamp, :feid, :no, :vastamp, :matricula, :work_stamp,
-                     :trabalho, :data, :horaini, :horafim, :tempo, :mechanic, :plan_data, :plan_horaini, :plan_horafim{legacy_values},
+                     :trabalho, :data, :horaini, :horafim, :tempo, :kms, :prox_interv_kms, :prox_interv_data,
+                     :mechanic, :plan_data, :plan_horaini, :plan_horafim{legacy_values},
                      :estado, :obs, :total, :user, :user)
                 """
             ),
             params,
+        )
+
+    if kms > 0:
+        db.session.execute(
+            text(
+                """
+                UPDATE dbo.VA
+                   SET KMS = :kms
+                 WHERE VASTAMP = :vastamp
+                   AND :kms >= ISNULL(KMS, 0)
+                """
+            ),
+            {"vastamp": params["vastamp"], "kms": kms},
         )
 
     _insert_lines(params["stamp"], lines)

@@ -48,10 +48,13 @@ DOC_AI_DOC_TYPES = [
     {'value': 'credit_note', 'label': 'Nota de crédito'},
     {'value': 'purchase_order', 'label': 'Nota de encomenda'},
     {'value': 'delivery_note', 'label': 'Guia'},
+    {'value': 'bank_statement', 'label': 'Relevé bancário'},
+    {'value': 'mail', 'label': 'Lettre'},
     {'value': 'unknown', 'label': 'Desconhecido'},
 ]
 
 DOC_AI_PURCHASE_INVOICE_CORRESPONDENCE_TYPE = 'FAC'
+DOC_AI_PURCHASE_CREDIT_NOTE_CORRESPONDENCE_TYPE = 'NC'
 
 # A pasta-base da GED pertence à empresa configurada na FE. O nome fiscal não
 # é uma chave segura (por exemplo, Betãoconcept usa a base PHC HSOLS_PT).
@@ -80,8 +83,8 @@ def _ged_folder_from_phc_database(value: Any) -> str:
 
 DOC_AI_DOC_TYPE_TERMS = {
     'invoice': {
-        'strong': ['invoice', 'facture', 'fatura', 'factura'],
-        'normal': ['bill to', 'amount due', 'montant facture', 'total facture'],
+        'strong': ['invoice', 'facture', 'fatura', 'factura', 'décompte de frais', 'decompte de frais'],
+        'normal': ['bill to', 'amount due', 'montant facture', 'total facture', 'frais de dossier', 'commission'],
         'weak': ['vat', 'iva', 'total'],
     },
     'credit_note': {
@@ -118,6 +121,16 @@ DOC_AI_DOC_TYPE_TERMS = {
             'guia',
         ],
         'weak': ['transporteur', 'reception', 'enlevement', 'bl'],
+    },
+    'bank_statement': {
+        'strong': ['releve de compte', 'relevé de compte', 'extrait de compte', 'compte courant professionnel'],
+        'normal': ['solde initial', 'solde final', 'date valeur', 'mouvements', 'relevé bancaire', 'releve bancaire'],
+        'weak': ['iban', 'bic'],
+    },
+    'mail': {
+        'strong': ['lettre d information', 'lettre information', 'courrier d information'],
+        'normal': ['lettre', 'courrier', 'avis'],
+        'weak': ['information'],
     },
 }
 
@@ -931,9 +944,11 @@ def identify_fe_entity_from_text(text_value: str) -> dict[str, Any]:
         ]
         for name in names:
             normalized_name = _normalize_text(name)
-            if not normalized_name or len(normalized_name) < 4:
+            min_name_length = 2 if any(char.isdigit() for char in normalized_name) else 4
+            if not normalized_name or len(normalized_name) < min_name_length:
                 continue
-            name_tokens = [token for token in normalized_name.split(' ') if len(token) > 2]
+            min_token_length = 2 if any(char.isdigit() for char in normalized_name) else 3
+            name_tokens = [token for token in normalized_name.split(' ') if len(token) >= min_token_length]
             token_hits = sum(1 for token in name_tokens if token in normalized_text)
             token_score = token_hits / max(len(name_tokens), 1)
             ratio = SequenceMatcher(None, normalized_name, normalized_text).ratio()
@@ -1767,6 +1782,8 @@ def _correspondence_file_name(
     reference: int,
     party: dict[str, Any],
 ) -> str:
+    doc_type = str(document_data.get('document_type') or '').strip().lower()
+    prefix = 'RB' if doc_type == 'bank_statement' else 'L'
     role = str(document_data.get('external_party_role') or '').strip().lower()
     party_number = _safe_int(
         party.get('customer_no') if role == 'customer' else party.get('supplier_no') or party.get('no'),
@@ -1778,7 +1795,7 @@ def _correspondence_file_name(
     party_name = party_name[:60]
     title = _correspondence_safe_part(document_data.get('mail_title'), '')[:25]
     document_date = _safe_date_iso(document_data.get('document_date')) or date.today().isoformat()
-    parts = ['L', str(reference).zfill(3)]
+    parts = [prefix, str(reference).zfill(3)]
     if role in {'customer', 'supplier'} and party_number_label:
         parts.append(party_number_label)
     parts.append(party_name)
@@ -1786,6 +1803,13 @@ def _correspondence_file_name(
         parts.append(title)
     parts.append(document_date)
     return f"{'-'.join(filter(None, parts))}.pdf"
+
+
+def _correspondence_type_config(document_type: Any) -> dict[str, str]:
+    clean_type = str(document_type or '').strip().lower()
+    if clean_type == 'bank_statement':
+        return {'type': 'RB', 'folder': 'RB', 'label': 'relevé bancário'}
+    return {'type': 'L', 'folder': 'LETTRE', 'label': 'correspondência'}
 
 
 def _correspondence_ged_paths(
@@ -1906,8 +1930,9 @@ def submit_correspondence_to_phc(
     from services.phc_user_import_service import _phc_conn_str
 
     document = dict(document_data or {})
-    if str(document.get('document_type') or '').strip().lower() != 'mail':
-        raise ValueError('Este circuito de submissão aceita apenas correspondência.')
+    correspondence_type = str(document.get('document_type') or '').strip().lower()
+    if correspondence_type not in {'mail', 'bank_statement'}:
+        raise ValueError('Este circuito de submissão aceita apenas correspondência e relevés bancários.')
     if not file_bytes or not str(original_file_name or '').lower().endswith('.pdf'):
         raise ValueError('O PDF original é obrigatório para submeter a correspondência.')
     customer = dict(document.get('customer') or {})
@@ -1968,6 +1993,7 @@ def submit_correspondence_to_phc(
         reference = _safe_int(row[0] if row else 0, 0) + 1
         party = _phc_correspondence_party(cursor, document)
         user = _phc_correspondence_user(cursor, requested_by)
+        type_config = _correspondence_type_config(correspondence_type)
         ged = _correspondence_ged_paths(document, source, reference, {**(document.get('supplier') or {}), **party}, received_at)
         write_path = ged['write_path']
         created_file = _write_document_ai_pdf(ged, file_bytes)
@@ -1989,7 +2015,7 @@ def submit_correspondence_to_phc(
             'rdata': received_at,
             'entrada': received_at,
             'ano': target_year,
-            'tipo': 'L',
+            'tipo': type_config['type'],
             'enviada': 0,
             'iniciais': '',
             'nenviada': 0,
@@ -2003,22 +2029,22 @@ def submit_correspondence_to_phc(
             'usrdata': received_at,
             'usrhora': now_time,
             'marcada': 0,
-            'pasta': 'LETTRE',
+            'pasta': type_config['folder'],
             'wtwd': '',
             'wtwstamp': '',
             'intid': '',
             'u_origem': 'DOCUMENT_AI',
         })
         attachment_origin = (
-            f'Correspondência\rData da correspondência: {document_date.strftime("%d.%m.%Y %H:%M:%S")}\r'
+            f'{type_config["label"].capitalize()}\rData da correspondência: {document_date.strftime("%d.%m.%Y %H:%M:%S")}\r'
             f'Empresa: {party["name"]}\rAssunto: {subject}\rReferência: {reference:10d}\r'
-            'Observações: \rPasta: LETTRE\r'
+            f'Observações: \rPasta: {type_config["folder"]}\r'
         )
         _phc_insert_values(cursor, 'ANEXOS', {
             'anexosstamp': anexosstamp,
             'oritable': 'CR',
             'tabnm': 'Correspondência',
-            'resumo': 'L',
+            'resumo': type_config['type'],
             'grupo': '',
             'recstamp': crstamp,
             'uniqueid': unique_id,
@@ -2051,7 +2077,7 @@ def submit_correspondence_to_phc(
         return {
             'ok': True,
             'duplicate': False,
-            'message': f'Correspondência nº {reference} criada no PHC.',
+            'message': f'{type_config["label"].capitalize()} nº {reference} criada no PHC.',
             'crstamp': crstamp,
             'anexosstamp': anexosstamp,
             'reference': reference,
@@ -2077,10 +2103,115 @@ def submit_correspondence_to_phc(
 
 DOC_AI_PROVISIONAL_ARTICLE_REF = 'Z.00.00.000.0000'
 DOC_AI_PURCHASE_INVOICE_DOCCODE = 55
+DOC_AI_PURCHASE_CREDIT_NOTE_DOCCODE = 3
 
 
 def _is_provisional_purchase_source_type(value: Any) -> bool:
-    return str(value or '').strip().lower() in {'invoice', 'provisional_invoice'}
+    return str(value or '').strip().lower() in {'invoice', 'provisional_invoice', 'credit_note'}
+
+
+def _is_credit_note_source_type(value: Any) -> bool:
+    return str(value or '').strip().lower() in {'credit_note'}
+
+
+def _phc_provisional_purchase_doc_config(cursor, database_name: str, document_type: Any) -> dict[str, Any]:
+    is_credit_note = _is_credit_note_source_type(document_type)
+    doccode = DOC_AI_PURCHASE_CREDIT_NOTE_DOCCODE if is_credit_note else DOC_AI_PURCHASE_INVOICE_DOCCODE
+    docname_row = cursor.execute("""
+        SELECT TOP 1 LTRIM(RTRIM(ISNULL(DOCNOME, '')))
+        FROM dbo.FO WITH (NOLOCK)
+        WHERE DOCCODE = ? AND ISNULL(DOCNOME, '') <> ''
+        ORDER BY DATA DESC
+    """, doccode).fetchone()
+    docname = str(docname_row[0] or '').strip() if docname_row else ''
+    clean_database = str(database_name or '').strip().upper()
+    if not docname:
+        if is_credit_note:
+            docname = 'V/Nt. Crédito' if clean_database in {'HSOLS_PT', 'GR360'} else 'V/Avoir'
+        else:
+            docname = 'V/Fatura' if clean_database in {'HSOLS_PT', 'GR360'} else 'V/Facture'
+    return {
+        'is_credit_note': is_credit_note,
+        'doccode': doccode,
+        'docname': docname,
+        'file_prefix': 'NC' if is_credit_note else 'FAC',
+        'correspondence_type': DOC_AI_PURCHASE_CREDIT_NOTE_CORRESPONDENCE_TYPE if is_credit_note else DOC_AI_PURCHASE_INVOICE_CORRESPONDENCE_TYPE,
+        'label': 'nota de crédito' if is_credit_note else 'fatura',
+        'phc_label': 'V/Avoir' if is_credit_note else 'Facture Provisoire',
+    }
+
+
+def _phc_provisional_effective_datetime(cursor, database_name: str, document_date: datetime, received_at: datetime) -> datetime:
+    """Data operacional da compra provisória: data do documento, salvo mês PHC fechado.
+
+    Primeiro tenta respeitar a data de fecho registada na empresa PHC. Quando
+    essa data não existe/não é útil, pode ser indicada por configuração. Sem
+    configuração, mantém-se a data do documento, evitando arquivar Julho em
+    Agosto só porque o processamento ocorreu em Agosto.
+    """
+    closed_row = None
+    try:
+        closed_row = cursor.execute("""
+            SELECT
+                MAX(CASE WHEN ISNULL(DATAFECHO, '19000101') > '19000101' THEN DATAFECHO ELSE NULL END),
+                MAX(CASE WHEN ISNULL(U_DTFECHO, '19000101') > '19000101' THEN U_DTFECHO ELSE NULL END)
+            FROM dbo.E1 WITH (NOLOCK)
+        """).fetchone()
+    except Exception:
+        closed_row = None
+    closed_dates = [
+        value for value in (closed_row or [])
+        if isinstance(value, datetime) and value.date() > date(1900, 1, 1)
+    ]
+    if closed_dates:
+        closed_until = max(closed_dates)
+        if document_date.date() <= closed_until.date():
+            if closed_until.month == 12:
+                open_date = datetime(closed_until.year + 1, 1, 1)
+            else:
+                open_date = datetime(closed_until.year, closed_until.month + 1, 1)
+            return open_date.replace(
+                hour=received_at.hour,
+                minute=received_at.minute,
+                second=received_at.second,
+                microsecond=received_at.microsecond,
+            )
+
+    clean_database = str(database_name or '').strip().upper()
+    setting_names = [
+        f'DOCUMENT_AI_PHC_OPEN_MONTH_{clean_database}',
+        'DOCUMENT_AI_PHC_OPEN_MONTH',
+    ]
+    configured = ''
+    for name in setting_names:
+        configured = str(current_app.config.get(name) or os.environ.get(name) or '').strip()
+        if configured:
+            break
+    open_month = re.match(r'^(\d{4})-(\d{1,2})$', configured)
+    if not open_month:
+        return document_date.replace(
+            hour=received_at.hour,
+            minute=received_at.minute,
+            second=received_at.second,
+            microsecond=received_at.microsecond,
+        )
+    open_year = _safe_int(open_month.group(1), document_date.year)
+    open_month_number = max(1, min(_safe_int(open_month.group(2), document_date.month), 12))
+    open_date = datetime(open_year, open_month_number, 1)
+    current_month = datetime(document_date.year, document_date.month, 1)
+    if current_month < open_date:
+        return open_date.replace(
+            hour=received_at.hour,
+            minute=received_at.minute,
+            second=received_at.second,
+            microsecond=received_at.microsecond,
+        )
+    return document_date.replace(
+        hour=received_at.hour,
+        minute=received_at.minute,
+        second=received_at.second,
+        microsecond=received_at.microsecond,
+    )
 
 
 def _phc_money(value: Any) -> Decimal:
@@ -2239,7 +2370,8 @@ def _provisional_invoice_ged_paths(
     source: dict[str, Any],
     supplier: dict[str, Any],
     reference: int,
-    received_at: datetime,
+    effective_at: datetime,
+    file_prefix: str = 'FAC',
 ) -> list[dict[str, str]]:
     company_folder = _correspondence_company_folder(document.get('customer') or {}, source)
     if not company_folder:
@@ -2247,7 +2379,8 @@ def _provisional_invoice_ged_paths(
     supplier_name = _correspondence_safe_part(supplier.get('short_name') or supplier.get('name2') or supplier.get('name'), 'FORNECEDOR')[:55]
     document_number = _correspondence_safe_part(document.get('document_number'), 'SEM-DOCUMENTO')[:45]
     supplier_number = _phc_party_number(supplier.get('no'), supplier.get('estab'))
-    file_name = f'FAC-{str(reference).zfill(3)}-{supplier_number}-{supplier_name}-{document_number}.pdf'
+    clean_prefix = _correspondence_safe_part(file_prefix, 'FAC')[:12]
+    file_name = f'{clean_prefix}-{str(reference).zfill(3)}-{supplier_number}-{supplier_name}-{document_number}.pdf'
     unc_root = str(
         current_app.config.get('PHC_GED_UNC_ROOT')
         or os.environ.get('PHC_GED_UNC_ROOT')
@@ -2268,8 +2401,8 @@ def _provisional_invoice_ged_paths(
             company_folder,
             category,
             *subfolders,
-            str(received_at.year),
-            _correspondence_month_folder(received_at),
+            str(effective_at.year),
+            _correspondence_month_folder(effective_at),
             file_name,
         )
         unc_path = '\\'.join((unc_root, *parts))
@@ -2415,6 +2548,137 @@ def _remove_document_ai_pdf(target: dict[str, str]) -> None:
         os.remove(target['write_path'])
 
 
+def _document_ai_find_app_users(search_terms: list[str]) -> list[dict[str, Any]]:
+    terms = []
+    for term in search_terms:
+        clean = str(term or '').strip()
+        if clean and clean not in terms:
+            terms.append(clean)
+    if not terms:
+        return []
+    clauses = []
+    params: dict[str, Any] = {}
+    for index, term in enumerate(terms):
+        key = f'term_{index}'
+        like_key = f'like_{index}'
+        params[key] = term.lower()
+        params[like_key] = f'%{term.lower()}%'
+        clauses.append(
+            f"LOWER(LTRIM(RTRIM(ISNULL(LOGIN, '')))) = :{key} "
+            f"OR LOWER(LTRIM(RTRIM(ISNULL(EMAIL, '')))) = :{key} "
+            f"OR LOWER(LTRIM(RTRIM(ISNULL(NOME, '')))) LIKE :{like_key} "
+            f"OR LOWER(LTRIM(RTRIM(ISNULL(LOGIN, '')))) LIKE :{like_key}"
+        )
+    rows = db.session.execute(text(f"""
+        SELECT USSTAMP, LOGIN, NOME, EMAIL
+        FROM dbo.US WITH (NOLOCK)
+        WHERE ISNULL(INATIVO, 0) = 0
+          AND ISNULL(IS_ACTIVE, 1) = 1
+          AND ({' OR '.join(f'({clause})' for clause in clauses)})
+    """), params).mappings().all()
+    return [dict(row) for row in rows]
+
+
+def _document_ai_userstamp_from_value(value: Any) -> str:
+    clean = str(value or '').strip()
+    if not clean:
+        return ''
+    row = db.session.execute(text("""
+        SELECT TOP 1 USSTAMP
+        FROM dbo.US WITH (NOLOCK)
+        WHERE ISNULL(INATIVO, 0) = 0
+          AND ISNULL(IS_ACTIVE, 1) = 1
+          AND (
+              LOWER(LTRIM(RTRIM(ISNULL(USSTAMP, '')))) = LOWER(:value)
+              OR LOWER(LTRIM(RTRIM(ISNULL(LOGIN, '')))) = LOWER(:value)
+              OR LOWER(LTRIM(RTRIM(ISNULL(EMAIL, '')))) = LOWER(:value)
+              OR LOWER(LTRIM(RTRIM(ISNULL(NOME, '')))) = LOWER(:value)
+              OR LTRIM(RTRIM(CAST(ISNULL(PENO, 0) AS varchar(20)))) = :value
+          )
+    """), {'value': clean}).mappings().first()
+    return str(row.get('USSTAMP') or '').strip() if row else ''
+
+
+def _document_ai_accounting_responsible_userstamp(customer: dict[str, Any]) -> str:
+    feid = _safe_int(customer.get('feid') or customer.get('FEID'), 0)
+    if not feid:
+        return ''
+    try:
+        columns = [str(row[0] or '').strip() for row in db.session.execute(text("""
+            SELECT COLUMN_NAME
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = 'FE'
+        """)).fetchall()]
+        wanted = {
+            'respcontab', 'resp_contab', 'responsavelcontabilidade', 'responsavel_contabilidade',
+            'contabilidade', 'contabilista', 'usercontab', 'user_contab', 'uscontab', 'u_contab',
+            'peno', 'contab_user', 'accounting_user', 'accounting_responsible',
+        }
+        candidates = [column for column in columns if _normalize_text(column).replace(' ', '_') in wanted]
+        for column in candidates:
+            row = db.session.execute(text(f"""
+                SELECT TOP 1 LTRIM(RTRIM(CAST(ISNULL([{column}], '') AS varchar(255)))) AS VALUE
+                FROM dbo.FE WITH (NOLOCK)
+                WHERE FEID = :feid
+            """), {'feid': feid}).mappings().first()
+            userstamp = _document_ai_userstamp_from_value(row.get('VALUE') if row else '')
+            if userstamp:
+                return userstamp
+    except Exception:
+        current_app.logger.info('Não foi possível identificar responsável contabilístico da FE %s.', feid, exc_info=True)
+    return ''
+
+
+def _document_ai_provisional_alert_recipients(customer: dict[str, Any]) -> list[str]:
+    fixed_users = _document_ai_find_app_users([
+        'António Rocha',
+        'Mickael Silva',
+        'Mickaël Silva',
+        'António Guimarães',
+        'António Cruz',
+    ])
+    recipients = [str(row.get('USSTAMP') or '').strip() for row in fixed_users]
+    accounting_userstamp = _document_ai_accounting_responsible_userstamp(customer)
+    if accounting_userstamp:
+        recipients.append(accounting_userstamp)
+    seen: set[str] = set()
+    result = []
+    for userstamp in recipients:
+        if userstamp and userstamp not in seen:
+            seen.add(userstamp)
+            result.append(userstamp)
+    return result
+
+
+def _notify_document_ai_provisional_created(result: dict[str, Any], document: dict[str, Any], supplier: dict[str, Any], requested_by: str) -> None:
+    try:
+        from services.push_service import send_push_to_user
+
+        customer = dict(document.get('customer') or {})
+        recipients = _document_ai_provisional_alert_recipients(customer)
+        if not recipients:
+            current_app.logger.info('Document AI: provisória criada sem destinatários de alerta configurados.')
+            return
+        sender = _document_ai_userstamp_from_value(requested_by)
+        document_type = str(document.get('document_type') or '').strip().lower()
+        title = 'Avoir provisório criado' if _is_credit_note_source_type(document_type) else 'Fatura provisória criada'
+        number = str(result.get('document_number') or document.get('document_number') or '').strip()
+        database_name = str(result.get('phc_database') or '').strip()
+        supplier_name = str(supplier.get('name') or supplier.get('name2') or '').strip()
+        body = ' · '.join(part for part in [number, supplier_name, database_name] if part)[:240]
+        for userstamp in recipients:
+            send_push_to_user(
+                userstamp,
+                title,
+                body or 'Documento criado pela Leitura Inteligente.',
+                url='/document_ai/inbox',
+                event_type='DOCUMENT_AI_PROVISIONAL_CREATED',
+                sent_by_userstamp=sender,
+            )
+    except Exception:
+        current_app.logger.warning('Falhou envio de alerta Document AI após criação de provisória.', exc_info=True)
+
+
 def submit_provisional_invoice_to_phc(
     document_data: dict[str, Any] | None,
     file_bytes: bytes,
@@ -2426,7 +2690,7 @@ def submit_provisional_invoice_to_phc(
 
     document = dict(document_data or {})
     if not _is_provisional_purchase_source_type(document.get('document_type')):
-        raise ValueError('Este circuito aceita apenas faturas de fornecedor para lançar como Facture Provisoire.')
+        raise ValueError('Este circuito aceita apenas faturas ou notas de crédito de fornecedor para lançar no PHC.')
     if not file_bytes or not str(original_file_name or '').lower().endswith('.pdf'):
         raise ValueError('O PDF original é obrigatório para submeter a Facture Provisoire.')
     document_number = str(document.get('document_number') or '').strip()
@@ -2446,9 +2710,9 @@ def submit_provisional_invoice_to_phc(
     received_at = datetime.now()
     document_date = _document_date_value(document.get('document_date'))
     due_date = _document_date_value(document.get('due_date') or document.get('document_date'))
-    year = document_date.year
     unique_root = f'DOC_AI:{hashlib.sha256(file_bytes).hexdigest()}'
     created_paths: list[str] = []
+    ged_targets: list[dict[str, str]] = []
     connection = pyodbc.connect(
         _phc_conn_str(database_name, str(source.get('phc_server') or '').strip()),
         timeout=15,
@@ -2456,14 +2720,17 @@ def submit_provisional_invoice_to_phc(
     )
     try:
         cursor = connection.cursor()
+        doc_config = _phc_provisional_purchase_doc_config(cursor, database_name, document.get('document_type'))
+        effective_at = _phc_provisional_effective_datetime(cursor, database_name, document_date, received_at)
+        year = effective_at.year
         cursor.execute('SET TRANSACTION ISOLATION LEVEL SERIALIZABLE')
         lock = cursor.execute("""
             DECLARE @result int;
             EXEC @result = sp_getapplock @Resource=?, @LockMode='Exclusive', @LockOwner='Transaction', @LockTimeout=15000;
             SELECT @result;
-        """, f'DOC_AI_PP_{database_name}_{year}_{_normalize_text(document_number)}').fetchone()
+        """, f'DOC_AI_PP_{database_name}_{doc_config["doccode"]}_{year}_{_normalize_text(document_number)}').fetchone()
         if not lock or _safe_int(lock[0], -999) < 0:
-            raise RuntimeError('Não foi possível reservar a integração desta Facture Provisoire. Tenta novamente.')
+            raise RuntimeError('Não foi possível reservar a integração deste documento provisório. Tenta novamente.')
 
         supplier = _phc_provisional_supplier(cursor, dict(document.get('supplier') or {}))
         duplicate = cursor.execute("""
@@ -2473,13 +2740,13 @@ def submit_provisional_invoice_to_phc(
             WHERE F.DOCCODE = ? AND F.NO = ?
               AND (A.UNIQUEID = ? OR LTRIM(RTRIM(F.ADOC)) = ?)
             ORDER BY F.DATA DESC
-        """, DOC_AI_PURCHASE_INVOICE_DOCCODE, supplier['no'], f'{unique_root}:FO', document_number).fetchone()
+        """, doc_config['doccode'], supplier['no'], f'{unique_root}:FO', document_number).fetchone()
         if duplicate:
             connection.rollback()
             return {
                 'ok': True,
                 'duplicate': True,
-                'message': f'A Facture Provisoire {document_number} deste fornecedor já existe no PHC.',
+                'message': f'O documento {document_number} deste fornecedor já existe no PHC como {doc_config["docname"]}.',
                 'fostamp': str(duplicate[0] or '').strip(),
                 'document_number': str(duplicate[1] or '').strip(),
                 'phc_database': database_name,
@@ -2490,12 +2757,12 @@ def submit_provisional_invoice_to_phc(
             SELECT ISNULL(MAX(CAST(ISNULL(REF, 0) AS bigint)), 0)
             FROM dbo.CR WITH (UPDLOCK, HOLDLOCK)
             WHERE CAST(ISNULL(ANO, 0) AS int) = ? AND ISNULL(ENVIADA, 0) = 0
-        """, received_at.year).fetchone()
+        """, year).fetchone()
         reference = _safe_int(reference_row[0] if reference_row else 0, 0) + 1
         user = _phc_correspondence_user(cursor, requested_by)
         article = _ensure_phc_provisional_article(cursor, requested_by, received_at)
         tax_by_code, tax_by_rate = _phc_tax_configuration(cursor)
-        ged_targets = _provisional_invoice_ged_paths(document, source, supplier, reference, received_at)
+        ged_targets = _provisional_invoice_ged_paths(document, source, supplier, reference, effective_at, doc_config['file_prefix'])
         for target in ged_targets:
             if _write_document_ai_pdf(target, file_bytes):
                 created_paths.append(target['write_path'])
@@ -2545,14 +2812,7 @@ def submit_provisional_invoice_to_phc(
         local_net_total = _phc_local_amount(net_total, base_currency_factor)
         local_tax_total = _phc_local_amount(tax_total, base_currency_factor)
         local_gross_total = _phc_local_amount(gross_total, base_currency_factor)
-        docname_row = cursor.execute("""
-            SELECT TOP 1 LTRIM(RTRIM(ISNULL(DOCNOME, '')))
-            FROM dbo.FO WITH (NOLOCK) WHERE DOCCODE = ? AND ISNULL(DOCNOME, '') <> ''
-            ORDER BY DATA DESC
-        """, DOC_AI_PURCHASE_INVOICE_DOCCODE).fetchone()
-        docname = str(docname_row[0] or '').strip() if docname_row else ''
-        if not docname:
-            docname = 'V/Fatura' if database_name in {'HSOLS_PT', 'GR360'} else 'V/Facture'
+        docname = doc_config['docname']
         initials = str(user.get('initials') or requested_by or 'DOC')[:3]
         time_text = received_at.strftime('%H:%M:%S')
         fostamp = _new_stamp()
@@ -2570,8 +2830,8 @@ def submit_provisional_invoice_to_phc(
         _phc_insert_values(cursor, 'FO', {
             'fostamp': fostamp, 'docnome': docname, 'adoc': document_number[:60],
             'nome': str(supplier['name'])[:55], 'nome2': str(supplier['name2'])[:55],
-            'total': local_gross_total, 'etotal': gross_total, 'data': document_date, 'tipo': 'FO',
-            'docdata': document_date, 'foano': year, 'doccode': DOC_AI_PURCHASE_INVOICE_DOCCODE,
+            'total': local_gross_total, 'etotal': gross_total, 'data': effective_at, 'tipo': 'FO',
+            'docdata': document_date, 'foano': year, 'doccode': doc_config['doccode'],
             'no': supplier['no'], 'estab': supplier['estab'], 'ccusto': ccusto,
             'ncusto': str(supplier['ncusto'])[:20], 'moeda': currency, 'totmoeda': 0,
             'pdata': due_date, 'plano': 0, 'ivain': local_net_total, 'ttiva': local_tax_total,
@@ -2616,7 +2876,7 @@ def submit_provisional_invoice_to_phc(
                 'tiliquido': 0 if continuation else _phc_local_amount(item['net'], base_currency_factor, whole=True),
                 'etiliquido': 0 if continuation else item['net'],
                 'ivaincl': 0, 'tabiva': item['code'], 'armazem': 1,
-                'lordem': item['lordem'], 'data': document_date,
+                'lordem': item['lordem'], 'data': effective_at,
                 'stns': 0 if continuation else 1, 'fnccusto': ccusto, 'familia': '',
                 'ousrinis': initials, 'ousrdata': received_at, 'ousrhora': time_text,
                 'usrinis': initials, 'usrdata': received_at, 'usrhora': time_text,
@@ -2638,11 +2898,11 @@ def submit_provisional_invoice_to_phc(
         _phc_insert_values(cursor, 'CR', {
             'crstamp': crstamp, 'data': document_date, 'empresa': str(supplier['name'])[:80],
             'assunto': subject, 'ref': reference, 'refemp': document_number[:80],
-            'rdata': received_at, 'entrada': received_at, 'ano': received_at.year,
-            'tipo': DOC_AI_PURCHASE_INVOICE_CORRESPONDENCE_TYPE,
+            'rdata': received_at, 'entrada': received_at, 'ano': year,
+            'tipo': doc_config['correspondence_type'],
             'enviada': 0, 'nenviada': 0, 'no': supplier['no'],
             'estab': supplier['estab'], 'origem': 'FL',
-            'pasta': DOC_AI_PURCHASE_INVOICE_CORRESPONDENCE_TYPE,
+            'pasta': doc_config['correspondence_type'],
             'ousrinis': initials, 'ousrdata': received_at, 'ousrhora': time_text,
             'usrinis': initials, 'usrdata': received_at, 'usrhora': time_text,
             'u_origem': 'DOCUMENT_AI',
@@ -2651,9 +2911,9 @@ def submit_provisional_invoice_to_phc(
         for target, recstamp, oritable, tabnm, summary, unique_suffix in (
             (
                 ged_targets[0], crstamp, 'CR', 'Correspondência',
-                DOC_AI_PURCHASE_INVOICE_CORRESPONDENCE_TYPE, 'CR',
+                doc_config['correspondence_type'], 'CR',
             ),
-            (ged_targets[1], fostamp, 'FO', 'Compras a Fornecedores', 'FAC', 'FO'),
+            (ged_targets[1], fostamp, 'FO', 'Compras a Fornecedores', doc_config['correspondence_type'], 'FO'),
         ):
             _phc_insert_values(cursor, 'ANEXOS', {
                 'anexosstamp': _new_stamp(), 'oritable': oritable, 'tabnm': tabnm,
@@ -2661,7 +2921,7 @@ def submit_provisional_invoice_to_phc(
                 'uniqueid': f'{unique_root}:{unique_suffix}',
                 'descricao': f'{docname} {document_number}'[:100], 'bdados': pyodbc.Binary(b''),
                 'fullname': target['unc_path'], 'fname': os.path.splitext(target['file_name'])[0][:150],
-                'fext': 'pdf', 'flen': len(file_bytes), 'tipo': 2, 'tpdoc': DOC_AI_PURCHASE_INVOICE_DOCCODE if oritable == 'FO' else 0,
+                'fext': 'pdf', 'flen': len(file_bytes), 'tipo': 2, 'tpdoc': doc_config['doccode'] if oritable == 'FO' else 0,
                 'original': 1 if oritable == 'FO' else 0,
                 'ausrinis': initials, 'ausrdata': received_at, 'ausrhora': time_text,
                 'usnoopen': user['no'], 'usnaopen': str(user['name'])[:55], 'u_enviado': 1,
@@ -2670,18 +2930,23 @@ def submit_provisional_invoice_to_phc(
             })
 
         connection.commit()
-        return {
+        result = {
             'ok': True, 'duplicate': False,
-            'message': f'Fatura {document_number} integrada como {docname} no PHC com {len(physical_lines)} linha(s).',
+            'message': f'{doc_config["label"].capitalize()} {document_number} integrada como {docname} no PHC com {len(physical_lines)} linha(s).',
             'fostamp': fostamp, 'crstamp': crstamp, 'reference': reference,
-            'year': received_at.year, 'document_number': document_number,
+            'year': year, 'document_number': document_number,
             'phc_database': database_name, 'file_name': ged_targets[1]['file_name'],
             'ged_path': ged_targets[1]['unc_path'],
             'ged_paths': [{'label': target['label'], 'path': target['unc_path']} for target in ged_targets],
             'article_ref': DOC_AI_PROVISIONAL_ARTICLE_REF,
+            'doccode': doc_config['doccode'],
+            'docname': docname,
+            'effective_date': effective_at.date().isoformat(),
             'source_line_count': len(normalized_lines),
             'phc_line_count': len(physical_lines),
         }
+        _notify_document_ai_provisional_created(result, document, supplier, requested_by)
+        return result
     except Exception:
         try:
             connection.rollback()
@@ -3620,6 +3885,8 @@ def classify_document_type(text_value: str, supplier_match: dict[str, Any] | Non
         'credit_note': 0.0,
         'purchase_order': 0.0,
         'delivery_note': 0.0,
+        'bank_statement': 0.0,
+        'mail': 0.0,
         'unknown': 0.2,
     }
     reasons: list[str] = []
@@ -3646,6 +3913,24 @@ def classify_document_type(text_value: str, supplier_match: dict[str, Any] | Non
         if strong_hits or normal_hits:
             reasons.extend([f'{doc_type}:{term}' for term in [*strong_hits, *normal_hits][:6]])
 
+    bank_context = bool(re.search(
+        r'\b(?:iban|bic|solde|debit|débit|credit|crédit|date valeur|mouvement|mouvements|banque|bpi france|credit mutuel|crédit mutuel)\b',
+        normalized,
+    ))
+    if strong_hits_by_type.get('bank_statement') and not bank_context:
+        strong_hits_by_type.pop('bank_statement', None)
+        score_map['bank_statement'] = min(score_map.get('bank_statement', 0), 0.42)
+        reasons.append('bank_statement_guarded_without_bank_context')
+
+    credit_terms = [term for term in strong_hits_by_type.get('credit_note', []) if _normalize_text(term) in normalized]
+    if credit_terms:
+        return {
+            'doc_type': 'credit_note',
+            'score': round(min(score_map.get('credit_note', 0.92), 0.99), 4),
+            'supplier_no': (supplier_match or {}).get('supplier_no'),
+            'reasons': [f'strong_term:{term}' for term in credit_terms],
+        }
+
     if strong_hits_by_type:
         best_strong_type = max(strong_hits_by_type.keys(), key=lambda item: score_map.get(item, 0))
         return {
@@ -3669,6 +3954,9 @@ def classify_document_type(text_value: str, supplier_match: dict[str, Any] | Non
     if re.search(r'\bencomenda\b|\border\b|\bcommande\b', normalized):
         score_map['purchase_order'] += 0.14
         reasons.append('order_term')
+    if bank_context and re.search(r'\breleve\b|\brelevé\b|\bextrait\b|\bcompte\b', normalized):
+        score_map['bank_statement'] += 0.2
+        reasons.append('bank_statement_context')
     if template_match and template_match.get('doc_type') and template_match.get('score', 0) > 0.55:
         score_map[str(template_match.get('doc_type'))] = max(
             score_map.get(str(template_match.get('doc_type')), 0),
@@ -6119,6 +6407,22 @@ def _safe_split_file_part(value: Any, fallback: str, max_length: int = 100) -> s
     return (safe_value or fallback)[:max(8, int(max_length or 100))].rstrip('_')
 
 
+def _anexos_display_filename(value: Any, max_length: int = 100) -> str:
+    file_name = os.path.basename(str(value or '').replace('\\', '/')).strip()
+    if not file_name:
+        return ''
+    max_length = max(16, int(max_length or 100))
+    if len(file_name) <= max_length:
+        return file_name
+    stem, extension = os.path.splitext(file_name)
+    digest = hashlib.sha1(file_name.encode('utf-8', errors='ignore')).hexdigest()[:8]
+    extension = extension[:20]
+    stem_limit = max_length - len(extension) - len(digest) - 1
+    if stem_limit < 8:
+        return file_name[:max_length]
+    return f'{stem[:stem_limit].rstrip()}-{digest}{extension}'
+
+
 def _split_document_prefix(document_type: str) -> str:
     normalized = _normalize_text(document_type).replace(' ', '_')
     if normalized in ('delivery_note', 'guia', 'bon_de_livraison') or 'delivery' in normalized:
@@ -6383,7 +6687,7 @@ def split_extracted_pdf_into_inbox(
                 'stamp': anexo_stamp,
                 'recstamp': document.docinstamp,
                 'descricao': f'Documento separado {index}/{total}',
-                'file_name': output_name,
+                'file_name': _anexos_display_filename(output_name),
                 'caminho': stored['public_path'],
                 'data': date.today(),
                 'utilizador': created_by or '',
@@ -6475,7 +6779,7 @@ def _create_inbox_document_from_stored_file(
         'table_name': 'DOC_INBOX',
         'recstamp': document.docinstamp,
         'descricao': 'Documento compra',
-        'file_name': stored['original_name'],
+        'file_name': _anexos_display_filename(stored['original_name']),
         'caminho': stored['public_path'],
         'tipo': stored['file_ext'].lstrip('.'),
         'data': date.today(),

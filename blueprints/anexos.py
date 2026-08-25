@@ -1,5 +1,6 @@
 import os
 import uuid
+import hashlib
 from datetime import datetime
 from flask import Blueprint, request, jsonify, current_app, send_file
 from flask_login import login_required, current_user
@@ -12,6 +13,22 @@ bp = Blueprint('anexos', __name__, url_prefix='/api/anexos')
 # Pasta onde vamos guardar os ficheiros (relativa a current_app.root_path)
 UPLOAD_FOLDER = os.path.join('static', 'images', 'anexos')
 ALLOWED_EXT = {'png','jpg','jpeg','gif','pdf','docx','xlsx','txt','webm','mp4','mov','m4v'}
+
+
+def _anexos_display_filename(value, max_length=100):
+    file_name = os.path.basename(str(value or '').replace('\\', '/')).strip()
+    if not file_name:
+        return ''
+    max_length = max(16, int(max_length or 100))
+    if len(file_name) <= max_length:
+        return file_name
+    stem, extension = os.path.splitext(file_name)
+    digest = hashlib.sha1(file_name.encode('utf-8', errors='ignore')).hexdigest()[:8]
+    extension = extension[:20]
+    stem_limit = max_length - len(extension) - len(digest) - 1
+    if stem_limit < 8:
+        return file_name[:max_length]
+    return f'{stem[:stem_limit].rstrip()}-{digest}{extension}'
 
 
 @bp.route('/phc-va/<source>/<stamp>', methods=['GET'])
@@ -89,6 +106,7 @@ def upload_anexo():
 
     # Caminho público para servir o ficheiro
     public_path = f"/{UPLOAD_FOLDER}/{new_fname}"
+    display_filename = _anexos_display_filename(filename)
 
     # Insere na BD
     sql_ins = text("""
@@ -102,7 +120,7 @@ def upload_anexo():
         'table':  tabela,
         'rec':    rec,
         'desc':   desc,
-        'origfn': filename,
+        'origfn': display_filename,
         'path':   public_path,
         'ext':    ext,
         'dt':     datetime.utcnow().date(),
@@ -113,7 +131,7 @@ def upload_anexo():
     return jsonify({
       'success':      True,
       'ANEXOSSTAMP':  stamp,
-      'FICHEIRO':     filename,
+      'FICHEIRO':     display_filename,
       'CAMINHO':      public_path,
       'TIPO':         ext,
       'DATA':         datetime.utcnow().isoformat(),

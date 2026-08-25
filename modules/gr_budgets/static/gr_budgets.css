@@ -1175,8 +1175,8 @@
 }
 
 .gr-budget-line-actions-column {
-  width: 4.5rem;
-  min-width: 4.5rem;
+  width: 7rem;
+  min-width: 7rem;
   text-align: right !important;
 }
 
@@ -1216,6 +1216,7 @@
 }
 
 .gr-budget-technical-button,
+.gr-budget-edit-line-button,
 .gr-budget-duplicate-line-button,
 .gr-budget-delete-line-button {
   width: 2rem;
@@ -1237,6 +1238,10 @@
 .gr-budget-duplicate-line-button {
   position: relative;
   overflow: visible;
+  font-size: var(--sz-font-size-xs);
+}
+
+.gr-budget-edit-line-button {
   font-size: var(--sz-font-size-xs);
 }
 

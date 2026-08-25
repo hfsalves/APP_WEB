@@ -972,6 +972,7 @@ def get_opc_phc_info(record_stamp: str) -> dict:
             - _as_float(auto.get("ajustes"))
             + _as_float(auto.get("adiantamento"))
             - _as_float(auto.get("ret_garantia"))
+            - _as_float(auto.get("ret_fim_trabalho"))
             - _as_float(auto.get("outras_retencoes"))
             - _as_float(auto.get("prorata"))
         )

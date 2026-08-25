@@ -1045,6 +1045,8 @@ document.addEventListener('DOMContentLoaded', () => {
       ...keywordNameVariants(entityName),
     ];
     if (docType === 'delivery_note') out.unshift('BON');
+    if (docType === 'credit_note') out.unshift('AVOIR', 'NC');
+    if (docType === 'bank_statement') out.unshift('RELEVÉ DE COMPTE', 'RELEVE DE COMPTE', 'RB');
     if (/bon/i.test(selectedText) && selectedText.length <= 80) out.unshift(selectedText);
     return uniqueList(out);
   }

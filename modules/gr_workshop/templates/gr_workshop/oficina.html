@@ -145,6 +145,26 @@
             <label class="sz_label" for="workshopEnd">Hora fim</label>
             <input id="workshopEnd" class="sz_input" type="time" step="60" pattern="[0-9]{2}:[0-9]{2}">
           </div>
+          <div class="sz_field gr-workshop-field-vehicle-meta">
+            <label class="sz_label" for="workshopVehicleResponsible">Equipa / responsável</label>
+            <input id="workshopVehicleResponsible" class="sz_input" type="text" readonly>
+          </div>
+          <div class="sz_field gr-workshop-field-vehicle-meta">
+            <label class="sz_label" for="workshopVehicleSerial">Nº de série / chassis</label>
+            <input id="workshopVehicleSerial" class="sz_input" type="text" readonly>
+          </div>
+          <div class="sz_field gr-workshop-field-kms">
+            <label class="sz_label" for="workshopKms">Kms</label>
+            <input id="workshopKms" class="sz_input" type="number" min="0" step="0.1">
+          </div>
+          <div class="sz_field gr-workshop-field-kms">
+            <label class="sz_label" for="workshopNextKms">Próxima intervenção (kms)</label>
+            <input id="workshopNextKms" class="sz_input" type="number" min="0" step="0.1">
+          </div>
+          <div class="sz_field gr-workshop-field-next-date">
+            <label class="sz_label" for="workshopNextDate">Próxima intervenção (data)</label>
+            <input id="workshopNextDate" class="sz_input" type="date">
+          </div>
           <div class="sz_field gr-workshop-field-duration">
             <label class="sz_label" for="workshopTempo">Tempo (min)</label>
             <input id="workshopTempo" class="sz_input" type="number" min="0" step="1">
