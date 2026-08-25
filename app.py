@@ -379,6 +379,12 @@ def create_app():
         'GR360_TICKET_API_EXPECTED_DATABASE',
         'GR360_CORE',
     )
+    app.config['GR360_TICKET_API_FEID'] = os.environ.get('GR360_TICKET_API_FEID', '1')
+    app.config['GR360_TICKET_MCP_ENABLED'] = os.environ.get('GR360_TICKET_MCP_ENABLED', '1')
+    app.config['GR360_TICKET_MCP_HOST'] = os.environ.get(
+        'GR360_TICKET_MCP_HOST',
+        'app.gr360flooringsystems.com',
+    )
     app.config['DB_CONN_STRS'] = {
         db_target_prod: prod_conn_str,
         db_target_client: _build_pyodbc_conn_str(
@@ -46201,6 +46207,9 @@ def _geo_build_query(morada: str, codpost: str, local: str) -> str:
 
 
 app = create_app()
+
+from services.gr360_ticket_mcp import mount_gr360_ticket_mcp
+mount_gr360_ticket_mcp(app)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

@@ -13,6 +13,7 @@ from services.gr360_ticket_api_service import (
     extract_bearer_token,
     get_ticket,
     list_tickets,
+    update_ticket_followup,
 )
 
 
@@ -36,6 +37,10 @@ def _engine():
 
 def _expected_database() -> str:
     return str(current_app.config.get("GR360_TICKET_API_EXPECTED_DATABASE") or "GR360_CORE").strip()
+
+
+def _ticket_feid() -> int:
+    return int(current_app.config.get("GR360_TICKET_API_FEID") or 1)
 
 
 def _client():
@@ -88,6 +93,7 @@ def api_create_ticket():
         client,
         request.get_json(silent=True),
         _expected_database(),
+        _ticket_feid(),
     )
     if created:
         audit_table_write(
@@ -99,3 +105,25 @@ def api_create_ticket():
             database_name="GR360_CORE",
         )
     return jsonify({"ok": True, "created": created, "item": item}), (201 if created else 200)
+
+
+@bp.patch("/<int:ticket_no>/followup")
+def api_update_ticket_followup(ticket_no: int):
+    client = _client()
+    before, item = update_ticket_followup(
+        _engine(),
+        client,
+        ticket_no,
+        request.get_json(silent=True),
+        _expected_database(),
+    )
+    audit_table_write(
+        table_name="TK",
+        action="UPDATE",
+        record_key={"TICKET": item["ticket"]},
+        before_data=before,
+        after_data=item,
+        metadata={"source": "gr360_ticket_api", "api_client": client.client_id},
+        database_name="GR360_CORE",
+    )
+    return jsonify({"ok": True, "item": item})

@@ -26,7 +26,7 @@ class Gr360TicketApiServiceTests(unittest.TestCase):
         })
         self.assertEqual(result["pedido"], "Controlo de gestão")
         self.assertEqual(result["prioridade"], "Alta")
-        self.assertEqual(result["feid"], 8)
+        self.assertNotIn("feid", result)
         self.assertEqual(result["referencia_externa"], "cloud-gpt-123")
 
     def test_requires_title_and_full_prompt(self):
@@ -35,11 +35,9 @@ class Gr360TicketApiServiceTests(unittest.TestCase):
         with self.assertRaises(service.TicketApiError):
             service.validate_create_payload({"pedido": "x"})
 
-    def test_rejects_invalid_priority_and_feid(self):
+    def test_rejects_invalid_priority(self):
         with self.assertRaises(service.TicketApiError):
             service.validate_create_payload({"pedido": "x", "prompt_hugo": "y", "prioridade": "máxima"})
-        with self.assertRaises(service.TicketApiError):
-            service.validate_create_payload({"pedido": "x", "prompt_hugo": "y", "feid": "abc"})
 
     def test_serialization_omits_prompt_from_list_when_requested(self):
         row = {"TICKET": 27, "PEDIDO": "Teste", "TRATADO": 0, "PROMPT_HUGO": "conteúdo"}
@@ -60,6 +58,38 @@ class Gr360TicketApiServiceTests(unittest.TestCase):
 
         with self.assertRaises(service.TicketApiConfigurationError):
             service.ensure_gr360_database(Connection(), "GR360_CORE")
+
+    def test_validates_followup_without_accepting_non_boolean_treated(self):
+        result = service.validate_followup_payload({
+            "estado": "  Validado  ",
+            "seguimento": "O comportamento foi reproduzido e validado.",
+            "tratado": True,
+        })
+        self.assertEqual(result["estado"], "Validado")
+        self.assertTrue(result["tratado"])
+
+        with self.assertRaises(service.TicketApiError):
+            service.validate_followup_payload({
+                "estado": "Validado",
+                "seguimento": "Texto",
+                "tratado": "sim",
+            })
+
+    def test_update_permission_is_closed_by_default(self):
+        client = service.TicketApiClient(
+            client_id="readonly",
+            name="Read only",
+            can_create=False,
+            can_read=True,
+            can_read_all=False,
+        )
+        with self.assertRaises(service.TicketApiForbidden):
+            service.update_ticket_followup(
+                object(),
+                client,
+                1,
+                {"estado": "Validado", "seguimento": "Teste", "tratado": False},
+            )
 
 
 if __name__ == "__main__":

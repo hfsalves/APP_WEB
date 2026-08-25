@@ -13,6 +13,7 @@ from sqlalchemy import text
 
 VALID_PRIORITIES = {"BAIXA": "Baixa", "NORMAL": "Normal", "ALTA": "Alta", "URGENTE": "Urgente"}
 MAX_PROMPT_LENGTH = 100_000
+MAX_FOLLOWUP_LENGTH = 100_000
 
 
 class TicketApiError(RuntimeError):
@@ -42,6 +43,7 @@ class TicketApiClient:
     can_create: bool
     can_read: bool
     can_read_all: bool
+    can_update: bool = False
 
 
 def clean_text(value: Any, max_length: int | None = None) -> str:
@@ -90,24 +92,33 @@ def validate_create_payload(payload: Any) -> dict[str, Any]:
     if not description:
         description = normalize_spaces(prompt)
 
-    feid = payload.get("feid")
-    if feid in (None, ""):
-        feid = None
-    else:
-        try:
-            feid = int(feid)
-        except (TypeError, ValueError) as exc:
-            raise TicketApiError("O campo feid deve ser numérico.") from exc
-
     return {
         "pedido": pedido,
         "descricao": description[:250],
         "prompt_hugo": prompt,
         "prioridade": normalize_priority(payload.get("prioridade")),
-        "feid": feid,
         "utilizador": normalize_spaces(payload.get("utilizador"))[:50],
         "referencia_externa": clean_text(payload.get("referencia_externa"), 100) or None,
     }
+
+
+def validate_followup_payload(payload: Any) -> dict[str, Any]:
+    if not isinstance(payload, Mapping):
+        raise TicketApiError("O corpo do pedido deve ser um objeto JSON.")
+
+    state = normalize_spaces(payload.get("estado"))[:30]
+    followup = clean_text(payload.get("seguimento"))
+    if not state:
+        raise TicketApiError("O campo estado é obrigatório.")
+    if not followup:
+        raise TicketApiError("O campo seguimento é obrigatório.")
+    if len(followup) > MAX_FOLLOWUP_LENGTH:
+        raise TicketApiError(f"O seguimento excede o limite de {MAX_FOLLOWUP_LENGTH} caracteres.")
+
+    treated = payload.get("tratado", False)
+    if not isinstance(treated, bool):
+        raise TicketApiError("O campo tratado deve ser true ou false.")
+    return {"estado": state, "seguimento": followup, "tratado": treated}
 
 
 def _new_stamp() -> str:
@@ -159,7 +170,8 @@ def authenticate_client(engine, raw_token: str, expected_database: str = "GR360_
     with engine.begin() as connection:
         ensure_gr360_database(connection, expected_database)
         rows = connection.execute(text("""
-            SELECT CLIENT_ID, NOME, TOKEN_HASH, PODE_CRIAR, PODE_LER, PODE_LER_TODOS
+            SELECT CLIENT_ID, NOME, TOKEN_HASH, PODE_CRIAR, PODE_LER,
+                   PODE_LER_TODOS, PODE_ATUALIZAR
             FROM dbo.GR_TICKET_API_CLIENT
             WHERE ATIVO = 1
         """)).mappings().all()
@@ -182,14 +194,27 @@ def authenticate_client(engine, raw_token: str, expected_database: str = "GR360_
         can_create=bool(matched.get("PODE_CRIAR")),
         can_read=bool(matched.get("PODE_LER")),
         can_read_all=bool(matched.get("PODE_LER_TODOS")),
+        can_update=bool(matched.get("PODE_ATUALIZAR")),
     )
 
 
-def create_ticket(engine, client: TicketApiClient, payload: Any, expected_database: str = "GR360_CORE") -> tuple[dict[str, Any], bool]:
+def create_ticket(
+    engine,
+    client: TicketApiClient,
+    payload: Any,
+    expected_database: str = "GR360_CORE",
+    ticket_feid: int = 1,
+) -> tuple[dict[str, Any], bool]:
     if not client.can_create:
         raise TicketApiForbidden("Esta credencial não pode criar tickets.")
     values = validate_create_payload(payload)
     reporter = values["utilizador"] or client.name or client.client_id
+    try:
+        fixed_feid = int(ticket_feid)
+    except (TypeError, ValueError) as exc:
+        raise TicketApiConfigurationError("FEID fixo da API de tickets inválido.") from exc
+    if fixed_feid <= 0:
+        raise TicketApiConfigurationError("FEID fixo da API de tickets inválido.")
 
     with engine.begin() as connection:
         ensure_gr360_database(connection, expected_database)
@@ -229,7 +254,7 @@ def create_ticket(engine, client: TicketApiClient, payload: Any, expected_databa
             "pedido": values["pedido"],
             "descricao": values["descricao"],
             "prioridade": values["prioridade"],
-            "feid": values["feid"],
+            "feid": fixed_feid,
             "prompt_hugo": values["prompt_hugo"],
             "client_id": client.client_id,
             "external_reference": values["referencia_externa"],
@@ -287,3 +312,53 @@ def list_tickets(
             ORDER BY TICKET DESC
         """), params).mappings().all()
     return [serialize_ticket(row, include_prompt=False) for row in rows]
+
+
+def update_ticket_followup(
+    engine,
+    client: TicketApiClient,
+    ticket_no: int,
+    payload: Any,
+    expected_database: str = "GR360_CORE",
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    if not client.can_update:
+        raise TicketApiForbidden("Esta credencial não pode atualizar o seguimento de tickets.")
+    values = validate_followup_payload(payload)
+
+    with engine.begin() as connection:
+        ensure_gr360_database(connection, expected_database)
+        sql = "SELECT TOP 1 * FROM dbo.TK WITH (UPDLOCK, ROWLOCK) WHERE TICKET = :ticket"
+        params: dict[str, Any] = {"ticket": int(ticket_no)}
+        if not client.can_read_all:
+            sql += " AND ORIGEM_API = :client_id"
+            params["client_id"] = client.client_id
+        before_row = connection.execute(text(sql), params).mappings().first()
+        if not before_row:
+            raise TicketApiNotFound("Ticket não encontrado.")
+
+        treated_sql = """
+            TRATADO = :treated,
+            DTTRATADO = CASE WHEN :treated = 1 THEN CAST(SYSUTCDATETIME() AS date) ELSE '19000101' END,
+            NMTRATADO = CASE WHEN :treated = 1 THEN :client_id ELSE '' END,
+        """
+        connection.execute(text(f"""
+            UPDATE dbo.TK
+            SET {treated_sql}
+                SEGUIMENTO_CLIENTE = :followup,
+                SEGUIMENTO_ESTADO = :state,
+                SEGUIMENTO_DATA = SYSUTCDATETIME(),
+                SEGUIMENTO_POR = :client_id
+            WHERE TICKET = :ticket
+        """), {
+            "ticket": int(ticket_no),
+            "treated": 1 if values["tratado"] else 0,
+            "followup": values["seguimento"],
+            "state": values["estado"],
+            "client_id": client.client_id,
+        })
+        after_row = connection.execute(
+            text("SELECT TOP 1 * FROM dbo.TK WHERE TICKET = :ticket"),
+            {"ticket": int(ticket_no)},
+        ).mappings().one()
+
+    return serialize_ticket(before_row), serialize_ticket(after_row)

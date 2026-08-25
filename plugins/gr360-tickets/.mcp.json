@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "gr360_tickets": {
+      "type": "http",
+      "url": "https://app.gr360flooringsystems.com/mcp/gr360-tickets/",
+      "bearer_token_env_var": "GR360_TICKETS_API_TOKEN",
+      "tool_timeout_sec": 60
+    }
+  }
+}
