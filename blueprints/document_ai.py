@@ -30,9 +30,12 @@ from services.document_ai_service import (
     list_documents,
     list_templates,
     mark_document_as_provisional_invoice,
+    mark_document_control_ok,
+    mark_document_validation_error,
     reprocess_document,
     reconcile_extracted_document,
     reset_llm_extraction,
+    require_document_control_ok,
     resolve_fe_entity,
     save_document_source,
     save_document_integration_access,
@@ -47,6 +50,7 @@ from services.document_ai_service import (
     search_customers,
     search_external_parties,
     search_phc_document_origins,
+    search_phc_articles,
     search_phc_projects,
     split_extracted_pdf_into_inbox,
     submit_correspondence_to_phc,
@@ -189,6 +193,7 @@ def api_document_ai_inbox():
     if not _document_ai_has_access('consultar'):
         return jsonify({'error': 'Sem permissão.'}), 403
     filters = {
+        'view': request.args.get('view', ''),
         'feid': request.args.get('feid', ''),
         'status': request.args.get('status', ''),
         'doc_type': request.args.get('doc_type', ''),
@@ -357,6 +362,25 @@ def api_document_ai_projects_search():
         return jsonify({'error': str(exc)}), 500
 
 
+@bp.route('/api/document_ai/articles/search', methods=['POST'])
+@login_required
+def api_document_ai_articles_search():
+    if not _document_ai_has_access('consultar'):
+        return jsonify({'error': 'Sem permissão.'}), 403
+    body = request.get_json(silent=True) or {}
+    try:
+        return jsonify(search_phc_articles(
+            body.get('customer') or {},
+            str(body.get('query') or ''),
+            int(body.get('limit') or 20),
+        ))
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception as exc:
+        current_app.logger.exception('Erro ao pesquisar artigos PHC')
+        return jsonify({'error': str(exc)}), 500
+
+
 @bp.route('/api/document_ai/correspondence/next-reference', methods=['POST'])
 @login_required
 def api_document_ai_correspondence_next_reference():
@@ -431,28 +455,57 @@ def api_document_ai_provisional_invoice_submit():
         document_data = json.loads(request.form.get('document_data') or '{}')
     except Exception:
         return jsonify({'error': 'Os dados da Facture Provisoire não são válidos.'}), 400
+    document_id = str(request.form.get('document_id') or '').strip()
+    if not document_id:
+        return jsonify({'error': 'O documento tem de estar guardado no inbox antes da validação.'}), 400
     try:
+        require_document_control_ok(document_id)
         result = submit_provisional_invoice_to_phc(
             document_data,
             file_bytes,
             str(uploaded_file.filename or '').strip(),
             _current_login(),
         )
-        document_id = str(request.form.get('document_id') or '').strip()
-        if document_id:
-            mark_document_as_provisional_invoice(
-                document_id,
-                result,
-                _current_login(),
-                hashlib.sha256(file_bytes).hexdigest(),
-            )
+        mark_document_as_provisional_invoice(
+            document_id,
+            result,
+            _current_login(),
+            hashlib.sha256(file_bytes).hexdigest(),
+        )
         return jsonify(result), 201
     except (ValueError, FileExistsError) as exc:
+        mark_document_validation_error(document_id, str(exc), _current_login())
         return jsonify({'error': str(exc)}), 400
     except RuntimeError as exc:
+        mark_document_validation_error(document_id, str(exc), _current_login())
         return jsonify({'error': str(exc)}), 503
     except Exception as exc:
+        try:
+            mark_document_validation_error(document_id, str(exc), _current_login())
+        except Exception:
+            current_app.logger.warning('Falhou registo do erro de validação Document AI.', exc_info=True)
         current_app.logger.exception('Erro ao submeter Facture Provisoire no PHC')
+        return jsonify({'error': str(exc)}), 500
+
+
+@bp.route('/api/document_ai/documents/<docinstamp>/control-ok', methods=['POST'])
+@login_required
+def api_document_ai_document_control_ok(docinstamp: str):
+    if not _document_ai_has_access('editar'):
+        return jsonify({'error': 'Sem permissão para concluir o controlo.'}), 403
+    if not _document_ai_has_integration_access('provisional_invoice'):
+        return jsonify({'error': 'Sem permissão para validar Facture Provisoire.'}), 403
+    body = request.get_json(silent=True) or {}
+    try:
+        return jsonify(mark_document_control_ok(docinstamp, _current_login(), body.get('document') or {}))
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception as exc:
+        current_app.logger.exception('Erro ao concluir Contrôle OK')
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
         return jsonify({'error': str(exc)}), 500
 
 

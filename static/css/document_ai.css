@@ -50,6 +50,45 @@
   white-space: nowrap;
 }
 
+.docai-context-domain {
+  color: var(--sz-color-text-secondary);
+  font-size: var(--sz-font-size-xs);
+  font-weight: var(--sz-font-weight-semibold);
+  text-transform: uppercase;
+}
+
+.docai-view-tabs {
+  display: flex;
+  align-items: center;
+  gap: var(--sz-space-1);
+  margin-top: var(--sz-space-1);
+  min-width: 0;
+}
+
+.docai-view-tab {
+  appearance: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--sz-color-text-secondary);
+  padding: 0.35rem 0.55rem;
+  font: inherit;
+  font-weight: var(--sz-font-weight-semibold);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.docai-view-tab:hover,
+.docai-view-tab:focus-visible {
+  color: var(--sz-color-text);
+  outline: none;
+}
+
+.docai-view-tab.is-active {
+  color: var(--sz-color-primary);
+  border-bottom-color: var(--sz-color-primary);
+}
+
 .docai-page .docai-contextbar > .sz_contextbar_right.docai-contextbar-right {
   display: flex;
   flex-direction: row;
@@ -212,6 +251,21 @@
   border: 1px solid var(--sz-color-border);
   background: color-mix(in srgb, var(--sz-color-surface-alt) 90%, transparent);
   color: var(--sz-color-text);
+}
+
+.docai-count-card-action {
+  appearance: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 160ms ease, background-color 160ms ease;
+}
+
+.docai-count-card-action:hover,
+.docai-count-card-action:focus-visible {
+  border-color: var(--sz-color-primary);
+  background: color-mix(in srgb, var(--sz-color-primary) 10%, var(--sz-color-surface-alt));
+  outline: none;
 }
 
 .docai-count-card .count {
@@ -608,7 +662,7 @@
 
 .docai-extract-summary-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: var(--sz-space-3);
 }
 
@@ -768,11 +822,58 @@
   align-items: stretch;
 }
 
+.docai-extract-origin-tabs {
+  display: flex;
+  gap: var(--sz-space-1);
+  margin: 0 0 var(--sz-space-3);
+  overflow-x: auto;
+}
+
+.docai-extract-origin-tab {
+  appearance: none;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.4rem 0.65rem;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--sz-color-text-secondary);
+  font: inherit;
+  font-weight: var(--sz-font-weight-semibold);
+  cursor: pointer;
+}
+
+.docai-extract-origin-tab span {
+  min-width: 1.35rem;
+  padding: 0.08rem 0.35rem;
+  border-radius: 999px;
+  background: var(--sz-color-surface-alt);
+  font-size: var(--sz-font-size-xs);
+  text-align: center;
+}
+
+.docai-extract-origin-tab:hover,
+.docai-extract-origin-tab:focus-visible,
+.docai-extract-origin-tab.is-active {
+  color: var(--sz-color-primary);
+  outline: none;
+}
+
+.docai-extract-origin-tab.is-active {
+  border-bottom-color: var(--sz-color-primary);
+}
+
 .docai-extract-origin-stage {
   position: relative;
   display: block;
   min-width: 0;
   padding: 0;
+}
+
+.docai-extract-origin-stage[hidden] {
+  display: none;
 }
 
 .docai-extract-origin-stage-title {
@@ -792,14 +893,17 @@
 
 .docai-extract-origin-options {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: 0.5rem;
+  overflow-x: auto;
+  padding-bottom: var(--sz-space-2);
 }
 
 .docai-extract-origin-candidate {
   display: flex;
-  width: 100%;
-  min-width: 0;
+  width: min(22rem, 82vw);
+  min-width: min(22rem, 82vw);
+  flex: 0 0 min(22rem, 82vw);
   flex-direction: column;
   gap: 0.3rem;
   padding: 0.65rem;
@@ -971,6 +1075,51 @@
   white-space: nowrap;
 }
 
+.docai-extract-bc-toggle,
+.docai-extract-cell-link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--sz-color-primary);
+  font: inherit;
+  font-weight: var(--sz-font-weight-semibold);
+  text-align: left;
+  cursor: pointer;
+}
+
+.docai-extract-bc-toggle:hover,
+.docai-extract-bc-toggle:focus-visible,
+.docai-extract-cell-link:hover,
+.docai-extract-cell-link:focus-visible {
+  text-decoration: underline;
+  outline: none;
+}
+
+.docai-extract-bc-toggle i {
+  margin-left: 0.25rem;
+  font-size: 0.68rem;
+}
+
+.docai-extract-line-action {
+  color: var(--sz-color-text-muted);
+  font-size: var(--sz-font-size-sm);
+  font-weight: var(--sz-font-weight-semibold);
+}
+
+.docai-extract-line-description-input {
+  width: 100%;
+  min-width: 0;
+  height: 2rem;
+  padding: 0.3rem 0.45rem;
+}
+
+.docai-extract-bc-detail-row > td {
+  border-color: color-mix(in srgb, var(--sz-color-warning) 28%, var(--sz-color-border));
+  background: color-mix(in srgb, var(--sz-color-warning) 12%, var(--sz-color-surface)) !important;
+  color: color-mix(in srgb, var(--sz-color-warning) 82%, var(--sz-color-text));
+  font-size: var(--sz-font-size-sm);
+}
+
 .docai-extract-bc-ref + .docai-extract-bc-ref {
   margin-left: 0.3rem;
 }
@@ -1086,6 +1235,33 @@
   min-height: 0;
   max-height: 22rem;
   overflow: auto;
+}
+
+.docai-extract-result-panel #docAiExtractLinesSection .docai-extract-table-host,
+.docai-extract-result-panel #docAiExtractLinesSection .sz_table_wrap {
+  max-height: none;
+  overflow: visible;
+}
+
+#docAiExtractLinesSection table {
+  width: 100%;
+  table-layout: fixed;
+}
+
+#docAiExtractLinesSection th:nth-child(1) { width: 7%; }
+#docAiExtractLinesSection th:nth-child(2) { width: 10%; }
+#docAiExtractLinesSection th:nth-child(3) { width: 25%; }
+#docAiExtractLinesSection th:nth-child(4) { width: 8%; }
+#docAiExtractLinesSection th:nth-child(5),
+#docAiExtractLinesSection th:nth-child(6) { width: 9%; }
+#docAiExtractLinesSection th:nth-child(7) { width: 12%; }
+#docAiExtractLinesSection th:nth-child(8) { width: 12%; }
+#docAiExtractLinesSection th:nth-child(9) { width: 5%; }
+
+#docAiExtractLinesSection th,
+#docAiExtractLinesSection td {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .docai-extract-description {
@@ -2556,6 +2732,22 @@
 }
 
 @media (max-width: 900px) {
+  .docai-page .sz_contextbar.docai-contextbar {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  .docai-page .docai-contextbar > .sz_contextbar_right.docai-contextbar-right {
+    min-width: 0;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .docai-view-tabs {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
   .docai-contextbar,
   .docai-filter-grid,
   .docai-compact-grid,

@@ -23,6 +23,9 @@ from services.document_ai_service import (
     resolve_fe_entity,
     save_llm_extraction,
     mark_document_as_provisional_invoice,
+    mark_document_control_ok,
+    mark_document_validation_error,
+    require_document_control_ok,
     save_document_phc_origin,
     save_document_adjusted_lines,
     _score_phc_origin_candidate,
@@ -42,6 +45,9 @@ from services.document_ai_service import (
     _phc_tax_configuration,
     _phc_tax_code,
     _doc_queryset_sql,
+    _document_inbox_global_total,
+    _normalize_document_inbox_view,
+    _document_inbox_scope_sql,
 )
 from services import document_ai_service
 
@@ -52,6 +58,30 @@ class DocumentAiPhcOriginTests(unittest.TestCase):
 
         self.assertIn('D.FEID', where_sql)
         self.assertEqual(params['feid'], 8)
+
+    def test_inbox_global_total_does_not_depend_on_active_filters(self):
+        query_result = MagicMock()
+        query_result.scalar.return_value = 27
+        with patch.object(document_ai_service.db.session, 'execute', return_value=query_result) as execute:
+            total = _document_inbox_global_total()
+
+        self.assertEqual(total, 27)
+        sql = str(execute.call_args.args[0])
+        self.assertIn('COUNT_BIG(1)', sql)
+        self.assertIn('split_output.batch_id', sql)
+
+    def test_inbox_hides_a_source_only_after_it_was_split(self):
+        scope_sql = _document_inbox_scope_sql('home')
+
+        self.assertIn('ISJSON', scope_sql)
+        self.assertIn('split_output.batch_id', scope_sql)
+        self.assertIn('IS NULL', scope_sql)
+
+    def test_inbox_view_fails_closed_to_home(self):
+        self.assertEqual(_normalize_document_inbox_view('management'), 'management')
+        self.assertEqual(_normalize_document_inbox_view('accounting'), 'accounting')
+        self.assertEqual(_normalize_document_inbox_view('invalid-view'), 'home')
+        self.assertEqual(_normalize_document_inbox_view(''), 'home')
 
     def test_marking_inbox_document_as_provisional_invoice_is_persistent(self):
         document = SimpleNamespace(
@@ -75,12 +105,79 @@ class DocumentAiPhcOriginTests(unittest.TestCase):
         self.assertEqual(document.processing_stage, 'phc_integrated')
         self.assertEqual(meta['phc_integration']['type'], 'provisional_invoice')
         self.assertEqual(meta['phc_integration']['fostamp'], 'FO-1')
+        self.assertEqual(meta['workflow']['validation_status'], 'accounting')
         commit.assert_called_once()
+
+    def test_control_ok_persists_reviewed_document_and_unlocks_validation(self):
+        cached = {'version': 4, 'document': {}}
+        document = SimpleNamespace(
+            docinstamp='DOC-1', processing_meta_json=json.dumps({'llm_full_extraction': cached}),
+            json_resultado='{}', feid=None, fornecedor_no=None,
+            fornecedor_nome_detetado='', fornecedor_nif_detetado='', processing_stage='llm_extracted',
+            processing_status='review_required', last_processing_error='', dtalt=None, useralteracao='',
+        )
+        reviewed = {
+            'document_type': 'invoice', 'document_number': 'FAC-1',
+            'customer': {'feid': 8},
+            'supplier': {'supplier_no': 42, 'name': 'Fornecedor', 'tax_id': '123'},
+            'lines': [{'description': 'Linha', 'qty': 1}],
+        }
+        with patch.object(document_ai_service.db.session, 'get', return_value=document), patch.object(
+            document_ai_service.db.session, 'commit'
+        ) as commit:
+            result = mark_document_control_ok('DOC-1', 'tester', reviewed)
+            require_document_control_ok('DOC-1')
+
+        meta = json.loads(document.processing_meta_json)
+        self.assertTrue(result['workflow']['control_ok'])
+        self.assertEqual(meta['llm_full_extraction']['document']['supplier']['supplier_no'], 42)
+        self.assertEqual(document.processing_stage, 'controlled')
+        commit.assert_called_once()
+
+    def test_control_ok_rejects_an_incomplete_document(self):
+        document = SimpleNamespace(
+            docinstamp='DOC-1', processing_meta_json=json.dumps({'llm_full_extraction': {'version': 4, 'document': {}}}),
+        )
+        with patch.object(document_ai_service.db.session, 'get', return_value=document):
+            with self.assertRaisesRegex(ValueError, 'sociedade'):
+                mark_document_control_ok('DOC-1', 'tester', {'document_type': 'invoice'})
+
+    def test_validation_error_keeps_document_recoverable(self):
+        document = SimpleNamespace(
+            docinstamp='DOC-1', processing_meta_json=json.dumps({'workflow': {'control_ok': True}}),
+            last_processing_error='', processing_stage='controlled', dtalt=None, useralteracao='',
+        )
+        with patch.object(document_ai_service.db.session, 'get', return_value=document), patch.object(
+            document_ai_service.db.session, 'commit'
+        ):
+            mark_document_validation_error('DOC-1', 'falha PHC', 'tester')
+
+        meta = json.loads(document.processing_meta_json)
+        self.assertTrue(meta['workflow']['control_ok'])
+        self.assertEqual(meta['workflow']['validation_status'], 'error')
+        self.assertEqual(document.processing_stage, 'validation_error')
+
+    def test_repeating_completion_keeps_the_same_phc_reference(self):
+        document = SimpleNamespace(
+            docinstamp='DOC-1', file_hash='abc123', processing_meta_json=json.dumps({'workflow': {'control_ok': True}}),
+            processing_stage='controlled', processing_status='parsed_ok', dtalt=None, useralteracao='',
+        )
+        result_data = {'fostamp': 'FO-1', 'document_number': '159432', 'phc_database': 'HSOLS_FR', 'duplicate': True}
+        with patch.object(document_ai_service.db.session, 'get', return_value=document), patch.object(
+            document_ai_service.db.session, 'commit'
+        ):
+            mark_document_as_provisional_invoice('DOC-1', result_data, 'tester', 'abc123')
+            mark_document_as_provisional_invoice('DOC-1', result_data, 'tester', 'abc123')
+
+        meta = json.loads(document.processing_meta_json)
+        self.assertEqual(meta['phc_integration']['fostamp'], 'FO-1')
+        self.assertTrue(meta['phc_integration']['duplicate'])
 
     def test_provisional_invoice_permission_is_a_known_integration_type(self):
         permissions = _normalize_document_integration_access({'provisional_invoice': True})
 
         self.assertTrue(permissions['provisional_invoice'])
+        self.assertFalse(_normalize_document_integration_access({})['provisional_invoice'])
 
     def test_supplier_invoice_is_eligible_for_provisional_purchase_submission(self):
         self.assertTrue(_is_provisional_purchase_source_type('invoice'))

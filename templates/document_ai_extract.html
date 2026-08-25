@@ -12,8 +12,12 @@
   <div class="sz_page_container sz_page_container_wide">
     <header class="sz_contextbar sz_page_contextbar docai-contextbar">
       <div class="sz_contextbar_left">
-        <div class="sz_page_title">Leitura inteligente</div>
-        <div class="sz_page_subtitle">Identifica documentos comerciais e correio; apenas os documentos comerciais ficam guardados no inbox.</div>
+        <div class="docai-context-domain">ANALYSE</div>
+        <div id="docAiExtractViewTabs" class="docai-view-tabs" role="tablist" aria-label="Vista da análise">
+          <button type="button" class="docai-view-tab" role="tab" data-view="home">Accueil</button>
+          <button type="button" class="docai-view-tab" role="tab" data-view="management">Contrôle de Gestion</button>
+          <button type="button" class="docai-view-tab" role="tab" data-view="accounting">Comptabilité</button>
+        </div>
       </div>
       <div class="sz_contextbar_right docai-contextbar-right">
         {% if current_user.ADMIN %}
@@ -124,13 +128,13 @@
 
             <div class="docai-extract-summary-grid">
               <article id="docAiExtractCustomerCard" class="docai-info-card docai-extract-supplier-card" tabindex="0" role="button" aria-label="Escolher entidade">
-                <h4 id="docAiExtractCustomerLabel">Empresa cliente</h4>
+                <h4 id="docAiExtractCustomerLabel">Société</h4>
                 <strong id="docAiExtractCustomerName">--</strong>
                 <span id="docAiExtractCustomerTax" class="sz_text_muted">--</span>
                 <span id="docAiExtractCustomerHint" class="docai-extract-card-hint" hidden><i class="fa-solid fa-hand-pointer"></i> Escolher empresa do grupo</span>
               </article>
               <article id="docAiExtractSupplierCard" class="docai-info-card docai-extract-supplier-card" tabindex="0" role="button" aria-label="Escolher fornecedor">
-                <h4 id="docAiExtractPartyLabel">Fornecedor</h4>
+                <h4 id="docAiExtractPartyLabel">Fournisseur</h4>
                 <strong id="docAiExtractSupplierName">--</strong>
                 <span id="docAiExtractSupplierTax" class="sz_text_muted">--</span>
                 <span id="docAiExtractSupplierNo" class="sz_text_muted">Nº fornecedor: --</span>
@@ -145,7 +149,7 @@
                 <span id="docAiExtractLegalBadge" class="docai-extract-legal-badge" hidden><i class="fa-solid fa-scale-balanced"></i> Jurídico</span>
               </article>
               <article id="docAiExtractProjectCard" class="docai-info-card docai-extract-project-card" tabindex="0" role="button" aria-label="Escolher obra">
-                <h4>Obra</h4>
+                <h4>Chantier</h4>
                 <strong id="docAiExtractProjectName">Todas as obras</strong>
                 <span id="docAiExtractProjectMeta" class="sz_text_muted">Sem filtro de obra</span>
                 <span id="docAiExtractProjectHint" class="docai-extract-card-hint"><i class="fa-solid fa-magnifying-glass"></i> Pesquisar obra</span>
@@ -153,9 +157,14 @@
                   <i class="fa-solid fa-xmark"></i>
                 </button>
               </article>
+              <article id="docAiExtractModeCard" class="docai-info-card">
+                <h4 id="docAiExtractModeLabel">Classement</h4>
+                <strong id="docAiExtractModeValue">--</strong>
+                <span id="docAiExtractModeMeta" class="sz_text_muted">--</span>
+              </article>
             </div>
 
-            <section id="docAiExtractGedDestination" class="docai-extract-ged-destination">
+            <section id="docAiExtractGedDestination" class="docai-extract-ged-destination" hidden>
               <div class="docai-extract-ged-head">
                 <div>
                   <h4>Destino GED</h4>
@@ -188,6 +197,7 @@
                 </div>
                 <span id="docAiExtractOriginSource" class="docai-extract-origin-source" hidden></span>
               </div>
+              <div id="docAiExtractOriginTabs" class="docai-extract-origin-tabs" role="tablist" aria-label="Tipos de origem" hidden></div>
               <div id="docAiExtractOriginLoading" class="docai-extract-origin-loading">
                 <i class="fa-solid fa-circle-notch fa-spin"></i>
                 <span>A procurar BC, BL e pré-faturas do fornecedor...</span>
@@ -206,7 +216,7 @@
                   </button>
                   <button id="docAiExtractSplitLineBtn" type="button" class="docai-extract-split-line-btn" hidden disabled>
                     <i class="fa-solid fa-code-branch"></i>
-                    <span>Repartir linha pelos BLs</span>
+                    <span>Répartir BL</span>
                   </button>
                 </div>
               </div>
@@ -215,17 +225,15 @@
                   <table class="sz_table sz_table_compact">
                     <thead class="sz_table_head">
                       <tr>
-                        <th class="docai-extract-line-picker-head" aria-label="Selecionar linha"></th>
-                        <th>Ref.</th>
-                        <th class="docai-extract-bc-ref-head">Ref. BC</th>
-                        <th>Descrição</th>
-                        <th>Qtd.</th>
-                        <th>Un.</th>
-                        <th>Preço unit.</th>
-                        <th>Desc.</th>
-                        <th>IVA</th>
-                        <th>Líquido</th>
-                        <th>Total</th>
+                        <th>Action</th>
+                        <th>Article</th>
+                        <th>Désignation</th>
+                        <th>Quantité</th>
+                        <th>PU</th>
+                        <th>PT</th>
+                        <th>Chantier</th>
+                        <th>BC</th>
+                        <th>BL</th>
                       </tr>
                     </thead>
                     <tbody id="docAiExtractLinesBody"></tbody>
@@ -234,7 +242,7 @@
               </div>
             </section>
 
-            <div id="docAiExtractTotalsSection" class="docai-extract-footer-grid">
+            <div id="docAiExtractTotalsSection" class="docai-extract-footer-grid" hidden>
               <section class="docai-extract-section">
                 <div class="docai-extract-section-head"><h4>Totais por taxa de IVA</h4></div>
                 <div class="sz_table_host docai-extract-table-host">
@@ -270,13 +278,19 @@
         <div id="docAiExtractStatus" class="sz_text_muted" aria-live="polite">Pronto.</div>
       </div>
       <div class="sz_actionbar_right">
-        <span id="docAiExtractPersistenceNote" class="sz_text_muted">O PDF e a leitura ficam guardados no inbox para evitar novas chamadas ao LLM.</span>
+        <span id="docAiExtractPersistenceNote" class="sz_text_muted" hidden>O PDF e a leitura ficam guardados no inbox para evitar novas chamadas ao LLM.</span>
         {% if can_submit_correspondence or can_submit_provisional_invoice %}
+        <button id="docAiExtractControlOkBtn" type="button" class="sz_button sz_button_secondary" hidden disabled
+                data-can-provisional-invoice="{{ '1' if can_submit_provisional_invoice else '0' }}"
+                title="Identifica a sociedade, o fornecedor, o número e as linhas do documento.">
+          <i class="fa-solid fa-clipboard-check"></i>
+          <span>Contrôle OK</span>
+        </button>
         <button id="docAiExtractSubmitPhcBtn" type="button" class="sz_button sz_button_primary" hidden disabled
                 data-can-correspondence="{{ '1' if can_submit_correspondence else '0' }}"
                 data-can-provisional-invoice="{{ '1' if can_submit_provisional_invoice else '0' }}">
-          <i class="fa-solid fa-paper-plane"></i>
-          <span>Submeter no PHC</span>
+          <i class="fa-solid fa-check"></i>
+          <span>Validation</span>
         </button>
         {% endif %}
       </div>
@@ -430,6 +444,36 @@
     </div>
     <div class="sz_modal_footer">
       <button id="docAiProjectClose" type="button" class="sz_button sz_button_secondary">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<div id="docAiArticleModal" class="sz_modal docai-supplier-match-modal" aria-hidden="true" role="dialog" aria-labelledby="docAiArticleTitle">
+  <div class="sz_panel docai-supplier-match-panel">
+    <div class="sz_modal_header">
+      <div>
+        <h3 id="docAiArticleTitle" class="sz_h4 sz_modal_title">Choisir un article</h3>
+        <p id="docAiArticleContext" class="sz_text_muted">Recherche dans les articles PHC de la société.</p>
+      </div>
+      <button id="docAiArticleCloseTop" type="button" class="sz_button sz_button_ghost" aria-label="Fermer">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+    <div class="sz_modal_body docai-modal-body">
+      <div class="docai-supplier-match-search">
+        <div class="sz_field">
+          <label class="sz_label" for="docAiArticleSearch">Référence, désignation ou famille</label>
+          <input id="docAiArticleSearch" class="sz_input" type="search" placeholder="Rechercher un article">
+        </div>
+        <button id="docAiArticleSearchBtn" type="button" class="sz_button sz_button_secondary">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <span>Rechercher</span>
+        </button>
+      </div>
+      <div id="docAiArticleList" class="docai-supplier-match-list"></div>
+    </div>
+    <div class="sz_modal_footer">
+      <button id="docAiArticleClose" type="button" class="sz_button sz_button_secondary">Fermer</button>
     </div>
   </div>
 </div>

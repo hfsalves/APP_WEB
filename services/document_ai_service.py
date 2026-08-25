@@ -3063,6 +3063,46 @@ def search_phc_projects(customer_data: dict[str, Any] | None, query: str = '', l
     }
 
 
+def search_phc_articles(customer_data: dict[str, Any] | None, query: str = '', limit: int = 20) -> dict[str, Any]:
+    import pyodbc
+    from services.phc_user_import_service import _phc_conn_str
+
+    customer = dict(customer_data or {})
+    source = _phc_origin_source(customer)
+    if not source.get('phc_db'):
+        raise ValueError('A empresa identificada não tem uma base PHC configurada.')
+    clean_query = str(query or '').strip()
+    like_query = f'%{clean_query}%'
+    safe_limit = max(1, min(int(limit or 20), 50))
+    with pyodbc.connect(_phc_conn_str(source['phc_db'], source.get('phc_server') or ''), timeout=12) as connection:
+        rows = connection.cursor().execute("""
+            SELECT TOP (?)
+                LTRIM(RTRIM(ISNULL(ST.REF, ''))) REF,
+                LTRIM(RTRIM(ISNULL(ST.DESIGN, ''))) DESIGN,
+                LTRIM(RTRIM(ISNULL(ST.UNIDADE, ''))) UNIDADE,
+                LTRIM(RTRIM(ISNULL(ST.FAMILIA, ''))) FAMILIA
+            FROM dbo.ST ST WITH (NOLOCK)
+            WHERE ISNULL(ST.INACTIVO, 0) = 0
+              AND LTRIM(RTRIM(ISNULL(ST.REF, ''))) <> ''
+              AND (
+                    ? = ''
+                    OR ST.REF LIKE ?
+                    OR ST.DESIGN LIKE ?
+                    OR ST.FAMILIA LIKE ?
+              )
+            ORDER BY LTRIM(RTRIM(ISNULL(ST.REF, '')))
+        """, safe_limit, clean_query, like_query, like_query, like_query).fetchall()
+    return {
+        'items': [{
+            'ref': str(row[0] or '').strip(),
+            'design': str(row[1] or '').strip(),
+            'unit': str(row[2] or '').strip(),
+            'family': str(row[3] or '').strip(),
+        } for row in rows],
+        'phc_database': str(source.get('phc_db') or ''),
+    }
+
+
 def _origin_line_tokens(lines: list[dict[str, Any]]) -> tuple[set[str], set[str]]:
     refs = set()
     tokens = set()
@@ -3642,7 +3682,8 @@ def get_cached_llm_extraction(document_stamp: str) -> dict[str, Any] | None:
     document = db.session.get(DocInbox, str(document_stamp or '').strip())
     if not document:
         return None
-    cached = _json_loads(document.processing_meta_json, {}).get('llm_full_extraction')
+    meta = _json_loads(document.processing_meta_json, {})
+    cached = meta.get('llm_full_extraction')
     if (
         not isinstance(cached, dict)
         or _safe_int(cached.get('version'), 0) < 4
@@ -3676,7 +3717,97 @@ def get_cached_llm_extraction(document_stamp: str) -> dict[str, Any] | None:
         'document': cached_document,
         'matching': cached_matching,
         'saved_at': str(cached.get('saved_at') or ''),
+        'processing_status': str(getattr(document, 'processing_status', '') or ''),
+        'workflow': dict(meta.get('workflow') or {}),
+        'phc_integration': dict(meta.get('phc_integration') or {}),
     }
+
+
+def mark_document_control_ok(
+    document_stamp: str,
+    requested_by: str,
+    reviewed_document: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    document = db.session.get(DocInbox, str(document_stamp or '').strip())
+    if not document:
+        raise ValueError('Documento do inbox não encontrado.')
+    meta = _json_loads(document.processing_meta_json, {})
+    cached = meta.get('llm_full_extraction') or {}
+    document_data = dict(reviewed_document or {}) or (cached.get('document') if isinstance(cached, dict) else {})
+    if not isinstance(document_data, dict):
+        document_data = {}
+    document_type = str(document_data.get('document_type') or '').strip().lower()
+    if not _is_provisional_purchase_source_type(document_type):
+        raise ValueError('O Contrôle OK aplica-se apenas a documentos de compra preparados para Facture Provisoire.')
+    customer = dict(document_data.get('customer') or {})
+    supplier = dict(document_data.get('supplier') or {})
+    if not _safe_int(customer.get('feid'), 0):
+        raise ValueError('Identifica a sociedade antes do Contrôle OK.')
+    if not _safe_int(supplier.get('supplier_no') or supplier.get('no'), 0):
+        raise ValueError('Identifica o fornecedor antes do Contrôle OK.')
+    if not str(document_data.get('document_number') or '').strip():
+        raise ValueError('Confirma o número do documento antes do Contrôle OK.')
+    if not [line for line in (document_data.get('lines') or []) if isinstance(line, dict)]:
+        raise ValueError('Confirma pelo menos uma linha antes do Contrôle OK.')
+    now = _now()
+    workflow = dict(meta.get('workflow') or {})
+    workflow.update({
+        'control_ok': True,
+        'control_at': now.isoformat(),
+        'control_by': requested_by or '',
+        'validation_status': 'awaiting_validation',
+        'validation_error': '',
+    })
+    meta['workflow'] = workflow
+    if isinstance(cached, dict):
+        cached['document'] = document_data
+        cached['controlled_at'] = now.isoformat()
+        cached['controlled_by'] = requested_by or ''
+        meta['llm_full_extraction'] = cached
+    document.processing_meta_json = _json_dumps(meta)
+    document.json_resultado = _json_dumps(document_data)
+    document.feid = _safe_int(customer.get('feid'), 0) or document.feid
+    document.fornecedor_no = _safe_int(supplier.get('supplier_no') or supplier.get('no'), 0) or document.fornecedor_no
+    document.fornecedor_nome_detetado = str(supplier.get('name') or supplier.get('llm_name') or '')[:120]
+    document.fornecedor_nif_detetado = str(supplier.get('tax_id') or '')[:40]
+    document.processing_stage = 'controlled'
+    document.processing_status = 'parsed_ok'
+    document.last_processing_error = ''
+    document.dtalt = now
+    document.useralteracao = requested_by or document.useralteracao or ''
+    db.session.commit()
+    return {'ok': True, 'document_id': document.docinstamp, 'workflow': workflow}
+
+
+def require_document_control_ok(document_stamp: str) -> None:
+    document = db.session.get(DocInbox, str(document_stamp or '').strip())
+    if not document:
+        raise ValueError('Documento do inbox não encontrado.')
+    workflow = _json_loads(document.processing_meta_json, {}).get('workflow') or {}
+    if not bool(workflow.get('control_ok')):
+        raise ValueError('Efetua primeiro o Contrôle OK antes de validar.')
+
+
+def mark_document_validation_error(document_stamp: str, error: str, requested_by: str) -> None:
+    document = db.session.get(DocInbox, str(document_stamp or '').strip())
+    if not document:
+        return
+    now = _now()
+    meta = _json_loads(document.processing_meta_json, {})
+    workflow = dict(meta.get('workflow') or {})
+    workflow.update({
+        'validation_status': 'error',
+        'validation_error': str(error or '')[:2000],
+        'validation_at': now.isoformat(),
+        'validation_by': requested_by or '',
+    })
+    meta['workflow'] = workflow
+    document.processing_meta_json = _json_dumps(meta)
+    document.last_processing_error = str(error or '')[:4000]
+    document.processing_stage = 'validation_error'
+    document.dtalt = now
+    document.useralteracao = requested_by or document.useralteracao or ''
+    db.session.commit()
 
 
 def reset_llm_extraction(document_stamp: str, requested_by: str) -> None:
@@ -3782,6 +3913,15 @@ def mark_document_as_provisional_invoice(
         'integrated_at': now.isoformat(),
         'integrated_by': requested_by or '',
     }
+    workflow = dict(meta.get('workflow') or {})
+    workflow.update({
+        'control_ok': True,
+        'validation_status': 'accounting',
+        'validation_error': '',
+        'validation_at': now.isoformat(),
+        'validation_by': requested_by or '',
+    })
+    meta['workflow'] = workflow
     document.processing_meta_json = _json_dumps(meta)
     document.processing_stage = 'phc_integrated'
     document.processing_status = 'provisional_invoice'
@@ -5090,10 +5230,56 @@ def _doc_queryset_sql(filters: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     return where_sql, params
 
 
+DOC_AI_INBOX_VIEWS = [
+    {'value': 'home', 'label': 'Accueil'},
+    {'value': 'management', 'label': 'Contrôle de Gestion'},
+    {'value': 'accounting', 'label': 'Comptabilité'},
+]
+
+DOC_AI_INBOX_UNSPLIT_SOURCE_SQL = """
+NULLIF(
+    JSON_VALUE(
+        CASE WHEN ISJSON(ISNULL(D.PROCESSING_META_JSON, '')) = 1
+             THEN D.PROCESSING_META_JSON ELSE '{}'
+        END,
+        '$.split_output.batch_id'
+    ),
+    ''
+) IS NULL
+"""
+
+
+def _normalize_document_inbox_view(value: Any) -> str:
+    normalized = str(value or '').strip().lower()
+    valid_values = {item['value'] for item in DOC_AI_INBOX_VIEWS}
+    return normalized if normalized in valid_values else 'home'
+
+
+def _document_inbox_scope_sql(view: str = 'home') -> str:
+    _normalize_document_inbox_view(view)
+    return DOC_AI_INBOX_UNSPLIT_SOURCE_SQL.strip()
+
+
+def _document_inbox_global_total(view: str = 'home') -> int:
+    scope_sql = _document_inbox_scope_sql(view)
+    value = db.session.execute(text(f"""
+        SELECT COUNT_BIG(1)
+        FROM dbo.DOC_INBOX D
+        WHERE {scope_sql}
+    """)).scalar()
+    return max(_safe_int(value, 0), 0)
+
+
 def list_documents(filters: dict[str, Any] | None = None) -> dict[str, Any]:
     _ensure_document_ai_schema()
     query_filters = filters or {}
+    inbox_view = _normalize_document_inbox_view(query_filters.get('view'))
     where_sql, params = _doc_queryset_sql(query_filters)
+    scope_sql = _document_inbox_scope_sql(inbox_view)
+    if where_sql:
+        where_sql = f"{where_sql} AND {scope_sql}"
+    else:
+        where_sql = f"WHERE {scope_sql}"
     supplier_entity_join = "AND ISNULL(F.FEID, 0) = ISNULL(D.FEID, 0)" if _column_exists('FL', 'FEID') else ''
     rows = db.session.execute(text(f"""
         SELECT
@@ -5184,6 +5370,9 @@ def list_documents(filters: dict[str, Any] | None = None) -> dict[str, Any]:
 
     return {
         'items': items,
+        'total': _document_inbox_global_total(inbox_view),
+        'view': inbox_view,
+        'views': DOC_AI_INBOX_VIEWS,
         'counts': counts,
         'statuses': DOC_AI_STATUSES,
         'doc_types': DOC_AI_DOC_TYPES,

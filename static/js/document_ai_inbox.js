@@ -23,14 +23,18 @@ document.addEventListener('DOMContentLoaded', () => {
     refreshBtn: document.getElementById('docAiRefreshBtn'),
     templatesBtn: document.getElementById('docAiTemplatesBtn'),
     sourcesBtn: document.getElementById('docAiSourcesBtn'),
+    viewTabs: document.getElementById('docAiViewTabs'),
   };
 
+  const allowedViews = new Set(['home', 'management', 'accounting']);
+  const initialView = new URLSearchParams(window.location.search).get('view');
   const state = {
     items: [],
     statuses: [],
     docTypes: [],
     entities: [],
     loading: false,
+    view: allowedViews.has(initialView) ? initialView : 'home',
   };
 
   function showMessage(message, type = 'info') {
@@ -145,10 +149,43 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  function renderCounts(counts = {}) {
+  function clearFilters() {
+    [els.search, els.entityFilter, els.statusFilter, els.typeFilter, els.supplierFilter, els.dateFrom, els.dateTo].forEach((el) => {
+      if (el) el.value = '';
+    });
+  }
+
+  function renderViewTabs() {
+    els.viewTabs?.querySelectorAll('[data-view]').forEach((button) => {
+      const active = button.dataset.view === state.view;
+      button.classList.toggle('is-active', active);
+      button.setAttribute('aria-selected', active ? 'true' : 'false');
+      button.tabIndex = active ? 0 : -1;
+    });
+  }
+
+  function selectView(view, { updateHistory = true } = {}) {
+    if (!allowedViews.has(view) || view === state.view) return;
+    state.view = view;
+    clearFilters();
+    renderViewTabs();
+    if (updateHistory) {
+      const url = new URL(window.location.href);
+      url.search = '';
+      if (view !== 'home') url.searchParams.set('view', view);
+      window.history.pushState({ documentAiView: view }, '', url);
+    }
+    loadInbox();
+  }
+
+  function renderCounts(counts = {}, total = 0) {
     if (!els.counts) return;
-    const total = state.items.length;
-    const cards = [`<div class="docai-count-card"><div class="count">${total}</div><div class="label">Total</div></div>`];
+    const cards = [`
+      <button type="button" class="docai-count-card docai-count-card-action" data-action="reset-filters" title="Limpar filtros" aria-label="Mostrar todos os documentos e limpar filtros">
+        <span class="count">${Number(total || 0)}</span>
+        <span class="label">Total</span>
+      </button>
+    `];
     state.statuses.forEach((status) => {
       cards.push(`
         <div class="docai-count-card">
@@ -220,6 +257,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (els.inboxMeta) els.inboxMeta.textContent = 'A carregar documentos...';
     try {
       const params = new URLSearchParams();
+      params.set('view', state.view);
       if (els.search?.value.trim()) params.set('search', els.search.value.trim());
       if (els.entityFilter?.value) params.set('feid', els.entityFilter.value);
       if (els.statusFilter?.value) params.set('status', els.statusFilter.value);
@@ -232,8 +270,10 @@ document.addEventListener('DOMContentLoaded', () => {
       state.statuses = Array.isArray(payload.statuses) ? payload.statuses : [];
       state.docTypes = Array.isArray(payload.doc_types) ? payload.doc_types : [];
       state.entities = Array.isArray(payload.entities) ? payload.entities : [];
+      if (allowedViews.has(payload.view)) state.view = payload.view;
+      renderViewTabs();
       populateFilters();
-      renderCounts(payload.counts || {});
+      renderCounts(payload.counts || {}, payload.total);
       renderTable();
       if (els.inboxMeta) els.inboxMeta.textContent = `${state.items.length} documento(s) carregado(s).`;
       setStatus('Inbox atualizada.');
@@ -305,6 +345,14 @@ document.addEventListener('DOMContentLoaded', () => {
     window.location.href = '/document_ai/sources';
   }
 
+  function analysisUrl(documentId = '') {
+    const params = new URLSearchParams();
+    if (documentId) params.set('document_id', documentId);
+    if (state.view !== 'home') params.set('view', state.view);
+    const query = params.toString();
+    return `/document_ai/extract${query ? `?${query}` : ''}`;
+  }
+
   els.filtersBtn?.addEventListener('click', openFiltersModal);
   els.closeFiltersTop?.addEventListener('click', closeFiltersModal);
   els.closeFilters?.addEventListener('click', closeFiltersModal);
@@ -320,17 +368,45 @@ document.addEventListener('DOMContentLoaded', () => {
     loadInbox();
   });
   els.resetFilters?.addEventListener('click', () => {
-    [els.search, els.entityFilter, els.statusFilter, els.typeFilter, els.supplierFilter, els.dateFrom, els.dateTo].forEach((el) => {
-      if (el) el.value = '';
-    });
+    clearFilters();
+    closeFiltersModal();
+    loadInbox();
+  });
+  els.counts?.addEventListener('click', (event) => {
+    const action = event.target.closest('[data-action]')?.dataset.action;
+    if (action !== 'reset-filters') return;
+    clearFilters();
     closeFiltersModal();
     loadInbox();
   });
   els.refreshBtn?.addEventListener('click', loadInbox);
   els.templatesBtn?.addEventListener('click', openTemplates);
   els.sourcesBtn?.addEventListener('click', openSources);
+  els.viewTabs?.addEventListener('click', (event) => {
+    const view = event.target.closest('[data-view]')?.dataset.view;
+    if (view) selectView(view);
+  });
+  els.viewTabs?.addEventListener('keydown', (event) => {
+    if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+    const views = [...els.viewTabs.querySelectorAll('[data-view]')];
+    const currentIndex = views.findIndex((button) => button.dataset.view === state.view);
+    const direction = event.key === 'ArrowRight' ? 1 : -1;
+    const next = views[(currentIndex + direction + views.length) % views.length];
+    event.preventDefault();
+    selectView(next.dataset.view);
+    next.focus();
+  });
+  window.addEventListener('popstate', () => {
+    const requested = new URLSearchParams(window.location.search).get('view');
+    const view = allowedViews.has(requested) ? requested : 'home';
+    if (view === state.view) return;
+    state.view = view;
+    clearFilters();
+    renderViewTabs();
+    loadInbox();
+  });
   els.uploadBtn?.addEventListener('click', () => els.uploadInput?.click());
-  els.extractBtn?.addEventListener('click', () => { window.location.href = '/document_ai/extract'; });
+  els.extractBtn?.addEventListener('click', () => { window.location.href = analysisUrl(); });
   els.uploadInput?.addEventListener('change', (event) => uploadDocument(event.target.files?.[0]));
   els.inboxBody?.addEventListener('click', (event) => {
     const button = event.target.closest('button[data-action]');
@@ -347,7 +423,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     if (action === 'extract') {
-      window.location.href = `/document_ai/extract?document_id=${encodeURIComponent(id)}`;
+      window.location.href = analysisUrl(id);
       return;
     }
     if (action === 'template') {
@@ -359,5 +435,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  renderViewTabs();
   loadInbox();
 });

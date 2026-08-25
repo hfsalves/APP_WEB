@@ -51,6 +51,7 @@ document.addEventListener('DOMContentLoaded', () => {
     originSource: document.getElementById('docAiExtractOriginSource'),
     originLoading: document.getElementById('docAiExtractOriginLoading'),
     originFlow: document.getElementById('docAiExtractOriginFlow'),
+    originTabs: document.getElementById('docAiExtractOriginTabs'),
     lineCount: document.getElementById('docAiExtractLineCount'),
     suggestBlsBtn: document.getElementById('docAiExtractSuggestBlsBtn'),
     splitLineBtn: document.getElementById('docAiExtractSplitLineBtn'),
@@ -86,6 +87,13 @@ document.addEventListener('DOMContentLoaded', () => {
     projectList: document.getElementById('docAiProjectList'),
     projectCloseTop: document.getElementById('docAiProjectCloseTop'),
     projectClose: document.getElementById('docAiProjectClose'),
+    articleModal: document.getElementById('docAiArticleModal'),
+    articleContext: document.getElementById('docAiArticleContext'),
+    articleSearch: document.getElementById('docAiArticleSearch'),
+    articleSearchBtn: document.getElementById('docAiArticleSearchBtn'),
+    articleList: document.getElementById('docAiArticleList'),
+    articleCloseTop: document.getElementById('docAiArticleCloseTop'),
+    articleClose: document.getElementById('docAiArticleClose'),
     persistenceNote: document.getElementById('docAiExtractPersistenceNote'),
     entityModal: document.getElementById('docAiEntityModal'),
     entitySearch: document.getElementById('docAiEntitySearch'),
@@ -105,8 +113,16 @@ document.addEventListener('DOMContentLoaded', () => {
     accessSelected: document.getElementById('docAiIntegrationAccessSelected'),
     accessSave: document.getElementById('docAiIntegrationAccessSave'),
     submitPhcBtn: document.getElementById('docAiExtractSubmitPhcBtn'),
+    controlOkBtn: document.getElementById('docAiExtractControlOkBtn'),
+    viewTabs: document.getElementById('docAiExtractViewTabs'),
+    modeLabel: document.getElementById('docAiExtractModeLabel'),
+    modeValue: document.getElementById('docAiExtractModeValue'),
+    modeMeta: document.getElementById('docAiExtractModeMeta'),
   };
 
+  const allowedViews = new Set(['home', 'management', 'accounting']);
+  const initialParams = new URLSearchParams(window.location.search);
+  const initialView = initialParams.get('view');
   const state = {
     file: null,
     previewUrl: '',
@@ -121,9 +137,14 @@ document.addEventListener('DOMContentLoaded', () => {
     originSearchToken: 0,
     originPayload: null,
     originCandidates: [],
+    activeOriginStage: '',
     selectedOrigins: [],
     selectedProject: null,
     projectCandidates: [],
+    projectTargetLineIndex: null,
+    articleCandidates: [],
+    articleTargetLineIndex: null,
+    expandedBcLines: new Set(),
     projectSuggestionDismissed: false,
     deliveryNoteGroups: [],
     virtualDeliveryNotesActive: false,
@@ -143,9 +164,12 @@ document.addEventListener('DOMContentLoaded', () => {
     accessSearchTimer: null,
     accessSearchToken: 0,
     submittingPhc: false,
+    submittingControl: false,
+    controlOk: false,
     integratedPhc: false,
     integrationResult: null,
     gedFolderManuallySelected: false,
+    view: allowedViews.has(initialView) ? initialView : 'home',
   };
 
   const typeLabels = {
@@ -181,6 +205,55 @@ document.addEventListener('DOMContentLoaded', () => {
     if (typeof window.showToast === 'function') {
       window.showToast(message, type);
     }
+  }
+
+  function extractUrl(documentId = state.currentDocumentId) {
+    const params = new URLSearchParams();
+    if (documentId) params.set('document_id', documentId);
+    if (state.view !== 'home') params.set('view', state.view);
+    const query = params.toString();
+    return `/document_ai/extract${query ? `?${query}` : ''}`;
+  }
+
+  function inboxUrl() {
+    return state.view === 'home' ? '/document_ai/inbox' : `/document_ai/inbox?view=${encodeURIComponent(state.view)}`;
+  }
+
+  function renderViewTabs() {
+    els.viewTabs?.querySelectorAll('[data-view]').forEach((button) => {
+      const active = button.dataset.view === state.view;
+      button.classList.toggle('is-active', active);
+      button.setAttribute('aria-selected', active ? 'true' : 'false');
+      button.tabIndex = active ? 0 : -1;
+    });
+  }
+
+  function renderModeCard() {
+    if (!els.modeLabel || !els.modeValue || !els.modeMeta) return;
+    const documentData = state.documentData || {};
+    if (state.view === 'home') {
+      const docType = typeLabels[documentData.document_type] || documentData.document_type || typeLabels.unknown;
+      const confidence = Math.round(Math.max(0, Math.min(1, Number(documentData.confidence || 0))) * 100);
+      els.modeLabel.textContent = 'Classement';
+      els.modeValue.textContent = documentData.document_type ? docType : '--';
+      els.modeMeta.textContent = documentData.document_type ? `${confidence}% confiance` : 'En attente de lecture';
+      return;
+    }
+    const totals = documentData.totals || {};
+    const currency = documentData.currency || '';
+    els.modeLabel.textContent = 'Totaux';
+    els.modeValue.textContent = documentData.document_type ? formatMoney(totals.gross_total, currency) : '--';
+    els.modeMeta.textContent = documentData.document_type
+      ? `HT ${formatMoney(totals.net_total, currency)} · TVA ${formatMoney(totals.tax_total, currency)}`
+      : 'En attente de lecture';
+  }
+
+  function selectView(view, { updateHistory = true } = {}) {
+    if (!allowedViews.has(view) || view === state.view) return;
+    state.view = view;
+    renderViewTabs();
+    renderModeCard();
+    if (updateHistory) window.history.pushState({ documentAiView: view }, '', extractUrl());
   }
 
   function formatFileSize(bytes) {
@@ -423,6 +496,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const allowed = (isCorrespondence && els.submitPhcBtn.dataset.canCorrespondence === '1')
       || (isProvisionalInvoice && els.submitPhcBtn.dataset.canProvisionalInvoice === '1');
     els.submitPhcBtn.hidden = !allowed;
+    if (els.controlOkBtn) els.controlOkBtn.hidden = !isProvisionalInvoice || els.controlOkBtn.dataset.canProvisionalInvoice !== '1';
     if (!allowed) return;
     const ready = Boolean(
       state.file
@@ -432,13 +506,29 @@ document.addEventListener('DOMContentLoaded', () => {
       && state.correspondenceReference
       && (isCorrespondence || (String(documentData.document_number || '').trim() && Array.isArray(documentData.lines) && documentData.lines.length))
     );
-    els.submitPhcBtn.disabled = !ready || state.submittingPhc || state.integratedPhc;
+    if (els.controlOkBtn && isProvisionalInvoice) {
+      els.controlOkBtn.disabled = !ready || state.submittingControl || state.controlOk || state.integratedPhc;
+      els.controlOkBtn.title = ready
+        ? (state.controlOk ? 'Contrôle OK concluído.' : 'Confirmar o controlo do documento.')
+        : 'Identifica a sociedade, o fornecedor, o número e as linhas do documento.';
+      els.controlOkBtn.innerHTML = state.submittingControl
+        ? '<i class="fa-solid fa-circle-notch fa-spin"></i><span>A confirmar...</span>'
+        : state.controlOk
+          ? '<i class="fa-solid fa-circle-check"></i><span>Contrôle OK</span>'
+          : '<i class="fa-solid fa-clipboard-check"></i><span>Contrôle OK</span>';
+    }
+    els.submitPhcBtn.disabled = !ready || (isProvisionalInvoice && !state.controlOk) || state.submittingPhc || state.integratedPhc;
+    els.submitPhcBtn.title = isProvisionalInvoice && !state.controlOk
+      ? 'Efetua primeiro o Contrôle OK.'
+      : '';
     if (state.integratedPhc) {
-      els.submitPhcBtn.innerHTML = '<i class="fa-solid fa-circle-check"></i><span>Submetido no PHC</span>';
+      els.submitPhcBtn.innerHTML = '<i class="fa-solid fa-circle-check"></i><span>Comptabilité</span>';
     } else if (state.submittingPhc) {
-      els.submitPhcBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i><span>A submeter...</span>';
+      els.submitPhcBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i><span>Validation...</span>';
     } else {
-      els.submitPhcBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i><span>Submeter no PHC</span>';
+      els.submitPhcBtn.innerHTML = isProvisionalInvoice
+        ? '<i class="fa-solid fa-check"></i><span>Validation</span>'
+        : '<i class="fa-solid fa-paper-plane"></i><span>Submeter no PHC</span>';
     }
   }
 
@@ -544,6 +634,7 @@ document.addEventListener('DOMContentLoaded', () => {
     state.originSearchToken += 1;
     state.originPayload = null;
     state.originCandidates = [];
+    state.activeOriginStage = '';
     state.selectedOrigins = [];
     state.selectedProject = null;
     state.projectCandidates = [];
@@ -554,12 +645,16 @@ document.addEventListener('DOMContentLoaded', () => {
     state.originLineReferenceLabel = '';
     state.originLineMatchByLine = new WeakMap();
     state.selectedSplitLine = null;
+    state.controlOk = false;
+    state.submittingControl = false;
     state.correspondenceLookupToken += 1;
     state.correspondenceReference = null;
     state.correspondenceYear = null;
     state.submittingPhc = false;
-    state.integratedPhc = false;
-    state.integrationResult = null;
+    state.submittingControl = false;
+    state.controlOk = Boolean(payload.workflow?.control_ok);
+    state.integratedPhc = payload.processing_status === 'provisional_invoice' || Boolean(payload.phc_integration?.fostamp);
+    state.integrationResult = state.integratedPhc ? (payload.phc_integration || {}) : null;
     els.input.value = '';
     els.preview.hidden = true;
     els.dropzone.hidden = false;
@@ -576,7 +671,7 @@ document.addEventListener('DOMContentLoaded', () => {
     els.resultMeta.textContent = 'Os resultados aparecem aqui depois da leitura.';
     els.groupNavigator.hidden = true;
     renderProjectCard();
-    window.history.replaceState({}, '', '/document_ai/extract');
+    window.history.replaceState({}, '', extractUrl(''));
     setStatus('Pronto.');
     updateSubmitPhcButton();
   }
@@ -741,6 +836,10 @@ document.addEventListener('DOMContentLoaded', () => {
     els.confidence.hidden = true;
     els.batchAlert.hidden = true;
     els.originFlow.hidden = true;
+    if (els.originTabs) {
+      els.originTabs.hidden = true;
+      els.originTabs.innerHTML = '';
+    }
     els.originLoading.hidden = false;
     els.empty.hidden = false;
     els.empty.querySelector('strong').textContent = 'A iniciar leitura automática';
@@ -809,7 +908,7 @@ document.addEventListener('DOMContentLoaded', () => {
       els.empty.querySelector('span').textContent = 'Será usado o resultado guardado no inbox quando estiver disponível.';
       els.resultMeta.textContent = 'PDF carregado a partir do inbox; a verificar leitura guardada.';
       setStatus('A verificar se o documento já tem uma leitura guardada...');
-      window.history.replaceState({}, '', `/document_ai/extract?document_id=${encodeURIComponent(documentId)}`);
+      window.history.replaceState({}, '', extractUrl(documentId));
       if (!options.skipGroup) await loadDocumentGroup(documentId);
       renderGroupNavigator();
     } catch (error) {
@@ -878,43 +977,44 @@ document.addEventListener('DOMContentLoaded', () => {
     els.splitLineBtn.hidden = !canSplitAcrossDeliveryNotes;
     els.splitLineBtn.disabled = !canSplitAcrossDeliveryNotes || !state.selectedSplitLine;
     els.splitLineBtn.innerHTML = state.selectedSplitLine
-      ? `<i class="fa-solid fa-code-branch"></i><span>Repartir linha por ${proportionalGroups.length} BL(s)</span>`
-      : '<i class="fa-solid fa-code-branch"></i><span>Seleciona uma linha para repartir</span>';
+      ? `<i class="fa-solid fa-code-branch"></i><span>Répartir BL (${proportionalGroups.length})</span>`
+      : '<i class="fa-solid fa-code-branch"></i><span>Répartir BL</span>';
     els.lineCount.textContent = `${items.length} linha(s)`;
     if (!items.length) {
-      els.linesBody.innerHTML = '<tr><td colspan="11" class="sz_text_muted">Não foram encontradas linhas comerciais visíveis.</td></tr>';
+      els.linesBody.innerHTML = '<tr><td colspan="9" class="sz_text_muted">Não foram encontradas linhas comerciais visíveis.</td></tr>';
       return;
     }
-    let previousDeliveryNote = '';
     els.linesBody.innerHTML = items.map((line, lineIndex) => {
-      const deliveryNote = String(line.origin_delivery_note_number || '').trim();
-      const groupHeading = deliveryNote && deliveryNote !== previousDeliveryNote
-        ? `<tr class="docai-extract-line-origin"><td colspan="11"><i class="fa-solid fa-truck-ramp-box"></i><strong>Bon de Livraison ${escapeHtml(deliveryNote)}</strong></td></tr>`
-        : '';
-      previousDeliveryNote = deliveryNote;
       const originMatches = state.originLineMatchByLine.get(line) || [];
-      const originReferences = originMatches.map((originMatch) => {
-        const originReasons = Array.isArray(originMatch.reasons) ? originMatch.reasons.join(' · ') : '';
-        const originTitle = `${originMatch.origin_reference_label || 'BC'}${originMatch.origin_description ? ` · ${originMatch.origin_description}` : ''}${originReasons ? ` · ${originReasons}` : ''}`;
-        return `<span class="docai-extract-bc-ref" title="${escapeHtml(originTitle)}">${escapeHtml(originMatch.origin_ref)}</span>`;
-      }).join('');
       const selectedForSplit = state.selectedSplitLine === line;
-      const allocationHint = line._virtual_split_allocation
-        ? `<small class="docai-extract-split-hint"><i class="fa-solid fa-code-branch"></i> ${escapeHtml(formatNumber(Number(line._virtual_split_ratio || 0) * 100, 2))}% repartido para este BL</small>`
+      const action = originMatches.length ? 'Rattacher' : (line.ref ? 'Contrôler' : 'Créer');
+      const project = String(line.ccusto || line.project_ccusto || state.selectedProject?.ccusto || '').trim();
+      const bcCell = originMatches.length > 1
+        ? `<button type="button" class="docai-extract-bc-toggle" data-line-bc-toggle="${lineIndex}" title="Ouvrir" aria-expanded="${state.expandedBcLines.has(lineIndex) ? 'true' : 'false'}">${originMatches.length} BC <i class="fa-solid fa-chevron-${state.expandedBcLines.has(lineIndex) ? 'up' : 'down'}"></i></button>`
+        : originMatches.length === 1
+          ? `<span class="docai-extract-bc-ref">${escapeHtml(originMatches[0].origin_ref || '--')}</span>`
+          : '<span class="sz_text_muted">--</span>';
+      const bcRows = originMatches.length > 1 && state.expandedBcLines.has(lineIndex)
+        ? originMatches.map((originMatch) => {
+            const reasons = Array.isArray(originMatch.reasons) ? originMatch.reasons.join(' · ') : '';
+            return `<tr class="docai-extract-bc-detail-row">
+              <td></td><td></td><td>${escapeHtml(originMatch.origin_description || reasons || 'Correspondance BC')}</td>
+              <td></td><td></td><td></td><td></td>
+              <td><span class="docai-extract-bc-ref">${escapeHtml(originMatch.origin_ref || '--')}</span></td><td></td>
+            </tr>`;
+          }).join('')
         : '';
-      return `${groupHeading}<tr class="${selectedForSplit ? 'is-selected-for-split' : ''}${line._virtual_split_allocation ? ' is-split-allocation' : ''}">
-        <td class="docai-extract-line-picker-cell"><button type="button" class="docai-extract-line-picker" data-line-select="${lineIndex}" aria-label="${selectedForSplit ? 'Desmarcar' : 'Selecionar'} linha para repartir" aria-pressed="${selectedForSplit ? 'true' : 'false'}"><i class="fa-${selectedForSplit ? 'solid fa-circle-check' : 'regular fa-circle'}"></i></button></td>
-        <td>${escapeHtml(line.ref || '--')}</td>
-        <td class="docai-extract-bc-ref-cell">${originReferences || '<span class="sz_text_muted">--</span>'}</td>
-        <td class="docai-extract-description">${escapeHtml(line.description || '--')}${allocationHint}</td>
+      return `<tr class="${selectedForSplit ? 'is-selected-for-split' : ''}${line._virtual_split_allocation ? ' is-split-allocation' : ''}">
+        <td><span class="docai-extract-line-action">${escapeHtml(action)}</span></td>
+        <td><button type="button" class="docai-extract-cell-link" data-line-article="${lineIndex}" title="Choisir un article PHC">${escapeHtml(line.ref || 'Choisir')}</button></td>
+        <td><input class="sz_input docai-extract-line-description-input" data-line-description="${lineIndex}" value="${escapeHtml(line.description || '')}" aria-label="Désignation de la ligne"></td>
         <td class="docai-extract-number">${escapeHtml(formatNumber(line.qty))}</td>
-        <td>${escapeHtml(line.unit || '--')}</td>
         <td class="docai-extract-number">${escapeHtml(formatMoney(line.unit_price, currency))}</td>
-        <td class="docai-extract-number">${escapeHtml(`${formatNumber(line.discount, 2)}%`)}</td>
-        <td class="docai-extract-number">${escapeHtml(`${formatNumber(line.tax_rate, 2)}%`)}</td>
         <td class="docai-extract-number">${escapeHtml(formatMoney(line.net_amount, currency))}</td>
-        <td class="docai-extract-number">${escapeHtml(formatMoney(line.gross_amount, currency))}</td>
-      </tr>`;
+        <td><button type="button" class="docai-extract-cell-link" data-line-project="${lineIndex}" title="Choisir un chantier">${escapeHtml(project || 'Choisir')}</button></td>
+        <td class="docai-extract-bc-ref-cell">${bcCell}</td>
+        <td class="docai-extract-line-picker-cell"><input type="checkbox" data-line-select="${lineIndex}" aria-label="Sélectionner pour répartir BL" ${selectedForSplit ? 'checked' : ''}></td>
+      </tr>${bcRows}`;
     }).join('');
   }
 
@@ -940,7 +1040,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const supplierNo = Number(isCustomerMail ? supplier.customer_no : (supplier.supplier_no || supplier.no) || 0);
     const supplierNumberLabel = phcPartyNumber(supplierNo, supplier.estab);
     const matched = Boolean(supplierNo);
-    els.partyLabel.textContent = isCorrespondence ? 'Remetente' : 'Fornecedor';
+    els.partyLabel.textContent = isCorrespondence ? 'Remetente' : 'Fournisseur';
     els.supplierName.textContent = supplier.name || supplier.llm_name || '--';
     els.supplierTax.textContent = supplier.tax_id
       ? `${isCustomerMail ? 'NIF' : 'NIF/NCONT'}: ${supplier.tax_id}`
@@ -979,7 +1079,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderCustomerCard(customer = {}, matching = {}) {
     const isMail = state.documentData?.document_type === 'mail';
     const matched = Boolean(customer.feid && matching.customer_matched !== false);
-    els.customerLabel.textContent = isMail ? 'Entidade' : 'Empresa cliente';
+    els.customerLabel.textContent = isMail ? 'Entidade' : 'Société';
     els.customerName.textContent = isMail && !matched ? 'Por escolher' : (customer.name || '--');
     els.customerTax.textContent = matched && customer.tax_id ? `NIF: ${customer.tax_id}` : (matched ? 'NIF não identificado' : 'Empresa do grupo não identificada');
     els.customerHint.hidden = false;
@@ -1136,6 +1236,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const virtualStageHtml = renderVirtualDeliveryNoteStage();
 
     if (!payload.available) {
+      els.originTabs.hidden = true;
+      els.originTabs.innerHTML = '';
       els.originMeta.textContent = virtualStageHtml
         ? `${state.deliveryNoteGroups.length} BL(s) identificado(s) na fatura, ainda por criar no PHC.`
         : payload.message || 'Não foi possível procurar origens no PHC.';
@@ -1177,11 +1279,11 @@ document.addEventListener('DOMContentLoaded', () => {
             </span>
             <span>${escapeHtml(formatDate(candidate.date))} · ${escapeHtml(formatMoney(candidate.total, state.documentData?.currency))} · ${escapeHtml(formatNumber(candidate.pending_quantity))} pendente</span>
             <small>${escapeHtml(reasons || `${candidate.line_count || 0} linha(s)`)}</small>
-            <em><i class="fa-solid ${selected ? 'fa-circle-minus' : 'fa-plus'}"></i> ${selected ? 'Desselecionar origem' : 'Selecionar como origem'}</em>
+            <em><i class="fa-solid ${selected ? 'fa-circle-minus' : 'fa-link'}"></i> ${selected ? 'Détacher' : 'Rattacher'}</em>
           </button>`;
       }).join('');
       const realStageHtml = `
-        <article class="docai-extract-origin-stage">
+        <article class="docai-extract-origin-stage" data-origin-stage="${escapeHtml(stage.key)}">
           <div class="docai-extract-origin-stage-title"><strong>${escapeHtml(stage.display_order || '')} ${escapeHtml(stage.label || stage.key)}</strong></div>
           <div class="docai-extract-origin-options">${cards}</div>
         </article>`;
@@ -1190,6 +1292,34 @@ document.addEventListener('DOMContentLoaded', () => {
     if (virtualStageHtml && !virtualStageInserted) stageHtml += virtualStageHtml;
 
     els.originFlow.innerHTML = stageHtml || '<div class="docai-extract-origin-unavailable"><i class="fa-solid fa-magnifying-glass"></i><span>Sem documentos anteriores disponíveis para ligar.</span></div>';
+    const tabStages = stages.map((stage) => ({
+      key: String(stage.key || ''),
+      label: String(stage.label || stage.key || ''),
+      count: Array.isArray(stage.candidates) ? stage.candidates.length : 0,
+    }));
+    if (virtualStageHtml) {
+      const virtualIndex = Math.max(0, tabStages.findIndex((stage) => ['delivery_note', 'purchase_order'].includes(stage.key)));
+      tabStages.splice(virtualIndex, 0, { key: 'virtual_delivery_note', label: 'BL à créer', count: state.deliveryNoteGroups.length });
+    }
+    renderOriginTabs(tabStages);
+  }
+
+  function renderOriginTabs(stages = []) {
+    const availableKeys = stages.map((stage) => stage.key).filter(Boolean);
+    if (!availableKeys.length) {
+      els.originTabs.hidden = true;
+      els.originTabs.innerHTML = '';
+      return;
+    }
+    if (!availableKeys.includes(state.activeOriginStage)) state.activeOriginStage = availableKeys[0];
+    els.originTabs.hidden = false;
+    els.originTabs.innerHTML = stages.map((stage) => {
+      const active = stage.key === state.activeOriginStage;
+      return `<button type="button" class="docai-extract-origin-tab${active ? ' is-active' : ''}" role="tab" data-origin-tab="${escapeHtml(stage.key)}" aria-selected="${active ? 'true' : 'false'}">${escapeHtml(stage.label)} <span>${Number(stage.count || 0)}</span></button>`;
+    }).join('');
+    els.originFlow.querySelectorAll('[data-origin-stage]').forEach((panel) => {
+      panel.hidden = panel.dataset.originStage !== state.activeOriginStage;
+    });
   }
 
   function applyOriginLineReferences(payload = {}) {
@@ -1242,7 +1372,7 @@ document.addEventListener('DOMContentLoaded', () => {
         </article>`;
     }).join('');
     return `
-      <article class="docai-extract-origin-stage is-virtual-stage">
+      <article class="docai-extract-origin-stage is-virtual-stage" data-origin-stage="virtual_delivery_note">
         <div class="docai-extract-origin-stage-title">
           <strong>${state.deliveryNoteGroups.length} Bon de Livraison Fournisseur a criar</strong>
           <span class="docai-extract-virtual-flag"><i class="fa-solid fa-wand-magic-sparkles"></i> Sugestão</span>
@@ -1569,8 +1699,29 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function closeProjectModal() {
+    state.projectTargetLineIndex = null;
     els.projectModal.classList.remove('sz_is_open');
     els.projectModal.setAttribute('aria-hidden', 'true');
+  }
+
+  async function saveAdjustedLines(successMessage = 'Ligne mise à jour.') {
+    if (!state.currentDocumentId || !state.documentData) {
+      setStatus(successMessage);
+      return true;
+    }
+    try {
+      await fetchJson(`/api/document_ai/documents/${encodeURIComponent(state.currentDocumentId)}/lines`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lines: state.documentData.lines || [] }),
+      });
+      setStatus(successMessage);
+      return true;
+    } catch (error) {
+      setStatus(error.message || 'La ligne n’a pas pu être enregistrée.', true);
+      showMessage(error.message || 'La ligne n’a pas pu être enregistrée.', 'error');
+      return false;
+    }
   }
 
   function renderProjectCandidates(items) {
@@ -1628,9 +1779,36 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 50);
   }
 
+  function openLineProjectModal(lineIndex) {
+    const line = state.documentData?.lines?.[Number(lineIndex)];
+    if (!line) return;
+    state.projectTargetLineIndex = Number(lineIndex);
+    els.projectSearch.value = String(line.ccusto || line.project_ccusto || '').trim();
+    els.projectContext.textContent = `Chantiers de ${state.documentData.customer?.name || 'la société cliente'}`;
+    els.projectModal.classList.add('sz_is_open');
+    els.projectModal.setAttribute('aria-hidden', 'false');
+    window.setTimeout(() => {
+      els.projectSearch.focus();
+      searchProjectCandidates();
+    }, 50);
+  }
+
   async function selectProject(index) {
     const selected = state.projectCandidates[Number(index)];
     if (!selected || !state.documentData) return;
+    if (state.projectTargetLineIndex !== null) {
+      const line = state.documentData.lines?.[state.projectTargetLineIndex];
+      if (!line) return;
+      line.ccusto = selected.ccusto || '';
+      line.project_ccusto = selected.ccusto || '';
+      line.project_machine = selected.machine || '';
+      line.project_location = selected.location || '';
+      state.projectTargetLineIndex = null;
+      closeProjectModal();
+      renderLines(state.documentData.lines || [], state.documentData.currency || '');
+      await saveAdjustedLines(`Chantier ${selected.ccusto} enregistré sur la ligne.`);
+      return;
+    }
     const changed = String(state.selectedProject?.ccusto || '').trim() !== String(selected.ccusto || '').trim();
     if (changed && !await clearSelectedOriginsForProjectChange(selected.ccusto)) return;
     state.projectSuggestionDismissed = true;
@@ -1640,6 +1818,83 @@ document.addEventListener('DOMContentLoaded', () => {
     closeProjectModal();
     setStatus(`Filtro de obra ${selected.ccusto} aplicado às origens.`);
     loadOriginCandidates(state.documentData);
+  }
+
+  function closeArticleModal() {
+    state.articleTargetLineIndex = null;
+    els.articleModal.classList.remove('sz_is_open');
+    els.articleModal.setAttribute('aria-hidden', 'true');
+  }
+
+  function renderArticleCandidates(items) {
+    state.articleCandidates = Array.isArray(items) ? items : [];
+    if (!state.articleCandidates.length) {
+      els.articleList.innerHTML = '<div class="docai-empty-state">Aucun article trouvé.</div>';
+      return;
+    }
+    els.articleList.innerHTML = state.articleCandidates.map((article, index) => `
+      <button type="button" class="docai-supplier-match-option" data-article-index="${index}">
+        <span class="docai-supplier-match-main">
+          <strong>${escapeHtml(article.ref || '--')}</strong>
+          <span>${escapeHtml(article.design || 'Sans désignation')}</span>
+        </span>
+        <span class="docai-supplier-match-score">${escapeHtml([article.family, article.unit].filter(Boolean).join(' · '))}</span>
+      </button>
+    `).join('');
+  }
+
+  async function searchArticleCandidates() {
+    if (!state.documentData?.customer) return;
+    els.articleSearchBtn.disabled = true;
+    els.articleList.innerHTML = '<div class="docai-empty-state">Recherche des articles PHC...</div>';
+    try {
+      const payload = await fetchJson('/api/document_ai/articles/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customer: state.documentData.customer || {},
+          query: els.articleSearch.value.trim(),
+          limit: 30,
+        }),
+      });
+      renderArticleCandidates(payload.items || []);
+      els.articleContext.textContent = `Articles de ${state.documentData.customer?.name || 'la société cliente'} · ${payload.phc_database || 'PHC'}`;
+    } catch (error) {
+      els.articleList.innerHTML = `<div class="docai-empty-state">${escapeHtml(error.message || 'Erreur de recherche.')}</div>`;
+    } finally {
+      els.articleSearchBtn.disabled = false;
+    }
+  }
+
+  function openArticleModal(lineIndex) {
+    const line = state.documentData?.lines?.[Number(lineIndex)];
+    if (!line) return;
+    if (!state.documentData?.customer?.feid && !state.documentData?.customer?.name) {
+      showMessage('Identifie d’abord la société cliente.', 'error');
+      return;
+    }
+    state.articleTargetLineIndex = Number(lineIndex);
+    els.articleSearch.value = line.ref || line.description || '';
+    els.articleModal.classList.add('sz_is_open');
+    els.articleModal.setAttribute('aria-hidden', 'false');
+    window.setTimeout(() => {
+      els.articleSearch.focus();
+      searchArticleCandidates();
+    }, 50);
+  }
+
+  async function selectArticle(index) {
+    const article = state.articleCandidates[Number(index)];
+    const line = state.documentData?.lines?.[state.articleTargetLineIndex];
+    if (!article || !line) return;
+    line.ref = article.ref || '';
+    line.article_ref = article.ref || '';
+    line.description = article.design || line.description || '';
+    if (article.unit) line.unit = article.unit;
+    state.articleTargetLineIndex = null;
+    closeArticleModal();
+    renderLines(state.documentData.lines || [], state.documentData.currency || '');
+    await saveAdjustedLines(`Article ${article.ref} enregistré sur la ligne.`);
   }
 
   async function clearProject(event) {
@@ -1806,7 +2061,9 @@ document.addEventListener('DOMContentLoaded', () => {
     els.projectCard.hidden = isCorrespondence;
     els.originSection.hidden = isCorrespondence;
     els.linesSection.hidden = isCorrespondence;
-    els.totalsSection.hidden = isCorrespondence;
+    els.totalsSection.hidden = true;
+    els.notesSection.hidden = true;
+    els.gedDestination.hidden = true;
     els.persistenceNote.textContent = isMail
       ? 'O correio foi analisado apenas neste ecrã e não foi adicionado ao inbox.'
       : (documentData.document_type === 'bank_statement'
@@ -1824,9 +2081,10 @@ document.addEventListener('DOMContentLoaded', () => {
     els.netTotal.textContent = formatMoney(totals.net_total, currency);
     els.taxTotal.textContent = formatMoney(totals.tax_total, currency);
     els.grossTotal.textContent = formatMoney(totals.gross_total, currency);
+    renderModeCard();
 
     const notes = Array.isArray(documentData.notes) ? documentData.notes.filter(Boolean) : [];
-    els.notesSection.hidden = !notes.length;
+    els.notesSection.hidden = true;
     els.notes.innerHTML = notes.map((note) => `<li>${escapeHtml(note)}</li>`).join('');
 
     const confidence = Math.max(0, Math.min(1, Number(documentData.confidence || 0)));
@@ -1981,6 +2239,12 @@ document.addEventListener('DOMContentLoaded', () => {
         : (isProvisionalInvoice ? 'O documento foi integrado no PHC, com linhas e anexos.' : 'O correio foi guardado no GED e integrado no PHC.');
       setStatus(payload.message || 'Documento integrado no PHC.');
       showMessage(payload.message || 'Documento integrado no PHC.', 'success');
+      if (isProvisionalInvoice) {
+        state.view = 'accounting';
+        window.setTimeout(() => {
+          window.location.href = '/document_ai/inbox?view=accounting';
+        }, 700);
+      }
     } catch (error) {
       setStatus(error.message || 'Não foi possível submeter a correspondência.', true);
       showMessage(error.message || 'Não foi possível submeter a correspondência.', 'error');
@@ -1990,7 +2254,50 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  els.backBtn?.addEventListener('click', () => { window.location.href = '/document_ai/inbox'; });
+  async function confirmDocumentControl() {
+    if (!els.controlOkBtn || !state.currentDocumentId || state.submittingControl || state.controlOk) return;
+    state.submittingControl = true;
+    updateSubmitPhcButton();
+    setStatus('A confirmar o Contrôle OK...');
+    try {
+      const payload = await fetchJson(`/api/document_ai/documents/${encodeURIComponent(state.currentDocumentId)}/control-ok`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ document: state.documentData || {} }),
+      });
+      state.controlOk = Boolean(payload.workflow?.control_ok);
+      setStatus('Contrôle OK concluído. A validação está disponível.');
+      showMessage('Contrôle OK concluído.', 'success');
+    } catch (error) {
+      setStatus(error.message || 'Não foi possível concluir o controlo.', true);
+      showMessage(error.message || 'Não foi possível concluir o controlo.', 'error');
+    } finally {
+      state.submittingControl = false;
+      updateSubmitPhcButton();
+    }
+  }
+
+  els.backBtn?.addEventListener('click', () => { window.location.href = inboxUrl(); });
+  els.viewTabs?.addEventListener('click', (event) => {
+    const view = event.target.closest('[data-view]')?.dataset.view;
+    if (view) selectView(view);
+  });
+  els.viewTabs?.addEventListener('keydown', (event) => {
+    if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+    const tabs = [...els.viewTabs.querySelectorAll('[data-view]')];
+    const currentIndex = tabs.findIndex((button) => button.dataset.view === state.view);
+    const direction = event.key === 'ArrowRight' ? 1 : -1;
+    const next = tabs[(currentIndex + direction + tabs.length) % tabs.length];
+    event.preventDefault();
+    selectView(next.dataset.view);
+    next.focus();
+  });
+  window.addEventListener('popstate', () => {
+    const requested = new URLSearchParams(window.location.search).get('view');
+    state.view = allowedViews.has(requested) ? requested : 'home';
+    renderViewTabs();
+    renderModeCard();
+  });
   els.gedFolderSelect?.addEventListener('change', () => {
     if (!state.documentData?.customer) return;
     state.gedFolderManuallySelected = true;
@@ -2016,6 +2323,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   els.accessSave?.addEventListener('click', saveAccessPermissions);
   els.submitPhcBtn?.addEventListener('click', submitDocumentToPhc);
+  els.controlOkBtn?.addEventListener('click', confirmDocumentControl);
   els.resetBtn?.addEventListener('click', resetScreen);
   els.chooseBtn?.addEventListener('click', (event) => {
     event.stopPropagation();
@@ -2053,8 +2361,34 @@ document.addEventListener('DOMContentLoaded', () => {
   els.suggestBlsBtn?.addEventListener('click', suggestVirtualDeliveryNotes);
   els.splitLineBtn?.addEventListener('click', splitSelectedLineAcrossDeliveryNotes);
   els.linesBody?.addEventListener('click', (event) => {
+    const article = event.target.closest('[data-line-article]');
+    if (article) {
+      openArticleModal(Number(article.dataset.lineArticle));
+      return;
+    }
+    const project = event.target.closest('[data-line-project]');
+    if (project) {
+      openLineProjectModal(Number(project.dataset.lineProject));
+      return;
+    }
+    const bcToggle = event.target.closest('[data-line-bc-toggle]');
+    if (bcToggle) {
+      const lineIndex = Number(bcToggle.dataset.lineBcToggle);
+      if (state.expandedBcLines.has(lineIndex)) state.expandedBcLines.delete(lineIndex);
+      else state.expandedBcLines.add(lineIndex);
+      renderLines(state.documentData?.lines || [], state.documentData?.currency || '');
+      return;
+    }
     const picker = event.target.closest('[data-line-select]');
     if (picker) selectLineForSplit(Number(picker.dataset.lineSelect));
+  });
+  els.linesBody?.addEventListener('change', async (event) => {
+    const input = event.target.closest('[data-line-description]');
+    if (!input) return;
+    const line = state.documentData?.lines?.[Number(input.dataset.lineDescription)];
+    if (!line) return;
+    line.description = input.value.trim();
+    await saveAdjustedLines('Désignation enregistrée.');
   });
   els.groupPrevious?.addEventListener('click', () => {
     if (!state.loading && !state.splitting) openGroupDocument(state.groupIndex - 1);
@@ -2134,17 +2468,44 @@ document.addEventListener('DOMContentLoaded', () => {
     const option = event.target.closest('[data-project-index]');
     if (option) selectProject(Number(option.dataset.projectIndex));
   });
+  els.articleSearchBtn?.addEventListener('click', searchArticleCandidates);
+  els.articleSearch?.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') searchArticleCandidates();
+  });
+  els.articleCloseTop?.addEventListener('click', closeArticleModal);
+  els.articleClose?.addEventListener('click', closeArticleModal);
+  els.articleModal?.addEventListener('click', (event) => {
+    if (event.target === els.articleModal) closeArticleModal();
+  });
+  els.articleList?.addEventListener('click', (event) => {
+    const option = event.target.closest('[data-article-index]');
+    if (option) selectArticle(Number(option.dataset.articleIndex));
+  });
   els.originFlow?.addEventListener('click', (event) => {
     const option = event.target.closest('[data-origin-index]');
     if (option) linkDocumentOrigin(option.dataset.originIndex);
+  });
+  els.originTabs?.addEventListener('click', (event) => {
+    const key = event.target.closest('[data-origin-tab]')?.dataset.originTab;
+    if (!key || key === state.activeOriginStage) return;
+    state.activeOriginStage = key;
+    const stages = [...els.originTabs.querySelectorAll('[data-origin-tab]')].map((button) => ({
+      key: button.dataset.originTab,
+      label: button.childNodes[0]?.textContent?.trim() || button.dataset.originTab,
+      count: Number(button.querySelector('span')?.textContent || 0),
+    }));
+    renderOriginTabs(stages);
   });
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && els.accessModal?.classList.contains('sz_is_open')) closeAccessModal();
     if (event.key === 'Escape' && els.supplierModal?.classList.contains('sz_is_open')) closeSupplierModal();
     if (event.key === 'Escape' && els.projectModal?.classList.contains('sz_is_open')) closeProjectModal();
+    if (event.key === 'Escape' && els.articleModal?.classList.contains('sz_is_open')) closeArticleModal();
   });
   window.addEventListener('beforeunload', cleanupPreview);
 
-  const documentId = new URLSearchParams(window.location.search).get('document_id');
+  renderViewTabs();
+  renderModeCard();
+  const documentId = initialParams.get('document_id');
   if (documentId) loadInboxDocument(documentId);
 });
