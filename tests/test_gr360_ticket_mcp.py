@@ -26,7 +26,7 @@ class _FakeHttpResponse:
 
 class Gr360TicketMcpTests(unittest.TestCase):
     def setUp(self):
-        server = create_ticket_mcp_server("http://127.0.0.1:8000/api/gr360/tickets")
+        server = create_ticket_mcp_server("http://127.0.0.1:8001/api/gr360/tickets")
         asgi_app = server.streamable_http_app(
             streamable_http_path="/",
             json_response=True,

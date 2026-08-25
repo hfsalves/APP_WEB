@@ -30,7 +30,7 @@ Wrappers:
 - `Server`
   - usa `waitress-serve`
   - host `0.0.0.0`
-  - porta `8000`
+  - porta `8001`
   - arranca `nginx` se necessario
   - faz update de codigo antes de arrancar/reiniciar, salvo `-NoUpdate`
 

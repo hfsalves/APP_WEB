@@ -3,7 +3,7 @@ param(
     [string]$ServiceName = 'GR360TicketsMCP',
     [string]$DisplayName = 'GR360 Tickets MCP',
     [int]$Port = 8002,
-    [string]$ApiBaseUrl = 'http://127.0.0.1:8000/api/gr360/tickets',
+    [string]$ApiBaseUrl = 'http://127.0.0.1:8001/api/gr360/tickets',
     [string]$PublicHost = 'app.gr360flooringsystems.com',
     [string]$NssmUrl = 'https://nssm.cc/ci/nssm-2.24-101-g897c7ad.zip'
 )

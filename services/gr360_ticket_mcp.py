@@ -16,7 +16,7 @@ from mcp.server.transport_security import TransportSecuritySettings
 
 
 logger = logging.getLogger(__name__)
-DEFAULT_API_BASE_URL = "http://127.0.0.1:8000/api/gr360/tickets"
+DEFAULT_API_BASE_URL = "http://127.0.0.1:8001/api/gr360/tickets"
 DEFAULT_PUBLIC_HOST = "app.gr360flooringsystems.com"
 
 

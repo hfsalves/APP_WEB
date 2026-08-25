@@ -4,7 +4,7 @@
 
 O MCP não é carregado pelo Flask nem pelo Waitress da aplicação. Existem três componentes separados:
 
-1. `GR360 Application`, porta 8000: aplicação e API autenticada de tickets;
+1. `GR360 Application`, porta 8001: aplicação e API autenticada de tickets;
 2. `GR360 Tickets MCP`, porta local 8002: adaptador MCP sem acesso direto à base de dados;
 3. `GR360 Nginx`: publica `/mcp/gr360-tickets/` e encaminha apenas esse caminho para a porta 8002.
 

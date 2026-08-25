@@ -151,7 +151,7 @@ Invoke-Nssm set SZeroNginx AppRotateFiles 1
 Invoke-Nssm set SZeroNginx AppRotateOnline 1
 Invoke-Nssm set SZeroNginx AppRotateBytes 10485760
 
-Invoke-Nssm install SZeroWaitress $pythonExe '-m' 'waitress' '--host=0.0.0.0' '--port=8000' 'app:app'
+Invoke-Nssm install SZeroWaitress $pythonExe '-m' 'waitress' '--host=0.0.0.0' '--port=8001' 'app:app'
 Invoke-Nssm set SZeroWaitress AppDirectory $root
 Invoke-Nssm set SZeroWaitress DisplayName 'SZero Waitress'
 Invoke-Nssm set SZeroWaitress Description 'Servidor web Python do StationZero.'
@@ -177,8 +177,8 @@ Start-Service -Name 'SZeroNginx'
 Start-Service -Name 'SZeroWaitress'
 (Get-Service -Name 'SZeroWaitress').WaitForStatus('Running', [TimeSpan]::FromSeconds(90))
 
-if (-not (Wait-StationZeroPortState -Port 8000 -ShouldListen $true -TimeoutSeconds 90)) {
-    throw 'SZeroWaitress arrancou, mas a porta 8000 nao ficou a escutar.'
+if (-not (Wait-StationZeroPortState -Port 8001 -ShouldListen $true -TimeoutSeconds 90)) {
+    throw 'SZeroWaitress arrancou, mas a porta 8001 nao ficou a escutar.'
 }
 
 Write-Host 'Servicos instalados e ativos:'

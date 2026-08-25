@@ -28,7 +28,7 @@ $script:StationZeroConfig = @{
     GitBranch   = 'origin/master'
     DevPort     = 5000
     ProdLikePort = 8000
-    ServerPort  = 8000
+    ServerPort  = 8001
     ApplicationServiceNames = @('GR360 Application', 'SZeroWaitress')
     NginxServiceNames = @('GR360 Nginx', 'SZeroNginx')
 }
