@@ -380,12 +380,6 @@ def create_app():
         'GR360_CORE',
     )
     app.config['GR360_TICKET_API_FEID'] = os.environ.get('GR360_TICKET_API_FEID', '1')
-    # Opt-in: a integração MCP nunca pode impedir o arranque da aplicação principal.
-    app.config['GR360_TICKET_MCP_ENABLED'] = os.environ.get('GR360_TICKET_MCP_ENABLED', '0')
-    app.config['GR360_TICKET_MCP_HOST'] = os.environ.get(
-        'GR360_TICKET_MCP_HOST',
-        'app.gr360flooringsystems.com',
-    )
     app.config['DB_CONN_STRS'] = {
         db_target_prod: prod_conn_str,
         db_target_client: _build_pyodbc_conn_str(
@@ -46208,14 +46202,6 @@ def _geo_build_query(morada: str, codpost: str, local: str) -> str:
 
 
 app = create_app()
-
-if str(app.config.get('GR360_TICKET_MCP_ENABLED', '0')).strip().lower() in {'1', 'true', 'yes', 'on', 'sim'}:
-    try:
-        from services.gr360_ticket_mcp import mount_gr360_ticket_mcp
-        mount_gr360_ticket_mcp(app)
-    except Exception:
-        # O conector é acessório. Uma falha nele nunca pode derrubar Flask/Waitress.
-        app.logger.exception('MCP de tickets GR360 indisponível; aplicação principal iniciada sem o conector.')
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

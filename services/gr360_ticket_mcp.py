@@ -1,93 +1,85 @@
 from __future__ import annotations
 
-import atexit
-import asyncio
+import json
 import logging
-import threading
-from contextlib import contextmanager
+import os
 from typing import Any, Mapping
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
 
-from a2wsgi import ASGIMiddleware
-from flask import Flask
 from mcp import types
 from mcp.server import MCPServer
-from mcp.server.mcpserver.exceptions import ToolError
 from mcp.server.mcpserver import Context
+from mcp.server.mcpserver.exceptions import ToolError
 from mcp.server.transport_security import TransportSecuritySettings
-from sqlalchemy.exc import SQLAlchemyError
-from werkzeug.middleware.dispatcher import DispatcherMiddleware
-
-from models import db
-from services.gr360_audit_service import audit_table_write
-from services.gr360_ticket_api_service import (
-    TicketApiClient,
-    TicketApiError,
-    authenticate_client,
-    create_ticket,
-    extract_bearer_token,
-    get_ticket,
-    list_tickets,
-    update_ticket_followup,
-)
 
 
 logger = logging.getLogger(__name__)
-MCP_MOUNT_PATH = "/mcp/gr360-tickets"
+DEFAULT_API_BASE_URL = "http://127.0.0.1:8000/api/gr360/tickets"
+DEFAULT_PUBLIC_HOST = "app.gr360flooringsystems.com"
 
 
-def _truthy(value: Any) -> bool:
-    return str(value or "").strip().lower() in {"1", "true", "yes", "on", "sim"}
+def _authorization_header(ctx: Context | None) -> str:
+    headers: Mapping[str, str] = (ctx.headers if ctx else None) or {}
+    return str(headers.get("authorization") or headers.get("Authorization") or "").strip()
 
 
-def _authorization_header(ctx: Context) -> str:
-    headers: Mapping[str, str] = ctx.headers or {}
-    return str(headers.get("authorization") or headers.get("Authorization") or "")
-
-
-@contextmanager
-def _flask_operation_context(app: Flask, ctx: Context):
-    headers = {"Authorization": _authorization_header(ctx)}
-    with app.test_request_context(MCP_MOUNT_PATH, method="POST", headers=headers):
-        yield
-
-
-def _engine(app: Flask):
-    if not _truthy(app.config.get("GR360_TICKET_API_ENABLED", "1")):
-        raise RuntimeError("API de tickets GR360 desativada.")
-    engine = db.engines.get("client")
-    if engine is None:
-        raise RuntimeError("Ligação GR360 indisponível.")
-    return engine
-
-
-def _expected_database(app: Flask) -> str:
-    return str(app.config.get("GR360_TICKET_API_EXPECTED_DATABASE") or "GR360_CORE").strip()
-
-
-def _ticket_feid(app: Flask) -> int:
-    return int(app.config.get("GR360_TICKET_API_FEID") or 1)
-
-
-def _client(app: Flask, ctx: Context) -> TicketApiClient:
-    return authenticate_client(
-        _engine(app),
-        extract_bearer_token(_authorization_header(ctx)),
-        _expected_database(app),
-    )
-
-
-def _run_tool(app: Flask, ctx: Context, operation):
+def _decode_response(raw: bytes) -> dict[str, Any]:
     try:
-        with _flask_operation_context(app, ctx):
-            return operation()
-    except TicketApiError as exc:
-        raise ToolError(str(exc)) from exc
-    except SQLAlchemyError as exc:
-        app.logger.exception("Falha de base de dados no MCP de tickets GR360.")
-        raise ToolError("Não foi possível aceder aos tickets neste momento.") from exc
+        payload = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ToolError("A API GR360 devolveu uma resposta inválida.") from exc
+    if not isinstance(payload, dict):
+        raise ToolError("A API GR360 devolveu uma resposta inválida.")
+    return payload
 
 
-def create_ticket_mcp_server(app: Flask) -> MCPServer:
+def _api_request(
+    ctx: Context | None,
+    method: str,
+    path: str = "",
+    *,
+    query: Mapping[str, Any] | None = None,
+    body: Mapping[str, Any] | None = None,
+    api_base_url: str = DEFAULT_API_BASE_URL,
+) -> dict[str, Any]:
+    authorization = _authorization_header(ctx)
+    if not authorization:
+        raise ToolError("Credencial Bearer em falta.")
+
+    url = f"{api_base_url.rstrip('/')}/{path.lstrip('/')}" if path else api_base_url.rstrip("/")
+    if query:
+        url = f"{url}?{urlencode(query)}"
+
+    data = None
+    headers = {"Authorization": authorization, "Accept": "application/json"}
+    if body is not None:
+        data = json.dumps(dict(body), ensure_ascii=False).encode("utf-8")
+        headers["Content-Type"] = "application/json"
+
+    request = Request(url, data=data, headers=headers, method=method.upper())
+    try:
+        with urlopen(request, timeout=30) as response:
+            payload = _decode_response(response.read())
+    except HTTPError as exc:
+        try:
+            payload = _decode_response(exc.read())
+            message = str(payload.get("error") or "")
+        except ToolError:
+            message = ""
+        raise ToolError(message or f"A API GR360 recusou o pedido ({exc.code}).") from exc
+    except (URLError, TimeoutError) as exc:
+        logger.exception("API GR360 indisponível para o serviço MCP.")
+        raise ToolError("A API de tickets GR360 está temporariamente indisponível.") from exc
+
+    if payload.get("ok") is False:
+        raise ToolError(str(payload.get("error") or "Não foi possível processar o pedido."))
+    return payload
+
+
+def create_ticket_mcp_server(api_base_url: str | None = None) -> MCPServer:
+    base_url = str(api_base_url or os.environ.get("GR360_TICKET_MCP_API_URL") or DEFAULT_API_BASE_URL).strip()
     server = MCPServer(
         name="gr360-tickets",
         title="GR360 Tickets",
@@ -97,7 +89,7 @@ def create_ticket_mcp_server(app: Flask) -> MCPServer:
             "semelhantes. Mantém o prompt_hugo completo e uma referência externa estável. "
             "As ferramentas de escrita exigem confirmação do utilizador."
         ),
-        version="1.0.0",
+        version="1.1.0",
     )
 
     @server.tool(
@@ -113,18 +105,12 @@ def create_ticket_mcp_server(app: Flask) -> MCPServer:
         structured_output=True,
     )
     def listar_tickets_tool(estado: str = "all", limite: int = 50, ctx: Context = None) -> dict[str, Any]:
-        def operation():
-            client = _client(app, ctx)
-            items = list_tickets(
-                _engine(app),
-                client,
-                status=estado,
-                limit=limite,
-                expected_database=_expected_database(app),
-            )
-            return {"count": len(items), "items": items}
-
-        return _run_tool(app, ctx, operation)
+        return _api_request(
+            ctx,
+            "GET",
+            query={"status": estado, "limit": limite},
+            api_base_url=base_url,
+        )
 
     @server.tool(
         name="consultar_ticket",
@@ -139,11 +125,7 @@ def create_ticket_mcp_server(app: Flask) -> MCPServer:
         structured_output=True,
     )
     def consultar_ticket_tool(numero: int, ctx: Context = None) -> dict[str, Any]:
-        return _run_tool(
-            app,
-            ctx,
-            lambda: {"item": get_ticket(_engine(app), _client(app, ctx), numero, _expected_database(app))},
-        )
+        return _api_request(ctx, "GET", str(numero), api_base_url=base_url)
 
     @server.tool(
         name="criar_ticket",
@@ -169,34 +151,19 @@ def create_ticket_mcp_server(app: Flask) -> MCPServer:
         utilizador: str = "",
         ctx: Context = None,
     ) -> dict[str, Any]:
-        def operation():
-            client = _client(app, ctx)
-            item, created = create_ticket(
-                _engine(app),
-                client,
-                {
-                    "pedido": pedido,
-                    "prompt_hugo": prompt_hugo,
-                    "referencia_externa": referencia_externa,
-                    "descricao": descricao,
-                    "prioridade": prioridade,
-                    "utilizador": utilizador,
-                },
-                _expected_database(app),
-                _ticket_feid(app),
-            )
-            if created:
-                audit_table_write(
-                    table_name="TK",
-                    action="INSERT",
-                    record_key={"TICKET": item["ticket"]},
-                    after_data=item,
-                    metadata={"source": "gr360_ticket_mcp", "api_client": client.client_id},
-                    database_name="GR360_CORE",
-                )
-            return {"created": created, "item": item}
-
-        return _run_tool(app, ctx, operation)
+        return _api_request(
+            ctx,
+            "POST",
+            body={
+                "pedido": pedido,
+                "prompt_hugo": prompt_hugo,
+                "referencia_externa": referencia_externa,
+                "descricao": descricao,
+                "prioridade": prioridade,
+                "utilizador": utilizador,
+            },
+            api_base_url=base_url,
+        )
 
     @server.tool(
         name="atualizar_seguimento",
@@ -220,108 +187,39 @@ def create_ticket_mcp_server(app: Flask) -> MCPServer:
         tratado: bool = False,
         ctx: Context = None,
     ) -> dict[str, Any]:
-        def operation():
-            client = _client(app, ctx)
-            before, item = update_ticket_followup(
-                _engine(app),
-                client,
-                numero,
-                {"estado": estado, "seguimento": seguimento, "tratado": tratado},
-                _expected_database(app),
-            )
-            audit_table_write(
-                table_name="TK",
-                action="UPDATE",
-                record_key={"TICKET": item["ticket"]},
-                before_data=before,
-                after_data=item,
-                metadata={"source": "gr360_ticket_mcp", "api_client": client.client_id},
-                database_name="GR360_CORE",
-            )
-            return {"item": item}
-
-        return _run_tool(app, ctx, operation)
+        return _api_request(
+            ctx,
+            "PATCH",
+            f"{numero}/followup",
+            body={"estado": estado, "seguimento": seguimento, "tratado": tratado},
+            api_base_url=base_url,
+        )
 
     return server
 
 
-class _McpWsgiMount:
-    def __init__(self, asgi_app):
-        self.loop = asyncio.new_event_loop()
-        self.thread = threading.Thread(target=self.loop.run_forever, name="gr360-ticket-mcp", daemon=True)
-        self.thread.start()
-        self.lifespan = asgi_app.router.lifespan_context(asgi_app)
-        self.ready = threading.Event()
-        self.stop_event = None
-        self.lifespan_future = asyncio.run_coroutine_threadsafe(self._run_lifespan(), self.loop)
-        if not self.ready.wait(timeout=15):
-            raise RuntimeError("O MCP de tickets GR360 não iniciou dentro do tempo esperado.")
-        if self.lifespan_future.done():
-            self.lifespan_future.result()
-        self.wsgi_app = ASGIMiddleware(asgi_app, loop=self.loop, wait_time=30)
-        self.closed = False
-
-    async def _run_lifespan(self):
-        self.stop_event = asyncio.Event()
-        async with self.lifespan:
-            self.ready.set()
-            await self.stop_event.wait()
-
-    async def _cancel_pending_tasks(self):
-        current = asyncio.current_task()
-        pending = [task for task in asyncio.all_tasks() if task is not current and not task.done()]
-        for task in pending:
-            task.cancel()
-        if pending:
-            await asyncio.gather(*pending, return_exceptions=True)
-
-    def close(self):
-        if self.closed:
-            return
-        self.closed = True
-        try:
-            self.loop.call_soon_threadsafe(self.stop_event.set)
-            self.lifespan_future.result(timeout=15)
-            asyncio.run_coroutine_threadsafe(self._cancel_pending_tasks(), self.loop).result(timeout=15)
-        except Exception:
-            logger.exception("Falha ao terminar o MCP de tickets GR360.")
-        finally:
-            self.loop.call_soon_threadsafe(self.loop.stop)
-
-
-def mount_gr360_ticket_mcp(app: Flask) -> None:
-    if not _truthy(app.config.get("GR360_TICKET_MCP_ENABLED", "1")):
-        return
-    if "gr360_ticket_mcp" in app.extensions:
-        return
-
-    server = create_ticket_mcp_server(app)
-    host = str(app.config.get("GR360_TICKET_MCP_HOST") or "app.gr360flooringsystems.com").strip()
-    asgi_app = server.streamable_http_app(
+def run_ticket_mcp_server() -> None:
+    listen_host = str(os.environ.get("GR360_TICKET_MCP_LISTEN_HOST") or "127.0.0.1").strip()
+    listen_port = int(os.environ.get("GR360_TICKET_MCP_PORT") or 8002)
+    public_host = str(os.environ.get("GR360_TICKET_MCP_PUBLIC_HOST") or DEFAULT_PUBLIC_HOST).strip()
+    server = create_ticket_mcp_server()
+    server.run(
+        transport="streamable-http",
+        host=listen_host,
+        port=listen_port,
         streamable_http_path="/",
         json_response=True,
         stateless_http=True,
-        host=host,
         transport_security=TransportSecuritySettings(
             enable_dns_rebinding_protection=True,
             allowed_hosts=[
-                host,
-                f"{host}:*",
-                "app.gr360flooringsystems.com",
-                "app.gr360flooringsystems.com:*",
+                public_host,
+                f"{public_host}:*",
                 "127.0.0.1",
                 "127.0.0.1:*",
                 "localhost",
                 "localhost:*",
             ],
-            allowed_origins=[
-                "https://app.gr360flooringsystems.com",
-                "http://127.0.0.1:*",
-                "http://localhost:*",
-            ],
+            allowed_origins=[f"https://{public_host}"],
         ),
     )
-    mount = _McpWsgiMount(asgi_app)
-    app.wsgi_app = DispatcherMiddleware(app.wsgi_app, {MCP_MOUNT_PATH: mount.wsgi_app})
-    app.extensions["gr360_ticket_mcp"] = {"server": server, "mount": mount}
-    atexit.register(mount.close)

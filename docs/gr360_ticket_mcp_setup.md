@@ -1,51 +1,64 @@
-# Conector GR360 Tickets para Codex e ChatGPT Work
+# Conector GR360 Tickets para Codex e ChatGPT
 
-## Endpoint
+## Arquitetura isolada
 
-- MCP remoto: `https://app.gr360flooringsystems.com/mcp/gr360-tickets/`
+O MCP não é carregado pelo Flask nem pelo Waitress da aplicação. Existem três componentes separados:
+
+1. `GR360 Application`, porta 8000: aplicação e API autenticada de tickets;
+2. `GR360 Tickets MCP`, porta local 8002: adaptador MCP sem acesso direto à base de dados;
+3. `GR360 Nginx`: publica `/mcp/gr360-tickets/` e encaminha apenas esse caminho para a porta 8002.
+
+Uma falha ou dependência em falta no MCP não impede o arranque da aplicação principal.
+
+## Endpoint e ferramentas
+
+- URL pública: `https://app.gr360flooringsystems.com/mcp/gr360-tickets/`
 - Transporte: Streamable HTTP
-- Autenticação: Bearer token da credencial `mickael-codex`
+- Autenticação: Bearer token da credencial API `mickael-codex`
 
-O endpoint publica quatro ferramentas:
+Ferramentas:
 
 - `listar_tickets`
 - `consultar_ticket`
 - `criar_ticket`
 - `atualizar_seguimento`
 
-Antes de ativar no servidor, instalar `requirements.txt` e definir
-`GR360_TICKET_MCP_ENABLED=1`. Sem esta flag, a aplicação principal arranca normalmente sem carregar
-as dependências MCP. Mesmo com a flag ativa, uma falha do conector não pode impedir o arranque do
-Flask/Waitress.
+O Bearer recebido pelo MCP é encaminhado para a API. A validação da credencial, permissões,
+idempotência, acesso à `GR360_CORE` e auditoria continuam centralizados na API Flask.
+
+## Instalação no Windows
+
+Depois de atualizar o repositório, executar numa PowerShell de administrador:
+
+```powershell
+powershell -ExecutionPolicy Bypass `
+  -File C:\APP_WEB\tools\install_gr360_ticket_mcp_service.ps1
+```
+
+O script instala apenas as dependências de `requirements-mcp.txt` e cria o serviço automático
+`GR360 Tickets MCP`. Não altera `GR360 Application` nem `GR360 Nginx`.
+
+Inserir o conteúdo de `tools/nginx_gr360_ticket_mcp_location.conf` dentro do bloco `server` de
+`app.gr360flooringsystems.com`, validar com `nginx -t` e só depois recarregar o Nginx.
+
+## Ativação no ChatGPT
+
+Criar uma app MCP privada no workspace com a URL pública acima, efetuar o scan das ferramentas,
+rever as ações de escrita e disponibilizar a app ao Mickael. Este registo é feito por um
+administrador/owner ou por um utilizador autorizado em developer mode. Criar o endpoint no servidor
+não adiciona automaticamente ferramentas a um Project existente.
 
 ## Codex com ambiente de execução
 
 Instalar o plugin `gr360-tickets` e guardar o token apenas no segredo de ambiente
-`GR360_TICKETS_API_TOKEN`. O plugin lê esse segredo através de
-`bearer_token_env_var`; o valor não fica no repositório nem no prompt.
+`GR360_TICKETS_API_TOKEN`. O plugin lê esse segredo através de `bearer_token_env_var`; o valor não
+fica no repositório nem no prompt.
 
-## Project do ChatGPT Work
+## Regras de utilização
 
-Um Project do ChatGPT Work sem ambiente Codex não consegue ler variáveis locais. Nesse caso, um
-administrador do workspace deve registar o endpoint acima como conector privado/MCP e configurar a
-autenticação no próprio conector. Depois, o conector `GR360 Tickets` deve ser disponibilizado ao
-Project do Mickael.
+Antes de criar um ticket, pesquisar tickets semelhantes. Usar uma referência externa estável e
+incluir no prompt técnico o contexto, passos de reprodução, comportamento atual e esperado,
+evidências, critérios de aceitação e testes.
 
-Se a política do workspace exigir OAuth em vez de Bearer estático, deve ser acrescentada uma camada
-OAuth ao endpoint antes da ativação no ChatGPT Work. O token nunca deve ser colado numa conversa.
-
-## Prompt do projeto do Mickael
-
-Trabalha como responsável de controlo de gestão da GR360 e usa o conector GR360 Tickets para
-comunicar ocorrências à equipa de desenvolvimento.
-
-Antes de criar um ticket, pesquisa tickets semelhantes. Quando criares um ticket, usa uma referência
-externa estável e inclui no prompt técnico o contexto, os passos de reprodução, o comportamento atual,
-o comportamento esperado, os dados e ecrãs envolvidos, evidências, critérios de aceitação e testes.
-
-Analisa também tickets tratados que aguardem validação do cliente. Reproduz o comportamento na
-StationZero, valida os dados disponíveis e regista o resultado através do seguimento. Não alteres o
-pedido nem o prompt original. Só marques um ticket como tratado quando estiver efetivamente resolvido.
-
-Pede sempre confirmação antes de criar um ticket ou atualizar o seu seguimento. Nunca peças, mostres
-ou coloques tokens, passwords ou credenciais SQL em mensagens, prompts ou relatórios.
+Pedir confirmação antes de criar tickets ou atualizar seguimentos. Nunca mostrar nem colocar tokens,
+passwords ou credenciais SQL em mensagens, prompts ou relatórios.
