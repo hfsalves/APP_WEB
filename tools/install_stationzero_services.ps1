@@ -32,6 +32,15 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
     throw 'Executa este instalador numa PowerShell aberta como administrador.'
 }
 
+$existingGr360Services = @(Get-Service -ErrorAction SilentlyContinue | Where-Object {
+    $_.Name -in @('GR360 Application', 'GR360 Nginx') -or
+    $_.DisplayName -in @('GR360 Application', 'GR360 Nginx')
+})
+if ($existingGr360Services.Count -gt 0) {
+    $names = ($existingGr360Services | ForEach-Object { $_.DisplayName }) -join ', '
+    throw "Servicos GR360 existentes detetados ($names). Instalacao SZero cancelada para evitar duplicacao."
+}
+
 foreach ($path in @($logs, $runtimeRoot, $runtimeBin)) {
     if (-not (Test-Path $path)) {
         New-Item -ItemType Directory -Path $path -Force | Out-Null

@@ -29,6 +29,24 @@ $script:StationZeroConfig = @{
     DevPort     = 5000
     ProdLikePort = 8000
     ServerPort  = 8000
+    ApplicationServiceNames = @('GR360 Application', 'SZeroWaitress')
+    NginxServiceNames = @('GR360 Nginx', 'SZeroNginx')
+}
+
+function Get-StationZeroWindowsService {
+    param([Parameter(Mandatory = $true)][string[]]$Candidates)
+
+    $services = @(Get-Service -ErrorAction SilentlyContinue)
+    foreach ($candidate in $Candidates) {
+        $service = $services | Where-Object {
+            $_.Name -eq $candidate -or $_.DisplayName -eq $candidate
+        } | Select-Object -First 1
+        if ($service) {
+            return $service
+        }
+    }
+
+    return $null
 }
 
 function Test-StationZeroOwnedExecutable {

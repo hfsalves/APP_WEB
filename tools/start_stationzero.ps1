@@ -34,6 +34,22 @@ if ($resolvedMode -eq 'Server' -and -not $NoUpdate -and -not $alreadyRunning) {
     }
 }
 
+if ($resolvedMode -eq 'Server') {
+    $applicationService = Get-StationZeroWindowsService -Candidates $script:StationZeroConfig.ApplicationServiceNames
+    if ($applicationService) {
+        if ($applicationService.Status -ne 'Running') {
+            Start-Service -Name $applicationService.Name -ErrorAction Stop
+        }
+        if (-not (Wait-StationZeroPortState -Port $config.Port -ShouldListen $true -TimeoutSeconds 90)) {
+            $message = "O servico $($applicationService.DisplayName) arrancou, mas a porta $($config.Port) nao ficou a escutar."
+            Write-StationZeroLog -Kind control -Message $message
+            throw $message
+        }
+        Write-Host "Servico $($applicationService.DisplayName) ativo na porta $($config.Port)."
+        return
+    }
+}
+
 $result = Start-StationZeroMode -Config $config -Foreground:$Foreground -NoNginx:$NoNginx
 
 if ($result.AlreadyRunning) {
