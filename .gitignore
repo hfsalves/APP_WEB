@@ -1,5 +1,6 @@
 # Ambiente virtual
 .venv/
+.venv-mcp/
 env/
 venv/
 __pycache__/

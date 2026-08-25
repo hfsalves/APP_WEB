@@ -25,27 +25,36 @@ $runtimeRoot = Join-Path $env:ProgramData 'SZero'
 $runtimeBin = Join-Path $runtimeRoot 'bin'
 $nssmExe = Join-Path $runtimeBin 'nssm.exe'
 
-$venvRoot = $null
+$applicationVenvRoot = $null
 foreach ($candidateName in @('.venv', 'venv')) {
     $candidateRoot = Join-Path $root $candidateName
     if (Test-Path (Join-Path $candidateRoot 'Scripts\python.exe')) {
-        $venvRoot = $candidateRoot
+        $applicationVenvRoot = $candidateRoot
         break
     }
 }
-if (-not $venvRoot) {
+if (-not $applicationVenvRoot) {
     throw 'Ambiente virtual Python nao encontrado (.venv ou venv).'
 }
-$pythonExe = Join-Path $venvRoot 'Scripts\python.exe'
+$applicationPython = Join-Path $applicationVenvRoot 'Scripts\python.exe'
+$mcpVenvRoot = Join-Path $root '.venv-mcp'
+$pythonExe = Join-Path $mcpVenvRoot 'Scripts\python.exe'
 
 foreach ($path in @($logs, $runtimeRoot, $runtimeBin)) {
     if (-not (Test-Path $path)) {
         New-Item -ItemType Directory -Path $path -Force | Out-Null
     }
 }
-foreach ($required in @($pythonExe, $requirements, $entryPoint)) {
+foreach ($required in @($applicationPython, $requirements, $entryPoint)) {
     if (-not (Test-Path $required)) {
         throw "Ficheiro necessario nao encontrado: $required"
+    }
+}
+
+if (-not (Test-Path $pythonExe)) {
+    & $applicationPython -m venv $mcpVenvRoot
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path $pythonExe)) {
+        throw 'Falha ao criar o ambiente virtual isolado .venv-mcp.'
     }
 }
 

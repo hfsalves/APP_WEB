@@ -35,8 +35,9 @@ powershell -ExecutionPolicy Bypass `
   -File C:\APP_WEB\tools\install_gr360_ticket_mcp_service.ps1
 ```
 
-O script instala apenas as dependências de `requirements-mcp.txt` e cria o serviço automático
-`GR360 Tickets MCP`. Não altera `GR360 Application` nem `GR360 Nginx`.
+O script cria o ambiente virtual isolado `.venv-mcp`, instala apenas as dependências de
+`requirements-mcp.txt` e cria o serviço automático `GR360 Tickets MCP`. Não altera o ambiente da
+aplicação, `GR360 Application` nem `GR360 Nginx`.
 
 Inserir o conteúdo de `tools/nginx_gr360_ticket_mcp_location.conf` dentro do bloco `server` de
 `app.gr360flooringsystems.com`, validar com `nginx -t` e só depois recarregar o Nginx.
