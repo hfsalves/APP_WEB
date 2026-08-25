@@ -55,23 +55,43 @@ Copy-Item $ConfigPath $backupPath -Force
 $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
 [System.IO.File]::WriteAllText($ConfigPath, $updated, $utf8NoBom)
 
-Push-Location $NginxRoot
-try {
-    & $nginxExe -t
-    if ($LASTEXITCODE -ne 0) {
-        Copy-Item $backupPath $ConfigPath -Force
-        throw "Validacao Nginx falhou. Configuracao original reposta de $backupPath."
+function Restart-Gr360Nginx {
+    $service = Get-Service -ErrorAction SilentlyContinue | Where-Object {
+        $_.Name -eq 'GR360 Nginx' -or $_.DisplayName -eq 'GR360 Nginx'
+    } | Select-Object -First 1
+
+    if ($service) {
+        Restart-Service -Name $service.Name -Force -ErrorAction Stop
+        (Get-Service -Name $service.Name).WaitForStatus('Running', [TimeSpan]::FromSeconds(30))
+        return
     }
 
     & $nginxExe -s reload
     if ($LASTEXITCODE -ne 0) {
-        Copy-Item $backupPath $ConfigPath -Force
-        & $nginxExe -s reload | Out-Null
-        throw "Reload Nginx falhou. Configuracao original reposta de $backupPath."
+        throw 'Nao foi possivel recarregar o Nginx e o servico GR360 Nginx nao foi encontrado.'
     }
+}
+
+Push-Location $NginxRoot
+try {
+    & $nginxExe -t
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Validacao Nginx falhou.'
+    }
+
+    Restart-Gr360Nginx
+} catch {
+    $failure = $_.Exception.Message
+    Copy-Item $backupPath $ConfigPath -Force
+    try {
+        Restart-Gr360Nginx
+    } catch {
+        throw "$failure Configuracao original reposta de $backupPath, mas o reinicio do Nginx tambem falhou: $($_.Exception.Message)"
+    }
+    throw "$failure Configuracao original reposta de $backupPath."
 } finally {
     Pop-Location
 }
 
-Write-Host 'Rota /mcp/gr360-tickets/ instalada e Nginx recarregado com sucesso.'
+Write-Host 'Rota /mcp/gr360-tickets/ instalada e servico GR360 Nginx reiniciado com sucesso.'
 Write-Host "Backup: $backupPath"
