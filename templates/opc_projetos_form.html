@@ -2,7 +2,7 @@
 
 {% block extra_head %}
   {{ super() }}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/opc_projetos_form.css') }}?v=opc-containers-1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/opc_projetos_form.css') }}?v=opc-maintenance-1">
 {% endblock %}
 
 {% block dynamic_form_page_class %}opc-projetos-page{% endblock %}
@@ -130,5 +130,5 @@
 
 {% block scripts %}
   {{ super() }}
-  <script src="{{ url_for('static', filename='js/opc_projetos_form.js') }}?v=opc-faturacao-1"></script>
+  <script src="{{ url_for('static', filename='js/opc_projetos_form.js') }}?v=opc-maintenance-1"></script>
 {% endblock %}

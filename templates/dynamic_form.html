@@ -20,6 +20,15 @@
         <span>SNC</span>
       </button>
       {% endif %}
+      {% if table_name|upper == 'OPC' and opc_maintenance_enabled %}
+      <button
+        type="button"
+        id="btnOpcMaintenance"
+        class="sz_button sz_button_ghost d-inline-flex align-items-center gap-2">
+        <i class="fa-solid fa-screwdriver-wrench"></i>
+        <span>Manutenção</span>
+      </button>
+      {% endif %}
       {% if table_name|upper == 'AL' %}
       <button
         type="button"
@@ -352,6 +361,35 @@
         <button type="button" id="btnVaSncSave" class="sz_button sz_button_primary">
           <i class="fa fa-save"></i>
           <span>{{ _('common.save') }}</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if table_name|upper == 'OPC' and opc_maintenance_enabled %}
+<div class="modal fade" id="opcMaintenanceModal" tabindex="-1" aria-labelledby="opcMaintenanceModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable sz_opc_maintenance_modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <h5 class="modal-title" id="opcMaintenanceModalLabel">Períodos de manutenção</h5>
+          <div class="sz_text_muted sz_text_sm">A obra ficará disponível no planeamento durante estes períodos.</div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('common.close') }}"></button>
+      </div>
+      <div class="modal-body">
+        <div id="opcMaintenanceStatus" class="sz_opc_maintenance_status" role="status" aria-live="polite" hidden></div>
+        <div id="opcMaintenanceList" class="sz_opc_maintenance_list"></div>
+        <button type="button" id="btnOpcMaintenanceAdd" class="sz_button sz_button_secondary sz_mt_3">
+          <i class="fa-solid fa-plus"></i><span>Adicionar período</span>
+        </button>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="sz_button sz_button_ghost" data-bs-dismiss="modal">{{ _('common.cancel') }}</button>
+        <button type="button" id="btnOpcMaintenanceSave" class="sz_button sz_button_primary">
+          <i class="fa-solid fa-save"></i><span>{{ _('common.save') }}</span>
         </button>
       </div>
     </div>

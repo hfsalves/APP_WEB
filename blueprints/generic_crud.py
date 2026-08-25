@@ -2791,6 +2791,7 @@ def fo_compras_form(record_stamp):
 @login_required
 def opc_projetos_form(record_stamp):
     from models import MenuBotoes
+    from services.obra_360_service import is_gr360_hub_context
 
     table_name = 'OPC'
     requested_menu_stamp = (request.args.get('menustamp') or '').strip()
@@ -2816,6 +2817,11 @@ def opc_projetos_form(record_stamp):
         'DESTINO': b.DESTINO
     } for b in botoes_query]
     linhas_exist = Linhas.query.filter_by(MAE=table_name).count() > 0
+    opc_maintenance_enabled = bool(
+        record_stamp
+        and is_gr360_hub_context()
+        and has_permission(table_name, 'editar')
+    )
 
     return render_template(
         'opc_projetos_form.html',
@@ -2827,6 +2833,7 @@ def opc_projetos_form(record_stamp):
         exact_widths=exact_widths,
         menu_stamp=(menu_item.menustamp if menu_item else ''),
         return_to_default=url_for('generic.view_table', table_name=table_name),
+        opc_maintenance_enabled=opc_maintenance_enabled,
     )
 
 @bp.route('/api/opc/<path:record_stamp>/phc_info', methods=['GET'])
@@ -2840,6 +2847,123 @@ def api_opc_phc_info(record_stamp):
     except Exception as e:
         current_app.logger.exception('Erro ao consultar informação PHC da obra OPC')
         return jsonify({'error': str(e)}), 500
+
+
+def _opc_maintenance_legacy_connection(record_stamp):
+    """Return the GR planning connection after verifying the OPC belongs to it."""
+    from modules.gr_planning.service import get_legacy_environment
+    from services.obra_360_service import is_gr360_hub_context
+
+    if not is_gr360_hub_context():
+        abort(404)
+    if not has_permission('OPC', 'consultar'):
+        abort(403, 'Sem permissão para consultar obras')
+
+    stamp = str(record_stamp or '').strip()
+    if not stamp:
+        abort(400, 'Obra em falta')
+    return get_legacy_environment(), stamp
+
+
+@bp.route('/api/opc/<path:record_stamp>/maintenance', methods=['GET'])
+@login_required
+def api_opc_maintenance_list(record_stamp):
+    """List the maintenance windows that make an OPC visible in planning."""
+    try:
+        env, opcstamp = _opc_maintenance_legacy_connection(record_stamp)
+        with env.database.connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT TOP 1 1 FROM OPC WHERE LTRIM(RTRIM(opcstamp)) = ?",
+                opcstamp,
+            )
+            if cursor.fetchone() is None:
+                return jsonify({'error': 'Obra não encontrada no planeamento'}), 404
+            cursor.execute(
+                """
+                SELECT
+                    LTRIM(RTRIM(u_opcmnstamp)) AS stamp,
+                    CONVERT(varchar(10), dataini, 23) AS data_inicio,
+                    CONVERT(varchar(10), datafim, 23) AS data_fim,
+                    LTRIM(RTRIM(ISNULL(obs, ''))) AS observacoes
+                FROM U_OPCMN
+                WHERE LTRIM(RTRIM(opcstamp)) = ?
+                ORDER BY dataini, datafim, u_opcmnstamp
+                """,
+                opcstamp,
+            )
+            columns = [column[0] for column in cursor.description]
+            periods = [dict(zip(columns, row)) for row in cursor.fetchall()]
+        return jsonify({'periodos': periods})
+    except HTTPException:
+        raise
+    except Exception as exc:
+        current_app.logger.exception('Erro ao consultar períodos de manutenção OPC')
+        return jsonify({'error': str(exc)}), 500
+
+
+@bp.route('/api/opc/<path:record_stamp>/maintenance', methods=['PUT'])
+@login_required
+def api_opc_maintenance_save(record_stamp):
+    """Replace the maintenance periods for one work in the planning source."""
+    if not has_permission('OPC', 'editar'):
+        abort(403, 'Sem permissão para alterar obras')
+    try:
+        env, opcstamp = _opc_maintenance_legacy_connection(record_stamp)
+        raw_periods = (request.get_json(silent=True) or {}).get('periodos') or []
+        if not isinstance(raw_periods, list):
+            return jsonify({'error': 'Períodos inválidos'}), 400
+        if len(raw_periods) > 100:
+            return jsonify({'error': 'Máximo de 100 períodos de manutenção'}), 400
+
+        periods = []
+        for index, raw in enumerate(raw_periods, start=1):
+            try:
+                start = datetime.strptime(str(raw.get('data_inicio') or ''), '%Y-%m-%d').date()
+                end = datetime.strptime(str(raw.get('data_fim') or ''), '%Y-%m-%d').date()
+            except (AttributeError, TypeError, ValueError):
+                return jsonify({'error': f'Período {index}: indica a data de início e a data de fim'}), 400
+            if end < start:
+                return jsonify({'error': f'Período {index}: a data de fim não pode ser anterior ao início'}), 400
+            observation = str(raw.get('observacoes') or '').strip()
+            if len(observation) > 200:
+                return jsonify({'error': f'Período {index}: a observação tem no máximo 200 caracteres'}), 400
+            periods.append((start, end, observation))
+
+        login = str(getattr(current_user, 'LOGIN', '') or '').strip()[:30]
+        now = datetime.now()
+        clock = now.strftime('%H:%M:%S')
+        with env.database.connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SET XACT_ABORT ON')
+            cursor.execute(
+                "SELECT TOP 1 1 FROM OPC WHERE LTRIM(RTRIM(opcstamp)) = ?",
+                opcstamp,
+            )
+            if cursor.fetchone() is None:
+                return jsonify({'error': 'Obra não encontrada no planeamento'}), 404
+            cursor.execute('DELETE FROM U_OPCMN WHERE LTRIM(RTRIM(opcstamp)) = ?', opcstamp)
+            for start, end, observation in periods:
+                cursor.execute(
+                    """
+                    INSERT INTO U_OPCMN (
+                        u_opcmnstamp, opcstamp, dataini, datafim,
+                        ousrinis, ousrdata, ousrhora, usrinis, usrdata, usrhora,
+                        marcada, obs
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
+                    """,
+                    (
+                        uuid.uuid4().hex.upper()[:25], opcstamp, start, end,
+                        login, now, clock, login, now, clock, observation,
+                    ),
+                )
+            conn.commit()
+        return jsonify({'success': True, 'total': len(periods)})
+    except HTTPException:
+        raise
+    except Exception as exc:
+        current_app.logger.exception('Erro ao gravar períodos de manutenção OPC')
+        return jsonify({'error': str(exc)}), 500
 
 @bp.route('/api/fo/pagamento/<fostamp>', methods=['GET'])
 @login_required

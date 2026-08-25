@@ -159,3 +159,124 @@
       renderTotals({ orcamentos: [], autos: [] });
     });
 })();
+
+(function () {
+  const trigger = document.getElementById('btnOpcMaintenance');
+  const modalElement = document.getElementById('opcMaintenanceModal');
+  const list = document.getElementById('opcMaintenanceList');
+  if (!trigger || !modalElement || !list) return;
+
+  const recordStamp = String(window.RECORD_STAMP || '').trim();
+  const endpoint = `/generic/api/opc/${encodeURIComponent(recordStamp)}/maintenance`;
+  const status = document.getElementById('opcMaintenanceStatus');
+  const addButton = document.getElementById('btnOpcMaintenanceAdd');
+  const saveButton = document.getElementById('btnOpcMaintenanceSave');
+  const modal = window.bootstrap ? window.bootstrap.Modal.getOrCreateInstance(modalElement) : null;
+
+  function setStatus(message, error) {
+    if (!status) return;
+    status.hidden = !message;
+    status.textContent = message || '';
+    status.classList.toggle('is-error', Boolean(error));
+  }
+
+  function makeField(label, name, value, type, className) {
+    const wrapper = document.createElement('label');
+    wrapper.className = `sz_opc_maintenance_field ${className || ''}`.trim();
+    const title = document.createElement('span');
+    title.className = 'sz_label';
+    title.textContent = label;
+    const input = document.createElement(type === 'textarea' ? 'textarea' : 'input');
+    input.className = type === 'textarea' ? 'sz_textarea' : 'sz_input';
+    input.name = name;
+    if (type === 'textarea') {
+      input.rows = 1;
+      input.maxLength = 200;
+    } else {
+      input.type = type;
+    }
+    input.value = value || '';
+    wrapper.append(title, input);
+    return wrapper;
+  }
+
+  function renderEmpty() {
+    if (list.children.length) return;
+    const empty = document.createElement('div');
+    empty.className = 'sz_opc_maintenance_empty';
+    empty.textContent = 'Sem períodos de manutenção definidos.';
+    list.appendChild(empty);
+  }
+
+  function addPeriod(period) {
+    list.querySelector('.sz_opc_maintenance_empty')?.remove();
+    const row = document.createElement('div');
+    row.className = 'sz_opc_maintenance_row';
+    row.append(
+      makeField('Início', 'data_inicio', period?.data_inicio, 'date'),
+      makeField('Fim', 'data_fim', period?.data_fim, 'date'),
+      makeField('Observações', 'observacoes', period?.observacoes, 'textarea', 'sz_opc_maintenance_field--observation'),
+    );
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'sz_button sz_button_danger sz_opc_maintenance_remove';
+    remove.title = 'Remover período';
+    remove.innerHTML = '<i class="fa-solid fa-trash"></i>';
+    remove.addEventListener('click', () => {
+      row.remove();
+      renderEmpty();
+    });
+    row.appendChild(remove);
+    list.appendChild(row);
+  }
+
+  function currentPeriods() {
+    return Array.from(list.querySelectorAll('.sz_opc_maintenance_row')).map((row) => ({
+      data_inicio: row.querySelector('[name="data_inicio"]')?.value || '',
+      data_fim: row.querySelector('[name="data_fim"]')?.value || '',
+      observacoes: row.querySelector('[name="observacoes"]')?.value || '',
+    }));
+  }
+
+  async function load() {
+    list.replaceChildren();
+    setStatus('A carregar períodos de manutenção…');
+    try {
+      const response = await fetch(endpoint, { headers: { Accept: 'application/json' } });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || 'Não foi possível carregar os períodos.');
+      (payload.periodos || []).forEach(addPeriod);
+      renderEmpty();
+      setStatus('');
+    } catch (error) {
+      setStatus(error.message || 'Não foi possível carregar os períodos.', true);
+    }
+  }
+
+  trigger.addEventListener('click', async () => {
+    if (!modal) return;
+    modal.show();
+    await load();
+  });
+  addButton?.addEventListener('click', () => addPeriod({}));
+  saveButton?.addEventListener('click', async () => {
+    const periods = currentPeriods();
+    saveButton.disabled = true;
+    setStatus('A gravar períodos de manutenção…');
+    try {
+      const response = await fetch(endpoint, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ periodos: periods }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || 'Não foi possível gravar os períodos.');
+      setStatus('Períodos de manutenção gravados.');
+      window.setTimeout(() => modal?.hide(), 350);
+    } catch (error) {
+      setStatus(error.message || 'Não foi possível gravar os períodos.', true);
+    } finally {
+      saveButton.disabled = false;
+    }
+  });
+})();
