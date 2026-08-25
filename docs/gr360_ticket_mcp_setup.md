@@ -13,6 +13,11 @@ O endpoint publica quatro ferramentas:
 - `criar_ticket`
 - `atualizar_seguimento`
 
+Antes de ativar no servidor, instalar `requirements.txt` e definir
+`GR360_TICKET_MCP_ENABLED=1`. Sem esta flag, a aplicação principal arranca normalmente sem carregar
+as dependências MCP. Mesmo com a flag ativa, uma falha do conector não pode impedir o arranque do
+Flask/Waitress.
+
 ## Codex com ambiente de execução
 
 Instalar o plugin `gr360-tickets` e guardar o token apenas no segredo de ambiente

@@ -19,7 +19,7 @@ Esta API permite que integrações externas criem tickets na `GR360_CORE.dbo.TK`
 - `GR360_TICKET_API_ENABLED`: ativa/desativa a API. Valor predefinido: `1`.
 - `GR360_TICKET_API_EXPECTED_DATABASE`: base obrigatória. Valor predefinido: `GR360_CORE`.
 - `GR360_TICKET_API_FEID`: entidade fixa dos tickets. Valor predefinido: `1` (HSOLS France).
-- `GR360_TICKET_MCP_ENABLED`: publica ou oculta o conector MCP. Valor predefinido: `1`.
+- `GR360_TICKET_MCP_ENABLED`: publica ou oculta o conector MCP. Valor predefinido: `0`; ativar apenas depois de instalar as dependências.
 - `GR360_TICKET_MCP_HOST`: hostname público autorizado para o conector. Valor predefinido: `app.gr360flooringsystems.com`.
 
 Aplicar primeiro `migrations/gr360_ticket_api.sql` na `GR360_CORE`.
