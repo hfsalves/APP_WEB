@@ -13,7 +13,18 @@ $runtimeRoot = Join-Path $env:ProgramData 'SZero'
 $runtimeBin = Join-Path $runtimeRoot 'bin'
 $nssmExe = Join-Path $runtimeBin 'nssm.exe'
 $nginxExe = 'C:\nginx\nginx.exe'
-$waitressExe = Join-Path $root '.venv\Scripts\waitress-serve.exe'
+$venvRoot = $null
+foreach ($candidateName in @('.venv', 'venv')) {
+    $candidateRoot = Join-Path $root $candidateName
+    if (Test-Path (Join-Path $candidateRoot 'Scripts\python.exe')) {
+        $venvRoot = $candidateRoot
+        break
+    }
+}
+if (-not $venvRoot) {
+    $venvRoot = Join-Path $root '.venv'
+}
+$pythonExe = Join-Path $venvRoot 'Scripts\python.exe'
 
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
 $principal = [Security.Principal.WindowsPrincipal]::new($identity)
@@ -27,7 +38,7 @@ foreach ($path in @($logs, $runtimeRoot, $runtimeBin)) {
     }
 }
 
-foreach ($required in @($nginxExe, $waitressExe)) {
+foreach ($required in @($nginxExe, $pythonExe)) {
     if (-not (Test-Path $required)) {
         throw "Executavel nao encontrado: $required"
     }
@@ -131,7 +142,7 @@ Invoke-Nssm set SZeroNginx AppRotateFiles 1
 Invoke-Nssm set SZeroNginx AppRotateOnline 1
 Invoke-Nssm set SZeroNginx AppRotateBytes 10485760
 
-Invoke-Nssm install SZeroWaitress $waitressExe '--host=0.0.0.0' '--port=8000' 'app:app'
+Invoke-Nssm install SZeroWaitress $pythonExe '-m' 'waitress' '--host=0.0.0.0' '--port=8000' 'app:app'
 Invoke-Nssm set SZeroWaitress AppDirectory $root
 Invoke-Nssm set SZeroWaitress DisplayName 'SZero Waitress'
 Invoke-Nssm set SZeroWaitress Description 'Servidor web Python do StationZero.'

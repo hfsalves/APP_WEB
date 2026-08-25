@@ -8,9 +8,20 @@ $script:StationZeroRoot = [System.IO.Path]::GetFullPath((Split-Path -Parent $PSS
 $script:StationZeroLogs = Join-Path $script:StationZeroRoot 'logs'
 $script:StationZeroRun = Join-Path $script:StationZeroLogs 'run'
 $script:StationZeroRootLower = $script:StationZeroRoot.ToLowerInvariant()
+$script:StationZeroVenvRoot = $null
+foreach ($candidateName in @('.venv', 'venv')) {
+    $candidateRoot = Join-Path $script:StationZeroRoot $candidateName
+    if (Test-Path (Join-Path $candidateRoot 'Scripts\python.exe')) {
+        $script:StationZeroVenvRoot = $candidateRoot
+        break
+    }
+}
+if (-not $script:StationZeroVenvRoot) {
+    $script:StationZeroVenvRoot = Join-Path $script:StationZeroRoot '.venv'
+}
 $script:StationZeroConfig = @{
-    PythonExe   = Join-Path $script:StationZeroRoot '.venv\Scripts\python.exe'
-    WaitressExe = Join-Path $script:StationZeroRoot '.venv\Scripts\waitress-serve.exe'
+    PythonExe   = Join-Path $script:StationZeroVenvRoot 'Scripts\python.exe'
+    WaitressExe = Join-Path $script:StationZeroVenvRoot 'Scripts\waitress-serve.exe'
     Requirements = Join-Path $script:StationZeroRoot 'requirements.txt'
     NginxExe    = 'C:\nginx\nginx.exe'
     NginxLogs   = 'C:\nginx\logs'
@@ -196,10 +207,10 @@ function Get-StationZeroCommandSpec {
             }
         }
         'waitress' {
-            Assert-StationZeroFile -Path $script:StationZeroConfig.WaitressExe -Label 'Waitress'
+            Assert-StationZeroFile -Path $script:StationZeroConfig.PythonExe -Label 'Python do ambiente virtual'
             return @{
-                FilePath = $script:StationZeroConfig.WaitressExe
-                Arguments = @("--host=$($Config.Host)", "--port=$($Config.Port)", 'app:app')
+                FilePath = $script:StationZeroConfig.PythonExe
+                Arguments = @('-m', 'waitress', "--host=$($Config.Host)", "--port=$($Config.Port)", 'app:app')
             }
         }
         default {
