@@ -45,6 +45,7 @@ DOC_AI_ALLOWED_UPLOAD_EXTENSIONS = {
 
 DOC_AI_DOC_TYPES = [
     {'value': 'invoice', 'label': 'Fatura'},
+    {'value': 'provisional_invoice', 'label': 'Fatura provisória'},
     {'value': 'credit_note', 'label': 'Nota de crédito'},
     {'value': 'purchase_order', 'label': 'Nota de encomenda'},
     {'value': 'delivery_note', 'label': 'Guia'},
@@ -146,6 +147,7 @@ DOC_AI_STATUSES = [
 
 DOC_AI_CANONICAL_SCHEMA = {
     'document_type': 'invoice',
+    'invoice_type': 'unknown',
     'supplier': {'supplier_no': None, 'tax_id': '', 'name': ''},
     'customer': {'tax_id': '', 'name': ''},
     'document_number': '',
@@ -3749,6 +3751,8 @@ def mark_document_control_ok(
         raise ValueError('Confirma o número do documento antes do Contrôle OK.')
     if not [line for line in (document_data.get('lines') or []) if isinstance(line, dict)]:
         raise ValueError('Confirma pelo menos uma linha antes do Contrôle OK.')
+    if not get_phc_origins_from_meta(meta):
+        raise ValueError('Associa e valida a origem do documento antes do Contrôle OK.')
     now = _now()
     workflow = dict(meta.get('workflow') or {})
     workflow.update({
@@ -3766,17 +3770,105 @@ def mark_document_control_ok(
         meta['llm_full_extraction'] = cached
     document.processing_meta_json = _json_dumps(meta)
     document.json_resultado = _json_dumps(document_data)
+    document.invoice_type = _infer_invoice_type(document_data, document.extracted_text)
     document.feid = _safe_int(customer.get('feid'), 0) or document.feid
     document.fornecedor_no = _safe_int(supplier.get('supplier_no') or supplier.get('no'), 0) or document.fornecedor_no
     document.fornecedor_nome_detetado = str(supplier.get('name') or supplier.get('llm_name') or '')[:120]
     document.fornecedor_nif_detetado = str(supplier.get('tax_id') or '')[:40]
     document.processing_stage = 'controlled'
     document.processing_status = 'parsed_ok'
+    document.management_validated = True
+    document.management_validated_at = now
+    document.management_validated_by = requested_by or ''
     document.last_processing_error = ''
     document.dtalt = now
     document.useralteracao = requested_by or document.useralteracao or ''
     db.session.commit()
     return {'ok': True, 'document_id': document.docinstamp, 'workflow': workflow}
+
+
+def validate_document_inbox_stage(
+    document_stamp: str,
+    view: str,
+    requested_by: str,
+    reviewed_document: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Persist a business workflow transition after server-side validation."""
+    document = db.session.get(DocInbox, str(document_stamp or '').strip())
+    if not document:
+        raise ValueError('Documento do inbox não encontrado.')
+    stage = _normalize_document_inbox_view(view)
+    now = _now()
+    result = dict(reviewed_document or {}) or _json_loads(document.json_resultado, {})
+    if reviewed_document:
+        customer = dict(result.get('customer') or {})
+        supplier = dict(result.get('supplier') or {})
+        document.json_resultado = _json_dumps(result)
+        document.feid = _safe_int(customer.get('feid'), 0) or document.feid
+        document.fornecedor_no = _safe_int(supplier.get('supplier_no') or supplier.get('no'), 0) or document.fornecedor_no
+        document.fornecedor_nome_detetado = str(supplier.get('name') or supplier.get('llm_name') or '')[:120]
+        document.fornecedor_nif_detetado = str(supplier.get('tax_id') or '')[:40]
+        document.doc_type_detected = str(result.get('document_type') or document.doc_type_detected or 'unknown')[:30]
+    document_type = str(result.get('document_type') or document.doc_type_detected or 'unknown').strip().lower()
+    invoice_type = _normalize_invoice_type(result.get('invoice_type') or document.invoice_type)
+    if invoice_type == 'unknown':
+        invoice_type = _infer_invoice_type(result, document.extracted_text)
+
+    if stage == 'home':
+        customer = dict(result.get('customer') or {})
+        supplier = dict(result.get('supplier') or {})
+        required_values = [
+            _safe_int(customer.get('feid') or document.feid, 0),
+            _safe_int(supplier.get('supplier_no') or supplier.get('no') or document.fornecedor_no, 0),
+            str(result.get('document_number') or '').strip(),
+            str(result.get('document_date') or '').strip(),
+            document_type if document_type != 'unknown' else '',
+        ]
+        if document_type in {'invoice', 'provisional_invoice'}:
+            required_values.append(invoice_type if invoice_type != 'unknown' else '')
+        if not all(required_values):
+            raise ValueError('Completa os dados obrigatórios antes de validar na Receção.')
+        document.reception_validated = True
+        document.reception_validated_at = now
+        document.reception_validated_by = requested_by or ''
+    elif stage == 'management':
+        if not bool(document.reception_validated):
+            raise ValueError('O documento ainda não foi validado pela Receção.')
+        if document_type not in {'invoice', 'provisional_invoice'}:
+            raise ValueError('Este documento não pertence ao Controlo de Gestão.')
+        meta = _json_loads(document.processing_meta_json, {})
+        origins = get_phc_origins_from_meta(meta)
+        if not origins:
+            raise ValueError('Associa e valida a origem do documento antes de concluir o controlo.')
+        document.management_validated = True
+        document.management_validated_at = now
+        document.management_validated_by = requested_by or ''
+    else:
+        if not bool(document.reception_validated):
+            raise ValueError('O documento ainda não foi validado pela Receção.')
+        if document_type != 'credit_note' and not bool(document.management_validated):
+            raise ValueError('O documento ainda não foi validado pelo Controlo de Gestão.')
+        document.accounting_validated = True
+        document.accounting_validated_at = now
+        document.accounting_validated_by = requested_by or ''
+
+    document.invoice_type = invoice_type
+    document.processing_stage = f'{stage}_validated'
+    document.dtalt = now
+    document.useralteracao = requested_by or document.useralteracao or ''
+    _document_log(document.docinstamp, 'workflow', 'ok', f'Etapa {stage} validada.', {
+        'view': stage,
+        'requested_by': requested_by or '',
+    })
+    db.session.commit()
+    return {
+        'ok': True,
+        'document_id': document.docinstamp,
+        'view': stage,
+        'reception_validated': bool(document.reception_validated),
+        'management_validated': bool(document.management_validated),
+        'accounting_validated': bool(document.accounting_validated),
+    }
 
 
 def require_document_control_ok(document_stamp: str) -> None:
@@ -3866,6 +3958,7 @@ def save_llm_extraction(document_stamp: str, payload: dict[str, Any], requested_
     document.fornecedor_nome_detetado = str(supplier.get('name') or supplier.get('llm_name') or '')[:120]
     document.fornecedor_nif_detetado = str(supplier.get('tax_id') or '')[:40]
     document.doc_type_detected = str(document_data.get('document_type') or 'unknown')[:30]
+    document.invoice_type = _infer_invoice_type(document_data, document.extracted_text)
     document.confidence_score = confidence
     document.extraction_method = 'llm_visual'
     document.extraction_quality_score = confidence
@@ -5255,13 +5348,77 @@ def _normalize_document_inbox_view(value: Any) -> str:
     return normalized if normalized in valid_values else 'home'
 
 
-def _document_inbox_scope_sql(view: str = 'home') -> str:
-    _normalize_document_inbox_view(view)
-    return DOC_AI_INBOX_UNSPLIT_SOURCE_SQL.strip()
+def _document_inbox_scope_sql(view: str = 'home', archived: bool = False) -> str:
+    normalized = _normalize_document_inbox_view(view)
+    if archived:
+        workflow_scope = {
+            'home': 'ISNULL(D.RECEPTION_VALIDATED, 0) = 1',
+            'management': 'ISNULL(D.MANAGEMENT_VALIDATED, 0) = 1',
+            'accounting': 'ISNULL(D.ACCOUNTING_VALIDATED, 0) = 1',
+        }[normalized]
+    else:
+        workflow_scope = {
+            'home': 'ISNULL(D.RECEPTION_VALIDATED, 0) = 0',
+            'management': """
+                ISNULL(D.RECEPTION_VALIDATED, 0) = 1
+                AND ISNULL(D.MANAGEMENT_VALIDATED, 0) = 0
+                AND LOWER(LTRIM(RTRIM(ISNULL(D.DOC_TYPE_DETECTED, ''))))
+                    IN ('invoice', 'provisional_invoice')
+            """,
+            'accounting': """
+                ISNULL(D.RECEPTION_VALIDATED, 0) = 1
+                AND ISNULL(D.ACCOUNTING_VALIDATED, 0) = 0
+                AND LOWER(LTRIM(RTRIM(ISNULL(D.DOC_TYPE_DETECTED, ''))))
+                    IN ('invoice', 'provisional_invoice', 'credit_note')
+            """,
+        }[normalized].strip()
+    return f'({DOC_AI_INBOX_UNSPLIT_SOURCE_SQL.strip()}) AND ({workflow_scope})'
 
 
-def _document_inbox_global_total(view: str = 'home') -> int:
-    scope_sql = _document_inbox_scope_sql(view)
+def _normalize_invoice_type(value: Any) -> str:
+    normalized = _normalize_text(value).replace(' ', '_')
+    aliases = {
+        'betao': 'concrete',
+        'concrete': 'concrete',
+        'beton': 'concrete',
+        'material': 'material',
+        'materiais': 'material',
+        'materiel': 'material',
+        'services': 'services',
+        'service': 'services',
+        'servicos': 'services',
+    }
+    return aliases.get(normalized, 'unknown')
+
+
+def _invoice_type_label(value: Any) -> str:
+    return {
+        'concrete': 'Betão',
+        'material': 'Material',
+        'services': 'Serviços',
+    }.get(_normalize_invoice_type(value), '-')
+
+
+def _infer_invoice_type(result: dict[str, Any], extracted_text: Any = '') -> str:
+    explicit = _normalize_invoice_type(result.get('invoice_type'))
+    if explicit != 'unknown':
+        return explicit
+    fragments = [str(extracted_text or '')]
+    for line in result.get('lines') or []:
+        if isinstance(line, dict):
+            fragments.extend((str(line.get('description') or ''), str(line.get('ref') or '')))
+    normalized = _normalize_text(' '.join(fragments))
+    if any(token in normalized for token in ('beton', 'concrete', 'betao', 'toupie')):
+        return 'concrete'
+    if any(token in normalized for token in ('honoraires', 'prestation', 'service', 'main d oeuvre', 'consult')):
+        return 'services'
+    if any(isinstance(line, dict) and str(line.get('description') or '').strip() for line in (result.get('lines') or [])):
+        return 'material'
+    return 'unknown'
+
+
+def _document_inbox_global_total(view: str = 'home', archived: bool = False) -> int:
+    scope_sql = _document_inbox_scope_sql(view, archived)
     value = db.session.execute(text(f"""
         SELECT COUNT_BIG(1)
         FROM dbo.DOC_INBOX D
@@ -5274,13 +5431,14 @@ def list_documents(filters: dict[str, Any] | None = None) -> dict[str, Any]:
     _ensure_document_ai_schema()
     query_filters = filters or {}
     inbox_view = _normalize_document_inbox_view(query_filters.get('view'))
+    archived = str(query_filters.get('archived') or '').strip().lower() in {'1', 'true', 'yes', 'sim', 'on'}
     where_sql, params = _doc_queryset_sql(query_filters)
-    scope_sql = _document_inbox_scope_sql(inbox_view)
+    scope_sql = _document_inbox_scope_sql(inbox_view, archived)
     if where_sql:
         where_sql = f"{where_sql} AND {scope_sql}"
     else:
         where_sql = f"WHERE {scope_sql}"
-    supplier_entity_join = "AND ISNULL(F.FEID, 0) = ISNULL(D.FEID, 0)" if _column_exists('FL', 'FEID') else ''
+    supplier_entity_where = "AND ISNULL(FL.FEID, 0) = ISNULL(D.FEID, 0)" if _column_exists('FL', 'FEID') else ''
     rows = db.session.execute(text(f"""
         SELECT
             D.DOCINSTAMP,
@@ -5302,19 +5460,31 @@ def list_documents(filters: dict[str, Any] | None = None) -> dict[str, Any]:
             D.PROCESSING_STATUS,
             D.SOURCE_TABLE,
             D.SOURCE_RECSTAMP,
+            D.JSON_RESULTADO,
             D.PROCESSING_META_JSON,
+            D.INVOICE_TYPE,
+            D.RECEPTION_VALIDATED,
+            D.MANAGEMENT_VALIDATED,
+            D.ACCOUNTING_VALIDATED,
             D.DTCRI,
             D.DTPROC
         FROM dbo.DOC_INBOX D
         LEFT JOIN dbo.FE FE
           ON CAST(FE.FEID AS int) = D.FEID
-        LEFT JOIN dbo.FL F
-          ON CAST(F.NO AS int) = D.FORNECEDOR_NO
-          {supplier_entity_join}
+        OUTER APPLY (
+            SELECT TOP (1) FL.NOME
+            FROM dbo.FL FL
+            WHERE CAST(FL.NO AS int) = D.FORNECEDOR_NO
+              {supplier_entity_where}
+            ORDER BY ISNULL(FL.INATIVO, 0), FL.NOME
+        ) F
         LEFT JOIN dbo.DOC_TEMPLATE T
           ON T.DOCTEMPLATESTAMP = D.DOCTEMPLATESTAMP
         {where_sql}
-        ORDER BY D.DTCRI DESC
+        ORDER BY
+            TRY_CONVERT(date, JSON_VALUE(CASE WHEN ISJSON(D.JSON_RESULTADO) = 1 THEN D.JSON_RESULTADO ELSE '{{}}' END, '$.document_date')) ASC,
+            D.DTCRI ASC,
+            D.DOCINSTAMP ASC
     """), params).mappings().all()
 
     entity_rows = db.session.execute(text("""
@@ -5330,6 +5500,7 @@ def list_documents(filters: dict[str, Any] | None = None) -> dict[str, Any]:
     items = []
     counts = {}
     for row in rows:
+        result_data = _json_loads(row.get('JSON_RESULTADO'), {})
         processing_meta = _json_loads(row.get('PROCESSING_META_JSON'), {})
         integrated_as_provisional = (
             str((processing_meta.get('phc_integration') or {}).get('type') or '').strip().lower()
@@ -5342,6 +5513,60 @@ def list_documents(filters: dict[str, Any] | None = None) -> dict[str, Any]:
             else str(row.get('PROCESSING_STATUS') or 'new').strip()
         )
         batch_meta = dict(processing_meta.get('batch') or {})
+        customer = dict(result_data.get('customer') or {})
+        supplier = dict(result_data.get('supplier') or {})
+        totals = dict(result_data.get('totals') or {})
+        origin_project = dict(result_data.get('origin_project') or {})
+        cost_center = str(origin_project.get('ccusto') or '').strip()
+        if not cost_center:
+            for result_line in result_data.get('lines') or []:
+                if not isinstance(result_line, dict):
+                    continue
+                cost_center = str(result_line.get('ccusto') or result_line.get('project_ccusto') or '').strip()
+                if cost_center:
+                    break
+        document_number = str(result_data.get('document_number') or '').strip()
+        document_date = str(result_data.get('document_date') or '').strip()
+        document_type = str(result_data.get('document_type') or row.get('DOC_TYPE_DETECTED') or 'unknown').strip() or 'unknown'
+        invoice_type = _normalize_invoice_type(result_data.get('invoice_type') or row.get('INVOICE_TYPE'))
+        if invoice_type == 'unknown':
+            invoice_type = _infer_invoice_type(result_data)
+        meaningful_values = [
+            _safe_int(row.get('FEID'), 0),
+            _safe_int(row.get('FORNECEDOR_NO'), 0),
+            document_number,
+            document_date,
+            document_type if document_type != 'unknown' else '',
+        ]
+        if document_type in {'invoice', 'provisional_invoice'}:
+            meaningful_values.append(invoice_type if invoice_type != 'unknown' else '')
+        complete_values = all(meaningful_values)
+        if inbox_view == 'management':
+            resolved_origins = get_phc_origins_from_meta(processing_meta)
+            origin_references = [
+                item for item in (result_data.get('origin_references') or [])
+                if isinstance(item, dict) and any(str(value or '').strip() for value in item.values())
+            ]
+            has_resolved_origin = bool(resolved_origins)
+            business_state = 'OK' if has_resolved_origin else ('Ação' if origin_references else 'Bloqueio')
+        elif inbox_view == 'accounting':
+            business_state = '-' if document_type == 'credit_note' else (
+                'Validado' if bool(row.get('MANAGEMENT_VALIDATED')) else 'Pendente'
+            )
+        else:
+            business_state = 'OK' if complete_values else ('Ação' if any(meaningful_values) else 'Bloqueio')
+            if status == 'parse_error' or bool((result_data.get('document_batch') or {}).get('contains_multiple_documents')):
+                business_state = 'Bloqueio'
+        display_type = document_type
+        if inbox_view == 'management':
+            display_type = invoice_type
+        elif inbox_view == 'accounting':
+            display_type = 'credit_note' if document_type == 'credit_note' else invoice_type
+        display_type_label = (
+            _invoice_type_label(display_type)
+            if display_type in {'concrete', 'material', 'services', 'unknown'} and inbox_view != 'home'
+            else next((item['label'] for item in DOC_AI_DOC_TYPES if item['value'] == display_type), display_type or '-')
+        )
         counts[status] = counts.get(status, 0) + 1
         items.append({
             'id': str(row.get('DOCINSTAMP') or '').strip(),
@@ -5351,16 +5576,29 @@ def list_documents(filters: dict[str, Any] | None = None) -> dict[str, Any]:
             'mime_type': str(row.get('MIME_TYPE') or '').strip(),
             'extraction_method': str(row.get('EXTRACTION_METHOD') or 'failed').strip() or 'failed',
             'extraction_quality_score': float(row.get('EXTRACTION_QUALITY_SCORE') or 0),
-            'doc_type': str(row.get('DOC_TYPE_DETECTED') or 'unknown').strip() or 'unknown',
+            'doc_type': display_type,
+            'doc_type_label': display_type_label,
+            'document_type': document_type,
+            'invoice_type': invoice_type,
+            'invoice_type_label': _invoice_type_label(invoice_type),
+            'business_state': business_state,
             'feid': _safe_int(row.get('FEID'), 0) or None,
-            'entity_name': str(row.get('FE_NOME') or '').strip(),
+            'entity_name': str(row.get('FE_NOME') or customer.get('name') or '').strip(),
             'entity_tax_id': _digits_only(row.get('FE_NIF')),
             'supplier_no': _safe_int(row.get('FORNECEDOR_NO'), 0) or None,
-            'supplier_name': str(row.get('FORNECEDOR_NOME') or '').strip(),
+            'supplier_name': str(row.get('FORNECEDOR_NOME') or supplier.get('name') or '').strip(),
+            'cost_center': cost_center,
+            'document_number': document_number,
+            'document_date': document_date,
+            'document_value': float(totals.get('gross_total') or 0),
+            'currency': str(result_data.get('currency') or '').strip(),
             'template_id': str(row.get('DOCTEMPLATESTAMP') or '').strip(),
             'template_name': str(row.get('TEMPLATE_NOME') or '').strip(),
             'confidence': float(row.get('CONFIDENCE_SCORE') or 0),
             'status': status,
+            'reception_validated': bool(row.get('RECEPTION_VALIDATED')),
+            'management_validated': bool(row.get('MANAGEMENT_VALIDATED')),
+            'accounting_validated': bool(row.get('ACCOUNTING_VALIDATED')),
             'batch_id': str(row.get('SOURCE_RECSTAMP') or '').strip() if str(row.get('SOURCE_TABLE') or '').strip() == 'DOC_AI_BATCH' else '',
             'batch_index': _safe_int(batch_meta.get('index'), 0) or None,
             'batch_count': _safe_int(batch_meta.get('count'), 0) or None,
@@ -5370,12 +5608,19 @@ def list_documents(filters: dict[str, Any] | None = None) -> dict[str, Any]:
 
     return {
         'items': items,
-        'total': _document_inbox_global_total(inbox_view),
+        'total': _document_inbox_global_total(inbox_view, archived),
+        'archived': archived,
         'view': inbox_view,
         'views': DOC_AI_INBOX_VIEWS,
         'counts': counts,
         'statuses': DOC_AI_STATUSES,
         'doc_types': DOC_AI_DOC_TYPES,
+        'invoice_types': [
+            {'value': 'concrete', 'label': 'Betão'},
+            {'value': 'material', 'label': 'Material'},
+            {'value': 'services', 'label': 'Serviços'},
+            {'value': 'unknown', 'label': '-'},
+        ],
         'entities': [
             {'feid': _safe_int(row.get('FEID'), 0), 'name': str(row.get('NOME') or '').strip()}
             for row in entity_rows
@@ -7098,6 +7343,9 @@ def save_document_review(document_stamp: str, payload: dict[str, Any], requested
     if customer_feid:
         document.feid = customer_feid
     document.doc_type_detected = doc_type
+    document.invoice_type = _normalize_invoice_type(result.get('invoice_type') or document.invoice_type)
+    if document.invoice_type == 'unknown':
+        document.invoice_type = _infer_invoice_type(result, document.extracted_text)
     document.doctemplatestamp = template_id or None
     document.json_resultado = _json_dumps(result or canonical_result_base(doc_type))
     document.warnings_json = _json_dumps(warnings)
@@ -7107,6 +7355,24 @@ def save_document_review(document_stamp: str, payload: dict[str, Any], requested
     document.dtalt = _now()
     document.dtproc = _now()
     document.useralteracao = requested_by or document.useralteracao
+
+    if processing_status == 'parsed_ok':
+        customer = dict(result.get('customer') or {})
+        supplier = dict(result.get('supplier') or {})
+        required_values = [
+            _safe_int(customer.get('feid') or document.feid, 0),
+            _safe_int(supplier.get('supplier_no') or supplier.get('no') or document.fornecedor_no, 0),
+            str(result.get('document_number') or '').strip(),
+            str(result.get('document_date') or '').strip(),
+            doc_type if doc_type != 'unknown' else '',
+        ]
+        if doc_type in {'invoice', 'provisional_invoice'}:
+            required_values.append(document.invoice_type if document.invoice_type != 'unknown' else '')
+        if not all(required_values):
+            raise ValueError('Completa os dados obrigatórios antes de validar na Receção.')
+        document.reception_validated = True
+        document.reception_validated_at = document.dtalt
+        document.reception_validated_by = requested_by or ''
 
     _document_log(document.docinstamp, 'review', 'ok', 'Validação humana gravada.', {
         'status': processing_status,

@@ -244,6 +244,249 @@
   justify-content: flex-end;
 }
 
+.docai-inbox-counts-head {
+  width: 100%;
+}
+
+.docai-inbox-counts-head .docai-counts {
+  width: 100%;
+  align-items: stretch;
+  justify-content: flex-start;
+}
+
+.docai-business-count-group {
+  min-width: 14rem;
+  flex: 1 1 18rem;
+  display: grid;
+  align-content: start;
+  gap: 0.35rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--sz-color-border);
+  border-radius: var(--sz-radius-md);
+  background: color-mix(in srgb, var(--sz-color-surface-alt) 72%, transparent);
+}
+
+.docai-business-count-title {
+  color: var(--sz-color-text-secondary);
+  font-size: var(--sz-font-size-xs);
+  font-weight: var(--sz-font-weight-semibold);
+  text-transform: uppercase;
+}
+
+.docai-business-count-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.docai-business-count-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 1.9rem;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--sz-color-border);
+  border-radius: 999px;
+  background: var(--sz-color-surface);
+  color: var(--sz-color-text-secondary);
+  font: inherit;
+  font-size: var(--sz-font-size-xs);
+  cursor: pointer;
+}
+
+.docai-business-count-chip strong {
+  color: var(--sz-color-text);
+}
+
+.docai-business-count-chip:hover,
+.docai-business-count-chip:focus-visible,
+.docai-business-count-chip.is-active {
+  border-color: var(--sz-color-primary);
+  background: color-mix(in srgb, var(--sz-color-primary) 12%, var(--sz-color-surface));
+  color: var(--sz-color-primary);
+  outline: none;
+}
+
+.docai-inbox-table-panel .docai-table-wrap,
+.docai-inbox-table-panel .sz_table_wrap {
+  overflow: auto;
+}
+
+.docai-inbox-table-panel .sz_table {
+  width: 100%;
+  min-width: 72rem;
+  table-layout: fixed;
+}
+
+.docai-inbox-table-panel .sz_table th,
+.docai-inbox-table-panel .sz_table td {
+  vertical-align: middle;
+}
+
+.docai-inbox-table-panel .sz_table th:nth-child(1) { width: 7rem; }
+.docai-inbox-table-panel .sz_table th:nth-child(2) { width: 8rem; }
+.docai-inbox-table-panel .sz_table th:nth-child(3) { width: 12rem; }
+.docai-inbox-table-panel .sz_table th:nth-child(4) { width: 13rem; }
+.docai-inbox-table-panel .sz_table th:nth-child(5) { width: 10rem; }
+.docai-inbox-table-panel .sz_table th:nth-child(6) { width: 9rem; }
+.docai-inbox-table-panel .sz_table th:nth-child(7) { width: 10rem; }
+.docai-inbox-table-panel .sz_table th:nth-child(8) { width: 10rem; }
+.docai-inbox-table-panel .sz_table th:nth-child(9) { width: 6.2rem; }
+
+.docai-inbox-heading-row th {
+  white-space: nowrap;
+}
+
+.docai-inbox-filter-row th {
+  position: relative;
+  z-index: 3;
+  padding-top: 0.35rem;
+  padding-bottom: 0.55rem;
+  background: var(--sz-color-surface-alt);
+}
+
+.docai-column-filter {
+  position: relative;
+  min-width: 0;
+}
+
+.docai-column-filter-trigger {
+  width: 100%;
+  min-width: 0;
+  min-height: 2.15rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  padding: 0.35rem 0.55rem;
+  border: 1px solid var(--sz-color-border);
+  border-radius: var(--sz-radius-sm);
+  background: var(--sz-color-surface);
+  color: var(--sz-color-text-secondary);
+  font: inherit;
+  font-size: var(--sz-font-size-xs);
+  cursor: pointer;
+}
+
+.docai-column-filter-trigger span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.docai-column-filter.is-open .docai-column-filter-trigger,
+.docai-column-filter-trigger:hover,
+.docai-column-filter-trigger:focus-visible {
+  border-color: var(--sz-color-primary);
+  color: var(--sz-color-text);
+  outline: none;
+}
+
+.docai-column-filter-menu {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  left: 0;
+  z-index: 60;
+  width: max(15rem, 100%);
+  display: none;
+  gap: 0.55rem;
+  padding: 0.65rem;
+  border: 1px solid var(--sz-color-border);
+  border-radius: var(--sz-radius-md);
+  background: var(--sz-color-surface);
+  box-shadow: var(--sz-shadow-lg, 0 1rem 2rem rgba(0, 0, 0, 0.24));
+}
+
+.docai-column-filter.is-open .docai-column-filter-menu {
+  display: grid;
+}
+
+.docai-column-filter-options {
+  max-height: 14rem;
+  display: grid;
+  gap: 0.15rem;
+  overflow: auto;
+}
+
+.docai-column-filter-option {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.35rem;
+  border-radius: var(--sz-radius-sm);
+  color: var(--sz-color-text);
+  font-size: var(--sz-font-size-sm);
+  cursor: pointer;
+}
+
+.docai-column-filter-option:hover {
+  background: var(--sz-color-surface-alt);
+}
+
+.docai-column-filter-option span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.docai-column-filter-clear {
+  justify-self: end;
+  border: 0;
+  background: transparent;
+  color: var(--sz-color-primary);
+  font: inherit;
+  font-size: var(--sz-font-size-xs);
+  cursor: pointer;
+}
+
+.docai-range-filter {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.3rem;
+}
+
+.docai-range-filter .sz_input {
+  width: 100%;
+  min-width: 0;
+  min-height: 2.15rem;
+  padding-inline: 0.4rem;
+  font-size: var(--sz-font-size-xs);
+}
+
+.docai-date-filter {
+  grid-template-columns: 1fr;
+}
+
+.docai-business-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  white-space: nowrap;
+  font-weight: var(--sz-font-weight-semibold);
+  font-size: var(--sz-font-size-sm);
+}
+
+.docai-business-state i {
+  width: 0.5rem;
+  height: 0.5rem;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--sz-color-text-secondary);
+}
+
+.docai-business-state.is-ok { color: var(--sz-color-success); }
+.docai-business-state.is-ok i { background: var(--sz-color-success); }
+.docai-business-state.is-action { color: var(--sz-color-warning); }
+.docai-business-state.is-action i { background: var(--sz-color-warning); }
+.docai-business-state.is-blocked { color: var(--sz-color-danger); }
+.docai-business-state.is-blocked i { background: var(--sz-color-danger); }
+
+.docai-value-cell {
+  text-align: right;
+  white-space: nowrap;
+}
+
 .docai-count-card {
   min-width: 7rem;
   padding: 0.72rem 0.82rem;

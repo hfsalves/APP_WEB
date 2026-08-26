@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block title %}Acesso indisponível{% endblock %}
+
+{% block content %}
+<div class="sz_page">
+  <div class="sz_page_container">
+    <section class="sz_panel">
+      <h1 class="sz_h3">Acesso indisponível</h1>
+      <p class="sz_text_muted">{{ message or 'Não foi possível abrir esta página.' }}</p>
+    </section>
+  </div>
+</div>
+{% endblock %}

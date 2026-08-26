@@ -14,9 +14,9 @@
       <div class="sz_contextbar_left">
         <div class="docai-context-domain">ANALYSE</div>
         <div id="docAiExtractViewTabs" class="docai-view-tabs" role="tablist" aria-label="Vista da análise">
-          <button type="button" class="docai-view-tab" role="tab" data-view="home">Accueil</button>
-          <button type="button" class="docai-view-tab" role="tab" data-view="management">Contrôle de Gestion</button>
-          <button type="button" class="docai-view-tab" role="tab" data-view="accounting">Comptabilité</button>
+          {% for inbox_view in document_ai_inbox_views %}
+          <button type="button" class="docai-view-tab" role="tab" data-view="{{ inbox_view.value }}">{{ inbox_view.label }}</button>
+          {% endfor %}
         </div>
       </div>
       <div class="sz_contextbar_right docai-contextbar-right">
@@ -77,7 +77,6 @@
               <div class="sz_h4">Dados extraídos</div>
               <div id="docAiExtractResultMeta" class="sz_text_muted">Os resultados aparecem aqui depois da leitura.</div>
             </div>
-            <div id="docAiExtractConfidence" class="docai-status-chip status-new" hidden></div>
           </div>
 
           <nav id="docAiExtractGroupNavigator" class="docai-extract-group-nav" aria-label="Navegação no grupo de documentos" hidden>
@@ -279,6 +278,13 @@
       </div>
       <div class="sz_actionbar_right">
         <span id="docAiExtractPersistenceNote" class="sz_text_muted" hidden>O PDF e a leitura ficam guardados no inbox para evitar novas chamadas ao LLM.</span>
+        {% if can_validate_document %}
+        <button id="docAiExtractWorkflowValidateBtn" type="button" class="sz_button sz_button_primary" disabled
+                data-view="{{ document_ai_current_view }}">
+          <i class="fa-solid fa-check"></i>
+          <span>Validar etapa</span>
+        </button>
+        {% endif %}
         {% if can_submit_correspondence or can_submit_provisional_invoice %}
         <button id="docAiExtractControlOkBtn" type="button" class="sz_button sz_button_secondary" hidden disabled
                 data-can-provisional-invoice="{{ '1' if can_submit_provisional_invoice else '0' }}"

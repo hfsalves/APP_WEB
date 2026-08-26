@@ -12,33 +12,25 @@
   <div class="sz_page_container sz_page_container_wide">
     <header class="sz_contextbar sz_page_contextbar docai-contextbar">
       <div class="sz_contextbar_left">
-        <div class="docai-context-domain">INBOX</div>
+        <div id="docAiContextDomain" class="docai-context-domain">INBOX</div>
         <div id="docAiViewTabs" class="docai-view-tabs" role="tablist" aria-label="Vista do Inbox">
-          <button type="button" class="docai-view-tab" role="tab" data-view="home">Accueil</button>
-          <button type="button" class="docai-view-tab" role="tab" data-view="management">Contrôle de Gestion</button>
-          <button type="button" class="docai-view-tab" role="tab" data-view="accounting">Comptabilité</button>
+          {% for inbox_view in document_ai_inbox_views %}
+          <button type="button" class="docai-view-tab" role="tab" data-view="{{ inbox_view.value }}">{{ inbox_view.label }}</button>
+          {% endfor %}
         </div>
       </div>
       <div class="sz_contextbar_right docai-contextbar-right">
-        <button id="docAiFiltersBtn" type="button" class="sz_button sz_button_secondary">
-          <i class="fa-solid fa-filter"></i>
-          <span>Filtros</span>
-        </button>
         <button id="docAiUploadBtn" type="button" class="sz_button sz_button_primary">
           <i class="fa-solid fa-file-arrow-up"></i>
           <span>Importar documento</span>
         </button>
-        <button id="docAiExtractBtn" type="button" class="sz_button sz_button_secondary">
-          <i class="fa-solid fa-wand-magic-sparkles"></i>
-          <span>Leitura LLM</span>
+        <button id="docAiArchiveBtn" type="button" class="sz_button sz_button_secondary">
+          <i class="fa-solid fa-box-archive"></i>
+          <span>Arquivo</span>
         </button>
-        <button id="docAiTemplatesBtn" type="button" class="sz_button sz_button_secondary">
-          <i class="fa-solid fa-layer-group"></i>
-          <span>Modelos</span>
-        </button>
-        <button id="docAiSourcesBtn" type="button" class="sz_button sz_button_secondary">
-          <i class="fa-solid fa-folder-tree"></i>
-          <span>Origens</span>
+        <button id="docAiRefreshBtn" type="button" class="sz_button sz_button_secondary">
+          <i class="fa-solid fa-rotate"></i>
+          <span>Atualizar</span>
         </button>
       </div>
     </header>
@@ -46,33 +38,48 @@
     <section class="sz_page_body">
       <div class="docai-inbox-stack">
         <section class="sz_panel docai-inbox-panel docai-inbox-table-panel">
-          <div class="docai-panel-head">
-            <div>
-              <div class="sz_h4">Inbox</div>
-              <div id="docAiInboxMeta" class="sz_text_muted">A carregar documentos...</div>
-            </div>
+          <div class="docai-panel-head docai-inbox-counts-head">
             <div id="docAiCounts" class="docai-counts"></div>
           </div>
           <div class="docai-table-wrap sz_table_host">
             <div class="sz_table_wrap">
               <table class="sz_table">
                 <thead class="sz_table_head">
-                  <tr>
-                    <th>Ficheiro</th>
+                  <tr class="docai-inbox-heading-row">
+                    <th>Estado</th>
+                    <th>Tipo</th>
                     <th>Entidade</th>
                     <th>Fornecedor</th>
-                    <th>Tipo</th>
-                    <th>Template</th>
-                    <th>Confiança</th>
-                    <th>Pipeline</th>
-                    <th>Estado</th>
-                    <th>Criação</th>
-                    <th>Processamento</th>
+                    <th>Centro de Custo</th>
+                    <th>Nº</th>
+                    <th>Data</th>
+                    <th>Valor</th>
+                    <th></th>
+                  </tr>
+                  <tr class="docai-inbox-filter-row">
+                    <th></th>
+                    <th></th>
+                    <th><div class="docai-column-filter" data-filter="entity"></div></th>
+                    <th><div class="docai-column-filter" data-filter="supplier"></div></th>
+                    <th><div class="docai-column-filter" data-filter="cost_center"></div></th>
+                    <th><div class="docai-column-filter" data-filter="document_number"></div></th>
+                    <th>
+                      <div class="docai-range-filter docai-date-filter">
+                        <input id="docAiDocumentDateFrom" class="sz_input" type="date" aria-label="Data desde" title="Desde">
+                        <input id="docAiDocumentDateTo" class="sz_input" type="date" aria-label="Data até" title="Até">
+                      </div>
+                    </th>
+                    <th>
+                      <div class="docai-range-filter">
+                        <input id="docAiValueMin" class="sz_input" type="number" step="0.01" inputmode="decimal" placeholder="Min" aria-label="Valor mínimo">
+                        <input id="docAiValueMax" class="sz_input" type="number" step="0.01" inputmode="decimal" placeholder="Max" aria-label="Valor máximo">
+                      </div>
+                    </th>
                     <th></th>
                   </tr>
                 </thead>
                 <tbody id="docAiInboxBody">
-                  <tr><td colspan="11" class="sz_text_muted">A carregar...</td></tr>
+                  <tr><td colspan="9" class="sz_text_muted">A carregar...</td></tr>
                 </tbody>
               </table>
             </div>
@@ -81,79 +88,6 @@
       </div>
     </section>
 
-    <footer class="sz_actionbar">
-      <div class="sz_actionbar_left">
-        <div id="docAiInboxStatus" class="sz_text_muted">Pronto.</div>
-      </div>
-      <div class="sz_actionbar_right">
-        <button id="docAiRefreshBtn" type="button" class="sz_button sz_button_secondary">
-          <i class="fa-solid fa-rotate"></i>
-          <span>Atualizar</span>
-        </button>
-      </div>
-    </footer>
-  </div>
-</div>
-
-<div id="docAiFiltersModal" class="sz_modal docai-filters-modal" aria-hidden="true" role="dialog" aria-labelledby="docAiFiltersTitle">
-  <div class="sz_panel docai-filters-modal-panel">
-    <div class="sz_modal_header">
-      <div>
-        <h3 id="docAiFiltersTitle" class="sz_h4 sz_modal_title">Filtros</h3>
-        <p class="sz_text_muted">Pesquisa e segmentação da inbox.</p>
-      </div>
-      <button id="docAiCloseFiltersTop" type="button" class="sz_button sz_button_ghost" aria-label="Fechar">
-        <i class="fa-solid fa-xmark"></i>
-      </button>
-    </div>
-    <div class="sz_modal_body docai-modal-body">
-      <div class="docai-filters-column">
-        <div class="sz_field">
-          <label class="sz_label" for="docAiSearch">Pesquisa</label>
-          <input id="docAiSearch" class="sz_input" type="search" placeholder="Ficheiro, fornecedor ou template">
-        </div>
-        <div class="sz_field">
-          <label class="sz_label" for="docAiEntityFilter">Empresa do grupo</label>
-          <select id="docAiEntityFilter" class="sz_select"></select>
-        </div>
-        <div class="sz_field">
-          <label class="sz_label" for="docAiStatusFilter">Estado</label>
-          <select id="docAiStatusFilter" class="sz_select"></select>
-        </div>
-        <div class="sz_field">
-          <label class="sz_label" for="docAiTypeFilter">Tipo</label>
-          <select id="docAiTypeFilter" class="sz_select"></select>
-        </div>
-        <div class="sz_field">
-          <label class="sz_label" for="docAiSupplierFilter">Fornecedor</label>
-          <input id="docAiSupplierFilter" class="sz_input" type="search" placeholder="Nome ou nº fornecedor">
-        </div>
-        <div class="docai-filter-dates">
-          <div class="sz_field">
-            <label class="sz_label" for="docAiDateFrom">Desde</label>
-            <input id="docAiDateFrom" class="sz_input" type="date">
-          </div>
-          <div class="sz_field">
-            <label class="sz_label" for="docAiDateTo">Até</label>
-            <input id="docAiDateTo" class="sz_input" type="date">
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="sz_modal_footer">
-      <button id="docAiResetFilters" type="button" class="sz_button sz_button_ghost">
-        <i class="fa-solid fa-rotate-left"></i>
-        <span>Limpar</span>
-      </button>
-      <button id="docAiCloseFilters" type="button" class="sz_button sz_button_secondary">
-        <i class="fa-solid fa-ban"></i>
-        <span>Cancelar</span>
-      </button>
-      <button id="docAiApplyFilters" type="button" class="sz_button sz_button_primary">
-        <i class="fa-solid fa-filter"></i>
-        <span>Aplicar</span>
-      </button>
-    </div>
   </div>
 </div>
 

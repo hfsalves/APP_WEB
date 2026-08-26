@@ -11,7 +11,6 @@ document.addEventListener('DOMContentLoaded', () => {
     previewFrame: document.getElementById('docAiExtractPreviewFrame'),
     fileMeta: document.getElementById('docAiExtractFileMeta'),
     resultMeta: document.getElementById('docAiExtractResultMeta'),
-    confidence: document.getElementById('docAiExtractConfidence'),
     empty: document.getElementById('docAiExtractEmpty'),
     loading: document.getElementById('docAiExtractLoading'),
     results: document.getElementById('docAiExtractResults'),
@@ -114,13 +113,14 @@ document.addEventListener('DOMContentLoaded', () => {
     accessSave: document.getElementById('docAiIntegrationAccessSave'),
     submitPhcBtn: document.getElementById('docAiExtractSubmitPhcBtn'),
     controlOkBtn: document.getElementById('docAiExtractControlOkBtn'),
+    workflowValidateBtn: document.getElementById('docAiExtractWorkflowValidateBtn'),
     viewTabs: document.getElementById('docAiExtractViewTabs'),
     modeLabel: document.getElementById('docAiExtractModeLabel'),
     modeValue: document.getElementById('docAiExtractModeValue'),
     modeMeta: document.getElementById('docAiExtractModeMeta'),
   };
 
-  const allowedViews = new Set(['home', 'management', 'accounting']);
+  const allowedViews = new Set([...(els.viewTabs?.querySelectorAll('[data-view]') || [])].map((button) => button.dataset.view));
   const initialParams = new URLSearchParams(window.location.search);
   const initialView = initialParams.get('view');
   const state = {
@@ -169,7 +169,8 @@ document.addEventListener('DOMContentLoaded', () => {
     integratedPhc: false,
     integrationResult: null,
     gedFolderManuallySelected: false,
-    view: allowedViews.has(initialView) ? initialView : 'home',
+    workflowSubmitting: false,
+    view: allowedViews.has(initialView) ? initialView : ([...allowedViews][0] || ''),
   };
 
   const typeLabels = {
@@ -488,6 +489,18 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function updateSubmitPhcButton() {
+    if (els.workflowValidateBtn) {
+      const labels = {
+        home: 'Validar Receção',
+        management: 'Validar Controlo',
+        accounting: 'Validar Contabilidade',
+      };
+      els.workflowValidateBtn.disabled = !state.currentDocumentId || !state.documentData || state.workflowSubmitting;
+      els.workflowValidateBtn.dataset.view = state.view;
+      els.workflowValidateBtn.innerHTML = state.workflowSubmitting
+        ? '<i class="fa-solid fa-circle-notch fa-spin"></i><span>A validar...</span>'
+        : `<i class="fa-solid fa-check"></i><span>${labels[state.view] || 'Validar etapa'}</span>`;
+    }
     if (!els.submitPhcBtn) return;
     const documentData = state.documentData || {};
     const party = documentData.supplier || {};
@@ -652,9 +665,10 @@ document.addEventListener('DOMContentLoaded', () => {
     state.correspondenceYear = null;
     state.submittingPhc = false;
     state.submittingControl = false;
-    state.controlOk = Boolean(payload.workflow?.control_ok);
-    state.integratedPhc = payload.processing_status === 'provisional_invoice' || Boolean(payload.phc_integration?.fostamp);
-    state.integrationResult = state.integratedPhc ? (payload.phc_integration || {}) : null;
+    state.workflowSubmitting = false;
+    state.controlOk = false;
+    state.integratedPhc = false;
+    state.integrationResult = null;
     els.input.value = '';
     els.preview.hidden = true;
     els.dropzone.hidden = false;
@@ -666,7 +680,6 @@ document.addEventListener('DOMContentLoaded', () => {
     els.empty.querySelector('span').textContent = 'Carrega um PDF para identificar cliente, fornecedor, cabeçalho, linhas, IVA e totais.';
     els.loading.hidden = true;
     els.results.hidden = true;
-    els.confidence.hidden = true;
     els.fileMeta.textContent = 'Seleciona um PDF até 50 MB.';
     els.resultMeta.textContent = 'Os resultados aparecem aqui depois da leitura.';
     els.groupNavigator.hidden = true;
@@ -833,7 +846,6 @@ document.addEventListener('DOMContentLoaded', () => {
     state.matching = {};
     state.supplierCandidates = [];
     els.results.hidden = true;
-    els.confidence.hidden = true;
     els.batchAlert.hidden = true;
     els.originFlow.hidden = true;
     if (els.originTabs) {
@@ -2046,10 +2058,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const isCorrespondence = ['mail', 'bank_statement'].includes(documentData.document_type);
 
     state.documentData = documentData;
+    state.controlOk = Boolean(payload.workflow?.control_ok);
+    state.integratedPhc = payload.processing_status === 'provisional_invoice' || Boolean(payload.phc_integration?.fostamp);
+    state.integrationResult = state.integratedPhc ? (payload.phc_integration || {}) : null;
     state.gedFolderManuallySelected = Boolean(documentData.customer?.ged_folder_manually_selected);
     state.submittingPhc = false;
-    state.integratedPhc = false;
-    state.integrationResult = null;
     if (state.selectedProject?.ccusto) state.documentData.origin_project = { ...state.selectedProject };
     state.matching = payload.matching || {};
     state.supplierCandidates = state.matching.supplier_candidates || [];
@@ -2088,9 +2101,6 @@ document.addEventListener('DOMContentLoaded', () => {
     els.notes.innerHTML = notes.map((note) => `<li>${escapeHtml(note)}</li>`).join('');
 
     const confidence = Math.max(0, Math.min(1, Number(documentData.confidence || 0)));
-    els.confidence.innerHTML = `<i class="fa-solid fa-circle-check"></i><span>${Math.round(confidence * 100)}% confiança</span>`;
-    els.confidence.className = `docai-status-chip ${confidence >= 0.75 ? 'status-parsed_ok' : 'status-review_required'}`;
-    els.confidence.hidden = false;
     const batch = documentData.document_batch || {};
     const batchSuffix = batch.contains_multiple_documents
       ? ` · ${Number(batch.document_count || 0)} documentos em ${Number(batch.page_count || 0)} páginas`
@@ -2151,7 +2161,6 @@ document.addEventListener('DOMContentLoaded', () => {
     els.resetBtn.disabled = true;
     els.empty.hidden = true;
     els.results.hidden = true;
-    els.confidence.hidden = true;
     els.loading.hidden = false;
     els.resultMeta.textContent = options.force
       ? 'A eliminar a leitura anterior e a iniciar uma nova análise...'
@@ -2168,7 +2177,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const payload = await fetchJson('/api/document_ai/extract', { method: 'POST', body: formData });
       if (payload.document_id) {
         state.currentDocumentId = payload.document_id;
-        window.history.replaceState({}, '', `/document_ai/extract?document_id=${encodeURIComponent(payload.document_id)}`);
+        window.history.replaceState({}, '', extractUrl(payload.document_id));
       }
       renderResult(payload);
       const batch = payload.document?.document_batch || {};
@@ -2277,6 +2286,28 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  async function validateWorkflowStage() {
+    if (!els.workflowValidateBtn || !state.currentDocumentId || !state.documentData || state.workflowSubmitting) return;
+    state.workflowSubmitting = true;
+    updateSubmitPhcButton();
+    setStatus('A validar a etapa documental...');
+    try {
+      await fetchJson(`/api/document_ai/documents/${encodeURIComponent(state.currentDocumentId)}/workflow/validate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ view: state.view, document: state.documentData }),
+      });
+      showMessage('Etapa documental validada.', 'success');
+      window.location.href = inboxUrl();
+    } catch (error) {
+      setStatus(error.message || 'Não foi possível validar a etapa.', true);
+      showMessage(error.message || 'Não foi possível validar a etapa.', 'error');
+    } finally {
+      state.workflowSubmitting = false;
+      updateSubmitPhcButton();
+    }
+  }
+
   els.backBtn?.addEventListener('click', () => { window.location.href = inboxUrl(); });
   els.viewTabs?.addEventListener('click', (event) => {
     const view = event.target.closest('[data-view]')?.dataset.view;
@@ -2294,7 +2325,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   window.addEventListener('popstate', () => {
     const requested = new URLSearchParams(window.location.search).get('view');
-    state.view = allowedViews.has(requested) ? requested : 'home';
+    state.view = allowedViews.has(requested) ? requested : ([...allowedViews][0] || '');
     renderViewTabs();
     renderModeCard();
   });
@@ -2324,6 +2355,7 @@ document.addEventListener('DOMContentLoaded', () => {
   els.accessSave?.addEventListener('click', saveAccessPermissions);
   els.submitPhcBtn?.addEventListener('click', submitDocumentToPhc);
   els.controlOkBtn?.addEventListener('click', confirmDocumentControl);
+  els.workflowValidateBtn?.addEventListener('click', validateWorkflowStage);
   els.resetBtn?.addEventListener('click', resetScreen);
   els.chooseBtn?.addEventListener('click', (event) => {
     event.stopPropagation();

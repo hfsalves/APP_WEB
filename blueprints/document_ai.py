@@ -58,6 +58,12 @@ from services.document_ai_service import (
     suggest_template,
     test_template,
     toggle_template_active,
+    validate_document_inbox_stage,
+)
+from services.document_ai_inbox_access_service import (
+    INBOX_VIEW_DEFINITIONS,
+    allowed_inbox_views,
+    is_inbox_view_allowed,
 )
 from services.document_ai_llm_service import extract_document_full_visual
 
@@ -86,6 +92,18 @@ def _document_ai_is_admin() -> bool:
     return bool(getattr(current_user, 'ADMIN', False))
 
 
+def _allowed_current_inbox_views() -> list[dict[str, str]]:
+    if bool(getattr(current_user, 'ADMIN', False) or getattr(current_user, 'DEV', False)):
+        return [dict(view) for view in INBOX_VIEW_DEFINITIONS]
+    return allowed_inbox_views(_current_login(), current_app.config)
+
+
+def _current_inbox_view_is_allowed(view: str) -> bool:
+    if bool(getattr(current_user, 'ADMIN', False) or getattr(current_user, 'DEV', False)):
+        return any(item['value'] == str(view or '').strip().lower() for item in INBOX_VIEW_DEFINITIONS)
+    return is_inbox_view_allowed(_current_login(), view, current_app.config)
+
+
 def _document_ai_has_integration_access(document_type: str) -> bool:
     if _document_ai_is_admin():
         return True
@@ -97,7 +115,14 @@ def _document_ai_has_integration_access(document_type: str) -> bool:
 def document_ai_inbox_page():
     if not _document_ai_has_access('consultar'):
         return render_template('error.html', message='Sem permissão para consultar processamento documental.'), 403
-    return render_template('document_ai_inbox.html', page_title='Processamento Documental')
+    inbox_views = _allowed_current_inbox_views()
+    if not inbox_views:
+        return render_template('error.html', message='Sem acesso ao Inbox.'), 403
+    return render_template(
+        'document_ai_inbox.html',
+        page_title='Processamento Documental',
+        document_ai_inbox_views=inbox_views,
+    )
 
 
 @bp.route('/document_ai/extract')
@@ -105,9 +130,18 @@ def document_ai_inbox_page():
 def document_ai_extract_page():
     if not _document_ai_has_access('consultar'):
         return render_template('error.html', message='Sem permissão para extrair documentos.'), 403
+    inbox_views = _allowed_current_inbox_views()
+    if not inbox_views:
+        return render_template('error.html', message='Sem acesso ao Inbox.'), 403
+    requested_view = str(request.args.get('view') or inbox_views[0]['value']).strip().lower()
+    if not _current_inbox_view_is_allowed(requested_view):
+        return render_template('error.html', message='Sem acesso a esta etapa documental.'), 403
     return render_template(
         'document_ai_extract.html',
         page_title='Leitura Inteligente de Documentos',
+        document_ai_inbox_views=inbox_views,
+        document_ai_current_view=requested_view,
+        can_validate_document=_document_ai_has_access('editar'),
         can_submit_correspondence=_document_ai_has_integration_access('correspondence'),
         can_submit_provisional_invoice=_document_ai_has_integration_access('provisional_invoice'),
     )
@@ -192,8 +226,14 @@ def api_document_ai_integration_access_save():
 def api_document_ai_inbox():
     if not _document_ai_has_access('consultar'):
         return jsonify({'error': 'Sem permissão.'}), 403
+    inbox_views = _allowed_current_inbox_views()
+    if not inbox_views:
+        return jsonify({'error': 'Sem acesso ao Inbox.'}), 403
+    requested_view = str(request.args.get('view') or inbox_views[0]['value']).strip().lower()
+    if not _current_inbox_view_is_allowed(requested_view):
+        return jsonify({'error': 'Sem acesso a esta vista do Inbox.'}), 403
     filters = {
-        'view': request.args.get('view', ''),
+        'view': requested_view,
         'feid': request.args.get('feid', ''),
         'status': request.args.get('status', ''),
         'doc_type': request.args.get('doc_type', ''),
@@ -201,6 +241,7 @@ def api_document_ai_inbox():
         'search': request.args.get('search', ''),
         'date_from': request.args.get('date_from', ''),
         'date_to': request.args.get('date_to', ''),
+        'archived': request.args.get('archived', ''),
     }
     return jsonify(list_documents(filters))
 
@@ -810,6 +851,33 @@ def api_document_ai_document_validate(docinstamp: str):
         return jsonify(save_document_review(docinstamp, body, _current_login()))
     except Exception as exc:
         current_app.logger.exception('Erro ao gravar validação documental')
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        return jsonify({'error': str(exc)}), 500
+
+
+@bp.route('/api/document_ai/documents/<docinstamp>/workflow/validate', methods=['POST'])
+@login_required
+def api_document_ai_document_workflow_validate(docinstamp: str):
+    if not _document_ai_has_access('editar'):
+        return jsonify({'error': 'Sem permissão para validar.'}), 403
+    body = request.get_json(silent=True) or {}
+    view = str(body.get('view') or '').strip().lower()
+    if not _current_inbox_view_is_allowed(view):
+        return jsonify({'error': 'Sem acesso a esta etapa documental.'}), 403
+    try:
+        return jsonify(validate_document_inbox_stage(
+            docinstamp,
+            view,
+            _current_login(),
+            body.get('document') or None,
+        ))
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception as exc:
+        current_app.logger.exception('Erro ao validar etapa documental')
         try:
             db.session.rollback()
         except Exception:

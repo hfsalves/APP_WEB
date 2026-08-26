@@ -195,6 +195,10 @@ def _document_classification_schema() -> dict[str, Any]:
                 'type': 'string',
                 'enum': ['invoice', 'provisional_invoice', 'credit_note', 'purchase_order', 'delivery_note', 'mail', 'unknown'],
             },
+            'invoice_type': {
+                'type': 'string',
+                'enum': ['concrete', 'material', 'services', 'unknown'],
+            },
             'external_party_role': {
                 'type': 'string',
                 'enum': ['supplier', 'customer', 'unknown'],
@@ -283,6 +287,7 @@ def _document_classification_schema() -> dict[str, Any]:
         },
         'required': [
             'document_type',
+            'invoice_type',
             'external_party_role',
             'mail_category',
             'mail_title',
@@ -753,6 +758,7 @@ def classify_document_visual(context: dict[str, Any]) -> dict[str, Any]:
             'Use OCR mostly for document number, dates and amounts. For supplier identity, trust logo/header/footer/legal/tax blocks and known_supplier_candidates.',
             'Dates must be ISO yyyy-mm-dd when visible; otherwise empty string.',
             'Amounts must be numeric values without currency symbols.',
+            'For invoice and provisional_invoice, set invoice_type to concrete when the main purchase is ready-mix concrete/béton, material for products or construction materials, services for labour, fees or other services, and unknown only when there is not enough visible evidence. For other document types use unknown.',
             'Extract supplier name and tax/VAT id from the issuer/seller section.',
             'Extract the supplier and customer street address, postal code and city when visible; otherwise return empty strings.',
             'The supplier is the legal issuer shown in the logo/header/footer/contact/tax block, not an operational site.',
