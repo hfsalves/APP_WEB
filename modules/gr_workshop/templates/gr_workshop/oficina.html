@@ -42,6 +42,10 @@
             <i class="fa-solid fa-calendar-week"></i>
             <span>Planeamento</span>
           </a>
+          <a class="sz_button sz_button_secondary" href="{{ url_for('generic.edit_table', table_name='VA') }}" title="Criar novo equipamento ou viatura">
+            <i class="fa-solid fa-truck-ramp-box"></i>
+            <span>Novo equipamento</span>
+          </a>
           <button id="workshopNewBtn" type="button" class="sz_button sz_button_primary">
             <i class="fa-solid fa-plus"></i>
             <span>Nova folha</span>
@@ -92,6 +96,10 @@
         <div class="gr-workshop-metric">
           <span>Anuladas</span>
           <strong id="workshopMetricVoid">0</strong>
+        </div>
+        <div class="gr-workshop-metric gr-workshop-metric-alert">
+          <span>Intervenções vencidas</span>
+          <strong id="workshopMetricAlerts">0</strong>
         </div>
       </aside>
     </section>
@@ -202,6 +210,17 @@
             <label class="sz_label" for="workshopJobText">Trabalho a executar</label>
             <textarea id="workshopJobText" class="sz_textarea" rows="3" maxlength="1000"></textarea>
           </div>
+          <div class="sz_field gr-workshop-field-ai-question">
+            <label class="sz_label" for="workshopAiQuestion">Pergunta direta à AI</label>
+            <div class="gr-workshop-ai-question-control">
+              <input id="workshopAiQuestion" class="sz_input" type="text" maxlength="1200" placeholder="Ex.: Que verificações devo fazer antes desta intervenção?">
+              <button id="workshopAiQuestionBtn" type="button" class="sz_button sz_button_secondary" disabled>
+                <i class="fa-solid fa-comment-dots"></i>
+                <span>Perguntar</span>
+              </button>
+            </div>
+            <textarea id="workshopAiAnswer" class="sz_textarea gr-workshop-ai-answer" rows="3" readonly placeholder="A resposta aparece aqui."></textarea>
+          </div>
           <div class="sz_field gr-workshop-field-obs">
             <label class="sz_label" for="workshopObs">Observações</label>
             <textarea id="workshopObs" class="sz_textarea" rows="5" maxlength="4000"></textarea>
@@ -300,7 +319,8 @@
       articlesUrl: {{ url_for('gr_workshop.api_articles')|tojson }},
       mechanicsUrl: {{ url_for('gr_workshop.api_mechanics')|tojson }},
       workTypesUrl: {{ url_for('gr_workshop.api_work_types')|tojson }},
-      aiSuggestionUrl: {{ url_for('gr_workshop.api_ai_suggestion')|tojson }}
+      aiSuggestionUrl: {{ url_for('gr_workshop.api_ai_suggestion')|tojson }},
+      aiQuestionUrl: {{ url_for('gr_workshop.api_ai_question')|tojson }}
     };
   </script>
   <script src="{{ url_for('gr_workshop.static', filename='gr_workshop.js') }}" defer></script>

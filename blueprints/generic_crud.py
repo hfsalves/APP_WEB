@@ -818,8 +818,11 @@ def _repair_va_shifted_payload(table, values: dict) -> dict:
 
 def _normalise_write_values(table, table_name: str, values: dict) -> dict:
     normalized = dict(values)
-    if str(table_name or '').strip().upper() == 'VA':
+    normalized_table_name = str(table_name or '').strip().upper()
+    if normalized_table_name == 'VA':
         normalized = _repair_va_shifted_payload(table, normalized)
+        if 'DATAMAT' in table.c and not normalized.get('DATAMAT'):
+            normalized['DATAMAT'] = normalized.get('DTMATRICULA') or '1900-01-01'
 
     for name, value in list(normalized.items()):
         column = table.c.get(name)

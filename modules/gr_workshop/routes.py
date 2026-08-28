@@ -8,6 +8,7 @@ from models import Acessos, db
 from .service import (
     WORKSHOP_STATES,
     WorkshopError,
+    ask_workshop_question,
     annul_sheet,
     assign_sheet_mechanic,
     ensure_schema_available,
@@ -197,6 +198,18 @@ def api_ai_suggestion():
     try:
         payload = request.get_json(silent=True) or {}
         return jsonify({"ok": True, "suggestion": suggest_workshop_job(payload)})
+    except Exception as exc:
+        return _handle_error(exc)
+
+
+@bp.route("/api/gr_oficina/ai/pergunta", methods=["POST"])
+@login_required
+def api_ai_question():
+    if not (_can_sheet("inserir") or _can_sheet("editar")):
+        return _forbidden()
+    try:
+        payload = request.get_json(silent=True) or {}
+        return jsonify({"ok": True, "answer": ask_workshop_question(payload)})
     except Exception as exc:
         return _handle_error(exc)
 

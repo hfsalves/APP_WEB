@@ -13,8 +13,14 @@ INBOX_VIEW_DEFINITIONS = (
 
 DEFAULT_INBOX_VIEW_ACCESS = {
     "ldias": ("home",),
-    "msilva": ("management",),
+    "msilva": ("home", "management", "accounting"),
     "arocha": ("management",),
+    "aelhaj": ("accounting",),
+    "aguimaraes": ("accounting",),
+    "anorinho": ("accounting",),
+    "sferreira": ("accounting",),
+    "srferreira": ("accounting",),
+    "ssampaio": ("accounting",),
 }
 
 

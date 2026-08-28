@@ -187,6 +187,9 @@
 
 .docai-inbox-table-panel {
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .docai-filters-column {
@@ -254,6 +257,17 @@
   justify-content: flex-start;
 }
 
+.docai-filtered-total {
+  flex: 0 0 7.5rem;
+  min-height: 100%;
+  margin-left: auto;
+}
+
+.docai-view-label {
+  cursor: default;
+  pointer-events: none;
+}
+
 .docai-business-count-group {
   min-width: 14rem;
   flex: 1 1 18rem;
@@ -307,8 +321,16 @@
   outline: none;
 }
 
-.docai-inbox-table-panel .docai-table-wrap,
+.docai-inbox-table-panel .docai-table-wrap {
+  min-height: 28rem;
+  height: calc(100vh - 22rem);
+  display: flex;
+  overflow: hidden;
+}
+
 .docai-inbox-table-panel .sz_table_wrap {
+  width: 100%;
+  height: 100%;
   overflow: auto;
 }
 
@@ -335,6 +357,12 @@
 
 .docai-inbox-heading-row th {
   white-space: nowrap;
+}
+
+.docai-inbox-table-panel .sz_table thead {
+  position: sticky;
+  top: 0;
+  z-index: 8;
 }
 
 .docai-inbox-filter-row th {
@@ -455,7 +483,7 @@
 }
 
 .docai-date-filter {
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .docai-business-state {
@@ -643,6 +671,276 @@
   background: color-mix(in srgb, var(--sz-color-danger) 12%, transparent);
 }
 
+.docai-access-modal,
+.docai-access-entity-modal {
+  align-items: center;
+  justify-content: center;
+}
+
+.sz_modal > .docai-access-panel {
+  width: min(88rem, calc(100vw - 2rem));
+  max-height: calc(100vh - 2rem);
+  display: flex;
+  flex-direction: column;
+}
+
+.sz_modal > .docai-access-entity-panel {
+  width: min(38rem, calc(100vw - 2rem));
+  max-height: min(46rem, calc(100vh - 2rem));
+  display: flex;
+  flex-direction: column;
+}
+
+.docai-access-modal .sz_modal_header,
+.docai-access-entity-modal .sz_modal_header,
+.docai-access-modal .sz_modal_footer,
+.docai-access-entity-modal .sz_modal_footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sz-space-3);
+}
+
+.docai-settings-tabs {
+  display: flex;
+  gap: var(--sz-space-2);
+  padding: 0 var(--sz-space-4);
+  border-bottom: 1px solid var(--sz-color-border);
+}
+
+.docai-settings-tab {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--sz-color-text-secondary);
+  padding: 0.8rem 0.2rem 0.7rem;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.docai-settings-tab.is-active {
+  color: var(--sz-color-primary);
+  border-bottom-color: var(--sz-color-primary);
+}
+
+.docai-settings-panel {
+  min-height: 0;
+  overflow: auto;
+}
+
+.docai-distribution-groups {
+  display: grid;
+  gap: var(--sz-space-3);
+  padding: 0 var(--sz-space-4) var(--sz-space-4);
+}
+
+.docai-distribution-group h4 {
+  margin: 0 0 var(--sz-space-2);
+}
+
+.docai-distribution-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.docai-distribution-table th,
+.docai-distribution-table td {
+  padding: 0.65rem 0.75rem;
+  border-bottom: 1px solid var(--sz-color-border);
+  text-align: left;
+}
+
+.docai-distribution-cell {
+  border: 0;
+  background: transparent;
+  color: var(--sz-color-text);
+  font: inherit;
+  padding: 0;
+  cursor: pointer;
+}
+
+.docai-distribution-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.docai-distribution-state::before {
+  content: '';
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: var(--sz-color-text-secondary);
+}
+
+.docai-distribution-state[data-state="pending"]::before { background: #e7b84b; }
+.docai-distribution-state[data-state="validated"]::before { background: #43c78a; }
+.docai-distribution-state[data-state="automatic"]::before { background: var(--sz-color-primary); }
+.docai-distribution-state[data-state="none"]::before { display: none; }
+
+.sz_modal > .docai-distribution-panel {
+  width: min(44rem, calc(100vw - 2rem));
+}
+
+.docai-distribution-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sz-space-3);
+}
+
+.docai-distribution-form .docai-access-check {
+  grid-column: 1 / -1;
+}
+
+.docai-access-modal .sz_modal_footer,
+.docai-access-entity-modal .sz_modal_footer {
+  justify-content: flex-end;
+}
+
+.docai-access-toolbar,
+.docai-access-add-form {
+  display: grid;
+  grid-template-columns: minmax(16rem, 1fr) auto;
+  align-items: end;
+  gap: var(--sz-space-3);
+  padding-block: var(--sz-space-3);
+}
+
+.docai-access-add-form {
+  grid-template-columns: minmax(12rem, 1fr) minmax(12rem, 1fr) auto;
+  padding: var(--sz-space-3);
+  border: 1px solid var(--sz-color-border);
+  border-radius: var(--sz-radius-md);
+  background: var(--sz-color-surface-alt);
+}
+
+.docai-access-list {
+  min-height: 12rem;
+  overflow-y: auto;
+  display: grid;
+  align-content: start;
+  gap: var(--sz-space-2);
+  padding-block: var(--sz-space-3);
+}
+
+.docai-access-user {
+  border: 1px solid var(--sz-color-border);
+  border-radius: var(--sz-radius-md);
+  overflow: hidden;
+}
+
+.docai-access-user-main {
+  display: grid;
+  grid-template-columns: 2rem minmax(12rem, 1fr) minmax(8rem, auto) auto;
+  align-items: center;
+  gap: var(--sz-space-3);
+  padding: 0.65rem 0.8rem;
+  background: var(--sz-color-surface-alt);
+}
+
+.docai-access-user-main > div {
+  min-width: 0;
+  display: grid;
+}
+
+.docai-access-user-main span,
+.docai-access-entity-summary {
+  color: var(--sz-color-text-secondary);
+  font-size: var(--sz-font-size-xs);
+}
+
+.docai-access-expand {
+  width: 1.8rem;
+  height: 1.8rem;
+  border: 1px solid var(--sz-color-border);
+  border-radius: 50%;
+  background: var(--sz-color-surface);
+  color: var(--sz-color-primary);
+  cursor: pointer;
+}
+
+.docai-access-views {
+  display: grid;
+}
+
+.docai-access-view-row {
+  display: grid;
+  grid-template-columns: minmax(10rem, 0.8fr) minmax(8rem, 0.7fr) minmax(30rem, 2.6fr) 2.5rem;
+  align-items: center;
+  gap: var(--sz-space-3);
+  padding: 0.6rem 0.8rem 0.6rem 3.6rem;
+  border-top: 1px solid var(--sz-color-border);
+}
+
+.docai-access-permissions {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+
+.docai-access-check {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--sz-color-text-secondary);
+  font-size: var(--sz-font-size-xs);
+  cursor: pointer;
+}
+
+.docai-access-check input {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--sz-color-primary);
+}
+
+.docai-access-entity-button {
+  min-width: 0;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid var(--sz-color-border);
+  border-radius: var(--sz-radius-sm);
+  background: var(--sz-color-surface);
+  color: var(--sz-color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.docai-access-remove { color: var(--sz-color-danger); }
+.docai-access-all-entities { padding-block: var(--sz-space-3); font-size: var(--sz-font-size-sm); }
+
+.docai-access-entity-list {
+  min-height: 12rem;
+  overflow-y: auto;
+  display: grid;
+  align-content: start;
+  gap: 0.45rem;
+  margin-block: var(--sz-space-3);
+  padding: var(--sz-space-2);
+  border: 1px solid var(--sz-color-border);
+  border-radius: var(--sz-radius-md);
+}
+
+@media (max-width: 900px) {
+  .docai-access-toolbar,
+  .docai-access-add-form,
+  .docai-access-user-main,
+  .docai-access-view-row {
+    grid-template-columns: 1fr;
+  }
+
+  .docai-access-view-row {
+    padding: var(--sz-space-3);
+  }
+
+  .docai-access-permissions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .docai-inbox-group-badge {
   width: fit-content;
   display: inline-flex;
@@ -736,7 +1034,7 @@
 
 .docai-extract-source-actions {
   display: grid;
-  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--sz-space-2);
   padding-top: var(--sz-space-3);
 }
@@ -905,14 +1203,65 @@
 
 .docai-extract-summary-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(11rem, 1fr));
   gap: var(--sz-space-3);
+  overflow-x: auto;
 }
 
 .docai-extract-summary-grid .docai-info-card {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
+  min-height: 8.5rem;
+}
+
+.docai-analysis-heading {
+  min-width: 0;
+}
+
+.docai-analysis-reading-state {
+  flex: 0 0 auto;
+  text-align: right;
+}
+
+.docai-classification-card strong {
+  cursor: copy;
+}
+
+.docai-classification-destinations {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.docai-classification-destination {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--sz-color-text-secondary);
+  font: inherit;
+  text-align: left;
+  cursor: copy;
+}
+
+.docai-totals-card {
+  cursor: pointer;
+}
+
+.docai-totals-card > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.docai-totals-card > div strong {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.docai-totals-modal {
+  width: min(46rem, calc(100vw - 2rem));
 }
 
 .docai-extract-summary-grid .docai-info-card strong,
@@ -1135,21 +1484,23 @@
 }
 
 .docai-extract-origin-options {
-  display: flex;
-  flex-direction: row;
+  display: grid;
+  grid-auto-columns: minmax(11rem, calc((100% - 2rem) / 5));
+  grid-auto-flow: column;
   gap: 0.5rem;
   overflow-x: auto;
   padding-bottom: var(--sz-space-2);
 }
 
 .docai-extract-origin-candidate {
+  position: relative;
   display: flex;
-  width: min(22rem, 82vw);
-  min-width: min(22rem, 82vw);
-  flex: 0 0 min(22rem, 82vw);
+  width: 100%;
+  min-width: 11rem;
+  min-height: 8.5rem;
   flex-direction: column;
-  gap: 0.3rem;
-  padding: 0.65rem;
+  gap: 0.5rem;
+  padding: 0.8rem;
   border: 1px solid var(--sz-color-border);
   border-radius: var(--sz-radius-sm);
   background: var(--sz-color-surface-alt);
@@ -1167,8 +1518,56 @@
 }
 
 .docai-extract-origin-candidate.is-selected {
+  border-color: var(--sz-color-primary);
+  background: color-mix(in srgb, var(--sz-color-primary) 10%, var(--sz-color-surface-alt));
+}
+
+.docai-extract-origin-candidate.is-associated {
   border-color: var(--sz-color-success);
   background: color-mix(in srgb, var(--sz-color-success) 10%, var(--sz-color-surface-alt));
+}
+
+.docai-extract-origin-candidate.is-selected.is-associated {
+  box-shadow: inset 0 0 0 1px var(--sz-color-primary);
+}
+
+.docai-origin-link-button {
+  display: inline-grid;
+  width: 2rem;
+  height: 2rem;
+  flex: 0 0 2rem;
+  place-items: center;
+  border: 1px solid var(--sz-color-border);
+  border-radius: var(--sz-radius-sm);
+  background: var(--sz-color-surface);
+  color: var(--sz-color-primary);
+  cursor: pointer;
+}
+
+.docai-origin-link-button:hover,
+.docai-origin-link-button:focus-visible {
+  border-color: var(--sz-color-primary);
+  outline: none;
+}
+
+.docai-origin-link-button.is-associated {
+  border-color: var(--sz-color-success);
+  color: var(--sz-color-success);
+}
+
+.docai-origin-link-button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.docai-origin-card-total {
+  margin-top: auto;
+  color: var(--sz-color-text);
+  font-size: var(--sz-font-size-lg);
+}
+
+.docai-origin-detail-modal {
+  width: min(84rem, calc(100vw - 2rem));
 }
 
 .docai-extract-origin-candidate.is-virtual {
@@ -1274,29 +1673,36 @@
   text-align: center;
 }
 
-.docai-extract-line-picker {
-  display: inline-grid;
-  width: 1.75rem;
-  height: 1.75rem;
-  padding: 0;
-  place-items: center;
-  border: 0;
+.docai-extract-bl-selector {
+  width: 1.05rem;
+  height: 1.05rem;
+  margin: 0;
+  appearance: none;
+  border: 2px solid color-mix(in srgb, var(--sz-color-text-muted) 72%, transparent);
   border-radius: 50%;
-  background: transparent;
-  color: var(--sz-color-text-muted);
+  background: var(--sz-color-surface);
   cursor: pointer;
+  transition: border-color 140ms ease, background-color 140ms ease, box-shadow 140ms ease;
 }
 
-.docai-extract-line-picker:hover,
-.docai-extract-line-picker:focus-visible,
-.docai-extract-line-picker[aria-pressed="true"] {
-  background: color-mix(in srgb, var(--sz-color-primary) 13%, transparent);
-  color: var(--sz-color-primary);
-  outline: none;
+.docai-extract-bl-selector:hover {
+  border-color: var(--sz-color-primary);
 }
 
-.docai-extract-table-host tr.is-selected-for-split > td {
-  background: color-mix(in srgb, var(--sz-color-primary) 8%, var(--sz-color-surface));
+.docai-extract-bl-selector:checked {
+  border-color: var(--sz-color-primary);
+  background: var(--sz-color-primary);
+  box-shadow: inset 0 0 0 3px var(--sz-color-surface);
+}
+
+.docai-extract-bl-selector:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--sz-color-primary) 52%, transparent);
+  outline-offset: 2px;
+}
+
+.docai-extract-bl-selector:disabled {
+  cursor: default;
+  opacity: 0.35;
 }
 
 .docai-extract-table-host tr.is-split-allocation > td {
@@ -1343,6 +1749,24 @@
   font-size: 0.68rem;
 }
 
+.docai-extract-line-distribution {
+  text-align: center;
+}
+
+.docai-extract-bc-distribution-toggle {
+  width: 1.45rem;
+  height: 1.45rem;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--sz-color-warning) 55%, var(--sz-color-border));
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--sz-color-warning) 12%, var(--sz-color-surface));
+  color: color-mix(in srgb, var(--sz-color-warning) 82%, var(--sz-color-text));
+  font-weight: var(--sz-font-weight-bold);
+  cursor: pointer;
+}
+
 .docai-extract-line-action {
   color: var(--sz-color-text-muted);
   font-size: var(--sz-font-size-sm);
@@ -1356,11 +1780,45 @@
   padding: 0.3rem 0.45rem;
 }
 
-.docai-extract-bc-detail-row > td {
+.docai-extract-bc-detail-row > td,
+.docai-extract-bc-allocation-row > td {
   border-color: color-mix(in srgb, var(--sz-color-warning) 28%, var(--sz-color-border));
   background: color-mix(in srgb, var(--sz-color-warning) 12%, var(--sz-color-surface)) !important;
   color: color-mix(in srgb, var(--sz-color-warning) 82%, var(--sz-color-text));
   font-size: var(--sz-font-size-sm);
+}
+
+.docai-bc-assignment-list {
+  display: grid;
+  gap: var(--sz-space-2);
+}
+
+.docai-bc-assignment-option {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--sz-space-3);
+  padding: 0.75rem;
+  border: 1px solid var(--sz-color-border);
+  border-radius: var(--sz-radius-md);
+  background: var(--sz-color-surface-alt);
+  cursor: pointer;
+}
+
+.docai-bc-assignment-option input {
+  width: 1.1rem;
+  height: 1.1rem;
+  accent-color: var(--sz-color-primary);
+}
+
+.docai-bc-assignment-option span {
+  min-width: 0;
+  display: grid;
+  gap: 0.15rem;
+}
+
+.docai-bc-assignment-option small {
+  color: var(--sz-color-text-muted);
 }
 
 .docai-extract-bc-ref + .docai-extract-bc-ref {
@@ -1491,20 +1949,105 @@
   table-layout: fixed;
 }
 
-#docAiExtractLinesSection th:nth-child(1) { width: 7%; }
-#docAiExtractLinesSection th:nth-child(2) { width: 10%; }
-#docAiExtractLinesSection th:nth-child(3) { width: 25%; }
-#docAiExtractLinesSection th:nth-child(4) { width: 8%; }
-#docAiExtractLinesSection th:nth-child(5),
-#docAiExtractLinesSection th:nth-child(6) { width: 9%; }
-#docAiExtractLinesSection th:nth-child(7) { width: 12%; }
-#docAiExtractLinesSection th:nth-child(8) { width: 12%; }
-#docAiExtractLinesSection th:nth-child(9) { width: 5%; }
-
 #docAiExtractLinesSection th,
 #docAiExtractLinesSection td {
   min-width: 0;
   overflow-wrap: anywhere;
+  padding-inline: 0.3rem;
+  vertical-align: middle;
+}
+
+#docAiExtractLinesSection .docai-extract-table-host,
+#docAiExtractLinesSection .sz_table_wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow: visible;
+}
+
+.docai-extract-line-description-input,
+.docai-extract-line-group-input,
+.docai-extract-line-number-input,
+.docai-extract-line-date-input {
+  width: 100%;
+  min-width: 0;
+  height: 2.15rem;
+  padding: 0.35rem 0.4rem;
+}
+
+.docai-extract-line-group-input {
+  padding-inline: 0.15rem;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.docai-extract-line-group-input.is-invalid {
+  border-color: var(--sz-color-danger);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--sz-color-danger) 20%, transparent);
+}
+
+.docai-extract-line-number-input {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.docai-extract-line-money-input {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.1rem;
+}
+
+.docai-extract-line-currency {
+  display: block;
+  color: var(--sz-color-text-muted);
+  font-size: 0.62rem;
+  line-height: 1;
+  text-align: right;
+}
+
+.docai-extract-vehicle-cell {
+  padding-inline: 0.15rem !important;
+  text-align: center;
+}
+
+.docai-extract-vehicle-btn {
+  width: 1.85rem;
+  height: 1.85rem;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--sz-color-text-muted);
+  cursor: pointer;
+}
+
+.docai-extract-vehicle-btn.is-empty {
+  width: 100%;
+  min-width: 1.25rem;
+}
+
+.docai-extract-vehicle-btn.is-selected {
+  border-color: color-mix(in srgb, var(--sz-color-success) 55%, var(--sz-color-border));
+  background: color-mix(in srgb, var(--sz-color-success) 14%, var(--sz-color-surface));
+  color: var(--sz-color-success);
+}
+
+.docai-extract-vehicle-btn:focus-visible {
+  outline: 2px solid var(--sz-color-primary);
+  outline-offset: 2px;
+}
+
+.docai-extract-line-date-input {
+  font-size: 0.72rem;
+}
+
+#docAiExtractLinesSection [data-line-article] {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .docai-extract-description {
@@ -1531,6 +2074,11 @@
 .docai-extract-section[hidden],
 .docai-extract-footer-grid[hidden] {
   display: none;
+}
+
+.docai-required-missing {
+  border-color: var(--sz-color-danger) !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--sz-color-danger) 22%, transparent) !important;
 }
 
 .docai-extract-legal-badge {
@@ -2865,6 +3413,38 @@
   width: min(42rem, 100%);
 }
 
+.sz_modal > .docai-duplicate-panel {
+  width: min(46rem, calc(100vw - 2rem));
+  max-height: min(82vh, 42rem);
+}
+
+.docai-duplicate-list {
+  display: grid;
+  gap: var(--sz-space-2);
+}
+
+.docai-duplicate-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sz-space-3);
+  padding: var(--sz-space-3);
+  border: 1px solid var(--sz-color-border);
+  border-radius: var(--sz-radius-md);
+  background: color-mix(in srgb, var(--sz-color-surface-alt) 88%, transparent);
+}
+
+.docai-duplicate-item > div {
+  min-width: 0;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.docai-duplicate-item strong,
+.docai-duplicate-item span {
+  overflow-wrap: anywhere;
+}
+
 .docai-keyword-editor {
   display: grid;
   gap: 0.55rem;
@@ -2968,10 +3548,6 @@
     grid-template-columns: minmax(18rem, 0.72fr) minmax(34rem, 1.4fr);
   }
 
-  .docai-extract-summary-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
 }
 
 @media (max-width: 900px) {
@@ -3033,7 +3609,6 @@
   }
 
   .docai-extract-layout,
-  .docai-extract-summary-grid,
   .docai-extract-footer-grid,
   .docai-supplier-match-search {
     grid-template-columns: 1fr;
@@ -3062,7 +3637,7 @@
   }
 
   .docai-extract-source-actions {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .docai-extract-layout {
@@ -3074,4 +3649,15 @@
   .docai-extract-loading {
     min-height: 16rem;
   }
+}
+.docai-analysis-state-group {
+  display: grid;
+  justify-items: end;
+  gap: 0.2rem;
+  text-align: right;
+}
+
+.docai-analysis-state-group #docAiExtractStatus {
+  max-width: 32rem;
+  font-size: 0.78rem;
 }

@@ -56,6 +56,7 @@
     workInput: document.getElementById('budgetWorkInput'),
     associatedWork: document.getElementById('budgetAssociatedWork'),
     localityInput: document.getElementById('budgetLocalityInput'),
+    addressInput: document.getElementById('budgetAddressInput'),
     dateInput: document.getElementById('budgetDateInput'),
     salesperson: document.getElementById('budgetSalespersonSelect'),
     attentionInput: document.getElementById('budgetAttentionInput'),
@@ -561,6 +562,7 @@
       )
       : tr('gr_budgets.client.meta_unselected');
     setInputValue(elements.workInput, header.work_name);
+    setInputValue(elements.addressInput, header.address);
     renderAssociatedWork(payload.work, header.process);
     setInputValue(elements.localityInput, header.locality || header.place);
     setInputValue(elements.dateInput, header.date);

@@ -22,6 +22,7 @@
     metricOpen: document.getElementById('workshopMetricOpen'),
     metricDone: document.getElementById('workshopMetricDone'),
     metricVoid: document.getElementById('workshopMetricVoid'),
+    metricAlerts: document.getElementById('workshopMetricAlerts'),
 
     sheetModalEl: document.getElementById('workshopSheetModal'),
     sheetTitle: document.getElementById('workshopSheetTitle'),
@@ -40,6 +41,9 @@
     typeSearch: document.getElementById('workshopTypeSearch'),
     typeResults: document.getElementById('workshopTypeResults'),
     aiSuggestBtn: document.getElementById('workshopAiSuggestBtn'),
+    aiQuestion: document.getElementById('workshopAiQuestion'),
+    aiQuestionBtn: document.getElementById('workshopAiQuestionBtn'),
+    aiAnswer: document.getElementById('workshopAiAnswer'),
     jobText: document.getElementById('workshopJobText'),
     date: document.getElementById('workshopDate'),
     start: document.getElementById('workshopStart'),
@@ -152,6 +156,11 @@
       && !!els.vehicleStamp.value.trim()
       && !!els.typeStamp.value.trim();
     els.aiSuggestBtn.disabled = !ready || els.aiSuggestBtn.classList.contains('is-loading');
+    if (els.aiQuestionBtn) {
+      els.aiQuestionBtn.disabled = !can('aiSuggestion')
+        || !els.aiQuestion.value.trim()
+        || els.aiQuestionBtn.classList.contains('is-loading');
+    }
   }
 
   function setSheetStatus(message, tone = 'muted') {
@@ -173,6 +182,7 @@
     els.metricOpen.textContent = String(summary.open || 0);
     els.metricDone.textContent = String(summary.done || 0);
     els.metricVoid.textContent = String(summary.void || 0);
+    els.metricAlerts.textContent = String(summary.alerts || 0);
   }
 
   function renderTable() {
@@ -186,6 +196,7 @@
         <td class="sz_table_cell">
           <div class="gr-workshop-row-title">${esc(item.MATRICULA || '-')}</div>
           <div class="gr-workshop-row-subtitle">${esc(item.VEICULO_LABEL || '')}</div>
+          ${item.PREVENTIVE_ALERT ? `<div class="gr-workshop-preventive-alert"><i class="fa-solid fa-triangle-exclamation"></i> Intervenção vencida${item.PREVENTIVE_ALERT_REASON ? ` · ${esc(item.PREVENTIVE_ALERT_REASON)}` : ''}</div>` : ''}
         </td>
         <td class="sz_table_cell">
           <div class="gr-workshop-row-title">${esc(item.TRAB_DESCRICAO || item.TRABALHO || '-')}</div>
@@ -257,6 +268,8 @@
     els.planEnd.value = '';
     els.sheetState.value = 'ABERTA';
     els.obs.value = '';
+    els.aiQuestion.value = '';
+    els.aiAnswer.value = '';
     state.lines = [];
     setSheetStatus('');
     renderLines();
@@ -424,6 +437,30 @@
       window.clearTimeout(requestTimeout);
       els.aiSuggestBtn.classList.remove('is-loading');
       els.aiSuggestBtn.removeAttribute('aria-busy');
+      refreshAiSuggestionButton();
+    }
+  }
+
+  async function askAiQuestion() {
+    if (!can('aiSuggestion') || !els.aiQuestion.value.trim()) return;
+    els.aiQuestionBtn.classList.add('is-loading');
+    els.aiQuestionBtn.disabled = true;
+    els.aiAnswer.value = 'A obter resposta...';
+    try {
+      const payload = await api(cfg.aiQuestionUrl, {
+        method: 'POST',
+        body: JSON.stringify({
+          question: els.aiQuestion.value.trim(),
+          VASTAMP: els.vehicleStamp.value.trim(),
+          MATRICULA: els.vehicleSearch.value.trim(),
+        }),
+      });
+      els.aiAnswer.value = payload.answer || '';
+    } catch (error) {
+      els.aiAnswer.value = '';
+      setSheetStatus(error.message, 'danger');
+    } finally {
+      els.aiQuestionBtn.classList.remove('is-loading');
       refreshAiSuggestionButton();
     }
   }
@@ -753,6 +790,8 @@
   els.annulBtn.addEventListener('click', annulCurrentSheet);
   els.addLineBtn.addEventListener('click', () => addLine());
   els.aiSuggestBtn?.addEventListener('click', suggestWithAi);
+  els.aiQuestionBtn?.addEventListener('click', askAiQuestion);
+  els.aiQuestion?.addEventListener('input', refreshAiSuggestionButton);
   els.vehicleSearch.addEventListener('input', () => {
     els.vehicleStamp.value = '';
     refreshAiSuggestionButton();

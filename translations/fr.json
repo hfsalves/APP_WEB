@@ -544,6 +544,7 @@
   "gr_budgets.error.series_unavailable": "Cette société ne dispose d’aucune série de devis avec OCI configurée.",
   "gr_budgets.error.year_invalid": "L’année n’est pas valide.",
   "gr_budgets.field.attention": "À l’attention de",
+  "gr_budgets.field.address": "Adresse du chantier",
   "gr_budgets.field.associated_work": "Chantier associé",
   "gr_budgets.field.client": "Client",
   "gr_budgets.field.company": "Société",

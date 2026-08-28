@@ -6,8 +6,12 @@ from services.document_ai_inbox_access_service import allowed_inbox_views, is_in
 class DocumentAiInboxAccessServiceTests(unittest.TestCase):
     def test_default_mapping_is_explicit(self):
         self.assertEqual([item["value"] for item in allowed_inbox_views("ldias")], ["home"])
-        self.assertEqual([item["value"] for item in allowed_inbox_views("msilva")], ["management"])
+        self.assertEqual(
+            [item["value"] for item in allowed_inbox_views("msilva")],
+            ["home", "management", "accounting"],
+        )
         self.assertEqual([item["value"] for item in allowed_inbox_views("arocha")], ["management"])
+        self.assertEqual([item["value"] for item in allowed_inbox_views("aelhaj")], ["accounting"])
 
     def test_unknown_user_fails_closed(self):
         self.assertEqual(allowed_inbox_views("admin"), [])
@@ -25,7 +29,7 @@ class DocumentAiInboxAccessServiceTests(unittest.TestCase):
 
     def test_view_check_rejects_non_authorized_view(self):
         self.assertTrue(is_inbox_view_allowed("msilva", "management"))
-        self.assertFalse(is_inbox_view_allowed("msilva", "home"))
+        self.assertFalse(is_inbox_view_allowed("arocha", "home"))
 
 
 if __name__ == "__main__":

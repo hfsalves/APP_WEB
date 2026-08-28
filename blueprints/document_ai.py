@@ -2,7 +2,7 @@ import hashlib
 import io
 import json
 
-from flask import Blueprint, current_app, jsonify, render_template, request, send_file
+from flask import Blueprint, current_app, jsonify, redirect, render_template, request, send_file, url_for
 from flask_login import current_user, login_required
 
 from models import Acessos, db
@@ -10,11 +10,13 @@ from services.document_ai_service import (
     classify_document_with_llm,
     clear_document_phc_origin,
     delete_document_from_inbox,
+    document_belongs_to_inbox_view,
     delete_document_source,
     document_ai_lookups,
     get_document_detail,
     get_document_group,
     get_document_phc_origins,
+    get_phc_document_origin_detail,
     get_next_phc_correspondence_reference,
     get_cached_llm_extraction,
     get_document_original_file,
@@ -32,6 +34,7 @@ from services.document_ai_service import (
     mark_document_as_provisional_invoice,
     mark_document_control_ok,
     mark_document_validation_error,
+    preflight_document_inbox_stage,
     reprocess_document,
     reconcile_extracted_document,
     reset_llm_extraction,
@@ -51,6 +54,7 @@ from services.document_ai_service import (
     search_external_parties,
     search_phc_document_origins,
     search_phc_articles,
+    search_phc_vehicles,
     search_phc_projects,
     split_extracted_pdf_into_inbox,
     submit_correspondence_to_phc,
@@ -64,6 +68,27 @@ from services.document_ai_inbox_access_service import (
     INBOX_VIEW_DEFINITIONS,
     allowed_inbox_views,
     is_inbox_view_allowed,
+)
+from services.document_ai_access_service import (
+    allowed_views as access_allowed_views,
+    can_access_document,
+    has_permission as has_document_ai_permission,
+    is_access_admin as is_document_ai_access_admin,
+    list_access_configuration,
+    permission_profile as document_ai_permission_profile,
+    save_access_configuration,
+    scope_filters_for,
+)
+from services.document_ai_distribution_service import (
+    delete_distribution_rule,
+    distribution_impact,
+    list_distribution_configuration,
+    save_distribution_rule,
+)
+from services.document_ai_required_info_service import (
+    delete_required_info_rule,
+    list_required_info_configuration,
+    save_required_info_rule,
 )
 from services.document_ai_llm_service import extract_document_full_visual
 
@@ -89,19 +114,55 @@ def _current_login() -> str:
 
 
 def _document_ai_is_admin() -> bool:
-    return bool(getattr(current_user, 'ADMIN', False))
+    return is_document_ai_access_admin(_current_login())
 
 
 def _allowed_current_inbox_views() -> list[dict[str, str]]:
-    if bool(getattr(current_user, 'ADMIN', False) or getattr(current_user, 'DEV', False)):
-        return [dict(view) for view in INBOX_VIEW_DEFINITIONS]
-    return allowed_inbox_views(_current_login(), current_app.config)
+    return access_allowed_views(_current_login())
 
 
 def _current_inbox_view_is_allowed(view: str) -> bool:
-    if bool(getattr(current_user, 'ADMIN', False) or getattr(current_user, 'DEV', False)):
-        return any(item['value'] == str(view or '').strip().lower() for item in INBOX_VIEW_DEFINITIONS)
-    return is_inbox_view_allowed(_current_login(), view, current_app.config)
+    return has_document_ai_permission(_current_login(), view, 'consult')
+
+
+def _current_document_ai_permission(view: str, permission: str) -> bool:
+    return has_document_ai_permission(_current_login(), view, permission)
+
+
+def _current_document_access(docinstamp: str, view: str, permission: str) -> bool:
+    return can_access_document(_current_login(), view, permission, docinstamp)
+
+
+def _current_document_ai_any_permission(permission: str) -> bool:
+    return any(
+        _current_document_ai_permission(item['value'], permission)
+        for item in _allowed_current_inbox_views()
+    )
+
+
+def _first_document_permission_view(docinstamp: str, permission: str) -> str:
+    for item in _allowed_current_inbox_views():
+        view = item['value']
+        if _current_document_access(docinstamp, view, permission):
+            return view
+    return ''
+
+
+def _current_feid_is_allowed(view: str, feid: int) -> bool:
+    profile = document_ai_permission_profile(_current_login(), view)
+    if not profile['allowed']:
+        return False
+    return bool(profile['all_entities'] or int(feid or 0) in set(profile['entity_ids']))
+
+
+def _requested_document_ai_view() -> str:
+    body = request.get_json(silent=True) if request.is_json else {}
+    return str(
+        request.args.get('view')
+        or request.form.get('view')
+        or (body or {}).get('view')
+        or ''
+    ).strip().lower()
 
 
 def _document_ai_has_integration_access(document_type: str) -> bool:
@@ -122,6 +183,7 @@ def document_ai_inbox_page():
         'document_ai_inbox.html',
         page_title='Processamento Documental',
         document_ai_inbox_views=inbox_views,
+        document_ai_access_admin=_document_ai_is_admin(),
     )
 
 
@@ -134,16 +196,25 @@ def document_ai_extract_page():
     if not inbox_views:
         return render_template('error.html', message='Sem acesso ao Inbox.'), 403
     requested_view = str(request.args.get('view') or inbox_views[0]['value']).strip().lower()
-    if not _current_inbox_view_is_allowed(requested_view):
+    if not _current_document_ai_permission(requested_view, 'analyze'):
         return render_template('error.html', message='Sem acesso a esta etapa documental.'), 403
+    requested_document_id = str(request.args.get('document_id') or '').strip()
+    if requested_document_id and not _current_document_access(requested_document_id, requested_view, 'analyze'):
+        return render_template('error.html', message='Sem acesso a este documento.'), 403
+    profile = document_ai_permission_profile(_current_login(), requested_view)
     return render_template(
         'document_ai_extract.html',
         page_title='Leitura Inteligente de Documentos',
         document_ai_inbox_views=inbox_views,
         document_ai_current_view=requested_view,
-        can_validate_document=_document_ai_has_access('editar'),
+        can_validate_document=bool(profile['permissions'].get('validate')),
+        can_analyze_document=bool(profile['permissions'].get('analyze')),
+        can_delete_document=bool(profile['permissions'].get('delete') and requested_view in {'home', 'management'}),
+        can_use_document_ai=bool(profile['permissions'].get('ai')),
+        can_associate_document=bool(profile['permissions'].get('associate')),
         can_submit_correspondence=_document_ai_has_integration_access('correspondence'),
         can_submit_provisional_invoice=_document_ai_has_integration_access('provisional_invoice'),
+        document_ai_access_admin=_document_ai_is_admin(),
     )
 
 
@@ -152,17 +223,18 @@ def document_ai_extract_page():
 def document_ai_review_page(docinstamp: str):
     if not _document_ai_has_access('consultar'):
         return render_template('error.html', message='Sem permissão para validar documentos.'), 403
-    return render_template(
-        'document_ai_review.html',
-        page_title='Validação Documental',
-        docinstamp=str(docinstamp or '').strip(),
-    )
+    document_id = str(docinstamp or '').strip()
+    for item in _allowed_current_inbox_views():
+        view = item['value']
+        if _current_document_access(document_id, view, 'analyze'):
+            return redirect(url_for('document_ai.document_ai_extract_page', document_id=document_id, view=view))
+    return render_template('error.html', message='Sem acesso a este documento.'), 403
 
 
 @bp.route('/document_ai/templates')
 @login_required
 def document_ai_templates_page():
-    if not _document_ai_has_access('consultar'):
+    if not _document_ai_has_access('consultar') or not _current_document_ai_any_permission('associate'):
         return render_template('error.html', message='Sem permissão para gerir templates documentais.'), 403
     return render_template('document_ai_templates.html', page_title='Modelos Documentais')
 
@@ -170,7 +242,7 @@ def document_ai_templates_page():
 @bp.route('/document_ai/sources')
 @login_required
 def document_ai_sources_page():
-    if not _document_ai_has_access('consultar'):
+    if not _document_ai_has_access('consultar') or not _document_ai_is_admin():
         return render_template('error.html', message='Sem permissão para gerir origens documentais.'), 403
     return render_template('document_ai_sources.html', page_title='Origens Documentais')
 
@@ -243,7 +315,127 @@ def api_document_ai_inbox():
         'date_to': request.args.get('date_to', ''),
         'archived': request.args.get('archived', ''),
     }
-    return jsonify(list_documents(filters))
+    filters.update(scope_filters_for(_current_login(), requested_view))
+    payload = list_documents(filters)
+    payload['permissions'] = document_ai_permission_profile(_current_login(), requested_view)['permissions']
+    return jsonify(payload)
+
+
+@bp.route('/api/document_ai/access-configuration', methods=['GET'])
+@login_required
+def api_document_ai_access_configuration():
+    if not _document_ai_is_admin():
+        return jsonify({'error': 'Sem permissão para administrar acessos Document AI.'}), 403
+    return jsonify(list_access_configuration(request.args.get('search', '')))
+
+
+@bp.route('/api/document_ai/access-configuration', methods=['PUT'])
+@login_required
+def api_document_ai_access_configuration_save():
+    if not _document_ai_is_admin():
+        return jsonify({'error': 'Sem permissão para administrar acessos Document AI.'}), 403
+    try:
+        return jsonify(save_access_configuration(request.get_json(silent=True) or {}, _current_login()))
+    except (ValueError, PermissionError) as exc:
+        return jsonify({'error': str(exc)}), 400 if isinstance(exc, ValueError) else 403
+    except Exception as exc:
+        current_app.logger.exception('Erro ao guardar acessos Document AI')
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        return jsonify({'error': str(exc)}), 500
+
+
+@bp.route('/api/document_ai/distribution-configuration', methods=['GET'])
+@login_required
+def api_document_ai_distribution_configuration():
+    if not _document_ai_is_admin():
+        return jsonify({'error': 'Sem permissão para administrar distribuições Document AI.'}), 403
+    return jsonify(list_distribution_configuration())
+
+
+@bp.route('/api/document_ai/required-info', methods=['GET'])
+@login_required
+def api_document_ai_required_info():
+    if not _document_ai_is_admin():
+        return jsonify({'error': 'Sem permissão para administrar informações obrigatórias.'}), 403
+    return jsonify(list_required_info_configuration())
+
+
+@bp.route('/api/document_ai/required-info', methods=['POST', 'PUT'])
+@login_required
+def api_document_ai_required_info_save():
+    if not _document_ai_is_admin():
+        return jsonify({'error': 'Sem permissão para administrar informações obrigatórias.'}), 403
+    try:
+        return jsonify(save_required_info_rule(request.get_json(silent=True) or {}, _current_login()))
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception as exc:
+        current_app.logger.exception('Erro ao guardar informação obrigatória Document AI')
+        db.session.rollback()
+        return jsonify({'error': str(exc)}), 500
+
+
+@bp.route('/api/document_ai/required-info/<rule_id>', methods=['DELETE'])
+@login_required
+def api_document_ai_required_info_delete(rule_id: str):
+    if not _document_ai_is_admin():
+        return jsonify({'error': 'Sem permissão para administrar informações obrigatórias.'}), 403
+    try:
+        return jsonify(delete_required_info_rule(rule_id, _current_login()))
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception as exc:
+        current_app.logger.exception('Erro ao eliminar informação obrigatória Document AI')
+        db.session.rollback()
+        return jsonify({'error': str(exc)}), 500
+
+
+@bp.route('/api/document_ai/distribution-configuration', methods=['POST', 'PUT'])
+@login_required
+def api_document_ai_distribution_configuration_save():
+    if not _document_ai_is_admin():
+        return jsonify({'error': 'Sem permissão para administrar distribuições Document AI.'}), 403
+    try:
+        return jsonify(save_distribution_rule(request.get_json(silent=True) or {}, _current_login()))
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception as exc:
+        current_app.logger.exception('Erro ao guardar distribuição Document AI')
+        db.session.rollback()
+        return jsonify({'error': str(exc)}), 500
+
+
+@bp.route('/api/document_ai/distribution-configuration/impact', methods=['POST'])
+@login_required
+def api_document_ai_distribution_configuration_impact():
+    if not _document_ai_is_admin():
+        return jsonify({'error': 'Sem permissão para administrar distribuições Document AI.'}), 403
+    try:
+        return jsonify(distribution_impact(request.get_json(silent=True) or {}))
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception as exc:
+        current_app.logger.exception('Erro ao calcular impacto da distribuição Document AI')
+        db.session.rollback()
+        return jsonify({'error': str(exc)}), 500
+
+
+@bp.route('/api/document_ai/distribution-configuration/<rule_id>', methods=['DELETE'])
+@login_required
+def api_document_ai_distribution_configuration_delete(rule_id: str):
+    if not _document_ai_is_admin():
+        return jsonify({'error': 'Sem permissão para administrar distribuições Document AI.'}), 403
+    try:
+        return jsonify(delete_distribution_rule(rule_id, _current_login()))
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception as exc:
+        current_app.logger.exception('Erro ao eliminar distribuição Document AI')
+        db.session.rollback()
+        return jsonify({'error': str(exc)}), 500
 
 
 @bp.route('/api/document_ai/extract', methods=['POST'])
@@ -252,6 +444,9 @@ def api_document_ai_extract():
     if not _document_ai_has_access('consultar'):
         return jsonify({'error': 'Sem permissão para extrair documentos.'}), 403
 
+    requested_view = str(request.form.get('view') or '').strip().lower()
+    if not _current_document_ai_permission(requested_view, 'ai'):
+        return jsonify({'error': 'Sem permissão para usar iA nesta visualização.'}), 403
     uploaded_file = request.files.get('file')
     if not uploaded_file or not str(uploaded_file.filename or '').strip():
         return jsonify({'error': 'Seleciona um ficheiro PDF.'}), 400
@@ -271,6 +466,8 @@ def api_document_ai_extract():
         requested_document_id = str(request.form.get('document_id') or '').strip()
         existing_document_id = requested_document_id or find_llm_inbox_document(file_bytes)
         document_id = existing_document_id
+        if document_id and not _current_document_access(document_id, requested_view, 'ai'):
+            return jsonify({'error': 'Sem acesso a este documento.'}), 403
         inbox = {
             'id': document_id,
             'created': False,
@@ -328,6 +525,9 @@ def api_document_ai_extract():
 @bp.route('/api/document_ai/extract/split', methods=['POST'])
 @login_required
 def api_document_ai_extract_split():
+    requested_view = _requested_document_ai_view()
+    if not _current_document_ai_permission(requested_view, 'analyze'):
+        return jsonify({'error': 'Sem permissão para analisar nesta visualização.'}), 403
     if not _document_ai_has_access('inserir'):
         return jsonify({'error': 'Sem permissão para criar documentos no inbox.'}), 403
     uploaded_file = request.files.get('file')
@@ -368,6 +568,9 @@ def api_document_ai_extract_split():
 @bp.route('/api/document_ai/origins/search', methods=['POST'])
 @login_required
 def api_document_ai_origins_search():
+    requested_view = _requested_document_ai_view()
+    if not _current_document_ai_permission(requested_view, 'associate'):
+        return jsonify({'error': 'Sem permissão para associar nesta visualização.'}), 403
     if not _document_ai_has_access('consultar'):
         return jsonify({'error': 'Sem permissão.'}), 403
     body = request.get_json(silent=True) or {}
@@ -384,9 +587,29 @@ def api_document_ai_origins_search():
         return jsonify({'available': False, 'error': str(exc), 'stages': []}), 500
 
 
+@bp.route('/api/document_ai/documents/<docinstamp>/origins/<originstamp>', methods=['GET'])
+@login_required
+def api_document_ai_origin_detail(docinstamp: str, originstamp: str):
+    if not _document_ai_has_access('consultar'):
+        return jsonify({'error': 'Sem permissão.'}), 403
+    requested_view = _requested_document_ai_view()
+    if not _current_document_access(docinstamp, requested_view, 'analyze'):
+        return jsonify({'error': 'Sem acesso a este documento.'}), 403
+    try:
+        return jsonify(get_phc_document_origin_detail(docinstamp, originstamp))
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception as exc:
+        current_app.logger.exception('Erro ao consultar detalhe da origem PHC')
+        return jsonify({'error': str(exc)}), 500
+
+
 @bp.route('/api/document_ai/projects/search', methods=['POST'])
 @login_required
 def api_document_ai_projects_search():
+    requested_view = _requested_document_ai_view()
+    if not _current_document_ai_permission(requested_view, 'associate'):
+        return jsonify({'error': 'Sem permissão para associar nesta visualização.'}), 403
     if not _document_ai_has_access('consultar'):
         return jsonify({'error': 'Sem permissão.'}), 403
     body = request.get_json(silent=True) or {}
@@ -406,6 +629,9 @@ def api_document_ai_projects_search():
 @bp.route('/api/document_ai/articles/search', methods=['POST'])
 @login_required
 def api_document_ai_articles_search():
+    requested_view = _requested_document_ai_view()
+    if not _current_document_ai_permission(requested_view, 'associate'):
+        return jsonify({'error': 'Sem permissão para associar nesta visualização.'}), 403
     if not _document_ai_has_access('consultar'):
         return jsonify({'error': 'Sem permissão.'}), 403
     body = request.get_json(silent=True) or {}
@@ -422,11 +648,36 @@ def api_document_ai_articles_search():
         return jsonify({'error': str(exc)}), 500
 
 
+@bp.route('/api/document_ai/vehicles/search', methods=['POST'])
+@login_required
+def api_document_ai_vehicles_search():
+    requested_view = _requested_document_ai_view()
+    if not _current_document_ai_permission(requested_view, 'associate'):
+        return jsonify({'error': 'Sem permissão para associar nesta visualização.'}), 403
+    if not _document_ai_has_access('consultar'):
+        return jsonify({'error': 'Sem permissão.'}), 403
+    body = request.get_json(silent=True) or {}
+    try:
+        return jsonify(search_phc_vehicles(
+            body.get('customer') or {},
+            str(body.get('query') or ''),
+            int(body.get('limit') or 20),
+        ))
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception as exc:
+        current_app.logger.exception('Erro ao pesquisar viaturas PHC')
+        return jsonify({'error': str(exc)}), 500
+
+
 @bp.route('/api/document_ai/correspondence/next-reference', methods=['POST'])
 @login_required
 def api_document_ai_correspondence_next_reference():
     if not _document_ai_has_access('consultar'):
         return jsonify({'error': 'Sem permissão.'}), 403
+    requested_view = _requested_document_ai_view()
+    if not _current_document_ai_permission(requested_view, 'associate'):
+        return jsonify({'error': 'Sem permissão para associar nesta visualização.'}), 403
     body = request.get_json(silent=True) or {}
     try:
         return jsonify(get_next_phc_correspondence_reference(
@@ -443,6 +694,9 @@ def api_document_ai_correspondence_next_reference():
 @bp.route('/api/document_ai/correspondence/submit', methods=['POST'])
 @login_required
 def api_document_ai_correspondence_submit():
+    requested_view = _requested_document_ai_view()
+    if not _current_document_ai_permission(requested_view, 'validate'):
+        return jsonify({'error': 'Sem permissão para validar nesta visualização.'}), 403
     if not _document_ai_has_integration_access('correspondence'):
         return jsonify({'error': 'Não tens acesso para integrar correspondência no PHC.'}), 403
     uploaded_file = request.files.get('file')
@@ -460,6 +714,9 @@ def api_document_ai_correspondence_submit():
         document_data = json.loads(request.form.get('document_data') or '{}')
     except Exception:
         return jsonify({'error': 'Os dados da correspondência não são válidos.'}), 400
+    document_id = str(request.form.get('document_id') or '').strip()
+    if document_id and not _current_document_access(document_id, requested_view, 'validate'):
+        return jsonify({'error': 'Sem acesso a este documento.'}), 403
     try:
         return jsonify(submit_correspondence_to_phc(
             document_data,
@@ -479,6 +736,9 @@ def api_document_ai_correspondence_submit():
 @bp.route('/api/document_ai/provisional-invoice/submit', methods=['POST'])
 @login_required
 def api_document_ai_provisional_invoice_submit():
+    requested_view = _requested_document_ai_view()
+    if not _current_document_ai_permission(requested_view, 'validate'):
+        return jsonify({'error': 'Sem permissão para validar nesta visualização.'}), 403
     if not _document_ai_has_integration_access('provisional_invoice'):
         return jsonify({'error': 'Não tens acesso para integrar Facture Provisoire no PHC.'}), 403
     uploaded_file = request.files.get('file')
@@ -499,6 +759,8 @@ def api_document_ai_provisional_invoice_submit():
     document_id = str(request.form.get('document_id') or '').strip()
     if not document_id:
         return jsonify({'error': 'O documento tem de estar guardado no inbox antes da validação.'}), 400
+    if not _current_document_access(document_id, requested_view, 'validate'):
+        return jsonify({'error': 'Sem acesso a este documento.'}), 403
     try:
         require_document_control_ok(document_id)
         result = submit_provisional_invoice_to_phc(
@@ -532,6 +794,9 @@ def api_document_ai_provisional_invoice_submit():
 @bp.route('/api/document_ai/documents/<docinstamp>/control-ok', methods=['POST'])
 @login_required
 def api_document_ai_document_control_ok(docinstamp: str):
+    requested_view = _requested_document_ai_view()
+    if not _current_document_access(docinstamp, requested_view, 'analyze'):
+        return jsonify({'error': 'Sem acesso a este documento.'}), 403
     if not _document_ai_has_access('editar'):
         return jsonify({'error': 'Sem permissão para concluir o controlo.'}), 403
     if not _document_ai_has_integration_access('provisional_invoice'):
@@ -553,7 +818,7 @@ def api_document_ai_document_control_ok(docinstamp: str):
 @bp.route('/api/document_ai/sources', methods=['GET'])
 @login_required
 def api_document_ai_sources():
-    if not _document_ai_has_access('consultar'):
+    if not _document_ai_has_access('consultar') or not _document_ai_is_admin():
         return jsonify({'error': 'Sem permissão.'}), 403
     try:
         return jsonify(list_document_sources())
@@ -565,7 +830,7 @@ def api_document_ai_sources():
 @bp.route('/api/document_ai/sources/<source_id>', methods=['GET'])
 @login_required
 def api_document_ai_source_detail(source_id: str):
-    if not _document_ai_has_access('consultar'):
+    if not _document_ai_has_access('consultar') or not _document_ai_is_admin():
         return jsonify({'error': 'Sem permissão.'}), 403
     try:
         return jsonify(get_document_source(source_id))
@@ -577,7 +842,7 @@ def api_document_ai_source_detail(source_id: str):
 @bp.route('/api/document_ai/sources', methods=['POST'])
 @login_required
 def api_document_ai_source_create():
-    if not _document_ai_has_access('inserir'):
+    if not _document_ai_has_access('inserir') or not _document_ai_is_admin():
         return jsonify({'error': 'Sem permissão para criar origens.'}), 403
     body = request.get_json(silent=True) or {}
     try:
@@ -594,7 +859,7 @@ def api_document_ai_source_create():
 @bp.route('/api/document_ai/sources/<source_id>', methods=['PUT'])
 @login_required
 def api_document_ai_source_update(source_id: str):
-    if not _document_ai_has_access('editar'):
+    if not _document_ai_has_access('editar') or not _document_ai_is_admin():
         return jsonify({'error': 'Sem permissão para editar origens.'}), 403
     body = request.get_json(silent=True) or {}
     try:
@@ -611,7 +876,7 @@ def api_document_ai_source_update(source_id: str):
 @bp.route('/api/document_ai/sources/<source_id>', methods=['DELETE'])
 @login_required
 def api_document_ai_source_delete(source_id: str):
-    if not _document_ai_has_access('eliminar'):
+    if not _document_ai_has_access('eliminar') or not _document_ai_is_admin():
         return jsonify({'error': 'Sem permissão para remover origens.'}), 403
     try:
         return jsonify(delete_document_source(source_id))
@@ -629,6 +894,9 @@ def api_document_ai_source_delete(source_id: str):
 def api_document_ai_upload():
     if not _document_ai_has_access('inserir'):
         return jsonify({'error': 'Sem permissão para importar documentos.'}), 403
+    requested_view = str(request.form.get('view') or '').strip().lower()
+    if not _current_document_ai_permission(requested_view, 'create'):
+        return jsonify({'error': 'Sem permissão para criar documentos nesta visualização.'}), 403
     uploaded_file = request.files.get('file')
     if not uploaded_file:
         return jsonify({'error': 'Ficheiro em falta.'}), 400
@@ -654,6 +922,11 @@ def api_document_ai_upload():
 def api_document_ai_document_detail(docinstamp: str):
     if not _document_ai_has_access('consultar'):
         return jsonify({'error': 'Sem permissão.'}), 403
+    requested_view = str(request.args.get('view') or '').strip().lower()
+    if not requested_view:
+        requested_view = _first_document_permission_view(docinstamp, 'analyze')
+    if not _current_document_access(docinstamp, requested_view, 'analyze'):
+        return jsonify({'error': 'Sem acesso a este documento.'}), 403
     try:
         return jsonify(get_document_detail(docinstamp))
     except Exception as exc:
@@ -666,6 +939,9 @@ def api_document_ai_document_detail(docinstamp: str):
 def api_document_ai_document_group(docinstamp: str):
     if not _document_ai_has_access('consultar'):
         return jsonify({'error': 'Sem permissão.'}), 403
+    requested_view = str(request.args.get('view') or '').strip().lower()
+    if not _current_document_access(docinstamp, requested_view, 'analyze'):
+        return jsonify({'error': 'Sem acesso a este documento.'}), 403
     try:
         return jsonify(get_document_group(docinstamp))
     except Exception as exc:
@@ -678,6 +954,9 @@ def api_document_ai_document_group(docinstamp: str):
 def api_document_ai_document_origin_link(docinstamp: str):
     if not _document_ai_has_access('editar'):
         return jsonify({'error': 'Sem permissão para ligar a origem.'}), 403
+    requested_view = _requested_document_ai_view()
+    if not _current_document_access(docinstamp, requested_view, 'associate'):
+        return jsonify({'error': 'Sem permissão para associar este documento.'}), 403
     body = request.get_json(silent=True) or {}
     try:
         return jsonify(save_document_phc_origin(
@@ -702,6 +981,9 @@ def api_document_ai_document_origin_link(docinstamp: str):
 def api_document_ai_document_origin_unlink(docinstamp: str):
     if not _document_ai_has_access('editar'):
         return jsonify({'error': 'Sem permissão para desmarcar a origem.'}), 403
+    requested_view = _requested_document_ai_view()
+    if not _current_document_access(docinstamp, requested_view, 'associate'):
+        return jsonify({'error': 'Sem permissão para associar este documento.'}), 403
     body = request.get_json(silent=True) or {}
     try:
         return jsonify(clear_document_phc_origin(
@@ -725,6 +1007,9 @@ def api_document_ai_document_origin_unlink(docinstamp: str):
 def api_document_ai_document_lines_update(docinstamp: str):
     if not _document_ai_has_access('editar'):
         return jsonify({'error': 'Sem permissão para ajustar as linhas.'}), 403
+    requested_view = _requested_document_ai_view()
+    if not _current_document_access(docinstamp, requested_view, 'associate'):
+        return jsonify({'error': 'Sem permissão para associar este documento.'}), 403
     body = request.get_json(silent=True) or {}
     try:
         return jsonify(save_document_adjusted_lines(
@@ -748,6 +1033,16 @@ def api_document_ai_document_lines_update(docinstamp: str):
 def api_document_ai_document_delete(docinstamp: str):
     if not _document_ai_has_access('eliminar'):
         return jsonify({'error': 'Sem permissão para eliminar documentos.'}), 403
+    body = request.get_json(silent=True) or {}
+    requested_view = str(body.get('view') or '').strip().lower()
+    if requested_view not in {'home', 'management'} or not _current_inbox_view_is_allowed(requested_view):
+        return jsonify({'error': 'Sem permissão para eliminar documentos nesta vista.'}), 403
+    if not _current_document_ai_permission(requested_view, 'delete'):
+        return jsonify({'error': 'Sem permissão para eliminar documentos nesta vista.'}), 403
+    if not _current_document_access(docinstamp, requested_view, 'delete'):
+        return jsonify({'error': 'Sem acesso a este documento.'}), 403
+    if not document_belongs_to_inbox_view(docinstamp, requested_view):
+        return jsonify({'error': 'O documento não pertence a esta vista do Inbox.'}), 403
     try:
         return jsonify(delete_document_from_inbox(docinstamp, _current_login()))
     except Exception as exc:
@@ -764,6 +1059,9 @@ def api_document_ai_document_delete(docinstamp: str):
 def api_document_ai_document_preview(docinstamp: str):
     if not _document_ai_has_access('consultar'):
         return jsonify({'error': 'Sem permissão.'}), 403
+    requested_view = _requested_document_ai_view()
+    if not _current_document_access(docinstamp, requested_view, 'analyze'):
+        return jsonify({'error': 'Sem acesso a este documento.'}), 403
     try:
         preview = get_document_preview_page(docinstamp, request.args.get('page', 1))
         if preview.get('kind') == 'bytes':
@@ -787,6 +1085,9 @@ def api_document_ai_document_preview(docinstamp: str):
 def api_document_ai_document_original(docinstamp: str):
     if not _document_ai_has_access('consultar'):
         return jsonify({'error': 'Sem permissão.'}), 403
+    requested_view = _requested_document_ai_view()
+    if not _current_document_access(docinstamp, requested_view, 'analyze'):
+        return jsonify({'error': 'Sem acesso a este documento.'}), 403
     try:
         original = get_document_original_file(docinstamp)
         return send_file(
@@ -805,6 +1106,9 @@ def api_document_ai_document_original(docinstamp: str):
 def api_document_ai_document_reprocess(docinstamp: str):
     if not _document_ai_has_access('editar'):
         return jsonify({'error': 'Sem permissão para reprocessar.'}), 403
+    requested_view = _requested_document_ai_view()
+    if not _current_document_access(docinstamp, requested_view, 'ai'):
+        return jsonify({'error': 'Sem permissão para usar iA neste documento.'}), 403
     body = request.get_json(silent=True) or {}
     try:
         payload = reprocess_document(
@@ -830,6 +1134,9 @@ def api_document_ai_document_reprocess(docinstamp: str):
 def api_document_ai_document_classify_llm(docinstamp: str):
     if not _document_ai_has_access('consultar'):
         return jsonify({'error': 'Sem permissão.'}), 403
+    requested_view = _requested_document_ai_view()
+    if not _current_document_access(docinstamp, requested_view, 'ai'):
+        return jsonify({'error': 'Sem permissão para usar iA neste documento.'}), 403
     try:
         return jsonify(classify_document_with_llm(docinstamp, _current_login()))
     except Exception as exc:
@@ -846,6 +1153,9 @@ def api_document_ai_document_classify_llm(docinstamp: str):
 def api_document_ai_document_validate(docinstamp: str):
     if not _document_ai_has_access('editar'):
         return jsonify({'error': 'Sem permissão para validar.'}), 403
+    requested_view = _requested_document_ai_view()
+    if not _current_document_access(docinstamp, requested_view, 'analyze'):
+        return jsonify({'error': 'Sem permissão para analisar este documento.'}), 403
     body = request.get_json(silent=True) or {}
     try:
         return jsonify(save_document_review(docinstamp, body, _current_login()))
@@ -864,6 +1174,9 @@ def api_document_ai_document_workflow_validate(docinstamp: str):
     if not _document_ai_has_access('editar'):
         return jsonify({'error': 'Sem permissão para validar.'}), 403
     body = request.get_json(silent=True) or {}
+    requested_view = _requested_document_ai_view()
+    if not _current_document_access(docinstamp, requested_view, 'validate'):
+        return jsonify({'error': 'Sem permissão para validar este documento.'}), 403
     view = str(body.get('view') or '').strip().lower()
     if not _current_inbox_view_is_allowed(view):
         return jsonify({'error': 'Sem acesso a esta etapa documental.'}), 403
@@ -885,12 +1198,46 @@ def api_document_ai_document_workflow_validate(docinstamp: str):
         return jsonify({'error': str(exc)}), 500
 
 
+@bp.route('/api/document_ai/documents/<docinstamp>/workflow/preflight', methods=['POST'])
+@login_required
+def api_document_ai_document_workflow_preflight(docinstamp: str):
+    if not _document_ai_has_access('editar'):
+        return jsonify({'error': 'Sem permissão para validar.'}), 403
+    body = request.get_json(silent=True) or {}
+    requested_view = _requested_document_ai_view()
+    if not _current_document_access(docinstamp, requested_view, 'validate'):
+        return jsonify({'error': 'Sem permissão para validar este documento.'}), 403
+    view = str(body.get('view') or '').strip().lower()
+    if not _current_inbox_view_is_allowed(view):
+        return jsonify({'error': 'Sem acesso a esta etapa documental.'}), 403
+    try:
+        return jsonify(preflight_document_inbox_stage(
+            docinstamp,
+            view,
+            body.get('document') or None,
+            requested_by=_current_login(),
+            allow_duplicate_override=bool(body.get('confirm_duplicate')),
+        ))
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception as exc:
+        current_app.logger.exception('Erro ao pré-validar etapa documental')
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        return jsonify({'error': str(exc)}), 500
+
+
 @bp.route('/api/document_ai/documents/<docinstamp>/save_template', methods=['POST'])
 @login_required
 def api_document_ai_document_save_template(docinstamp: str):
     if not _document_ai_has_access('editar'):
         return jsonify({'error': 'Sem permissão para guardar templates.'}), 403
     body = request.get_json(silent=True) or {}
+    requested_view = _requested_document_ai_view()
+    if not _current_document_access(docinstamp, requested_view, 'associate'):
+        return jsonify({'error': 'Sem permissão para associar este documento.'}), 403
     try:
         return jsonify(save_template_from_document(docinstamp, body, _current_login()))
     except Exception as exc:
@@ -905,7 +1252,7 @@ def api_document_ai_document_save_template(docinstamp: str):
 @bp.route('/api/document_ai/templates', methods=['GET'])
 @login_required
 def api_document_ai_templates():
-    if not _document_ai_has_access('consultar'):
+    if not _document_ai_has_access('consultar') or not _current_document_ai_any_permission('associate'):
         return jsonify({'error': 'Sem permissão.'}), 403
     filters = {
         'search': request.args.get('search', ''),
@@ -919,7 +1266,7 @@ def api_document_ai_templates():
 @bp.route('/api/document_ai/templates/<template_id>', methods=['GET'])
 @login_required
 def api_document_ai_template_detail(template_id: str):
-    if not _document_ai_has_access('consultar'):
+    if not _document_ai_has_access('consultar') or not _current_document_ai_any_permission('associate'):
         return jsonify({'error': 'Sem permissão.'}), 403
     try:
         return jsonify(get_template_detail(template_id))
@@ -931,7 +1278,7 @@ def api_document_ai_template_detail(template_id: str):
 @bp.route('/api/document_ai/templates', methods=['POST'])
 @login_required
 def api_document_ai_template_create():
-    if not _document_ai_has_access('editar'):
+    if not _document_ai_has_access('editar') or not _current_document_ai_any_permission('associate'):
         return jsonify({'error': 'Sem permissão para criar templates.'}), 403
     body = request.get_json(silent=True) or {}
     try:
@@ -948,7 +1295,7 @@ def api_document_ai_template_create():
 @bp.route('/api/document_ai/templates/<template_id>', methods=['PUT'])
 @login_required
 def api_document_ai_template_update(template_id: str):
-    if not _document_ai_has_access('editar'):
+    if not _document_ai_has_access('editar') or not _current_document_ai_any_permission('associate'):
         return jsonify({'error': 'Sem permissão para editar templates.'}), 403
     body = request.get_json(silent=True) or {}
     try:
@@ -965,7 +1312,7 @@ def api_document_ai_template_update(template_id: str):
 @bp.route('/api/document_ai/templates/<template_id>/toggle', methods=['POST'])
 @login_required
 def api_document_ai_template_toggle(template_id: str):
-    if not _document_ai_has_access('editar'):
+    if not _document_ai_has_access('editar') or not _current_document_ai_any_permission('associate'):
         return jsonify({'error': 'Sem permissão.'}), 403
     try:
         return jsonify(toggle_template_active(template_id, _current_login()))
@@ -981,11 +1328,14 @@ def api_document_ai_template_toggle(template_id: str):
 @bp.route('/api/document_ai/templates/<template_id>/test', methods=['POST'])
 @login_required
 def api_document_ai_template_test(template_id: str):
-    if not _document_ai_has_access('consultar'):
+    if not _document_ai_has_access('consultar') or not _current_document_ai_any_permission('associate'):
         return jsonify({'error': 'Sem permissão.'}), 403
     body = request.get_json(silent=True) or {}
+    document_id = str(body.get('document_id') or '').strip()
+    if document_id and not _first_document_permission_view(document_id, 'analyze'):
+        return jsonify({'error': 'Sem acesso a este documento.'}), 403
     try:
-        return jsonify(test_template(template_id, body.get('document_id', '')))
+        return jsonify(test_template(template_id, document_id))
     except Exception as exc:
         current_app.logger.exception('Erro a testar template documental')
         return jsonify({'error': str(exc)}), 500
@@ -996,6 +1346,12 @@ def api_document_ai_template_test(template_id: str):
 def api_document_ai_suggest():
     if not _document_ai_has_access('consultar'):
         return jsonify({'error': 'Sem permissão.'}), 403
+    requested_view = _requested_document_ai_view()
+    if not (
+        _current_document_ai_permission(requested_view, 'ai')
+        if requested_view else _current_document_ai_any_permission('ai')
+    ):
+        return jsonify({'error': 'Sem permissão para usar iA nesta visualização.'}), 403
     body = request.get_json(silent=True) or {}
     return jsonify(suggest_template(body))
 
@@ -1011,6 +1367,9 @@ def api_document_ai_suppliers_search():
     feid = request.args.get('feid', type=int)
     if not feid:
         return jsonify({'error': 'Identifica primeiro a Entidade FE do cliente.'}), 400
+    requested_view = _requested_document_ai_view()
+    if not _current_document_ai_permission(requested_view, 'associate') or not _current_feid_is_allowed(requested_view, feid):
+        return jsonify({'error': 'Sem acesso a esta entidade.'}), 403
     limit = request.args.get('limit', default=8, type=int)
     try:
         return jsonify(search_suppliers(term, feid=feid, limit=limit))
@@ -1029,7 +1388,13 @@ def api_document_ai_entities_resolve():
     if len(term) < 2:
         return jsonify({})
     try:
-        return jsonify(resolve_fe_entity(term, mode))
+        requested_view = _requested_document_ai_view()
+        if not _current_document_ai_permission(requested_view, 'associate'):
+            return jsonify({'error': 'Sem permissão para associar nesta visualização.'}), 403
+        payload = resolve_fe_entity(term, mode)
+        if payload and not _current_feid_is_allowed(requested_view, int(payload.get('feid') or 0)):
+            return jsonify({})
+        return jsonify(payload)
     except Exception as exc:
         current_app.logger.exception('Erro ao resolver entidade FE documental')
         return jsonify({'error': str(exc)}), 500
@@ -1043,7 +1408,15 @@ def api_document_ai_entities_search():
     term = str(request.args.get('q', '') or '').strip()
     limit = min(max(int(request.args.get('limit', 20) or 20), 1), 50)
     try:
-        return jsonify(search_fe_entities(term, limit=limit))
+        requested_view = _requested_document_ai_view()
+        profile = document_ai_permission_profile(_current_login(), requested_view)
+        if not profile['allowed'] or not profile['permissions'].get('associate'):
+            return jsonify({'error': 'Sem permissão para associar nesta visualização.'}), 403
+        items = search_fe_entities(term, limit=limit)
+        if not profile['all_entities']:
+            allowed = set(profile['entity_ids'])
+            items = [item for item in items if int(item.get('feid') or 0) in allowed]
+        return jsonify(items)
     except Exception as exc:
         current_app.logger.exception('Erro ao pesquisar entidades FE documentais')
         return jsonify({'error': str(exc)}), 500
@@ -1059,6 +1432,9 @@ def api_document_ai_customers_search():
     limit = min(max(int(request.args.get('limit', 12) or 12), 1), 20)
     if len(term) < 2 or not feid:
         return jsonify([])
+    requested_view = _requested_document_ai_view()
+    if not _current_document_ai_permission(requested_view, 'associate') or not _current_feid_is_allowed(requested_view, feid):
+        return jsonify({'error': 'Sem acesso a esta entidade.'}), 403
     try:
         return jsonify(search_customers(term, feid=feid, limit=limit))
     except Exception as exc:
@@ -1076,6 +1452,9 @@ def api_document_ai_external_parties_search():
     limit = min(max(int(request.args.get('limit', 12) or 12), 1), 20)
     if len(term) < 2 or not feid:
         return jsonify([])
+    requested_view = _requested_document_ai_view()
+    if not _current_document_ai_permission(requested_view, 'associate') or not _current_feid_is_allowed(requested_view, feid):
+        return jsonify({'error': 'Sem acesso a esta entidade.'}), 403
     try:
         return jsonify(search_external_parties(term, feid=feid, limit=limit))
     except Exception as exc:

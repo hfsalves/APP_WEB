@@ -544,6 +544,7 @@
   "gr_budgets.error.series_unavailable": "Esta empresa não tem séries de orçamento com OCI configuradas.",
   "gr_budgets.error.year_invalid": "Ano inválido.",
   "gr_budgets.field.attention": "A/C",
+  "gr_budgets.field.address": "Morada da obra",
   "gr_budgets.field.associated_work": "Obra associada",
   "gr_budgets.field.client": "Cliente",
   "gr_budgets.field.company": "Empresa",

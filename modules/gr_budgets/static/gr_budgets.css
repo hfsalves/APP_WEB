@@ -327,6 +327,18 @@
   grid-column: span 2;
 }
 
+.gr-budget-address-field {
+  grid-column: 1 / -1;
+}
+
+.gr-budget-address-input {
+  min-height: 3.75rem;
+  height: auto;
+  resize: vertical;
+  line-height: 1.35;
+  white-space: pre-wrap;
+}
+
 .gr-budget-associated-work-field {
   grid-column: span 2;
 }
@@ -341,7 +353,7 @@
   border-radius: var(--sz-radius-sm);
   background: var(--sz-color-surface-subtle, var(--sz-color-surface));
   color: var(--sz-color-text);
-  overflow: hidden;
+  overflow: visible;
 }
 
 .gr-budget-associated-work i {
@@ -350,9 +362,9 @@
 
 .gr-budget-associated-work strong,
 .gr-budget-associated-work span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .gr-budget-associated-work.is-unlinked {
@@ -570,6 +582,10 @@
 
 .gr-budget-oci-field-sale-price {
   grid-column: 1;
+}
+
+.gr-budget-oci-field-prorata {
+  min-width: 7.5rem;
 }
 
 .gr-budget-number-input {

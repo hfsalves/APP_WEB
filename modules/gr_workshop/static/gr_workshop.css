@@ -101,6 +101,25 @@
   margin-top: .25rem;
 }
 
+.gr-workshop-metric-alert {
+  border-color: color-mix(in srgb, var(--sz-color-danger) 55%, var(--sz-color-border));
+  background: color-mix(in srgb, var(--sz-color-danger) 8%, var(--sz-color-surface));
+}
+
+.gr-workshop-metric-alert strong,
+.gr-workshop-preventive-alert {
+  color: var(--sz-color-danger);
+}
+
+.gr-workshop-preventive-alert {
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+  margin-top: .35rem;
+  font-size: .75rem;
+  font-weight: 800;
+}
+
 #workshopSheetModal .modal-dialog {
   max-width: min(1280px, calc(100vw - 2rem));
 }
@@ -241,6 +260,29 @@
 
 .gr-workshop-field-job {
   grid-column: span 8;
+}
+
+.gr-workshop-field-ai-question {
+  grid-column: span 12;
+}
+
+.gr-workshop-ai-question-control {
+  display: flex;
+  gap: .55rem;
+}
+
+.gr-workshop-ai-question-control .sz_input {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.gr-workshop-ai-answer {
+  margin-top: .45rem;
+  min-height: 5rem;
+}
+
+#workshopAiQuestionBtn.is-loading i {
+  animation: gr-workshop-ai-spin .8s linear infinite;
 }
 
 .gr-workshop-field-obs {

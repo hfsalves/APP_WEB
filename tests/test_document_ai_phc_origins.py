@@ -35,6 +35,9 @@ from services.document_ai_service import (
     _correspondence_file_name,
     _correspondence_company_folder,
     _correspondence_ged_paths,
+    _phc_correspondence_agency_origin,
+    _phc_text_column_limit,
+    _provisional_invoice_ged_paths,
     _ensure_phc_provisional_article,
     _is_provisional_purchase_source_type,
     _write_document_ai_pdf,
@@ -62,7 +65,9 @@ class DocumentAiPhcOriginTests(unittest.TestCase):
     def test_inbox_global_total_does_not_depend_on_active_filters(self):
         query_result = MagicMock()
         query_result.scalar.return_value = 27
-        with patch.object(document_ai_service.db.session, 'execute', return_value=query_result) as execute:
+        with patch(
+            'services.document_ai_distribution_service.ensure_document_ai_distribution_schema'
+        ), patch.object(document_ai_service.db.session, 'execute', return_value=query_result) as execute:
             total = _document_inbox_global_total()
 
         self.assertEqual(total, 27)
@@ -90,6 +95,8 @@ class DocumentAiPhcOriginTests(unittest.TestCase):
             useralteracao='',
         )
         with patch.object(document_ai_service.db.session, 'get', return_value=document), patch.object(
+            document_ai_service, 'get_phc_origins_from_meta', return_value=[{'stamp': 'FO-1'}]
+        ), patch.object(
             document_ai_service.db.session, 'commit'
         ) as commit:
             result = mark_document_as_provisional_invoice(
@@ -123,8 +130,8 @@ class DocumentAiPhcOriginTests(unittest.TestCase):
             'lines': [{'description': 'Linha', 'qty': 1}],
         }
         with patch.object(document_ai_service.db.session, 'get', return_value=document), patch.object(
-            document_ai_service.db.session, 'commit'
-        ) as commit:
+            document_ai_service, 'get_phc_origins_from_meta', return_value=[{'stamp': 'FO-1'}]
+        ), patch.object(document_ai_service.db.session, 'commit') as commit:
             result = mark_document_control_ok('DOC-1', 'tester', reviewed)
             require_document_control_ok('DOC-1')
 
@@ -411,6 +418,48 @@ class DocumentAiPhcOriginTests(unittest.TestCase):
             'HSOLS_INTERSOL_LOR',
         )
 
+    def test_intersol_correspondence_origin_follows_selected_ged_branch(self):
+        source = {'phc_db': 'INTERSOL'}
+
+        self.assertEqual(
+            _phc_correspondence_agency_origin(
+                {'ged_folder': 'HSOLS_INTERSOL_LOR'}, source,
+            ),
+            'INTERSOL-LORRAINE',
+        )
+        self.assertEqual(
+            _phc_correspondence_agency_origin(
+                {'ged_folder': 'HSOLS_INTERSOL_CH'}, source,
+            ),
+            'INTERSOL-CHAMPAGNE',
+        )
+        self.assertEqual(_phc_correspondence_agency_origin({}, {'phc_db': 'HSOLS_FR'}), '')
+
+    def test_phc_text_column_limit_uses_real_schema_width(self):
+        cursor = MagicMock()
+        cursor.execute.return_value.fetchone.return_value = (4,)
+
+        self.assertEqual(_phc_text_column_limit(cursor, 'FN', 'UNIDADE', 6), 4)
+
+    def test_purchase_ged_path_uses_document_month_and_credit_note_prefix(self):
+        application = Flask(__name__)
+        with application.app_context():
+            result = _provisional_invoice_ged_paths(
+                {
+                    'customer': {'ged_folder': 'HSOLS_FR'},
+                    'document_number': '50980',
+                },
+                {'phc_db': 'HSOLS_FR'},
+                {'name': 'GM MECANIQUE', 'no': 31243, 'estab': 0},
+                3268,
+                datetime(2026, 7, 10, 12, 0),
+                'NC',
+            )
+
+        self.assertEqual(len(result), 2)
+        self.assertTrue(all(item['file_name'].startswith('NC-3268-') for item in result))
+        self.assertTrue(all('\\2026\\7 JUIL 26\\' in item['unc_path'] for item in result))
+
     def test_correspondence_ged_path_uses_received_mail_structure(self):
         application = Flask(__name__)
         with application.app_context():
@@ -563,8 +612,8 @@ class DocumentAiPhcOriginTests(unittest.TestCase):
             },
         }
         with patch.object(document_ai_service.db.session, 'get', return_value=stored), patch.object(
-            document_ai_service.db.session, 'commit'
-        ):
+            document_ai_service, '_refresh_document_duplicate_state', return_value=[]
+        ), patch.object(document_ai_service.db.session, 'commit'):
             result = save_llm_extraction('DOC-2', payload, 'tester')
 
         self.assertTrue(result['cached'])

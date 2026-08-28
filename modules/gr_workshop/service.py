@@ -979,6 +979,76 @@ def suggest_workshop_job(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def ask_workshop_question(payload: dict[str, Any]) -> str:
+    """Answer a free workshop question without changing the work order."""
+    api_key = _workshop_ai_api_key()
+    if not api_key:
+        raise WorkshopValidationError(
+            "Integração AI indisponível. Configura WORKSHOP_OPENAI_API_KEY ou OPENAI_API_KEY na tabela PARA."
+        )
+    question = _text(payload.get("question"), 1200)
+    if not question:
+        raise WorkshopValidationError("Escreve primeiro a pergunta para a AI.")
+
+    vehicle_context: dict[str, Any] = {}
+    vastamp = _text(payload.get("VASTAMP"), 25)
+    matricula = _text(payload.get("MATRICULA"), 12)
+    if vastamp or matricula:
+        vehicle_context = _vehicle_ai_context(_vehicle_by_stamp_or_plate(vastamp, matricula))
+
+    request_body = {
+        "model": _workshop_ai_model(),
+        "reasoning": {"effort": "low"},
+        "input": [
+            {
+                "role": "system",
+                "content": [{
+                    "type": "input_text",
+                    "text": (
+                        "És um assistente técnico de oficina. Responde em português europeu, de forma curta, "
+                        "prática e segura. Usa apenas os dados fornecidos; não inventes referências, valores ou "
+                        "procedimentos específicos. Quando faltar informação técnica, diz exatamente o que deve "
+                        "ser confirmado no manual ou pelo mecânico. Não uses Markdown."
+                    ),
+                }],
+            },
+            {
+                "role": "user",
+                "content": [{
+                    "type": "input_text",
+                    "text": json.dumps(
+                        {"pergunta": question, "viatura": vehicle_context},
+                        ensure_ascii=False,
+                    ),
+                }],
+            },
+        ],
+        "max_output_tokens": 1200,
+    }
+    req = urllib_request.Request(
+        "https://api.openai.com/v1/responses",
+        data=json.dumps(request_body).encode("utf-8"),
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib_request.urlopen(req, timeout=45) as response:
+            result = json.loads(response.read().decode("utf-8"))
+    except urllib_error.HTTPError as exc:
+        if exc.code in {401, 403}:
+            raise WorkshopError("A chave da integração AI foi recusada pela OpenAI.") from exc
+        if exc.code == 429:
+            raise WorkshopError("A integração AI atingiu temporariamente o limite de utilização.") from exc
+        raise WorkshopError(f"A integração AI rejeitou a pergunta (HTTP {exc.code}).") from exc
+    except Exception as exc:
+        raise WorkshopError("A AI demorou demasiado a responder. Tenta novamente dentro de instantes.") from exc
+
+    answer = _text(_extract_openai_text(result), 4000)
+    if not answer:
+        raise WorkshopError("A AI não devolveu uma resposta utilizável.")
+    return answer
+
+
 def list_sheets(args: dict[str, Any]) -> dict[str, Any]:
     feid = _current_feid()
     term = _text(args.get("q") or args.get("search"))
@@ -1049,6 +1119,11 @@ def list_sheets(args: dict[str, Any]) -> dict[str, Any]:
         params,
     ).mappings().all()
     items = [_sheet_row(row) for row in rows]
+    latest_vehicle_items: dict[str, dict[str, Any]] = {}
+    for item in items:
+        vehicle_key = item["VASTAMP"] or item["MATRICULA"]
+        if vehicle_key and vehicle_key not in latest_vehicle_items:
+            latest_vehicle_items[vehicle_key] = item
     return {
         "items": items,
         "summary": {
@@ -1056,8 +1131,26 @@ def list_sheets(args: dict[str, Any]) -> dict[str, Any]:
             "open": sum(1 for item in items if item["ESTADO"] in {"ABERTA", "EXECUCAO"}),
             "done": sum(1 for item in items if item["ESTADO"] == "CONCLUIDA"),
             "void": sum(1 for item in items if item["ESTADO"] == "ANULADA"),
+            "alerts": sum(1 for item in latest_vehicle_items.values() if item["PREVENTIVE_ALERT"]),
         },
     }
+
+
+def _preventive_alert(next_date: Any, next_kms: Any, vehicle_kms: Any, today: date | None = None) -> dict[str, Any]:
+    reference_date = today or date.today()
+    due_date = _date_only_iso(next_date) or _text(next_date, 10)
+    due_kms = float(next_kms or 0)
+    current_kms = float(vehicle_kms or 0)
+    reasons: list[str] = []
+    if due_date:
+        try:
+            if date.fromisoformat(due_date) <= reference_date:
+                reasons.append(f"data {due_date}")
+        except ValueError:
+            pass
+    if due_kms > 0 and current_kms >= due_kms:
+        reasons.append(f"{due_kms:,.0f} km")
+    return {"active": bool(reasons), "reason": " · ".join(reasons)}
 
 
 def _sheet_row(row: Any) -> dict[str, Any]:
@@ -1105,6 +1198,9 @@ def _sheet_row(row: Any) -> dict[str, Any]:
     }
     item["DTINICIO"] = _datetime_local_iso(item["DATA"], item["HORAINI"])
     item["DTFIM"] = _datetime_local_iso(item["DATA"], item["HORAFIM"])
+    preventive = _preventive_alert(item["PROX_INTERV_DATA"], item["PROX_INTERV_KMS"], item["VEICULO_KMS"])
+    item["PREVENTIVE_ALERT"] = preventive["active"]
+    item["PREVENTIVE_ALERT_REASON"] = preventive["reason"]
     return item
 
 

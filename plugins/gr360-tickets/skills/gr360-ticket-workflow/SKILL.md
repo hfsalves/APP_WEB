@@ -1,17 +1,24 @@
 ---
 name: gr360-ticket-workflow
-description: Consulta, cria e acompanha tickets da aplicação GR360 através das ferramentas MCP GR360 Tickets.
+description: Consulta, cria e acompanha tickets da aplicação GR360 através do conector GR360 Tickets ou, quando autorizado, diretamente na base de dados.
 ---
 
 # Fluxo de tickets GR360
 
-Usa exclusivamente as ferramentas do servidor `gr360_tickets`. Nunca peças nem uses acesso SQL,
-credenciais da aplicação ou o token da integração dentro da conversa.
+Prefere as ferramentas do servidor `gr360_tickets`, porque preservam o fluxo de autenticação e
+seguimento. Se o conector estiver indisponível e o utilizador autorizar ou pedir explicitamente,
+podes consultar os tickets diretamente na base de dados GR360 configurada para a aplicação.
+
+Nunca mostres passwords, tokens, connection strings ou outras credenciais na conversa, em logs ou
+em tickets. Nas consultas SQL, começa em modo de leitura. Só alteres tickets quando o utilizador o
+pedir ou quando já tiver autorizado claramente o tratamento dos tickets em causa.
 
 ## Consultar e analisar
 
-1. Usa `listar_tickets` para obter os tickets relevantes.
-2. Usa `consultar_ticket` antes de concluir qualquer diagnóstico.
+1. Usa `listar_tickets` para obter os tickets relevantes; se estiver indisponível e houver
+   autorização, consulta a tabela de tickets da GR360 por SQL.
+2. Usa `consultar_ticket` antes de concluir qualquer diagnóstico; no modo SQL, lê o registo completo
+   e confirma o schema atual antes de interpretar campos de estado ou seguimento.
 3. Distingue factos observados, inferências e informação ainda necessária.
 4. Para tickets tratados sem seguimento, valida o comportamento atual antes de os considerar resolvidos.
 

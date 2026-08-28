@@ -1,7 +1,7 @@
 {
   "name": "gr360-tickets",
-  "version": "0.1.0",
-  "description": "Consulta, cria e acompanha tickets da aplicação GR360 com acesso controlado.",
+  "version": "0.1.0+codex.20260827091318",
+  "description": "Consulta, cria e acompanha tickets da aplica\u00e7\u00e3o GR360 com acesso controlado.",
   "author": {
     "name": "StationZero"
   },
@@ -9,14 +9,17 @@
   "interface": {
     "displayName": "GR360 Tickets",
     "shortDescription": "Consulta e acompanha tickets GR360.",
-    "longDescription": "Liga o Codex ao fluxo controlado de tickets da StationZero para pesquisar, criar e validar ocorrências GR360.",
+    "longDescription": "Liga o Codex ao fluxo controlado de tickets da StationZero para pesquisar, criar e validar ocorr\u00eancias GR360.",
     "developerName": "StationZero",
     "category": "Productivity",
-    "capabilities": ["Read", "Write"],
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
     "defaultPrompt": [
       "Mostra os tickets GR360 pendentes.",
       "Pesquisa tickets semelhantes antes de criar um novo.",
-      "Valida os tickets tratados que ainda não têm seguimento."
+      "Valida os tickets tratados que ainda n\u00e3o t\u00eam seguimento."
     ]
   },
   "mcpServers": "./.mcp.json"

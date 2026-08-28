@@ -13,16 +13,21 @@
     <header class="sz_contextbar sz_page_contextbar docai-contextbar">
       <div class="sz_contextbar_left">
         <div id="docAiContextDomain" class="docai-context-domain">INBOX</div>
-        <div id="docAiViewTabs" class="docai-view-tabs" role="tablist" aria-label="Vista do Inbox">
-          {% for inbox_view in document_ai_inbox_views %}
-          <button type="button" class="docai-view-tab" role="tab" data-view="{{ inbox_view.value }}">{{ inbox_view.label }}</button>
-          {% endfor %}
+        <div id="docAiViewTabs" class="docai-view-tabs"{% if document_ai_inbox_views|length > 1 %} role="tablist" aria-label="Vista do Inbox"{% endif %}>
+          {% if document_ai_inbox_views|length == 1 %}
+            {% set inbox_view = document_ai_inbox_views[0] %}
+            <span class="docai-view-tab docai-view-label" data-view="{{ inbox_view.value }}">{{ inbox_view.label }}</span>
+          {% else %}
+            {% for inbox_view in document_ai_inbox_views %}
+            <button type="button" class="docai-view-tab" role="tab" data-view="{{ inbox_view.value }}">{{ inbox_view.label }}</button>
+            {% endfor %}
+          {% endif %}
         </div>
       </div>
       <div class="sz_contextbar_right docai-contextbar-right">
         <button id="docAiUploadBtn" type="button" class="sz_button sz_button_primary">
-          <i class="fa-solid fa-file-arrow-up"></i>
-          <span>Importar documento</span>
+          <i class="fa-solid fa-file-circle-plus"></i>
+          <span>Novo documento</span>
         </button>
         <button id="docAiArchiveBtn" type="button" class="sz_button sz_button_secondary">
           <i class="fa-solid fa-box-archive"></i>
@@ -32,6 +37,12 @@
           <i class="fa-solid fa-rotate"></i>
           <span>Atualizar</span>
         </button>
+        {% if document_ai_access_admin %}
+        <button id="docAiAccessAdminBtn" type="button" class="sz_button sz_button_secondary" title="Gestão de acessos">
+          <i class="fa-solid fa-gear"></i>
+          <span>Acessos</span>
+        </button>
+        {% endif %}
       </div>
     </header>
 
@@ -92,9 +103,134 @@
 </div>
 
 <input id="docAiUploadInput" type="file" accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff,.bmp,.webp" hidden>
+
+{% if document_ai_access_admin %}
+<div id="docAiAccessModal" class="sz_modal docai-access-modal" hidden>
+  <div class="sz_modal_panel docai-access-panel" role="dialog" aria-modal="true" aria-labelledby="docAiAccessTitle">
+    <div class="sz_modal_header">
+      <div>
+        <h3 id="docAiAccessTitle">Gestão de acessos</h3>
+        <p class="sz_text_muted">Permissões por utilizador e visualização</p>
+      </div>
+      <button id="docAiAccessCloseTop" type="button" class="sz_button sz_button_ghost" title="Fechar" aria-label="Fechar">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+    <div class="docai-settings-tabs" role="tablist" aria-label="Definições Document AI">
+      <button id="docAiSettingsAccessTab" type="button" class="docai-settings-tab is-active" data-settings-tab="access" role="tab" aria-selected="true">Acessos</button>
+      <button id="docAiSettingsRequiredTab" type="button" class="docai-settings-tab" data-settings-tab="required" role="tab" aria-selected="false">Informações Obrigatórias</button>
+      <button id="docAiSettingsDistributionTab" type="button" class="docai-settings-tab" data-settings-tab="distribution" role="tab" aria-selected="false">Distribuição</button>
+    </div>
+    <section id="docAiAccessSettingsPanel" class="docai-settings-panel" data-settings-panel="access">
+    <div class="docai-access-toolbar">
+      <label class="sz_field">
+        <span>Pesquisar utilizador</span>
+        <input id="docAiAccessSearch" class="sz_input" type="search" placeholder="Nome ou utilizador">
+      </label>
+      <button id="docAiAccessAddBtn" type="button" class="sz_button sz_button_primary">
+        <i class="fa-solid fa-plus"></i><span>Adicionar acesso</span>
+      </button>
+    </div>
+    <div id="docAiAccessAddForm" class="docai-access-add-form" hidden>
+      <label class="sz_field"><span>Utilizador</span><select id="docAiAccessUser" class="sz_select"></select></label>
+      <label class="sz_field"><span>Visualização</span><select id="docAiAccessView" class="sz_select"></select></label>
+      <button id="docAiAccessAddConfirm" type="button" class="sz_button sz_button_primary"><i class="fa-solid fa-check"></i><span>Adicionar</span></button>
+    </div>
+    <div id="docAiAccessList" class="docai-access-list" aria-live="polite"></div>
+    </section>
+    <section id="docAiRequiredSettingsPanel" class="docai-settings-panel" data-settings-panel="required" hidden>
+      <div class="docai-access-toolbar">
+        <div>
+          <strong>Regras por classificação</strong>
+          <p class="sz_text_muted">Informações verificadas apenas ao validar cada etapa.</p>
+        </div>
+        <button id="docAiRequiredAddBtn" type="button" class="sz_button sz_button_primary">
+          <i class="fa-solid fa-plus"></i><span>Adicionar informação</span>
+        </button>
+      </div>
+      <div id="docAiRequiredGroups" class="docai-distribution-groups" aria-live="polite"></div>
+    </section>
+    <section id="docAiDistributionSettingsPanel" class="docai-settings-panel" data-settings-panel="distribution" hidden>
+      <div class="docai-access-toolbar">
+        <div>
+          <strong>Regras por classificação</strong>
+          <p class="sz_text_muted">Define o percurso após validar cada etapa.</p>
+        </div>
+        <button id="docAiDistributionAddBtn" type="button" class="sz_button sz_button_primary">
+          <i class="fa-solid fa-plus"></i><span>Adicionar distribuição</span>
+        </button>
+      </div>
+      <div id="docAiDistributionGroups" class="docai-distribution-groups" aria-live="polite"></div>
+    </section>
+    <div class="sz_modal_footer">
+      <button id="docAiAccessCancel" type="button" class="sz_button sz_button_secondary">Cancelar</button>
+      <button id="docAiAccessSave" type="button" class="sz_button sz_button_primary"><i class="fa-solid fa-floppy-disk"></i><span>Guardar alterações</span></button>
+    </div>
+  </div>
+</div>
+
+<div id="docAiAccessEntityModal" class="sz_modal docai-access-entity-modal" hidden>
+  <div class="sz_modal_panel docai-access-entity-panel" role="dialog" aria-modal="true" aria-labelledby="docAiAccessEntityTitle">
+    <div class="sz_modal_header">
+      <div><h3 id="docAiAccessEntityTitle">Entidades</h3><p class="sz_text_muted">Define o perímetro desta visualização</p></div>
+      <button id="docAiAccessEntityCloseTop" type="button" class="sz_button sz_button_ghost" title="Fechar" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <label class="docai-access-check docai-access-all-entities"><input id="docAiAccessAllEntities" type="checkbox"><span>Todas as entidades</span></label>
+    <input id="docAiAccessEntitySearch" class="sz_input" type="search" placeholder="Pesquisar entidade">
+    <div id="docAiAccessEntityList" class="docai-access-entity-list"></div>
+    <div class="sz_modal_footer">
+      <button id="docAiAccessEntityCancel" type="button" class="sz_button sz_button_secondary">Cancelar</button>
+      <button id="docAiAccessEntityApply" type="button" class="sz_button sz_button_primary">Aplicar</button>
+    </div>
+  </div>
+</div>
+
+<div id="docAiRequiredModal" class="sz_modal docai-distribution-modal" hidden>
+  <div class="sz_modal_panel docai-distribution-panel" role="dialog" aria-modal="true" aria-labelledby="docAiRequiredTitle">
+    <div class="sz_modal_header">
+      <div><h3 id="docAiRequiredTitle">Adicionar informação</h3><p class="sz_text_muted">Uma informação obrigatória por regra.</p></div>
+      <button id="docAiRequiredCloseTop" type="button" class="sz_button sz_button_ghost" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="sz_modal_body docai-distribution-form">
+      <label class="sz_field"><span>Tipo de documento</span><select id="docAiRequiredClass" class="sz_select"></select></label>
+      <label class="sz_field"><span>Origem</span><select id="docAiRequiredView" class="sz_select"></select></label>
+      <label class="sz_field"><span>Informação Obrigatória</span><select id="docAiRequiredField" class="sz_select"></select></label>
+    </div>
+    <div class="sz_modal_footer">
+      <button id="docAiRequiredCancel" type="button" class="sz_button sz_button_secondary">Cancelar</button>
+      <button id="docAiRequiredSave" type="button" class="sz_button sz_button_primary"><i class="fa-solid fa-check"></i><span>Adicionar informação</span></button>
+    </div>
+  </div>
+</div>
+
+<div id="docAiDistributionModal" class="sz_modal docai-distribution-modal" hidden>
+  <div class="sz_modal_panel docai-distribution-panel" role="dialog" aria-modal="true" aria-labelledby="docAiDistributionTitle">
+    <div class="sz_modal_header">
+      <div><h3 id="docAiDistributionTitle">Adicionar distribuição</h3><p class="sz_text_muted">Uma origem e um destino por regra.</p></div>
+      <button id="docAiDistributionCloseTop" type="button" class="sz_button sz_button_ghost" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="sz_modal_body docai-distribution-form">
+      <label class="sz_field"><span>Classificação</span><select id="docAiDistributionClass" class="sz_select"></select></label>
+      <label class="sz_field"><span>Origem</span><select id="docAiDistributionSource" class="sz_select"></select></label>
+      <label class="sz_field"><span>Destino</span><select id="docAiDistributionDestination" class="sz_select"></select></label>
+      <label class="sz_field"><span>Estado</span><select id="docAiDistributionState" class="sz_select"></select></label>
+      <label class="docai-access-check"><input id="docAiDistributionApplyExisting" type="checkbox"><span>Aplicar aos documentos antigos</span></label>
+    </div>
+    <div class="sz_modal_footer">
+      <button id="docAiDistributionCancel" type="button" class="sz_button sz_button_secondary">Cancelar</button>
+      <button id="docAiDistributionSave" type="button" class="sz_button sz_button_primary"><i class="fa-solid fa-check"></i><span>Adicionar distribuição</span></button>
+    </div>
+  </div>
+</div>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
   {{ super() }}
   <script src="{{ url_for('static', filename='js/document_ai_inbox.js') }}?v={{ config.get('STATIC_VERSION', 1) }}"></script>
+  {% if document_ai_access_admin %}
+  <script src="{{ url_for('static', filename='js/document_ai_access.js') }}?v={{ config.get('STATIC_VERSION', 1) }}"></script>
+  <script src="{{ url_for('static', filename='js/document_ai_required_info.js') }}?v={{ config.get('STATIC_VERSION', 1) }}"></script>
+  <script src="{{ url_for('static', filename='js/document_ai_distribution.js') }}?v={{ config.get('STATIC_VERSION', 1) }}"></script>
+  {% endif %}
 {% endblock %}

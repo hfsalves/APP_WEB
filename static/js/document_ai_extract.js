@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
     input: document.getElementById('docAiExtractInput'),
     chooseBtn: document.getElementById('docAiExtractChooseBtn'),
     runBtn: document.getElementById('docAiExtractRunBtn'),
+    deleteBtn: document.getElementById('docAiExtractDeleteBtn'),
     openPdfBtn: document.getElementById('docAiExtractOpenPdfBtn'),
     dropzone: document.getElementById('docAiExtractDropzone'),
     preview: document.getElementById('docAiExtractPreview'),
@@ -26,8 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
     supplierNo: document.getElementById('docAiExtractSupplierNo'),
     supplierCard: document.getElementById('docAiExtractSupplierCard'),
     supplierHint: document.getElementById('docAiExtractSupplierHint'),
-    documentTitle: document.getElementById('docAiExtractDocumentTitle'),
-    documentDate: document.getElementById('docAiExtractDocumentDate'),
+    documentSummary: document.getElementById('docAiExtractDocumentSummary'),
     correspondenceReference: document.getElementById('docAiExtractCorrespondenceReference'),
     correspondenceSource: document.getElementById('docAiExtractCorrespondenceSource'),
     legalBadge: document.getElementById('docAiExtractLegalBadge'),
@@ -45,7 +45,19 @@ document.addEventListener('DOMContentLoaded', () => {
     projectClear: document.getElementById('docAiExtractProjectClear'),
     originSection: document.getElementById('docAiExtractOriginSection'),
     linesSection: document.getElementById('docAiExtractLinesSection'),
-    totalsSection: document.getElementById('docAiExtractTotalsSection'),
+    totalsCard: document.getElementById('docAiExtractTotalsCard'),
+    totalsModal: document.getElementById('docAiTotalsModal'),
+    totalsCloseTop: document.getElementById('docAiTotalsCloseTop'),
+    totalsClose: document.getElementById('docAiTotalsClose'),
+    originDetailModal: document.getElementById('docAiOriginDetailModal'),
+    originDetailTitle: document.getElementById('docAiOriginDetailTitle'),
+    originDetailLoading: document.getElementById('docAiOriginDetailLoading'),
+    originDetailTable: document.getElementById('docAiOriginDetailTable'),
+    originDetailHead: document.getElementById('docAiOriginDetailHead'),
+    originDetailBody: document.getElementById('docAiOriginDetailBody'),
+    originDetailEmpty: document.getElementById('docAiOriginDetailEmpty'),
+    originDetailCloseTop: document.getElementById('docAiOriginDetailCloseTop'),
+    originDetailClose: document.getElementById('docAiOriginDetailClose'),
     originMeta: document.getElementById('docAiExtractOriginMeta'),
     originSource: document.getElementById('docAiExtractOriginSource'),
     originLoading: document.getElementById('docAiExtractOriginLoading'),
@@ -93,6 +105,19 @@ document.addEventListener('DOMContentLoaded', () => {
     articleList: document.getElementById('docAiArticleList'),
     articleCloseTop: document.getElementById('docAiArticleCloseTop'),
     articleClose: document.getElementById('docAiArticleClose'),
+    vehicleModal: document.getElementById('docAiVehicleModal'),
+    vehicleContext: document.getElementById('docAiVehicleContext'),
+    vehicleSearch: document.getElementById('docAiVehicleSearch'),
+    vehicleSearchBtn: document.getElementById('docAiVehicleSearchBtn'),
+    vehicleList: document.getElementById('docAiVehicleList'),
+    vehicleRemove: document.getElementById('docAiVehicleRemove'),
+    vehicleCloseTop: document.getElementById('docAiVehicleCloseTop'),
+    vehicleClose: document.getElementById('docAiVehicleClose'),
+    bcModal: document.getElementById('docAiBcModal'),
+    bcList: document.getElementById('docAiBcList'),
+    bcSave: document.getElementById('docAiBcSave'),
+    bcCloseTop: document.getElementById('docAiBcCloseTop'),
+    bcClose: document.getElementById('docAiBcClose'),
     persistenceNote: document.getElementById('docAiExtractPersistenceNote'),
     entityModal: document.getElementById('docAiEntityModal'),
     entitySearch: document.getElementById('docAiEntitySearch'),
@@ -114,6 +139,11 @@ document.addEventListener('DOMContentLoaded', () => {
     submitPhcBtn: document.getElementById('docAiExtractSubmitPhcBtn'),
     controlOkBtn: document.getElementById('docAiExtractControlOkBtn'),
     workflowValidateBtn: document.getElementById('docAiExtractWorkflowValidateBtn'),
+    duplicateModal: document.getElementById('docAiDuplicateModal'),
+    duplicateList: document.getElementById('docAiDuplicateList'),
+    duplicateCloseTop: document.getElementById('docAiDuplicateCloseTop'),
+    duplicateCancel: document.getElementById('docAiDuplicateCancel'),
+    duplicateConfirm: document.getElementById('docAiDuplicateConfirm'),
     viewTabs: document.getElementById('docAiExtractViewTabs'),
     modeLabel: document.getElementById('docAiExtractModeLabel'),
     modeValue: document.getElementById('docAiExtractModeValue'),
@@ -138,12 +168,17 @@ document.addEventListener('DOMContentLoaded', () => {
     originPayload: null,
     originCandidates: [],
     activeOriginStage: '',
+    consultedOriginStamp: '',
     selectedOrigins: [],
     selectedProject: null,
     projectCandidates: [],
     projectTargetLineIndex: null,
     articleCandidates: [],
     articleTargetLineIndex: null,
+    vehicleCandidates: [],
+    vehicleTargetLineIndex: null,
+    bcTargetLineIndex: null,
+    bcSelectedStamps: new Set(),
     expandedBcLines: new Set(),
     projectSuggestionDismissed: false,
     deliveryNoteGroups: [],
@@ -151,7 +186,7 @@ document.addEventListener('DOMContentLoaded', () => {
     originLineMatches: [],
     originLineReferenceLabel: '',
     originLineMatchByLine: new WeakMap(),
-    selectedSplitLine: null,
+    selectedSplitLines: new Set(),
     entityCandidates: [],
     supplierSearchToken: 0,
     supplierSearchTimer: null,
@@ -170,6 +205,10 @@ document.addEventListener('DOMContentLoaded', () => {
     integrationResult: null,
     gedFolderManuallySelected: false,
     workflowSubmitting: false,
+    workflow: {},
+    duplicateMatches: [],
+    duplicateModalShownFor: '',
+    deletingDocument: false,
     view: allowedViews.has(initialView) ? initialView : ([...allowedViews][0] || ''),
   };
 
@@ -180,12 +219,18 @@ document.addEventListener('DOMContentLoaded', () => {
     purchase_order: 'Nota de encomenda',
     delivery_note: 'Guia',
     proforma_invoice: 'Fatura pró-forma',
-    provisional_invoice: 'Facture Provisoire',
+    provisional_invoice: 'Fatura provisória',
     receipt: 'Recibo',
     bank_statement: 'RB',
-    mail: 'Lettre',
+    mail: 'Correspondência',
     unknown: 'Tipo desconhecido',
     other: 'Outro documento',
+  };
+
+  const invoiceTypeLabels = {
+    concrete: 'Betão',
+    material: 'Material',
+    services: 'Serviços',
   };
 
   function escapeHtml(value) {
@@ -221,12 +266,16 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function renderViewTabs() {
-    els.viewTabs?.querySelectorAll('[data-view]').forEach((button) => {
+    const tabs = [...(els.viewTabs?.querySelectorAll('[data-view]') || [])];
+    tabs.forEach((button) => {
       const active = button.dataset.view === state.view;
       button.classList.toggle('is-active', active);
-      button.setAttribute('aria-selected', active ? 'true' : 'false');
-      button.tabIndex = active ? 0 : -1;
+      if (tabs.length > 1) {
+        button.setAttribute('aria-selected', active ? 'true' : 'false');
+        button.tabIndex = active ? 0 : -1;
+      }
     });
+    els.viewTabs?.classList.toggle('is-single-view', tabs.length === 1);
   }
 
   function renderModeCard() {
@@ -235,18 +284,18 @@ document.addEventListener('DOMContentLoaded', () => {
     if (state.view === 'home') {
       const docType = typeLabels[documentData.document_type] || documentData.document_type || typeLabels.unknown;
       const confidence = Math.round(Math.max(0, Math.min(1, Number(documentData.confidence || 0))) * 100);
-      els.modeLabel.textContent = 'Classement';
+      els.modeLabel.textContent = 'Classificação';
       els.modeValue.textContent = documentData.document_type ? docType : '--';
-      els.modeMeta.textContent = documentData.document_type ? `${confidence}% confiance` : 'En attente de lecture';
+      els.modeMeta.textContent = documentData.document_type ? `${confidence}% de confiança` : 'A aguardar leitura';
       return;
     }
     const totals = documentData.totals || {};
     const currency = documentData.currency || '';
-    els.modeLabel.textContent = 'Totaux';
+    els.modeLabel.textContent = 'Totais';
     els.modeValue.textContent = documentData.document_type ? formatMoney(totals.gross_total, currency) : '--';
     els.modeMeta.textContent = documentData.document_type
       ? `HT ${formatMoney(totals.net_total, currency)} · TVA ${formatMoney(totals.tax_total, currency)}`
-      : 'En attente de lecture';
+      : 'A aguardar leitura';
   }
 
   function selectView(view, { updateHistory = true } = {}) {
@@ -281,6 +330,74 @@ document.addEventListener('DOMContentLoaded', () => {
       } catch (_) {}
     }
     return `${formatNumber(number, 2)}${normalizedCurrency ? ` ${normalizedCurrency}` : ''}`;
+  }
+
+  function formatEditableAmount(value) {
+    return new Intl.NumberFormat('pt-PT', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+      useGrouping: true,
+    }).format(Number(value || 0));
+  }
+
+  function parseEditableNumber(value) {
+    const normalized = String(value ?? '').trim().replace(/\s/g, '').replace(',', '.');
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  function normalizeLineGroupCode(value) {
+    return String(value || '').trim().toUpperCase();
+  }
+
+  function validateLineGroupChange(lines, lineIndex, nextCode) {
+    const items = Array.isArray(lines) ? lines : [];
+    const currentCode = normalizeLineGroupCode(items[lineIndex]?.article_group_code);
+    const normalized = normalizeLineGroupCode(nextCode);
+    if (normalized && !/^[PA][1-9]\d*$/.test(normalized)) {
+      return { ok: false, message: 'Usa um grupo como P1 ou A1.' };
+    }
+    const currentPrincipal = currentCode.match(/^P([1-9]\d*)$/)?.[1] || '';
+    const nextPrincipal = normalized.match(/^P([1-9]\d*)$/)?.[1] || '';
+    if (currentPrincipal && currentPrincipal !== nextPrincipal) {
+      const hasAssociates = items.some((line, index) => (
+        index !== lineIndex && normalizeLineGroupCode(line?.article_group_code) === `A${currentPrincipal}`
+      ));
+      if (hasAssociates) {
+        return { ok: false, message: `O grupo ${currentPrincipal} ainda tem linhas associadas.` };
+      }
+    }
+    if (nextPrincipal) {
+      const duplicatePrincipal = items.some((line, index) => (
+        index !== lineIndex && normalizeLineGroupCode(line?.article_group_code) === `P${nextPrincipal}`
+      ));
+      if (duplicatePrincipal) {
+        return { ok: false, message: `O grupo ${nextPrincipal} já tem linha principal.` };
+      }
+    }
+    const nextAssociate = normalized.match(/^A([1-9]\d*)$/)?.[1] || '';
+    if (nextAssociate) {
+      const hasPrincipal = items.some((line, index) => (
+        index !== lineIndex && normalizeLineGroupCode(line?.article_group_code) === `P${nextAssociate}`
+      ));
+      if (!hasPrincipal) {
+        return { ok: false, message: `O grupo ${nextAssociate} não tem linha principal.` };
+      }
+    }
+    return { ok: true, code: normalized };
+  }
+
+  function formatBcLabel(origin) {
+    const number = String(origin?.origin_number || origin?.number || '').trim();
+    const year = String(origin?.origin_year || origin?.year || '').trim();
+    if (!number) return 'BC';
+    return `BC N.º ${number}${year ? ` / ${year}` : ''}`;
+  }
+
+  function associatedBcOrigins() {
+    return state.selectedOrigins.map((selected) => (
+      state.originCandidates.find((candidate) => candidate.stamp === selected.stamp) || selected
+    )).filter((origin) => origin?.document_type === 'purchase_order' || Number(origin?.ndos || 0) === 102);
   }
 
   function formatDate(value) {
@@ -464,15 +581,15 @@ document.addEventListener('DOMContentLoaded', () => {
       || companyFolder === 'PASTA-EMPRESA-POR-CONFIGURAR';
 
     els.gedFileName.textContent = fileName;
+    els.gedFileName.title = fileName;
     els.gedPath.replaceChildren(...paths.map((destination) => {
-      const item = document.createElement('div');
-      item.className = 'docai-extract-ged-path-item';
-      const label = document.createElement('span');
-      label.textContent = destination.label;
-      const pathCode = document.createElement('code');
-      pathCode.textContent = destination.path;
-      item.append(label, pathCode);
-      return item;
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'docai-classification-destination';
+      button.textContent = destination.label;
+      button.title = destination.path;
+      button.dataset.copyValue = destination.path;
+      return button;
     }));
     els.gedDestination.classList.toggle('is-incomplete', incomplete);
     els.gedStatus.textContent = incomplete
@@ -480,8 +597,11 @@ document.addEventListener('DOMContentLoaded', () => {
       : `${paths.length} ${paths.length === 1 ? 'ficheiro previsto' : 'ficheiros previstos'} com os dados identificados.`;
     if (state.integrationResult?.ged_path) {
       els.gedFileName.textContent = state.integrationResult.file_name || fileName;
-      const integratedPath = els.gedPath.querySelector('code');
-      if (integratedPath) integratedPath.textContent = state.integrationResult.ged_path;
+      const integratedPath = els.gedPath.querySelector('[data-copy-value]');
+      if (integratedPath) {
+        integratedPath.dataset.copyValue = state.integrationResult.ged_path;
+        integratedPath.title = state.integrationResult.ged_path;
+      }
       els.gedDestination.classList.remove('is-incomplete');
       els.gedStatus.textContent = `Guardado no PHC ${state.integrationResult.phc_database || ''} e ligado à correspondência nº ${state.integrationResult.reference}.`;
     }
@@ -489,25 +609,32 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function updateSubmitPhcButton() {
-    if (els.workflowValidateBtn) {
-      const labels = {
-        home: 'Validar Receção',
-        management: 'Validar Controlo',
-        accounting: 'Validar Contabilidade',
-      };
-      els.workflowValidateBtn.disabled = !state.currentDocumentId || !state.documentData || state.workflowSubmitting;
-      els.workflowValidateBtn.dataset.view = state.view;
-      els.workflowValidateBtn.innerHTML = state.workflowSubmitting
-        ? '<i class="fa-solid fa-circle-notch fa-spin"></i><span>A validar...</span>'
-        : `<i class="fa-solid fa-check"></i><span>${labels[state.view] || 'Validar etapa'}</span>`;
-    }
-    if (!els.submitPhcBtn) return;
     const documentData = state.documentData || {};
     const party = documentData.supplier || {};
     const isCorrespondence = ['mail', 'bank_statement'].includes(documentData.document_type);
     const isProvisionalInvoice = ['invoice', 'provisional_invoice', 'credit_note'].includes(documentData.document_type);
-    const allowed = (isCorrespondence && els.submitPhcBtn.dataset.canCorrespondence === '1')
-      || (isProvisionalInvoice && els.submitPhcBtn.dataset.canProvisionalInvoice === '1');
+    const canSubmitCorrespondence = isCorrespondence && els.submitPhcBtn?.dataset.canCorrespondence === '1';
+    const canSubmitProvisionalInvoice = isProvisionalInvoice && els.submitPhcBtn?.dataset.canProvisionalInvoice === '1';
+    if (els.workflowValidateBtn) {
+      const currentAssignment = (state.workflow.assignments || []).find((assignment) => (
+        assignment.view === state.view && assignment.active
+      ));
+      const isAccountingPending = state.view === 'accounting' && currentAssignment?.state === 'pending';
+      els.workflowValidateBtn.disabled = !state.currentDocumentId
+        || !state.documentData
+        || state.workflowSubmitting
+        || state.submittingPhc
+        || isAccountingPending;
+      els.workflowValidateBtn.dataset.view = state.view;
+      els.workflowValidateBtn.title = isAccountingPending
+        ? 'Pendente: aguarda validação do Controlo de Gestão.'
+        : '';
+      els.workflowValidateBtn.innerHTML = state.workflowSubmitting
+        ? '<i class="fa-solid fa-circle-notch fa-spin"></i><span>A validar...</span>'
+        : '<i class="fa-solid fa-check"></i><span>Validar</span>';
+    }
+    if (!els.submitPhcBtn) return;
+    const allowed = canSubmitCorrespondence || canSubmitProvisionalInvoice;
     els.submitPhcBtn.hidden = !allowed;
     if (els.controlOkBtn) els.controlOkBtn.hidden = !isProvisionalInvoice || els.controlOkBtn.dataset.canProvisionalInvoice !== '1';
     if (!allowed) return;
@@ -522,25 +649,25 @@ document.addEventListener('DOMContentLoaded', () => {
     if (els.controlOkBtn && isProvisionalInvoice) {
       els.controlOkBtn.disabled = !ready || state.submittingControl || state.controlOk || state.integratedPhc;
       els.controlOkBtn.title = ready
-        ? (state.controlOk ? 'Contrôle OK concluído.' : 'Confirmar o controlo do documento.')
+        ? (state.controlOk ? 'Controlo OK concluído.' : 'Confirmar o controlo do documento.')
         : 'Identifica a sociedade, o fornecedor, o número e as linhas do documento.';
       els.controlOkBtn.innerHTML = state.submittingControl
         ? '<i class="fa-solid fa-circle-notch fa-spin"></i><span>A confirmar...</span>'
         : state.controlOk
-          ? '<i class="fa-solid fa-circle-check"></i><span>Contrôle OK</span>'
-          : '<i class="fa-solid fa-clipboard-check"></i><span>Contrôle OK</span>';
+          ? '<i class="fa-solid fa-circle-check"></i><span>Controlo OK</span>'
+          : '<i class="fa-solid fa-clipboard-check"></i><span>Controlo OK</span>';
     }
     els.submitPhcBtn.disabled = !ready || (isProvisionalInvoice && !state.controlOk) || state.submittingPhc || state.integratedPhc;
     els.submitPhcBtn.title = isProvisionalInvoice && !state.controlOk
-      ? 'Efetua primeiro o Contrôle OK.'
+      ? 'Efetua primeiro o Controlo OK.'
       : '';
     if (state.integratedPhc) {
-      els.submitPhcBtn.innerHTML = '<i class="fa-solid fa-circle-check"></i><span>Comptabilité</span>';
+      els.submitPhcBtn.innerHTML = '<i class="fa-solid fa-circle-check"></i><span>Contabilidade</span>';
     } else if (state.submittingPhc) {
-      els.submitPhcBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i><span>Validation...</span>';
+      els.submitPhcBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i><span>A validar...</span>';
     } else {
       els.submitPhcBtn.innerHTML = isProvisionalInvoice
-        ? '<i class="fa-solid fa-check"></i><span>Validation</span>'
+        ? '<i class="fa-solid fa-check"></i><span>Validar</span>'
         : '<i class="fa-solid fa-paper-plane"></i><span>Submeter no PHC</span>';
     }
   }
@@ -551,12 +678,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const displayedNumber = documentData.document_type === 'mail'
       ? documentData.mail_title
       : documentData.document_number;
-    els.documentTitle.textContent = `${docType}${displayedNumber ? ` · ${displayedNumber}` : ''}`;
-    els.documentDate.textContent = `Data: ${formatDate(documentData.document_date)}${documentData.due_date ? ` · Vencimento: ${formatDate(documentData.due_date)}` : ''}`;
+    const invoiceType = ['invoice', 'provisional_invoice'].includes(documentData.document_type)
+      ? invoiceTypeLabels[String(documentData.invoice_type || '').toLowerCase()]
+      : '';
+    els.documentSummary.textContent = [
+      docType,
+      invoiceType,
+      displayedNumber,
+      documentData.document_date ? formatDate(documentData.document_date) : '',
+    ].filter(Boolean).join(' · ');
     if (state.correspondenceReference) {
-      els.correspondenceReference.textContent = `Correspondência nº ${state.correspondenceReference} · ${state.correspondenceYear}`;
+      els.correspondenceReference.textContent = `Correspondência n.º ${state.correspondenceReference} · ${state.correspondenceYear}`;
     } else {
-      els.correspondenceReference.textContent = 'Correspondência: a consultar sequência anual…';
+      els.correspondenceReference.textContent = 'Correspondência por atribuir';
     }
   }
 
@@ -570,7 +704,7 @@ document.addEventListener('DOMContentLoaded', () => {
     els.correspondenceSource.hidden = true;
     renderGedDestination();
     if (!customer.feid) {
-      els.correspondenceReference.textContent = 'Correspondência: escolhe primeiro a entidade';
+      els.correspondenceReference.textContent = 'Correspondência por atribuir';
       return;
     }
     try {
@@ -590,7 +724,7 @@ document.addEventListener('DOMContentLoaded', () => {
       renderGedDestination();
     } catch (error) {
       if (token !== state.correspondenceLookupToken) return;
-      els.correspondenceReference.textContent = 'Correspondência: numeração PHC indisponível';
+      els.correspondenceReference.textContent = 'Correspondência por atribuir';
       els.correspondenceSource.textContent = error.message || 'Não foi possível consultar a tabela CR.';
       els.correspondenceSource.hidden = false;
       renderGedDestination();
@@ -625,8 +759,10 @@ document.addEventListener('DOMContentLoaded', () => {
     els.dropzone.hidden = true;
     els.runBtn.disabled = false;
     els.openPdfBtn.disabled = false;
-    els.resetBtn.disabled = false;
+    if (els.deleteBtn) els.deleteBtn.disabled = false;
+    if (els.resetBtn) els.resetBtn.disabled = false;
     els.fileMeta.textContent = `${file.name} · ${formatFileSize(file.size)}`;
+    els.fileMeta.title = file.name;
     setStatus(options.autoExtract === false ? 'PDF pronto para leitura.' : 'PDF pronto; a iniciar leitura automática...');
     if (options.autoExtract !== false) {
       window.setTimeout(() => extractDocument(), 0);
@@ -657,7 +793,7 @@ document.addEventListener('DOMContentLoaded', () => {
     state.originLineMatches = [];
     state.originLineReferenceLabel = '';
     state.originLineMatchByLine = new WeakMap();
-    state.selectedSplitLine = null;
+    state.selectedSplitLines = new Set();
     state.controlOk = false;
     state.submittingControl = false;
     state.correspondenceLookupToken += 1;
@@ -666,6 +802,7 @@ document.addEventListener('DOMContentLoaded', () => {
     state.submittingPhc = false;
     state.submittingControl = false;
     state.workflowSubmitting = false;
+    state.workflow = {};
     state.controlOk = false;
     state.integratedPhc = false;
     state.integrationResult = null;
@@ -674,14 +811,23 @@ document.addEventListener('DOMContentLoaded', () => {
     els.dropzone.hidden = false;
     els.runBtn.disabled = true;
     els.openPdfBtn.disabled = true;
-    els.resetBtn.disabled = true;
+    if (els.deleteBtn) els.deleteBtn.disabled = true;
+    if (els.resetBtn) els.resetBtn.disabled = true;
     els.empty.hidden = false;
     els.empty.querySelector('strong').textContent = 'Nenhum documento analisado';
     els.empty.querySelector('span').textContent = 'Carrega um PDF para identificar cliente, fornecedor, cabeçalho, linhas, IVA e totais.';
     els.loading.hidden = true;
     els.results.hidden = true;
     els.fileMeta.textContent = 'Seleciona um PDF até 50 MB.';
+    els.fileMeta.removeAttribute('title');
     els.resultMeta.textContent = 'Os resultados aparecem aqui depois da leitura.';
+    els.correspondenceReference.textContent = 'Correspondência por atribuir';
+    els.documentSummary.textContent = 'Os dados do documento aparecem aqui depois da leitura.';
+    els.gedFileName.textContent = '--';
+    els.gedPath.textContent = '--';
+    els.netTotal.textContent = '--';
+    els.taxTotal.textContent = '--';
+    els.grossTotal.textContent = '--';
     els.groupNavigator.hidden = true;
     renderProjectCard();
     window.history.replaceState({}, '', extractUrl(''));
@@ -690,13 +836,41 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function fetchJson(url, options = {}) {
-    const response = await fetch(url, options);
+    const target = new URL(url, window.location.origin);
+    if (target.pathname.startsWith('/api/document_ai/') && !target.searchParams.has('view')) {
+      target.searchParams.set('view', state.view);
+    }
+    const response = await fetch(`${target.pathname}${target.search}`, options);
     let payload = {};
     try {
       payload = await response.json();
     } catch (_) {}
     if (!response.ok) throw new Error(payload.error || `HTTP ${response.status}`);
     return payload;
+  }
+
+  function closeDuplicateModal() {
+    els.duplicateModal?.classList.remove('sz_is_open');
+    els.duplicateModal?.setAttribute('aria-hidden', 'true');
+  }
+
+  function openDuplicateModal(matches) {
+    state.duplicateMatches = Array.isArray(matches) ? matches : [];
+    if (!els.duplicateModal || !els.duplicateList || !state.duplicateMatches.length) return;
+    els.duplicateList.innerHTML = state.duplicateMatches.map((match) => `
+      <article class="docai-duplicate-item">
+        <div>
+          <strong>${escapeHtml(match.file_name || match.document_id || 'Documento existente')}</strong>
+          <span class="sz_text_muted">${match.match_type === 'exact' ? 'Mesmo ficheiro' : 'Mesma identidade documental'} · ${escapeHtml(match.processing_stage || 'inbox')}</span>
+        </div>
+        <button type="button" class="sz_button sz_button_secondary" data-open-duplicate="${escapeHtml(match.document_id || '')}">
+          <i class="fa-solid fa-arrow-up-right-from-square"></i>
+          <span>Abrir documento</span>
+        </button>
+      </article>
+    `).join('');
+    els.duplicateModal.classList.add('sz_is_open');
+    els.duplicateModal.setAttribute('aria-hidden', 'false');
   }
 
   function accessPermissionInputs() {
@@ -838,7 +1012,7 @@ document.addEventListener('DOMContentLoaded', () => {
     state.originLineMatches = [];
     state.originLineReferenceLabel = '';
     state.originLineMatchByLine = new WeakMap();
-    state.selectedSplitLine = null;
+    state.selectedSplitLines = new Set();
     state.correspondenceLookupToken += 1;
     state.correspondenceReference = null;
     state.correspondenceYear = null;
@@ -855,7 +1029,7 @@ document.addEventListener('DOMContentLoaded', () => {
     els.originLoading.hidden = false;
     els.empty.hidden = false;
     els.empty.querySelector('strong').textContent = 'A iniciar leitura automática';
-    els.empty.querySelector('span').textContent = 'O PDF será enviado ao LLM assim que ficar carregado.';
+    els.empty.querySelector('span').textContent = 'A leitura começa assim que o PDF ficar carregado.';
     els.resultMeta.textContent = 'A preparar o documento selecionado para leitura automática.';
     renderProjectCard();
   }
@@ -897,11 +1071,11 @@ document.addEventListener('DOMContentLoaded', () => {
     els.empty.hidden = true;
     els.loading.hidden = false;
     els.loading.querySelector('strong').textContent = 'A carregar documento do inbox...';
-    els.loading.querySelector('span').textContent = 'A leitura guardada será reutilizada; o LLM só será chamado se ainda não existir resultado.';
+    els.loading.querySelector('span').textContent = 'A leitura guardada será reutilizada quando estiver disponível.';
     els.fileMeta.textContent = 'A carregar PDF original...';
     setStatus('A carregar documento do inbox...');
     try {
-      const response = await fetch(`/api/document_ai/documents/${encodeURIComponent(documentId)}/original`);
+      const response = await fetch(`/api/document_ai/documents/${encodeURIComponent(documentId)}/original?view=${encodeURIComponent(state.view)}`);
       if (!response.ok) {
         let message = `HTTP ${response.status}`;
         try {
@@ -980,52 +1154,74 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!state.deliveryNoteGroups.length) state.virtualDeliveryNotesActive = false;
     els.suggestBlsBtn.hidden = !state.deliveryNoteGroups.length;
     els.suggestBlsBtn.disabled = state.virtualDeliveryNotesActive;
+    const proposedBlCount = state.deliveryNoteGroups.length;
     els.suggestBlsBtn.innerHTML = state.virtualDeliveryNotesActive
-      ? `<i class="fa-solid fa-circle-check"></i><span>${state.deliveryNoteGroups.length} BL(s) sugeridos</span>`
-      : `<i class="fa-solid fa-wand-magic-sparkles"></i><span>Sugerir criação de ${state.deliveryNoteGroups.length} BL(s)</span>`;
-    if (state.selectedSplitLine && !items.includes(state.selectedSplitLine)) state.selectedSplitLine = null;
+      ? `<i class="fa-solid fa-circle-check"></i><span>${proposedBlCount === 1 ? 'BL sugerido' : `${proposedBlCount} BL sugeridos`}</span>`
+      : `<i class="fa-solid fa-wand-magic-sparkles"></i><span>${proposedBlCount === 1 ? 'Sugerir BL' : `Sugerir ${proposedBlCount} BL`}</span>`;
+    Array.from(state.selectedSplitLines).forEach((line) => {
+      if (!items.includes(line)) state.selectedSplitLines.delete(line);
+    });
     const proportionalGroups = state.deliveryNoteGroups.filter((group) => Number(group.base_quantity || 0) > 0);
-    const canSplitAcrossDeliveryNotes = proportionalGroups.length >= 2;
-    els.splitLineBtn.hidden = !canSplitAcrossDeliveryNotes;
-    els.splitLineBtn.disabled = !canSplitAcrossDeliveryNotes || !state.selectedSplitLine;
-    els.splitLineBtn.innerHTML = state.selectedSplitLine
-      ? `<i class="fa-solid fa-code-branch"></i><span>Répartir BL (${proportionalGroups.length})</span>`
-      : '<i class="fa-solid fa-code-branch"></i><span>Répartir BL</span>';
+    const canDistributeDeliveryNotes = state.virtualDeliveryNotesActive && proportionalGroups.length > 0;
+    els.splitLineBtn.hidden = !canDistributeDeliveryNotes;
+    els.splitLineBtn.disabled = !canDistributeDeliveryNotes || state.selectedSplitLines.size === 0;
+    els.splitLineBtn.innerHTML = `<i class="fa-solid fa-code-branch"></i><span>${proportionalGroups.length === 1 ? 'Distribuir BL' : `Distribuir ${proportionalGroups.length} BL`}</span>`;
     els.lineCount.textContent = `${items.length} linha(s)`;
     if (!items.length) {
-      els.linesBody.innerHTML = '<tr><td colspan="9" class="sz_text_muted">Não foram encontradas linhas comerciais visíveis.</td></tr>';
+      els.linesBody.innerHTML = '<tr><td colspan="12" class="sz_text_muted">Não foram encontradas linhas comerciais visíveis.</td></tr>';
       return;
     }
     els.linesBody.innerHTML = items.map((line, lineIndex) => {
-      const originMatches = state.originLineMatchByLine.get(line) || [];
-      const selectedForSplit = state.selectedSplitLine === line;
-      const action = originMatches.length ? 'Rattacher' : (line.ref ? 'Contrôler' : 'Créer');
+      const selectedForSplit = state.selectedSplitLines.has(line);
       const project = String(line.ccusto || line.project_ccusto || state.selectedProject?.ccusto || '').trim();
-      const bcCell = originMatches.length > 1
-        ? `<button type="button" class="docai-extract-bc-toggle" data-line-bc-toggle="${lineIndex}" title="Ouvrir" aria-expanded="${state.expandedBcLines.has(lineIndex) ? 'true' : 'false'}">${originMatches.length} BC <i class="fa-solid fa-chevron-${state.expandedBcLines.has(lineIndex) ? 'up' : 'down'}"></i></button>`
-        : originMatches.length === 1
-          ? `<span class="docai-extract-bc-ref">${escapeHtml(originMatches[0].origin_ref || '--')}</span>`
-          : '<span class="sz_text_muted">--</span>';
-      const bcRows = originMatches.length > 1 && state.expandedBcLines.has(lineIndex)
-        ? originMatches.map((originMatch) => {
-            const reasons = Array.isArray(originMatch.reasons) ? originMatch.reasons.join(' · ') : '';
-            return `<tr class="docai-extract-bc-detail-row">
-              <td></td><td></td><td>${escapeHtml(originMatch.origin_description || reasons || 'Correspondance BC')}</td>
-              <td></td><td></td><td></td><td></td>
-              <td><span class="docai-extract-bc-ref">${escapeHtml(originMatch.origin_ref || '--')}</span></td><td></td>
-            </tr>`;
-          }).join('')
+      const groupCode = normalizeLineGroupCode(line.article_group_code);
+      const registration = String(line.registration || line.matricula || '').trim();
+      const vehicleCell = registration
+        ? `<button type="button" class="docai-extract-vehicle-btn is-selected" data-line-vehicle="${lineIndex}" title="${escapeHtml(registration)}" aria-label="${escapeHtml(registration)}"><i class="fa-solid fa-car"></i></button>`
+        : `<button type="button" class="docai-extract-vehicle-btn is-empty" data-line-vehicle="${lineIndex}" aria-label="Associar veículo"></button>`;
+      const lineDate = String(line.date || line.data || '').trim().slice(0, 10);
+      const currencyCode = String(currency || '').trim().toUpperCase();
+      const currencySuffix = /^[A-Z]{3}$/.test(currencyCode)
+        ? `<span class="docai-extract-line-currency">${escapeHtml(currencyCode)}</span>`
         : '';
-      return `<tr class="${selectedForSplit ? 'is-selected-for-split' : ''}${line._virtual_split_allocation ? ' is-split-allocation' : ''}">
-        <td><span class="docai-extract-line-action">${escapeHtml(action)}</span></td>
-        <td><button type="button" class="docai-extract-cell-link" data-line-article="${lineIndex}" title="Choisir un article PHC">${escapeHtml(line.ref || 'Choisir')}</button></td>
-        <td><input class="sz_input docai-extract-line-description-input" data-line-description="${lineIndex}" value="${escapeHtml(line.description || '')}" aria-label="Désignation de la ligne"></td>
-        <td class="docai-extract-number">${escapeHtml(formatNumber(line.qty))}</td>
-        <td class="docai-extract-number">${escapeHtml(formatMoney(line.unit_price, currency))}</td>
-        <td class="docai-extract-number">${escapeHtml(formatMoney(line.net_amount, currency))}</td>
-        <td><button type="button" class="docai-extract-cell-link" data-line-project="${lineIndex}" title="Choisir un chantier">${escapeHtml(project || 'Choisir')}</button></td>
-        <td class="docai-extract-bc-ref-cell">${bcCell}</td>
-        <td class="docai-extract-line-picker-cell"><input type="checkbox" data-line-select="${lineIndex}" aria-label="Sélectionner pour répartir BL" ${selectedForSplit ? 'checked' : ''}></td>
+      const bcAllocations = Array.isArray(line.bc_allocations) ? line.bc_allocations : [];
+      const uniqueBc = new Map();
+      bcAllocations.forEach((allocation) => {
+        const key = String(allocation.origin_stamp || `${allocation.origin_number || ''}:${allocation.origin_year || ''}`);
+        if (!uniqueBc.has(key)) uniqueBc.set(key, allocation);
+      });
+      const bcSummary = uniqueBc.size > 1
+        ? `${uniqueBc.size} BC`
+        : uniqueBc.size === 1
+          ? formatBcLabel(Array.from(uniqueBc.values())[0])
+          : 'Escolher';
+      const hasDistribution = bcAllocations.length > 1;
+      const distributionButton = hasDistribution
+        ? `<button type="button" class="docai-extract-bc-distribution-toggle" data-line-bc-toggle="${lineIndex}" aria-expanded="${state.expandedBcLines.has(lineIndex) ? 'true' : 'false'}" aria-label="${state.expandedBcLines.has(lineIndex) ? 'Ocultar distribuição por BC' : 'Mostrar distribuição por BC'}">${state.expandedBcLines.has(lineIndex) ? '−' : '+'}</button>`
+        : '';
+      const bcRows = hasDistribution && state.expandedBcLines.has(lineIndex)
+        ? bcAllocations.map((allocation) => `<tr class="docai-extract-bc-allocation-row">
+            <td></td><td></td><td></td>
+            <td class="docai-extract-number">${escapeHtml(formatNumber(allocation.quantity))}</td>
+            <td class="docai-extract-number">${escapeHtml(formatMoney(allocation.unit_price, currency))}</td>
+            <td class="docai-extract-number">${escapeHtml(formatMoney(allocation.total, currency))}</td>
+            <td></td><td></td><td></td><td></td>
+            <td><span class="docai-extract-bc-ref">${escapeHtml(formatBcLabel(allocation))}${allocation.origin_line_order ? ` · Linha ${escapeHtml(formatNumber(allocation.origin_line_order))}` : ''}</span></td><td></td>
+          </tr>`).join('')
+        : '';
+      return `<tr class="${line._virtual_split_allocation ? 'is-split-allocation' : ''}">
+        <td><input class="sz_input docai-extract-line-group-input" data-line-group="${lineIndex}" value="${escapeHtml(groupCode)}" title="P = Principal · A = Associado" aria-label="Grupo de artigo"></td>
+        <td><button type="button" class="docai-extract-cell-link" data-line-article="${lineIndex}" title="Escolher artigo PHC">${escapeHtml(line.ref || 'Escolher')}</button></td>
+        <td><input class="sz_input docai-extract-line-description-input" data-line-description="${lineIndex}" value="${escapeHtml(line.description || '')}" aria-label="Designação da linha"></td>
+        <td><input class="sz_input docai-extract-line-number-input" inputmode="decimal" data-line-qty="${lineIndex}" value="${escapeHtml(formatEditableAmount(line.qty))}" aria-label="Quantidade"></td>
+        <td><span class="docai-extract-line-money-input"><input class="sz_input docai-extract-line-number-input" inputmode="decimal" data-line-unit-price="${lineIndex}" value="${escapeHtml(formatEditableAmount(line.unit_price))}" aria-label="Preço unitário">${currencySuffix}</span></td>
+        <td><span class="docai-extract-line-money-input"><input class="sz_input docai-extract-line-number-input" inputmode="decimal" data-line-total="${lineIndex}" value="${escapeHtml(formatEditableAmount(line.net_amount))}" aria-label="Preço total">${currencySuffix}</span></td>
+        <td><button type="button" class="docai-extract-cell-link" data-line-project="${lineIndex}" title="Escolher uma obra">${escapeHtml(project || 'Escolher')}</button></td>
+        <td class="docai-extract-vehicle-cell">${vehicleCell}</td>
+        <td><input type="date" class="sz_input docai-extract-line-date-input" data-line-date="${lineIndex}" value="${escapeHtml(lineDate)}" aria-label="Data da linha"></td>
+        <td class="docai-extract-line-distribution">${distributionButton}</td>
+        <td class="docai-extract-bc-ref-cell"><button type="button" class="docai-extract-cell-link" data-line-bc="${lineIndex}" title="Associar BC à linha">${escapeHtml(bcSummary)}</button></td>
+        <td class="docai-extract-line-picker-cell"><input type="checkbox" class="docai-extract-bl-selector" data-line-select="${lineIndex}" role="checkbox" aria-label="Selecionar para distribuir por BL" aria-checked="${selectedForSplit ? 'true' : 'false'}" ${selectedForSplit ? 'checked' : ''} ${line._virtual_split_allocation ? 'disabled' : ''}></td>
       </tr>${bcRows}`;
     }).join('');
   }
@@ -1046,14 +1242,37 @@ document.addEventListener('DOMContentLoaded', () => {
     `).join('');
   }
 
+  function openTotalsModal() {
+    if (!state.documentData || !els.totalsModal) return;
+    els.totalsModal.classList.add('sz_is_open');
+    els.totalsModal.setAttribute('aria-hidden', 'false');
+    els.totalsCloseTop?.focus();
+  }
+
+  function closeTotalsModal() {
+    els.totalsModal?.classList.remove('sz_is_open');
+    els.totalsModal?.setAttribute('aria-hidden', 'true');
+    els.totalsCard?.focus();
+  }
+
+  async function copyClassificationValue(value) {
+    if (!value) return;
+    try {
+      await navigator.clipboard.writeText(value);
+      showMessage('Copiado.', 'success');
+    } catch (_) {
+      showMessage('Não foi possível copiar.', 'error');
+    }
+  }
+
   function renderSupplierCard(supplier = {}, matching = {}) {
     const isCorrespondence = ['mail', 'bank_statement'].includes(state.documentData?.document_type);
     const isCustomerMail = isCorrespondence && state.documentData?.external_party_role === 'customer';
     const supplierNo = Number(isCustomerMail ? supplier.customer_no : (supplier.supplier_no || supplier.no) || 0);
     const supplierNumberLabel = phcPartyNumber(supplierNo, supplier.estab);
     const matched = Boolean(supplierNo);
-    els.partyLabel.textContent = isCorrespondence ? 'Remetente' : 'Fournisseur';
-    els.supplierName.textContent = supplier.name || supplier.llm_name || '--';
+    els.partyLabel.textContent = isCorrespondence ? 'Remetente' : 'Fornecedor';
+    els.supplierName.textContent = supplier.name || supplier.llm_name || 'Fornecedor por associar';
     els.supplierTax.textContent = supplier.tax_id
       ? `${isCustomerMail ? 'NIF' : 'NIF/NCONT'}: ${supplier.tax_id}`
       : `${isCustomerMail ? 'NIF' : 'NIF/NCONT'} não identificado`;
@@ -1071,6 +1290,7 @@ document.addEventListener('DOMContentLoaded', () => {
         els.supplierHint.innerHTML = '<i class="fa-solid fa-hand-pointer"></i> Procurar ou escrever o remetente';
       }
       els.supplierCard.setAttribute('aria-label', 'Escolher ou escrever remetente');
+      els.supplierHint.hidden = true;
       return;
     }
     els.supplierNo.hidden = false;
@@ -1086,15 +1306,16 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (matching?.supplier_lookup_error) {
       els.supplierHint.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> Não foi possível consultar a FL';
     }
+    els.supplierHint.hidden = true;
   }
 
   function renderCustomerCard(customer = {}, matching = {}) {
     const isMail = state.documentData?.document_type === 'mail';
     const matched = Boolean(customer.feid && matching.customer_matched !== false);
-    els.customerLabel.textContent = isMail ? 'Entidade' : 'Société';
-    els.customerName.textContent = isMail && !matched ? 'Por escolher' : (customer.name || '--');
-    els.customerTax.textContent = matched && customer.tax_id ? `NIF: ${customer.tax_id}` : (matched ? 'NIF não identificado' : 'Empresa do grupo não identificada');
-    els.customerHint.hidden = false;
+    els.customerLabel.textContent = 'Entidade';
+    els.customerName.textContent = matched ? (customer.name || '--') : 'Entidade por associar';
+    els.customerTax.textContent = matched && customer.tax_id ? `NIF: ${customer.tax_id}` : (matched ? 'NIF não identificado' : '');
+    els.customerHint.hidden = true;
     els.customerCard.tabIndex = 0;
     els.customerCard.setAttribute('aria-label', matched ? 'Alterar entidade' : 'Escolher entidade');
     els.customerHint.innerHTML = matched
@@ -1248,6 +1469,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const virtualStageHtml = renderVirtualDeliveryNoteStage();
 
     if (!payload.available) {
+      els.originMeta.hidden = false;
       els.originTabs.hidden = true;
       els.originTabs.innerHTML = '';
       els.originMeta.textContent = virtualStageHtml
@@ -1260,19 +1482,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const stages = (Array.isArray(payload.stages) ? payload.stages : [])
       .filter((stage) => Array.isArray(stage.candidates) && stage.candidates.length);
-    const detectedOrigins = Array.isArray(payload.detected_origins) ? payload.detected_origins : [];
-    const detectedOriginLabel = (item) => {
-      if (item.document_type === 'delivery_note') return 'BL';
-      if (item.document_type === 'contract') return 'Contrato';
-      return 'BC';
-    };
-    const detectedLabel = detectedOrigins.length
-      ? ` O PDF refere: ${detectedOrigins.map((item) => `${detectedOriginLabel(item)} ${item.document_number}`).join(', ')}.`
-      : '';
-    const virtualLabel = virtualStageHtml ? ` ${state.deliveryNoteGroups.length} BL(s) virtual(is) proposto(s) para criação.` : '';
-    els.originMeta.textContent = payload.candidate_count
-      ? `${payload.candidate_count} possível(eis) origem(ns) do mesmo fornecedor.${detectedLabel}${virtualLabel}`
-      : `Não foram encontrados documentos anteriores abertos com quantidades pendentes.${detectedLabel}${virtualLabel}`;
+    els.originMeta.textContent = '';
+    els.originMeta.hidden = true;
 
     let virtualStageInserted = false;
     let stageHtml = stages.map((stage) => {
@@ -1281,22 +1492,26 @@ document.addEventListener('DOMContentLoaded', () => {
       const candidates = Array.isArray(stage.candidates) ? stage.candidates : [];
       const cards = candidates.map((candidate) => {
         const candidateIndex = state.originCandidates.push(candidate) - 1;
-        const selected = state.selectedOrigins.some((origin) => origin.stamp === candidate.stamp);
-        const reasons = Array.isArray(candidate.reasons) ? candidate.reasons.slice(0, 2).join(' · ') : '';
+        const associated = state.selectedOrigins.some((origin) => origin.stamp === candidate.stamp);
+        const consulted = state.consultedOriginStamp === candidate.stamp;
+        const score = Number(candidate.score || 0);
+        const scoreLabel = score > 0 ? ` · ${Math.round(score * 100)}%` : '';
         return `
-          <button type="button" class="docai-extract-origin-candidate${selected ? ' is-selected' : ''}" data-origin-index="${candidateIndex}" aria-pressed="${selected ? 'true' : 'false'}">
+          <article class="docai-extract-origin-candidate${consulted ? ' is-selected' : ''}${associated ? ' is-associated' : ''}" data-origin-index="${candidateIndex}" role="button" tabindex="0" aria-label="Consultar ${escapeHtml(stage.label || 'origem')} ${escapeHtml(candidate.number || '')}">
             <span class="docai-extract-origin-candidate-top">
-              <strong>Nº ${escapeHtml(candidate.number || '--')}${candidate.year ? ` / ${escapeHtml(candidate.year)}` : ''}</strong>
-              <span>${Math.round(Number(candidate.score || 0) * 100)}%</span>
+              <strong>N.º ${escapeHtml(candidate.number || '--')}${candidate.year ? ` / ${escapeHtml(candidate.year)}` : ''}${scoreLabel}</strong>
+              <button type="button" class="docai-origin-link-button${associated ? ' is-associated' : ''}" data-origin-link="${candidateIndex}" aria-label="${associated ? 'Desassociar do processo' : 'Associar ao processo'}" title="${associated ? 'Desassociar do processo' : 'Associar ao processo'}"><i class="fa-solid ${associated ? 'fa-link-slash' : 'fa-link'}"></i></button>
             </span>
-            <span>${escapeHtml(formatDate(candidate.date))} · ${escapeHtml(formatMoney(candidate.total, state.documentData?.currency))} · ${escapeHtml(formatNumber(candidate.pending_quantity))} pendente</span>
-            <small>${escapeHtml(reasons || `${candidate.line_count || 0} linha(s)`)}</small>
-            <em><i class="fa-solid ${selected ? 'fa-circle-minus' : 'fa-link'}"></i> ${selected ? 'Détacher' : 'Rattacher'}</em>
-          </button>`;
+            <span>${escapeHtml(formatDate(candidate.date))}</span>
+            <strong class="docai-origin-card-total">${escapeHtml(formatMoney(candidate.total, state.documentData?.currency))}</strong>
+          </article>`;
       }).join('');
+      const count = candidates.length;
+      const singular = stage.key === 'delivery_note' ? 'Guia de remessa' : (stage.key === 'purchase_order' ? 'Nota de encomenda' : (stage.label || 'Origem'));
+      const plural = stage.key === 'delivery_note' ? 'Guias de remessa' : (stage.key === 'purchase_order' ? 'Notas de encomenda' : `${singular}s`);
       const realStageHtml = `
         <article class="docai-extract-origin-stage" data-origin-stage="${escapeHtml(stage.key)}">
-          <div class="docai-extract-origin-stage-title"><strong>${escapeHtml(stage.display_order || '')} ${escapeHtml(stage.label || stage.key)}</strong></div>
+          <div class="docai-extract-origin-stage-title"><strong>${count} ${escapeHtml(count === 1 ? singular : plural)}</strong></div>
           <div class="docai-extract-origin-options">${cards}</div>
         </article>`;
       return `${insertVirtualBefore ? virtualStageHtml : ''}${realStageHtml}`;
@@ -1307,11 +1522,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const tabStages = stages.map((stage) => ({
       key: String(stage.key || ''),
       label: String(stage.label || stage.key || ''),
-      count: Array.isArray(stage.candidates) ? stage.candidates.length : 0,
     }));
     if (virtualStageHtml) {
       const virtualIndex = Math.max(0, tabStages.findIndex((stage) => ['delivery_note', 'purchase_order'].includes(stage.key)));
-      tabStages.splice(virtualIndex, 0, { key: 'virtual_delivery_note', label: 'BL à créer', count: state.deliveryNoteGroups.length });
+      tabStages.splice(virtualIndex, 0, { key: 'virtual_delivery_note', label: 'BL a criar', count: state.deliveryNoteGroups.length });
     }
     renderOriginTabs(tabStages);
   }
@@ -1324,10 +1538,19 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     if (!availableKeys.includes(state.activeOriginStage)) state.activeOriginStage = availableKeys[0];
-    els.originTabs.hidden = false;
+    els.originTabs.hidden = availableKeys.length === 1;
     els.originTabs.innerHTML = stages.map((stage) => {
       const active = stage.key === state.activeOriginStage;
-      return `<button type="button" class="docai-extract-origin-tab${active ? ' is-active' : ''}" role="tab" data-origin-tab="${escapeHtml(stage.key)}" aria-selected="${active ? 'true' : 'false'}">${escapeHtml(stage.label)} <span>${Number(stage.count || 0)}</span></button>`;
+      const officialLabels = {
+        purchase_order: 'BC',
+        delivery_note: 'BL',
+        proforma_invoice: 'Pré-fatura',
+        contract: 'Contrato',
+        subcontract_contract: 'Contrato ST',
+        subcontract_measurement: 'Situação de trabalhos ST',
+      };
+      const label = officialLabels[stage.key] || stage.label;
+      return `<button type="button" class="docai-extract-origin-tab${active ? ' is-active' : ''}" role="tab" data-origin-tab="${escapeHtml(stage.key)}" aria-selected="${active ? 'true' : 'false'}">${escapeHtml(label)}</button>`;
     }).join('');
     els.originFlow.querySelectorAll('[data-origin-stage]').forEach((panel) => {
       panel.hidden = panel.dataset.originStage !== state.activeOriginStage;
@@ -1386,7 +1609,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return `
       <article class="docai-extract-origin-stage is-virtual-stage" data-origin-stage="virtual_delivery_note">
         <div class="docai-extract-origin-stage-title">
-          <strong>${state.deliveryNoteGroups.length} Bon de Livraison Fournisseur a criar</strong>
+          <strong>${state.deliveryNoteGroups.length} guia(s) de fornecedor a criar</strong>
           <span class="docai-extract-virtual-flag"><i class="fa-solid fa-wand-magic-sparkles"></i> Sugestão</span>
         </div>
         <div class="docai-extract-origin-options">${cards}</div>
@@ -1397,7 +1620,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!state.deliveryNoteGroups.length || state.virtualDeliveryNotesActive) return;
     state.virtualDeliveryNotesActive = true;
     els.suggestBlsBtn.disabled = true;
-    els.suggestBlsBtn.innerHTML = `<i class="fa-solid fa-circle-check"></i><span>${state.deliveryNoteGroups.length} BL(s) sugeridos</span>`;
+    els.suggestBlsBtn.innerHTML = `<i class="fa-solid fa-circle-check"></i><span>${state.deliveryNoteGroups.length === 1 ? 'BL sugerido' : `${state.deliveryNoteGroups.length} BL sugeridos`}</span>`;
+    renderLines(state.documentData?.lines || [], state.documentData?.currency || '');
     if (state.originPayload) renderOriginCandidates(state.originPayload, { skipLineMapping: true });
     els.originSection?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     setStatus(`${state.deliveryNoteGroups.length} BL(s) virtual(is) adicionados às sugestões de origem. Ainda não foram criados no PHC.`);
@@ -1406,8 +1630,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function selectLineForSplit(lineIndex) {
     const line = state.documentData?.lines?.[Number(lineIndex)];
-    if (!line) return;
-    state.selectedSplitLine = state.selectedSplitLine === line ? null : line;
+    if (!line || line._virtual_split_allocation) return;
+    if (state.selectedSplitLines.has(line)) state.selectedSplitLines.delete(line);
+    else state.selectedSplitLines.add(line);
     renderLines(state.documentData.lines, state.documentData.currency || '');
   }
 
@@ -1416,55 +1641,57 @@ document.addEventListener('DOMContentLoaded', () => {
     return Math.round((Number(total || 0) * ratio) * 1000000) / 1000000;
   }
 
-  async function splitSelectedLineAcrossDeliveryNotes() {
-    const selectedLine = state.selectedSplitLine;
+  async function distributeSelectedLinesAcrossDeliveryNotes() {
     const lines = state.documentData?.lines;
-    if (!selectedLine || !Array.isArray(lines)) return;
+    const selectedLines = Array.from(state.selectedSplitLines).filter((line) => Array.isArray(lines) && lines.includes(line));
+    if (!selectedLines.length || !Array.isArray(lines)) return;
     const targetGroups = state.deliveryNoteGroups.filter((group) => Number(group.base_quantity || 0) > 0);
     const totalWeight = targetGroups.reduce((total, group) => total + Number(group.base_quantity || 0), 0);
-    if (targetGroups.length < 2 || totalWeight <= 0) {
-      showMessage('São necessários pelo menos dois BLs com quantidades identificadas.', 'error');
+    if (!targetGroups.length || totalWeight <= 0) {
+      showMessage('É necessário pelo menos um BL com quantidade identificada.', 'error');
       return;
     }
 
     const originalLines = [...lines];
-    const remainingLines = lines.filter((line) => line !== selectedLine);
-    const selectedMatch = state.originLineMatchByLine.get(selectedLine) || null;
-    const allocatedTotals = { qty: 0, net_amount: 0, gross_amount: 0 };
+    const remainingLines = lines.filter((line) => !state.selectedSplitLines.has(line));
     const createdLines = [];
-    targetGroups.forEach((group, index) => {
-      const ratio = Number(group.base_quantity || 0) / totalWeight;
-      const isLast = index === targetGroups.length - 1;
-      const allocation = {
-        ...selectedLine,
-        qty: proportionalPart(selectedLine.qty, ratio, allocatedTotals.qty, isLast),
-        net_amount: proportionalPart(selectedLine.net_amount, ratio, allocatedTotals.net_amount, isLast),
-        gross_amount: proportionalPart(selectedLine.gross_amount, ratio, allocatedTotals.gross_amount, isLast),
-        origin_delivery_note_number: group.number,
-        _virtual_split_allocation: true,
-        _virtual_split_ratio: ratio,
-        _virtual_split_source_description: selectedLine.description || '',
-      };
-      allocatedTotals.qty += Number(allocation.qty || 0);
-      allocatedTotals.net_amount += Number(allocation.net_amount || 0);
-      allocatedTotals.gross_amount += Number(allocation.gross_amount || 0);
-      let insertionIndex = -1;
-      remainingLines.forEach((line, lineIndexValue) => {
-        if (String(line.origin_delivery_note_number || '').trim() === group.number) insertionIndex = lineIndexValue;
+    selectedLines.forEach((selectedLine) => {
+      const selectedMatch = state.originLineMatchByLine.get(selectedLine) || null;
+      const allocatedTotals = { qty: 0, net_amount: 0, gross_amount: 0 };
+      targetGroups.forEach((group, index) => {
+        const ratio = Number(group.base_quantity || 0) / totalWeight;
+        const isLast = index === targetGroups.length - 1;
+        const allocation = {
+          ...selectedLine,
+          qty: proportionalPart(selectedLine.qty, ratio, allocatedTotals.qty, isLast),
+          net_amount: proportionalPart(selectedLine.net_amount, ratio, allocatedTotals.net_amount, isLast),
+          gross_amount: proportionalPart(selectedLine.gross_amount, ratio, allocatedTotals.gross_amount, isLast),
+          origin_delivery_note_number: group.number,
+          _virtual_split_allocation: true,
+          _virtual_split_ratio: ratio,
+          _virtual_split_source_description: selectedLine.description || '',
+        };
+        allocatedTotals.qty += Number(allocation.qty || 0);
+        allocatedTotals.net_amount += Number(allocation.net_amount || 0);
+        allocatedTotals.gross_amount += Number(allocation.gross_amount || 0);
+        let insertionIndex = -1;
+        remainingLines.forEach((remainingLine, lineIndexValue) => {
+          if (String(remainingLine.origin_delivery_note_number || '').trim() === group.number) insertionIndex = lineIndexValue;
+        });
+        remainingLines.splice(insertionIndex >= 0 ? insertionIndex + 1 : remainingLines.length, 0, allocation);
+        if (selectedMatch) state.originLineMatchByLine.set(allocation, selectedMatch);
+        createdLines.push(allocation);
       });
-      remainingLines.splice(insertionIndex >= 0 ? insertionIndex + 1 : remainingLines.length, 0, allocation);
-      if (selectedMatch) state.originLineMatchByLine.set(allocation, selectedMatch);
-      createdLines.push(allocation);
     });
 
     state.documentData.lines = remainingLines;
-    state.selectedSplitLine = null;
+    state.selectedSplitLines = new Set();
     renderLines(state.documentData.lines, state.documentData.currency || '');
     if (state.originPayload && state.virtualDeliveryNotesActive) {
       renderOriginCandidates(state.originPayload, { skipLineMapping: true });
     }
     els.splitLineBtn.disabled = true;
-    setStatus(`A guardar a repartição proporcional por ${createdLines.length} BLs...`);
+    setStatus(`A guardar ${selectedLines.length} linha(s) distribuída(s) por ${targetGroups.length} BL(s)...`);
     if (state.currentDocumentId) {
       try {
         await fetchJson(`/api/document_ai/documents/${encodeURIComponent(state.currentDocumentId)}/lines`, {
@@ -1474,7 +1701,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       } catch (error) {
         state.documentData.lines = originalLines;
-        state.selectedSplitLine = selectedLine;
+        state.selectedSplitLines = new Set(selectedLines);
         renderLines(state.documentData.lines, state.documentData.currency || '');
         if (state.originPayload && state.virtualDeliveryNotesActive) {
           renderOriginCandidates(state.originPayload, { skipLineMapping: true });
@@ -1487,8 +1714,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const allocationSummary = createdLines
       .map((line) => `BL ${line.origin_delivery_note_number}: ${formatNumber(line.qty)}`)
       .join(' · ');
-    setStatus(`Linha repartida proporcionalmente. ${allocationSummary}`);
-    showMessage(`Linha repartida por ${createdLines.length} BLs sem alterar a quantidade total.`, 'success');
+    setStatus(`${selectedLines.length} linha(s) repartida(s) proporcionalmente. ${allocationSummary}`);
+    showMessage(`${selectedLines.length} linha(s) distribuída(s) por ${targetGroups.length} BL(s) sem alterar os totais.`, 'success');
   }
 
   async function loadOriginCandidates(documentData) {
@@ -1536,7 +1763,7 @@ document.addEventListener('DOMContentLoaded', () => {
       showMessage('Seleção mantida apenas nesta leitura. Abre o documento pelo inbox para guardar.', 'warning');
       return;
     }
-    const button = els.originFlow.querySelector(`[data-origin-index="${Number(index)}"]`);
+    const button = els.originFlow.querySelector(`[data-origin-link="${Number(index)}"]`);
     if (button) button.disabled = true;
     const previousOrigins = [...state.selectedOrigins];
     const previousMatches = state.originLineMatches;
@@ -1562,6 +1789,8 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       state.selectedOrigins = Array.isArray(payload.origins) ? payload.origins : (alreadySelected ? previousOrigins.filter((origin) => origin.stamp !== selected.stamp) : [...previousOrigins, payload.origin || selected]);
       renderOriginCandidates({ ...(state.originPayload || {}), selected_origins: state.selectedOrigins });
+      await pruneLineBcAllocations();
+      renderLines(state.documentData?.lines || [], state.documentData?.currency || '');
       renderProjectCard();
       const mappedLineCount = new Set(state.originLineMatches.map((match) => Number(match.document_line_index))).size;
       setStatus(isPurchaseOrder
@@ -1577,6 +1806,39 @@ document.addEventListener('DOMContentLoaded', () => {
       if (button) button.disabled = false;
       setStatus(error.message || 'Não foi possível ligar a origem.', true);
       showMessage(error.message || 'Não foi possível ligar a origem.', 'error');
+    }
+  }
+
+  function closeOriginDetailModal() {
+    els.originDetailModal?.classList.remove('sz_is_open');
+    els.originDetailModal?.setAttribute('aria-hidden', 'true');
+  }
+
+  async function openOriginDetail(index) {
+    const candidate = state.originCandidates[Number(index)];
+    if (!candidate || !state.currentDocumentId || !els.originDetailModal) return;
+    state.consultedOriginStamp = candidate.stamp || '';
+    renderOriginCandidates({ ...(state.originPayload || {}), selected_origins: state.selectedOrigins }, { skipLineMapping: true });
+    const number = `n.º ${candidate.number || '--'}${candidate.year ? ` / ${candidate.year}` : ''}`;
+    els.originDetailTitle.textContent = `${candidate.stage_label || 'Origem'} ${number}`;
+    els.originDetailLoading.hidden = false;
+    els.originDetailTable.hidden = true;
+    els.originDetailEmpty.hidden = true;
+    els.originDetailModal.classList.add('sz_is_open');
+    els.originDetailModal.setAttribute('aria-hidden', 'false');
+    try {
+      const payload = await fetchJson(`/api/document_ai/documents/${encodeURIComponent(state.currentDocumentId)}/origins/${encodeURIComponent(candidate.stamp)}?view=${encodeURIComponent(state.view)}`);
+      const rows = Array.isArray(payload.lines) ? payload.lines : [];
+      const showRegistration = Boolean(payload.show_registration);
+      els.originDetailHead.innerHTML = `<th>Artigo</th><th>Designação</th><th>Quantidade</th><th title="Preço unitário">PU</th><th title="Preço total">PT</th><th>IVA</th><th>Obra</th>${showRegistration ? '<th>Matrícula</th>' : ''}<th>Data</th>`;
+      els.originDetailBody.innerHTML = rows.map((line) => `<tr><td>${escapeHtml(line.article || '—')}</td><td>${escapeHtml(line.description || '—')}</td><td>${escapeHtml(formatNumber(line.quantity))}</td><td>${escapeHtml(formatMoney(line.unit_price, state.documentData?.currency))}</td><td>${escapeHtml(formatMoney(line.line_total, state.documentData?.currency))}</td><td>${escapeHtml(formatNumber(line.tax_rate, 2))}%</td><td>${escapeHtml(line.project || '—')}</td>${showRegistration ? `<td>${escapeHtml(line.registration || '—')}</td>` : ''}<td>${escapeHtml(formatDate(line.date))}</td></tr>`).join('');
+      els.originDetailLoading.hidden = true;
+      els.originDetailTable.hidden = !rows.length;
+      els.originDetailEmpty.hidden = Boolean(rows.length);
+    } catch (error) {
+      els.originDetailLoading.hidden = true;
+      els.originDetailEmpty.hidden = false;
+      els.originDetailEmpty.textContent = error.message || 'Não foi possível consultar a origem no PHC.';
     }
   }
 
@@ -1617,7 +1879,7 @@ document.addEventListener('DOMContentLoaded', () => {
     state.splitting = true;
     els.splitBtn.disabled = true;
     els.runBtn.disabled = true;
-    els.resetBtn.disabled = true;
+    if (els.resetBtn) els.resetBtn.disabled = true;
     setStatus(`A separar ${documents.length} documentos e a criar o grupo no inbox...`);
     const formData = new FormData();
     formData.append('file', state.file);
@@ -1639,7 +1901,7 @@ document.addEventListener('DOMContentLoaded', () => {
       state.splitting = false;
       els.splitBtn.disabled = false;
       els.runBtn.disabled = state.loading || !state.file;
-      els.resetBtn.disabled = !state.file;
+      if (els.resetBtn) els.resetBtn.disabled = !state.file;
     }
   }
 
@@ -1667,6 +1929,7 @@ document.addEventListener('DOMContentLoaded', () => {
       : selected
       ? '<i class="fa-solid fa-pen"></i> Alterar obra'
       : '<i class="fa-solid fa-magnifying-glass"></i> Pesquisar obra';
+    els.projectHint.hidden = true;
     els.projectClear.hidden = !selected;
     els.projectCard.classList.toggle('is-selected', selected);
     els.projectCard.classList.toggle('is-conflict', hasWorkConflict);
@@ -1707,6 +1970,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
     state.selectedOrigins = [];
+    await pruneLineBcAllocations();
     return true;
   }
 
@@ -1716,7 +1980,7 @@ document.addEventListener('DOMContentLoaded', () => {
     els.projectModal.setAttribute('aria-hidden', 'true');
   }
 
-  async function saveAdjustedLines(successMessage = 'Ligne mise à jour.') {
+  async function saveAdjustedLines(successMessage = 'Linha atualizada.') {
     if (!state.currentDocumentId || !state.documentData) {
       setStatus(successMessage);
       return true;
@@ -1730,8 +1994,8 @@ document.addEventListener('DOMContentLoaded', () => {
       setStatus(successMessage);
       return true;
     } catch (error) {
-      setStatus(error.message || 'La ligne n’a pas pu être enregistrée.', true);
-      showMessage(error.message || 'La ligne n’a pas pu être enregistrée.', 'error');
+      setStatus(error.message || 'Não foi possível guardar a linha.', true);
+      showMessage(error.message || 'Não foi possível guardar a linha.', 'error');
       return false;
     }
   }
@@ -1796,7 +2060,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!line) return;
     state.projectTargetLineIndex = Number(lineIndex);
     els.projectSearch.value = String(line.ccusto || line.project_ccusto || '').trim();
-    els.projectContext.textContent = `Chantiers de ${state.documentData.customer?.name || 'la société cliente'}`;
+    els.projectContext.textContent = `Obras de ${state.documentData.customer?.name || 'entidade cliente'}`;
     els.projectModal.classList.add('sz_is_open');
     els.projectModal.setAttribute('aria-hidden', 'false');
     window.setTimeout(() => {
@@ -1818,7 +2082,7 @@ document.addEventListener('DOMContentLoaded', () => {
       state.projectTargetLineIndex = null;
       closeProjectModal();
       renderLines(state.documentData.lines || [], state.documentData.currency || '');
-      await saveAdjustedLines(`Chantier ${selected.ccusto} enregistré sur la ligne.`);
+      await saveAdjustedLines(`Obra ${selected.ccusto} guardada na linha.`);
       return;
     }
     const changed = String(state.selectedProject?.ccusto || '').trim() !== String(selected.ccusto || '').trim();
@@ -1841,14 +2105,14 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderArticleCandidates(items) {
     state.articleCandidates = Array.isArray(items) ? items : [];
     if (!state.articleCandidates.length) {
-      els.articleList.innerHTML = '<div class="docai-empty-state">Aucun article trouvé.</div>';
+      els.articleList.innerHTML = '<div class="docai-empty-state">Nenhum artigo encontrado.</div>';
       return;
     }
     els.articleList.innerHTML = state.articleCandidates.map((article, index) => `
       <button type="button" class="docai-supplier-match-option" data-article-index="${index}">
         <span class="docai-supplier-match-main">
           <strong>${escapeHtml(article.ref || '--')}</strong>
-          <span>${escapeHtml(article.design || 'Sans désignation')}</span>
+          <span>${escapeHtml(article.design || 'Sem designação')}</span>
         </span>
         <span class="docai-supplier-match-score">${escapeHtml([article.family, article.unit].filter(Boolean).join(' · '))}</span>
       </button>
@@ -1858,7 +2122,7 @@ document.addEventListener('DOMContentLoaded', () => {
   async function searchArticleCandidates() {
     if (!state.documentData?.customer) return;
     els.articleSearchBtn.disabled = true;
-    els.articleList.innerHTML = '<div class="docai-empty-state">Recherche des articles PHC...</div>';
+    els.articleList.innerHTML = '<div class="docai-empty-state">A pesquisar artigos PHC...</div>';
     try {
       const payload = await fetchJson('/api/document_ai/articles/search', {
         method: 'POST',
@@ -1870,7 +2134,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }),
       });
       renderArticleCandidates(payload.items || []);
-      els.articleContext.textContent = `Articles de ${state.documentData.customer?.name || 'la société cliente'} · ${payload.phc_database || 'PHC'}`;
+      els.articleContext.textContent = `Artigos de ${state.documentData.customer?.name || 'entidade cliente'} · ${payload.phc_database || 'PHC'}`;
     } catch (error) {
       els.articleList.innerHTML = `<div class="docai-empty-state">${escapeHtml(error.message || 'Erreur de recherche.')}</div>`;
     } finally {
@@ -1882,7 +2146,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const line = state.documentData?.lines?.[Number(lineIndex)];
     if (!line) return;
     if (!state.documentData?.customer?.feid && !state.documentData?.customer?.name) {
-      showMessage('Identifie d’abord la société cliente.', 'error');
+      showMessage('Identifica primeiro a entidade cliente.', 'error');
       return;
     }
     state.articleTargetLineIndex = Number(lineIndex);
@@ -1899,14 +2163,225 @@ document.addEventListener('DOMContentLoaded', () => {
     const article = state.articleCandidates[Number(index)];
     const line = state.documentData?.lines?.[state.articleTargetLineIndex];
     if (!article || !line) return;
-    line.ref = article.ref || '';
-    line.article_ref = article.ref || '';
-    line.description = article.design || line.description || '';
-    if (article.unit) line.unit = article.unit;
+    const groupCode = normalizeLineGroupCode(line.article_group_code);
+    const groupedLines = groupCode
+      ? (state.documentData?.lines || []).filter((candidate) => {
+          const candidateCode = normalizeLineGroupCode(candidate?.article_group_code);
+          return candidateCode && candidateCode.slice(1) === groupCode.slice(1);
+        })
+      : [line];
+    groupedLines.forEach((candidate) => {
+      candidate.ref = article.ref || '';
+      candidate.article_ref = article.ref || '';
+      candidate.article_family = article.family || candidate.article_family || '';
+      if (article.unit) candidate.unit = article.unit;
+    });
     state.articleTargetLineIndex = null;
     closeArticleModal();
     renderLines(state.documentData.lines || [], state.documentData.currency || '');
-    await saveAdjustedLines(`Article ${article.ref} enregistré sur la ligne.`);
+    await saveAdjustedLines(groupCode
+      ? `Artigo ${article.ref} guardado no grupo ${groupCode.slice(1)}.`
+      : `Artigo ${article.ref} guardado na linha.`);
+  }
+
+  function closeVehicleModal() {
+    state.vehicleTargetLineIndex = null;
+    els.vehicleModal.classList.remove('sz_is_open');
+    els.vehicleModal.setAttribute('aria-hidden', 'true');
+  }
+
+  function renderVehicleCandidates(items) {
+    state.vehicleCandidates = Array.isArray(items) ? items : [];
+    if (!state.vehicleCandidates.length) {
+      els.vehicleList.innerHTML = '<div class="docai-empty-state">Nenhuma viatura encontrada.</div>';
+      return;
+    }
+    els.vehicleList.innerHTML = state.vehicleCandidates.map((vehicle, index) => `
+      <button type="button" class="docai-supplier-match-option" data-vehicle-index="${index}">
+        <span class="docai-supplier-match-main">
+          <strong>${escapeHtml(vehicle.registration || '--')}</strong>
+          <span>${escapeHtml([vehicle.brand, vehicle.model].filter(Boolean).join(' · ') || 'Sem descrição')}</span>
+        </span>
+        <span class="docai-supplier-match-score">${escapeHtml(vehicle.fleet_number || '')}</span>
+      </button>
+    `).join('');
+  }
+
+  async function searchVehicleCandidates() {
+    if (!state.documentData?.customer) return;
+    els.vehicleSearchBtn.disabled = true;
+    els.vehicleList.innerHTML = '<div class="docai-empty-state">A pesquisar viaturas PHC...</div>';
+    try {
+      const payload = await fetchJson('/api/document_ai/vehicles/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customer: state.documentData.customer || {},
+          query: els.vehicleSearch.value.trim(),
+          limit: 30,
+        }),
+      });
+      renderVehicleCandidates(payload.items || []);
+      els.vehicleContext.textContent = `Viaturas de ${state.documentData.customer?.name || 'entidade cliente'} · ${payload.phc_database || 'PHC'}`;
+    } catch (error) {
+      els.vehicleList.innerHTML = `<div class="docai-empty-state">${escapeHtml(error.message || 'Erro ao pesquisar viaturas.')}</div>`;
+    } finally {
+      els.vehicleSearchBtn.disabled = false;
+    }
+  }
+
+  function openVehicleModal(lineIndex) {
+    const line = state.documentData?.lines?.[Number(lineIndex)];
+    if (!line) return;
+    if (!state.documentData?.customer?.feid && !state.documentData?.customer?.name) {
+      showMessage('Identifica primeiro a entidade cliente.', 'error');
+      return;
+    }
+    state.vehicleTargetLineIndex = Number(lineIndex);
+    els.vehicleSearch.value = String(line.registration || line.matricula || '').trim();
+    els.vehicleRemove.hidden = !els.vehicleSearch.value;
+    els.vehicleModal.classList.add('sz_is_open');
+    els.vehicleModal.setAttribute('aria-hidden', 'false');
+    window.setTimeout(() => {
+      els.vehicleSearch.focus();
+      searchVehicleCandidates();
+    }, 50);
+  }
+
+  async function selectVehicle(index) {
+    const vehicle = state.vehicleCandidates[Number(index)];
+    const line = state.documentData?.lines?.[state.vehicleTargetLineIndex];
+    if (!vehicle || !line) return;
+    line.registration = vehicle.registration || '';
+    line.matricula = vehicle.registration || '';
+    line.vehicle_stamp = vehicle.vehicle_stamp || '';
+    line.vehicle_source = 'V_ALL_VA';
+    closeVehicleModal();
+    renderLines(state.documentData.lines || [], state.documentData.currency || '');
+    await saveAdjustedLines(`Viatura ${vehicle.registration} guardada na linha.`);
+  }
+
+  async function removeVehicle() {
+    const line = state.documentData?.lines?.[state.vehicleTargetLineIndex];
+    if (!line) return;
+    line.registration = '';
+    line.matricula = '';
+    line.vehicle_stamp = '';
+    line.vehicle_source = '';
+    closeVehicleModal();
+    renderLines(state.documentData.lines || [], state.documentData.currency || '');
+    await saveAdjustedLines('Associação à viatura removida.');
+  }
+
+  function closeBcModal() {
+    state.bcTargetLineIndex = null;
+    state.bcSelectedStamps = new Set();
+    els.bcModal.classList.remove('sz_is_open');
+    els.bcModal.setAttribute('aria-hidden', 'true');
+  }
+
+  function renderBcAssignments() {
+    const origins = associatedBcOrigins();
+    if (!origins.length) {
+      els.bcList.innerHTML = '<div class="docai-empty-state">Associa primeiro um BC no bloco Origem.</div>';
+      els.bcSave.disabled = true;
+      return;
+    }
+    els.bcSave.disabled = false;
+    els.bcList.innerHTML = origins.map((origin) => {
+      const stamp = String(origin.stamp || '');
+      const checked = state.bcSelectedStamps.has(stamp);
+      return `<label class="docai-bc-assignment-option">
+        <input type="checkbox" data-bc-origin-stamp="${escapeHtml(stamp)}" ${checked ? 'checked' : ''}>
+        <span>
+          <strong>${escapeHtml(formatBcLabel(origin))}</strong>
+          <small>${escapeHtml([formatDate(origin.date), origin.ccusto].filter(Boolean).join(' · '))}</small>
+        </span>
+      </label>`;
+    }).join('');
+  }
+
+  function openBcModal(lineIndex) {
+    const line = state.documentData?.lines?.[Number(lineIndex)];
+    if (!line) return;
+    state.bcTargetLineIndex = Number(lineIndex);
+    state.bcSelectedStamps = new Set((line.bc_allocations || []).map((allocation) => String(allocation.origin_stamp || '')).filter(Boolean));
+    renderBcAssignments();
+    els.bcModal.classList.add('sz_is_open');
+    els.bcModal.setAttribute('aria-hidden', 'false');
+  }
+
+  function relevantBcLines(origin, documentLine, documentLineIndex) {
+    const officialLines = Array.isArray(origin.lines) ? origin.lines : [];
+    const matches = (Array.isArray(origin.line_matches) ? origin.line_matches : [])
+      .filter((match) => Number(match.document_line_index) === Number(documentLineIndex));
+    const matchedIndexes = new Set(matches.map((match) => Number(match.origin_line_index)));
+    const exactRef = String(documentLine.ref || '').trim().toUpperCase();
+    let selected = officialLines.filter((originLine, index) => matchedIndexes.has(index));
+    if (exactRef) {
+      const sameArticleLines = officialLines.filter((originLine) => String(originLine.ref || '').trim().toUpperCase() === exactRef);
+      if (sameArticleLines.length) selected = sameArticleLines;
+    }
+    if (!selected.length && matches.length) {
+      selected = matches.map((match) => ({
+        line_stamp: match.origin_line_stamp || '',
+        line_order: match.origin_line_order || 0,
+        ref: match.origin_ref || '',
+        description: match.origin_description || '',
+        qty: match.origin_quantity || 0,
+        unit_price: match.origin_unit_price || 0,
+        line_total: match.origin_total || 0,
+      }));
+    }
+    return selected;
+  }
+
+  async function saveBcAssignments() {
+    const lineIndex = state.bcTargetLineIndex;
+    const line = state.documentData?.lines?.[lineIndex];
+    if (!line) return;
+    const origins = associatedBcOrigins().filter((origin) => state.bcSelectedStamps.has(String(origin.stamp || '')));
+    const allocations = [];
+    origins.forEach((origin) => {
+      const relevantLines = relevantBcLines(origin, line, lineIndex);
+      if (!relevantLines.length) {
+        allocations.push({
+          origin_stamp: origin.stamp || '', origin_number: origin.number || '', origin_year: origin.year || null,
+          origin_line_stamp: '', origin_line_order: 0, quantity: 0, unit_price: 0, total: 0,
+        });
+        return;
+      }
+      relevantLines.forEach((originLine, originLineIndex) => allocations.push({
+        origin_stamp: origin.stamp || '',
+        origin_number: origin.number || '',
+        origin_year: origin.year || null,
+        origin_line_stamp: originLine.line_stamp || '',
+        origin_line_order: Number(originLine.line_order || originLineIndex + 1),
+        article_ref: originLine.ref || '',
+        quantity: Number(originLine.pending_qty ?? originLine.qty ?? 0),
+        unit_price: Number(originLine.unit_price || 0),
+        total: Number(originLine.line_total || 0),
+      }));
+    });
+    line.bc_allocations = allocations;
+    if (allocations.length < 2) state.expandedBcLines.delete(lineIndex);
+    closeBcModal();
+    renderLines(state.documentData.lines || [], state.documentData.currency || '');
+    await saveAdjustedLines(allocations.length ? 'Distribuição por BC guardada.' : 'Associação a BC removida.');
+  }
+
+  async function pruneLineBcAllocations() {
+    const allowed = new Set(associatedBcOrigins().map((origin) => String(origin.stamp || '')));
+    let changed = false;
+    (state.documentData?.lines || []).forEach((line) => {
+      if (!Array.isArray(line.bc_allocations)) return;
+      const filtered = line.bc_allocations.filter((allocation) => allowed.has(String(allocation.origin_stamp || '')));
+      if (filtered.length !== line.bc_allocations.length) {
+        line.bc_allocations = filtered;
+        changed = true;
+      }
+    });
+    if (changed) await saveAdjustedLines('Distribuições por BC atualizadas.');
   }
 
   async function clearProject(event) {
@@ -1947,6 +2422,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function openSupplierModal() {
     const isCorrespondence = ['mail', 'bank_statement'].includes(state.documentData?.document_type);
+    const isAdvertising = state.documentData?.document_type === 'advertising';
     const feid = Number(state.matching?.supplier_query?.feid || state.documentData?.customer?.feid || 0);
     if (!feid) {
       showMessage('Não foi possível identificar a entidade na tabela FE.', 'error');
@@ -1957,7 +2433,10 @@ document.addEventListener('DOMContentLoaded', () => {
     els.supplierModalTitle.textContent = isCorrespondence ? 'Escolher cliente ou fornecedor' : 'Escolher fornecedor';
     els.supplierModalContext.textContent = `${isCorrespondence ? 'Clientes e fornecedores' : 'Fornecedores'} de ${customerName} · FEID ${feid}`;
     els.supplierModalSearch.value = supplier.llm_name || supplier.name || supplier.llm_tax_id || supplier.tax_id || '';
-    els.supplierManualBtn.hidden = !isCorrespondence;
+    els.supplierManualBtn.hidden = !isCorrespondence && !isAdvertising;
+    els.supplierManualBtn.innerHTML = isAdvertising
+      ? '<i class="fa-solid fa-ban"></i><span>s/Fornecedor</span>'
+      : '<i class="fa-solid fa-pen-to-square"></i><span>Usar nome escrito</span>';
     renderSupplierCandidates(state.matching?.supplier_candidates || []);
     els.supplierModal.classList.add('sz_is_open');
     els.supplierModal.setAttribute('aria-hidden', 'false');
@@ -1988,6 +2467,25 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function useManualSenderName() {
+    if (state.documentData?.document_type === 'advertising') {
+      state.documentData.supplier_explicitly_absent = true;
+      state.documentData.supplier = {
+        supplier_no: null,
+        customer_no: null,
+        name: 's/Fornecedor',
+        explicitly_absent: true,
+        manually_selected: true,
+        matched_by: 'explicit_no_supplier',
+      };
+      state.matching.supplier_matched = true;
+      state.matching.supplier_needs_selection = false;
+      renderSupplierCard(state.documentData.supplier, state.matching);
+      closeSupplierModal();
+      setStatus('Ausência de fornecedor confirmada para Publicidade.');
+      showMessage('Publicidade definida sem fornecedor.', 'success');
+      updateSubmitPhcButton();
+      return;
+    }
     const name = els.supplierModalSearch.value.trim();
     if (!['mail', 'bank_statement'].includes(state.documentData?.document_type) || name.length < 2) {
       showMessage('Escreve pelo menos dois caracteres para o nome do remetente.', 'error');
@@ -2020,6 +2518,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const current = state.documentData.supplier || {};
     const isCorrespondence = ['mail', 'bank_statement'].includes(state.documentData.document_type);
     const isCustomer = isCorrespondence && selected.party_role === 'customer';
+    state.documentData.supplier_explicitly_absent = false;
     if (isCorrespondence) state.documentData.external_party_role = isCustomer ? 'customer' : 'supplier';
     state.documentData.supplier = {
       ...current,
@@ -2056,8 +2555,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const currency = documentData.currency || '';
     const isMail = documentData.document_type === 'mail';
     const isCorrespondence = ['mail', 'bank_statement'].includes(documentData.document_type);
+    const isReception = state.view === 'home';
 
     state.documentData = documentData;
+    state.workflow = payload.workflow || {};
     state.controlOk = Boolean(payload.workflow?.control_ok);
     state.integratedPhc = payload.processing_status === 'provisional_invoice' || Boolean(payload.phc_integration?.fostamp);
     state.integrationResult = state.integratedPhc ? (payload.phc_integration || {}) : null;
@@ -2066,22 +2567,31 @@ document.addEventListener('DOMContentLoaded', () => {
     if (state.selectedProject?.ccusto) state.documentData.origin_project = { ...state.selectedProject };
     state.matching = payload.matching || {};
     state.supplierCandidates = state.matching.supplier_candidates || [];
+    const duplicateDetection = payload.duplicate_detection || {};
+    const duplicateOverride = payload.duplicate_override || {};
+    const duplicateMatches = Array.isArray(duplicateDetection.duplicates) ? duplicateDetection.duplicates : [];
+    const duplicateIds = duplicateMatches.map((item) => String(item.document_id || '')).sort().join('|');
+    const overrideIds = (duplicateOverride.document_ids || []).map((value) => String(value || '')).sort().join('|');
+    state.duplicateMatches = duplicateMatches;
+    if (duplicateIds && duplicateIds !== overrideIds && state.duplicateModalShownFor !== `${state.currentDocumentId}:${duplicateIds}`) {
+      state.duplicateModalShownFor = `${state.currentDocumentId}:${duplicateIds}`;
+      window.setTimeout(() => openDuplicateModal(duplicateMatches), 0);
+    }
     renderDocumentBatch(documentData.document_batch || {});
     if (isCorrespondence) els.batchAlert.hidden = true;
     renderCustomerCard(customer, state.matching);
     renderSupplierCard(supplier, state.matching);
     renderProjectCard();
     els.projectCard.hidden = isCorrespondence;
-    els.originSection.hidden = isCorrespondence;
-    els.linesSection.hidden = isCorrespondence;
-    els.totalsSection.hidden = true;
+    els.originSection.hidden = isCorrespondence || isReception;
+    els.linesSection.hidden = isCorrespondence || isReception;
     els.notesSection.hidden = true;
     els.gedDestination.hidden = true;
     els.persistenceNote.textContent = isMail
       ? 'O correio foi analisado apenas neste ecrã e não foi adicionado ao inbox.'
       : (documentData.document_type === 'bank_statement'
-        ? 'O relevé fica no inbox e pode ser integrado como correspondência RB no PHC.'
-        : 'O PDF e a leitura ficam guardados no inbox para evitar novas chamadas ao LLM.');
+        ? 'O extrato fica no inbox e pode ser integrado como correspondência RB no PHC.'
+        : 'O PDF e a leitura ficam guardados no inbox.');
     state.correspondenceReference = null;
     state.correspondenceYear = new Date().getFullYear();
     renderDocumentCard();
@@ -2105,12 +2615,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const batchSuffix = batch.contains_multiple_documents
       ? ` · ${Number(batch.document_count || 0)} documentos em ${Number(batch.page_count || 0)} páginas`
       : '';
-    const readingSource = payload.cached ? 'Leitura guardada' : `Leitura concluída com ${payload.model || 'LLM'}`;
-    els.resultMeta.textContent = `${readingSource} · ${documentData.visible_language || 'idioma não identificado'}${batchSuffix}`;
+    const language = String(documentData.visible_language || 'idioma não identificado').toUpperCase();
+    els.resultMeta.textContent = `Leitura guardada · ${language}${batchSuffix}`;
     els.empty.hidden = true;
     els.loading.hidden = true;
     els.results.hidden = false;
-    if (isCorrespondence) {
+    if (isCorrespondence || isReception) {
       state.originSearchToken += 1;
       state.originPayload = null;
       state.originCandidates = [];
@@ -2136,7 +2646,7 @@ document.addEventListener('DOMContentLoaded', () => {
     state.originLineMatches = [];
     state.originLineReferenceLabel = '';
     state.originLineMatchByLine = new WeakMap();
-    state.selectedSplitLine = null;
+    state.selectedSplitLines = new Set();
     state.correspondenceLookupToken += 1;
     state.correspondenceReference = null;
     state.correspondenceYear = null;
@@ -2155,26 +2665,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function extractDocument(options = {}) {
     if (!state.file || state.loading) return;
-    if (options.force) clearSuggestionsForForcedRead();
+    const hadPreviousResult = Boolean(state.documentData && !els.results.hidden);
     state.loading = true;
     els.runBtn.disabled = true;
-    els.resetBtn.disabled = true;
+    if (els.deleteBtn) els.deleteBtn.disabled = true;
+    if (els.resetBtn) els.resetBtn.disabled = true;
     els.empty.hidden = true;
-    els.results.hidden = true;
+    els.results.hidden = !hadPreviousResult;
     els.loading.hidden = false;
     els.resultMeta.textContent = options.force
-      ? 'A eliminar a leitura anterior e a iniciar uma nova análise...'
+      ? 'A efetuar uma nova leitura...'
       : 'A procurar uma leitura guardada no inbox...';
     setStatus(options.force
-      ? 'Nova leitura forçada: os dados anteriores serão substituídos pelo resultado do LLM...'
-      : 'A verificar os dados guardados; o LLM só será chamado se necessário...');
+      ? 'A efetuar uma nova leitura do documento...'
+      : 'A verificar os dados guardados...');
 
     const formData = new FormData();
     formData.append('file', state.file);
     formData.append('document_id', state.currentDocumentId || '');
     formData.append('force', options.force ? '1' : '0');
+    formData.append('view', state.view);
     try {
       const payload = await fetchJson('/api/document_ai/extract', { method: 'POST', body: formData });
+      if (options.force) clearSuggestionsForForcedRead();
       if (payload.document_id) {
         state.currentDocumentId = payload.document_id;
         window.history.replaceState({}, '', extractUrl(payload.document_id));
@@ -2188,7 +2701,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setStatus(batch.message || 'Foram encontrados vários documentos no PDF.');
         showMessage(`${batch.document_count} documentos encontrados.`, 'warning');
       } else if (payload.cached) {
-        setStatus('Leitura carregada do inbox sem utilizar tokens do LLM.');
+        setStatus('Leitura guardada carregada do inbox.');
         showMessage('Foi reutilizada a leitura guardada.', 'success');
       } else {
         setStatus('Leitura concluída.');
@@ -2197,25 +2710,57 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (error) {
       console.error(error);
       els.loading.hidden = true;
-      els.empty.hidden = false;
+      els.empty.hidden = hadPreviousResult;
+      els.results.hidden = !hadPreviousResult;
       els.empty.querySelector('strong').textContent = 'Não foi possível ler o documento';
-      els.empty.querySelector('span').textContent = error.message || 'O LLM não devolveu uma resposta utilizável.';
+      els.empty.querySelector('span').textContent = error.message || 'A leitura não devolveu uma resposta utilizável.';
       els.resultMeta.textContent = 'Erro na leitura do documento.';
       setStatus(error.message || 'Falha na leitura.', true);
       showMessage(error.message || 'Falha na leitura do documento.', 'error');
     } finally {
       state.loading = false;
       els.runBtn.disabled = !state.file;
-      els.resetBtn.disabled = !state.file;
+      if (els.deleteBtn) els.deleteBtn.disabled = !state.file;
+      if (els.resetBtn) els.resetBtn.disabled = !state.file;
     }
   }
 
-  async function submitDocumentToPhc() {
-    if (!els.submitPhcBtn || state.submittingPhc || state.integratedPhc) return;
+  async function deleteCurrentDocument() {
+    if (!state.file || state.deletingDocument) return;
+    if (!state.currentDocumentId) {
+      resetScreen();
+      showMessage('Documento removido.', 'success');
+      return;
+    }
+    state.deletingDocument = true;
+    if (els.deleteBtn) els.deleteBtn.disabled = true;
+    els.runBtn.disabled = true;
+    setStatus('A eliminar o documento...');
+    try {
+      await fetchJson(`/api/document_ai/documents/${encodeURIComponent(state.currentDocumentId)}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ view: state.view }),
+      });
+      resetScreen();
+      showMessage('Documento eliminado.', 'success');
+    } catch (error) {
+      setStatus(error.message || 'Não foi possível eliminar o documento.', true);
+      showMessage(error.message || 'Não foi possível eliminar o documento.', 'error');
+    } finally {
+      state.deletingDocument = false;
+      if (els.deleteBtn) els.deleteBtn.disabled = !state.file;
+      els.runBtn.disabled = !state.file;
+    }
+  }
+
+  async function submitDocumentToPhc({ navigate = true, announceSuccess = true } = {}) {
+    if (!els.submitPhcBtn || state.submittingPhc) return null;
+    if (state.integratedPhc) return state.integrationResult || { duplicate: true };
     const documentType = state.documentData?.document_type;
     if (!state.file || !['mail', 'bank_statement', 'invoice', 'provisional_invoice', 'credit_note'].includes(documentType)) {
       showMessage('Carrega e valida primeiro um documento compatível.', 'error');
-      return;
+      return null;
     }
     state.submittingPhc = true;
     updateSubmitPhcButton();
@@ -2247,27 +2792,30 @@ document.addEventListener('DOMContentLoaded', () => {
         ? 'Este PDF já se encontrava integrado no PHC; não foi criado um duplicado.'
         : (isProvisionalInvoice ? 'O documento foi integrado no PHC, com linhas e anexos.' : 'O correio foi guardado no GED e integrado no PHC.');
       setStatus(payload.message || 'Documento integrado no PHC.');
-      showMessage(payload.message || 'Documento integrado no PHC.', 'success');
-      if (isProvisionalInvoice) {
+      if (announceSuccess) showMessage(payload.message || 'Documento integrado no PHC.', 'success');
+      if (isProvisionalInvoice && navigate) {
         state.view = 'accounting';
         window.setTimeout(() => {
           window.location.href = '/document_ai/inbox?view=accounting';
         }, 700);
       }
+      return { payload, isProvisionalInvoice };
     } catch (error) {
       setStatus(error.message || 'Não foi possível submeter a correspondência.', true);
       showMessage(error.message || 'Não foi possível submeter a correspondência.', 'error');
+      return null;
     } finally {
       state.submittingPhc = false;
       updateSubmitPhcButton();
     }
   }
 
-  async function confirmDocumentControl() {
-    if (!els.controlOkBtn || !state.currentDocumentId || state.submittingControl || state.controlOk) return;
+  async function confirmDocumentControl({ announceSuccess = true } = {}) {
+    if (state.controlOk) return true;
+    if (!els.controlOkBtn || !state.currentDocumentId || state.submittingControl) return false;
     state.submittingControl = true;
     updateSubmitPhcButton();
-    setStatus('A confirmar o Contrôle OK...');
+    setStatus('A confirmar o Controlo OK...');
     try {
       const payload = await fetchJson(`/api/document_ai/documents/${encodeURIComponent(state.currentDocumentId)}/control-ok`, {
         method: 'POST',
@@ -2275,29 +2823,112 @@ document.addEventListener('DOMContentLoaded', () => {
         body: JSON.stringify({ document: state.documentData || {} }),
       });
       state.controlOk = Boolean(payload.workflow?.control_ok);
-      setStatus('Contrôle OK concluído. A validação está disponível.');
-      showMessage('Contrôle OK concluído.', 'success');
+      setStatus('Controlo OK concluído. A validação está disponível.');
+      if (announceSuccess) showMessage('Controlo OK concluído.', 'success');
+      return state.controlOk;
     } catch (error) {
       setStatus(error.message || 'Não foi possível concluir o controlo.', true);
       showMessage(error.message || 'Não foi possível concluir o controlo.', 'error');
+      return false;
     } finally {
       state.submittingControl = false;
       updateSubmitPhcButton();
     }
   }
 
-  async function validateWorkflowStage() {
+  async function saveWorkflowCorrections() {
+    const documentData = state.documentData || {};
+    const supplier = documentData.supplier || {};
+    await fetchJson(`/api/document_ai/documents/${encodeURIComponent(state.currentDocumentId)}/validate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        doc_type: documentData.document_type || 'unknown',
+        feid: Number(documentData.customer?.feid || 0) || null,
+        supplier_no: Number(supplier.supplier_no || supplier.no || 0) || null,
+        template_id: '',
+        confidence: Number(documentData.confidence || 0) || 0,
+        status: 'review_required',
+        result: documentData,
+        warnings: documentData.warnings || [],
+        errors: [],
+      }),
+    });
+  }
+
+  function clearRequiredInfoHighlights() {
+    document.querySelectorAll('.docai-required-missing').forEach((element) => {
+      element.classList.remove('docai-required-missing');
+    });
+  }
+
+  function showRequiredInfo(requiredInfo) {
+    clearRequiredInfoHighlights();
+    const targets = Array.isArray(requiredInfo?.targets) ? requiredInfo.targets : [];
+    let firstTarget = null;
+    targets.forEach((targetId) => {
+      const target = document.getElementById(targetId);
+      if (!target) return;
+      target.classList.add('docai-required-missing');
+      firstTarget ||= target;
+    });
+    firstTarget?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  async function validateWorkflowStage({ confirmDuplicate = false } = {}) {
     if (!els.workflowValidateBtn || !state.currentDocumentId || !state.documentData || state.workflowSubmitting) return;
     state.workflowSubmitting = true;
+    clearRequiredInfoHighlights();
     updateSubmitPhcButton();
     setStatus('A validar a etapa documental...');
     try {
+      let historicalResult = null;
+      const documentType = state.documentData?.document_type;
+      const usesCorrespondenceFlow = ['mail', 'bank_statement'].includes(documentType)
+        && els.submitPhcBtn?.dataset.canCorrespondence === '1';
+      const usesProvisionalInvoiceFlow = ['invoice', 'provisional_invoice', 'credit_note'].includes(documentType)
+        && els.submitPhcBtn?.dataset.canProvisionalInvoice === '1';
+      setStatus('A guardar as correções...');
+      await saveWorkflowCorrections();
+      setStatus('A confirmar as condições da etapa...');
+      const preflight = await fetchJson(`/api/document_ai/documents/${encodeURIComponent(state.currentDocumentId)}/workflow/preflight`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          view: state.view,
+          document: state.documentData,
+          confirm_duplicate: Boolean(confirmDuplicate),
+        }),
+      });
+      if (preflight.duplicate_confirmation_required) {
+        openDuplicateModal(preflight.duplicates || []);
+        setStatus('Confirma o documento duplicado antes de continuar.', true);
+        return;
+      }
+      if (!preflight.ok) {
+        showRequiredInfo(preflight.required_info);
+        const messages = Array.isArray(preflight.required_info?.messages)
+          ? preflight.required_info.messages
+          : [preflight.message || 'Existem informações obrigatórias por preencher.'];
+        const message = messages.filter(Boolean).join(' ');
+        setStatus(message, true);
+        showMessage(message, 'error');
+        return;
+      }
+      if (state.view === 'home' && !state.integratedPhc && (usesCorrespondenceFlow || usesProvisionalInvoiceFlow)) {
+        if (usesProvisionalInvoiceFlow && !state.controlOk) {
+          const controlled = await confirmDocumentControl({ announceSuccess: false });
+          if (!controlled) return;
+        }
+        historicalResult = await submitDocumentToPhc({ navigate: false, announceSuccess: false });
+        if (!historicalResult) return;
+      }
       await fetchJson(`/api/document_ai/documents/${encodeURIComponent(state.currentDocumentId)}/workflow/validate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ view: state.view, document: state.documentData }),
       });
-      showMessage('Etapa documental validada.', 'success');
+      showMessage('Documento validado.', 'success');
       window.location.href = inboxUrl();
     } catch (error) {
       setStatus(error.message || 'Não foi possível validar a etapa.', true);
@@ -2356,6 +2987,17 @@ document.addEventListener('DOMContentLoaded', () => {
   els.submitPhcBtn?.addEventListener('click', submitDocumentToPhc);
   els.controlOkBtn?.addEventListener('click', confirmDocumentControl);
   els.workflowValidateBtn?.addEventListener('click', validateWorkflowStage);
+  els.duplicateCloseTop?.addEventListener('click', closeDuplicateModal);
+  els.duplicateCancel?.addEventListener('click', closeDuplicateModal);
+  els.duplicateConfirm?.addEventListener('click', () => {
+    closeDuplicateModal();
+    validateWorkflowStage({ confirmDuplicate: true });
+  });
+  els.duplicateList?.addEventListener('click', (event) => {
+    const documentId = event.target.closest('[data-open-duplicate]')?.dataset.openDuplicate;
+    if (!documentId) return;
+    window.open(extractUrl(documentId), '_blank', 'noopener');
+  });
   els.resetBtn?.addEventListener('click', resetScreen);
   els.chooseBtn?.addEventListener('click', (event) => {
     event.stopPropagation();
@@ -2383,16 +3025,42 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   els.dropzone?.addEventListener('drop', (event) => setFile(event.dataTransfer?.files?.[0]));
   els.runBtn?.addEventListener('click', () => extractDocument({ force: true }));
+  els.deleteBtn?.addEventListener('click', deleteCurrentDocument);
+  els.totalsCard?.addEventListener('click', openTotalsModal);
+  els.totalsCard?.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      openTotalsModal();
+    }
+  });
+  els.totalsCloseTop?.addEventListener('click', closeTotalsModal);
+  els.totalsClose?.addEventListener('click', closeTotalsModal);
+  els.totalsModal?.addEventListener('click', (event) => {
+    if (event.target === els.totalsModal) closeTotalsModal();
+  });
+  els.gedFileName?.addEventListener('click', () => copyClassificationValue(els.gedFileName.textContent));
+  els.gedFileName?.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') copyClassificationValue(els.gedFileName.textContent);
+  });
+  els.gedPath?.addEventListener('click', (event) => {
+    const target = event.target.closest('[data-copy-value]');
+    if (target) copyClassificationValue(target.dataset.copyValue);
+  });
   els.openPdfBtn?.addEventListener('click', () => {
     const pdfUrl = state.currentDocumentId
-      ? `/api/document_ai/documents/${encodeURIComponent(state.currentDocumentId)}/original`
+      ? `/api/document_ai/documents/${encodeURIComponent(state.currentDocumentId)}/original?view=${encodeURIComponent(state.view)}`
       : state.previewUrl;
     if (pdfUrl) window.open(pdfUrl, '_blank', 'noopener,noreferrer');
   });
   els.splitBtn?.addEventListener('click', splitDocumentBatch);
   els.suggestBlsBtn?.addEventListener('click', suggestVirtualDeliveryNotes);
-  els.splitLineBtn?.addEventListener('click', splitSelectedLineAcrossDeliveryNotes);
+  els.splitLineBtn?.addEventListener('click', distributeSelectedLinesAcrossDeliveryNotes);
   els.linesBody?.addEventListener('click', (event) => {
+    const vehicle = event.target.closest('[data-line-vehicle]');
+    if (vehicle) {
+      openVehicleModal(Number(vehicle.dataset.lineVehicle));
+      return;
+    }
     const article = event.target.closest('[data-line-article]');
     if (article) {
       openArticleModal(Number(article.dataset.lineArticle));
@@ -2401,6 +3069,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const project = event.target.closest('[data-line-project]');
     if (project) {
       openLineProjectModal(Number(project.dataset.lineProject));
+      return;
+    }
+    const bc = event.target.closest('[data-line-bc]');
+    if (bc) {
+      openBcModal(Number(bc.dataset.lineBc));
       return;
     }
     const bcToggle = event.target.closest('[data-line-bc-toggle]');
@@ -2415,12 +3088,41 @@ document.addEventListener('DOMContentLoaded', () => {
     if (picker) selectLineForSplit(Number(picker.dataset.lineSelect));
   });
   els.linesBody?.addEventListener('change', async (event) => {
-    const input = event.target.closest('[data-line-description]');
+    const input = event.target.closest('[data-line-group], [data-line-description], [data-line-qty], [data-line-unit-price], [data-line-total], [data-line-date]');
     if (!input) return;
-    const line = state.documentData?.lines?.[Number(input.dataset.lineDescription)];
+    const lineIndex = Number(input.dataset.lineGroup ?? input.dataset.lineDescription ?? input.dataset.lineQty ?? input.dataset.lineUnitPrice ?? input.dataset.lineTotal ?? input.dataset.lineDate);
+    const line = state.documentData?.lines?.[lineIndex];
     if (!line) return;
-    line.description = input.value.trim();
-    await saveAdjustedLines('Désignation enregistrée.');
+    let message = 'Linha guardada.';
+    if (input.matches('[data-line-group]')) {
+      const validation = validateLineGroupChange(state.documentData.lines || [], lineIndex, input.value);
+      if (!validation.ok) {
+        input.value = normalizeLineGroupCode(line.article_group_code);
+        input.classList.add('is-invalid');
+        window.setTimeout(() => input.classList.remove('is-invalid'), 1800);
+        setStatus(validation.message, true);
+        showMessage(validation.message, 'error');
+        return;
+      }
+      line.article_group_code = validation.code;
+      message = validation.code ? `Grupo ${validation.code} guardado.` : 'Grupo removido.';
+    } else if (input.matches('[data-line-description]')) {
+      line.description = input.value.trim();
+      message = 'Designação guardada.';
+    } else if (input.matches('[data-line-date]')) {
+      line.date = input.value || '';
+      message = 'Data guardada.';
+    } else if (input.matches('[data-line-total]')) {
+      line.net_amount = parseEditableNumber(input.value);
+      message = 'Preço total guardado.';
+    } else {
+      if (input.matches('[data-line-qty]')) line.qty = parseEditableNumber(input.value);
+      if (input.matches('[data-line-unit-price]')) line.unit_price = parseEditableNumber(input.value);
+      line.net_amount = Math.round((Number(line.qty || 0) * Number(line.unit_price || 0) + Number.EPSILON) * 100) / 100;
+      message = 'Quantidade e valores guardados.';
+    }
+    renderLines(state.documentData.lines || [], state.documentData.currency || '');
+    await saveAdjustedLines(message);
   });
   els.groupPrevious?.addEventListener('click', () => {
     if (!state.loading && !state.splitting) openGroupDocument(state.groupIndex - 1);
@@ -2513,9 +3215,54 @@ document.addEventListener('DOMContentLoaded', () => {
     const option = event.target.closest('[data-article-index]');
     if (option) selectArticle(Number(option.dataset.articleIndex));
   });
+  els.vehicleSearchBtn?.addEventListener('click', searchVehicleCandidates);
+  els.vehicleSearch?.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') searchVehicleCandidates();
+  });
+  els.vehicleCloseTop?.addEventListener('click', closeVehicleModal);
+  els.vehicleClose?.addEventListener('click', closeVehicleModal);
+  els.vehicleRemove?.addEventListener('click', removeVehicle);
+  els.vehicleModal?.addEventListener('click', (event) => {
+    if (event.target === els.vehicleModal) closeVehicleModal();
+  });
+  els.vehicleList?.addEventListener('click', (event) => {
+    const option = event.target.closest('[data-vehicle-index]');
+    if (option) selectVehicle(Number(option.dataset.vehicleIndex));
+  });
+  els.bcCloseTop?.addEventListener('click', closeBcModal);
+  els.bcClose?.addEventListener('click', closeBcModal);
+  els.bcSave?.addEventListener('click', saveBcAssignments);
+  els.bcModal?.addEventListener('click', (event) => {
+    if (event.target === els.bcModal) closeBcModal();
+  });
+  els.bcList?.addEventListener('change', (event) => {
+    const input = event.target.closest('[data-bc-origin-stamp]');
+    if (!input) return;
+    if (input.checked) state.bcSelectedStamps.add(input.dataset.bcOriginStamp);
+    else state.bcSelectedStamps.delete(input.dataset.bcOriginStamp);
+  });
   els.originFlow?.addEventListener('click', (event) => {
+    const linkButton = event.target.closest('[data-origin-link]');
+    if (linkButton) {
+      event.preventDefault();
+      event.stopPropagation();
+      linkDocumentOrigin(linkButton.dataset.originLink);
+      return;
+    }
     const option = event.target.closest('[data-origin-index]');
-    if (option) linkDocumentOrigin(option.dataset.originIndex);
+    if (option) openOriginDetail(option.dataset.originIndex);
+  });
+  els.originFlow?.addEventListener('keydown', (event) => {
+    if (!['Enter', ' '].includes(event.key) || event.target.closest('[data-origin-link]')) return;
+    const option = event.target.closest('[data-origin-index]');
+    if (!option) return;
+    event.preventDefault();
+    openOriginDetail(option.dataset.originIndex);
+  });
+  els.originDetailCloseTop?.addEventListener('click', closeOriginDetailModal);
+  els.originDetailClose?.addEventListener('click', closeOriginDetailModal);
+  els.originDetailModal?.addEventListener('click', (event) => {
+    if (event.target === els.originDetailModal) closeOriginDetailModal();
   });
   els.originTabs?.addEventListener('click', (event) => {
     const key = event.target.closest('[data-origin-tab]')?.dataset.originTab;
@@ -2524,7 +3271,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const stages = [...els.originTabs.querySelectorAll('[data-origin-tab]')].map((button) => ({
       key: button.dataset.originTab,
       label: button.childNodes[0]?.textContent?.trim() || button.dataset.originTab,
-      count: Number(button.querySelector('span')?.textContent || 0),
     }));
     renderOriginTabs(stages);
   });
@@ -2533,6 +3279,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (event.key === 'Escape' && els.supplierModal?.classList.contains('sz_is_open')) closeSupplierModal();
     if (event.key === 'Escape' && els.projectModal?.classList.contains('sz_is_open')) closeProjectModal();
     if (event.key === 'Escape' && els.articleModal?.classList.contains('sz_is_open')) closeArticleModal();
+    if (event.key === 'Escape' && els.vehicleModal?.classList.contains('sz_is_open')) closeVehicleModal();
+    if (event.key === 'Escape' && els.bcModal?.classList.contains('sz_is_open')) closeBcModal();
+    if (event.key === 'Escape' && els.originDetailModal?.classList.contains('sz_is_open')) closeOriginDetailModal();
   });
   window.addEventListener('beforeunload', cleanupPreview);
 
