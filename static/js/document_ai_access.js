@@ -114,6 +114,10 @@ document.addEventListener('DOMContentLoaded', () => {
   els.open?.addEventListener('click', openModal);
   els.close.addEventListener('click', closeModal);
   els.cancel.addEventListener('click', closeModal);
+  modal.addEventListener('click', (event) => { if (event.target === modal) closeModal(); });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !modal.hidden && entityModal.hidden) closeModal();
+  });
   els.search.addEventListener('input', render);
   els.add.addEventListener('click', () => { els.addForm.hidden = !els.addForm.hidden; });
   els.addConfirm.addEventListener('click', () => {

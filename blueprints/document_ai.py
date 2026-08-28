@@ -204,7 +204,7 @@ def document_ai_extract_page():
     profile = document_ai_permission_profile(_current_login(), requested_view)
     return render_template(
         'document_ai_extract.html',
-        page_title='Leitura Inteligente de Documentos',
+        page_title='Análise de Documentos',
         document_ai_inbox_views=inbox_views,
         document_ai_current_view=requested_view,
         can_validate_document=bool(profile['permissions'].get('validate')),
@@ -807,7 +807,7 @@ def api_document_ai_document_control_ok(docinstamp: str):
     except ValueError as exc:
         return jsonify({'error': str(exc)}), 400
     except Exception as exc:
-        current_app.logger.exception('Erro ao concluir Contrôle OK')
+        current_app.logger.exception('Erro ao concluir Controlo OK')
         try:
             db.session.rollback()
         except Exception:

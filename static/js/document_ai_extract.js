@@ -38,6 +38,8 @@ document.addEventListener('DOMContentLoaded', () => {
     gedFolderControl: document.getElementById('docAiExtractGedFolderControl'),
     gedFolderSelect: document.getElementById('docAiExtractGedFolderSelect'),
     gedFolderHint: document.getElementById('docAiExtractGedFolderHint'),
+    classificationValue: document.getElementById('docAiExtractClassificationValue'),
+    classificationMeta: document.getElementById('docAiExtractClassificationMeta'),
     projectCard: document.getElementById('docAiExtractProjectCard'),
     projectName: document.getElementById('docAiExtractProjectName'),
     projectMeta: document.getElementById('docAiExtractProjectMeta'),
@@ -64,7 +66,6 @@ document.addEventListener('DOMContentLoaded', () => {
     originFlow: document.getElementById('docAiExtractOriginFlow'),
     originTabs: document.getElementById('docAiExtractOriginTabs'),
     lineCount: document.getElementById('docAiExtractLineCount'),
-    suggestBlsBtn: document.getElementById('docAiExtractSuggestBlsBtn'),
     splitLineBtn: document.getElementById('docAiExtractSplitLineBtn'),
     linesBody: document.getElementById('docAiExtractLinesBody'),
     taxesBody: document.getElementById('docAiExtractTaxesBody'),
@@ -125,7 +126,6 @@ document.addEventListener('DOMContentLoaded', () => {
     entityList: document.getElementById('docAiEntityList'),
     entityCloseTop: document.getElementById('docAiEntityCloseTop'),
     entityClose: document.getElementById('docAiEntityClose'),
-    accessBtn: document.getElementById('docAiIntegrationAccessBtn'),
     accessModal: document.getElementById('docAiIntegrationAccessModal'),
     accessCloseTop: document.getElementById('docAiIntegrationAccessCloseTop'),
     accessClose: document.getElementById('docAiIntegrationAccessClose'),
@@ -217,12 +217,12 @@ document.addEventListener('DOMContentLoaded', () => {
     credit_note: 'Nota de crédito',
     debit_note: 'Nota de débito',
     purchase_order: 'Nota de encomenda',
-    delivery_note: 'Guia',
+    delivery_note: 'Guia de remessa',
     proforma_invoice: 'Fatura pró-forma',
     provisional_invoice: 'Fatura provisória',
     receipt: 'Recibo',
-    bank_statement: 'RB',
-    mail: 'Correspondência',
+    bank_statement: 'Extrato bancário',
+    mail: 'Correio',
     unknown: 'Tipo desconhecido',
     other: 'Outro documento',
   };
@@ -294,7 +294,7 @@ document.addEventListener('DOMContentLoaded', () => {
     els.modeLabel.textContent = 'Totais';
     els.modeValue.textContent = documentData.document_type ? formatMoney(totals.gross_total, currency) : '--';
     els.modeMeta.textContent = documentData.document_type
-      ? `HT ${formatMoney(totals.net_total, currency)} · TVA ${formatMoney(totals.tax_total, currency)}`
+      ? `Total s/IVA ${formatMoney(totals.net_total, currency)} · IVA ${formatMoney(totals.tax_total, currency)}`
       : 'A aguardar leitura';
   }
 
@@ -320,16 +320,26 @@ document.addEventListener('DOMContentLoaded', () => {
   function formatMoney(value, currency) {
     const number = Number(value || 0);
     const normalizedCurrency = String(currency || '').trim().toUpperCase();
-    if (/^[A-Z]{3}$/.test(normalizedCurrency)) {
-      try {
-        return new Intl.NumberFormat('pt-PT', {
-          style: 'currency',
-          currency: normalizedCurrency,
-          minimumFractionDigits: 2,
-        }).format(number);
-      } catch (_) {}
-    }
-    return `${formatNumber(number, 2)}${normalizedCurrency ? ` ${normalizedCurrency}` : ''}`;
+    const formatted = new Intl.NumberFormat('pt-PT', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+      useGrouping: true,
+    }).format(number);
+    return `${formatted}${/^[A-Z]{3}$/.test(normalizedCurrency) ? ` ${normalizedCurrency}` : ''}`;
+  }
+
+  function formatOptionalMoney(value, currency) {
+    return value === null || value === undefined || value === '' ? '-' : formatMoney(value, currency);
+  }
+
+  function renderClassificationCard() {
+    const documentData = state.documentData || {};
+    const documentType = String(documentData.document_type || '').trim();
+    const invoiceType = invoiceTypeLabels[String(documentData.invoice_type || '').trim().toLowerCase()] || '';
+    els.classificationValue.textContent = documentType
+      ? (typeLabels[documentType] || documentType)
+      : '--';
+    els.classificationMeta.textContent = invoiceType || '--';
   }
 
   function formatEditableAmount(value) {
@@ -1151,13 +1161,7 @@ document.addEventListener('DOMContentLoaded', () => {
       unit: group.units.size === 1 ? Array.from(group.units)[0] : '',
       net_total: group.net_total,
     }));
-    if (!state.deliveryNoteGroups.length) state.virtualDeliveryNotesActive = false;
-    els.suggestBlsBtn.hidden = !state.deliveryNoteGroups.length;
-    els.suggestBlsBtn.disabled = state.virtualDeliveryNotesActive;
-    const proposedBlCount = state.deliveryNoteGroups.length;
-    els.suggestBlsBtn.innerHTML = state.virtualDeliveryNotesActive
-      ? `<i class="fa-solid fa-circle-check"></i><span>${proposedBlCount === 1 ? 'BL sugerido' : `${proposedBlCount} BL sugeridos`}</span>`
-      : `<i class="fa-solid fa-wand-magic-sparkles"></i><span>${proposedBlCount === 1 ? 'Sugerir BL' : `Sugerir ${proposedBlCount} BL`}</span>`;
+    state.virtualDeliveryNotesActive = state.deliveryNoteGroups.length > 0;
     Array.from(state.selectedSplitLines).forEach((line) => {
       if (!items.includes(line)) state.selectedSplitLines.delete(line);
     });
@@ -1616,18 +1620,6 @@ document.addEventListener('DOMContentLoaded', () => {
       </article>`;
   }
 
-  function suggestVirtualDeliveryNotes() {
-    if (!state.deliveryNoteGroups.length || state.virtualDeliveryNotesActive) return;
-    state.virtualDeliveryNotesActive = true;
-    els.suggestBlsBtn.disabled = true;
-    els.suggestBlsBtn.innerHTML = `<i class="fa-solid fa-circle-check"></i><span>${state.deliveryNoteGroups.length === 1 ? 'BL sugerido' : `${state.deliveryNoteGroups.length} BL sugeridos`}</span>`;
-    renderLines(state.documentData?.lines || [], state.documentData?.currency || '');
-    if (state.originPayload) renderOriginCandidates(state.originPayload, { skipLineMapping: true });
-    els.originSection?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    setStatus(`${state.deliveryNoteGroups.length} BL(s) virtual(is) adicionados às sugestões de origem. Ainda não foram criados no PHC.`);
-    showMessage('BLs adicionados como sugestões virtuais. Ainda não foram criados no PHC.', 'success');
-  }
-
   function selectLineForSplit(lineIndex) {
     const line = state.documentData?.lines?.[Number(lineIndex)];
     if (!line || line._virtual_split_allocation) return;
@@ -1917,13 +1909,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const selected = Boolean(project.ccusto);
     const selectedOriginWorks = [...new Set(state.selectedOrigins.map((origin) => String(origin.ccusto || '').trim()).filter(Boolean))];
     const hasWorkConflict = selectedOriginWorks.length > 1;
-    els.projectName.textContent = selected ? project.ccusto : 'Todas as obras';
+    els.projectName.textContent = selected ? project.ccusto : '-';
     const projectDetails = [project.machine, project.location].filter(Boolean).join(' · ');
     els.projectMeta.textContent = hasWorkConflict
       ? `Atenção: os BCs selecionados pertencem a ${selectedOriginWorks.length} obras (${selectedOriginWorks.join(', ')})`
       : selected
         ? [project.suggested_by_document ? `Sugerida por ${project.suggested_by_document}` : '', projectDetails].filter(Boolean).join(' · ') || 'Filtro de obra ativo'
-        : 'Sem filtro de obra';
+        : '-';
     els.projectHint.innerHTML = hasWorkConflict
       ? '<i class="fa-solid fa-triangle-exclamation"></i> BCs de obras diferentes'
       : selected
@@ -2595,15 +2587,16 @@ document.addEventListener('DOMContentLoaded', () => {
     state.correspondenceReference = null;
     state.correspondenceYear = new Date().getFullYear();
     renderDocumentCard();
+    renderClassificationCard();
     els.legalBadge.hidden = !(isMail && documentData.mail_category === 'legal');
     renderGedDestination();
     loadCorrespondenceReference();
 
     renderLines(documentData.lines, currency);
     renderTaxes(documentData.taxes, currency);
-    els.netTotal.textContent = formatMoney(totals.net_total, currency);
-    els.taxTotal.textContent = formatMoney(totals.tax_total, currency);
-    els.grossTotal.textContent = formatMoney(totals.gross_total, currency);
+    els.netTotal.textContent = formatOptionalMoney(totals.net_total, currency);
+    els.taxTotal.textContent = formatOptionalMoney(totals.tax_total, currency);
+    els.grossTotal.textContent = formatOptionalMoney(totals.gross_total, currency);
     renderModeCard();
 
     const notes = Array.isArray(documentData.notes) ? documentData.notes.filter(Boolean) : [];
@@ -2650,8 +2643,6 @@ document.addEventListener('DOMContentLoaded', () => {
     state.correspondenceLookupToken += 1;
     state.correspondenceReference = null;
     state.correspondenceYear = null;
-    els.suggestBlsBtn.hidden = true;
-    els.suggestBlsBtn.disabled = false;
     els.splitLineBtn.hidden = true;
     els.splitLineBtn.disabled = true;
     els.originFlow.innerHTML = '';
@@ -2661,6 +2652,7 @@ document.addEventListener('DOMContentLoaded', () => {
     closeProjectModal();
     closeSupplierModal();
     renderProjectCard();
+    renderClassificationCard();
   }
 
   async function extractDocument(options = {}) {
@@ -2882,14 +2874,6 @@ document.addEventListener('DOMContentLoaded', () => {
     updateSubmitPhcButton();
     setStatus('A validar a etapa documental...');
     try {
-      let historicalResult = null;
-      const documentType = state.documentData?.document_type;
-      const usesCorrespondenceFlow = ['mail', 'bank_statement'].includes(documentType)
-        && els.submitPhcBtn?.dataset.canCorrespondence === '1';
-      const usesProvisionalInvoiceFlow = ['invoice', 'provisional_invoice', 'credit_note'].includes(documentType)
-        && els.submitPhcBtn?.dataset.canProvisionalInvoice === '1';
-      setStatus('A guardar as correções...');
-      await saveWorkflowCorrections();
       setStatus('A confirmar as condições da etapa...');
       const preflight = await fetchJson(`/api/document_ai/documents/${encodeURIComponent(state.currentDocumentId)}/workflow/preflight`, {
         method: 'POST',
@@ -2912,16 +2896,7 @@ document.addEventListener('DOMContentLoaded', () => {
           : [preflight.message || 'Existem informações obrigatórias por preencher.'];
         const message = messages.filter(Boolean).join(' ');
         setStatus(message, true);
-        showMessage(message, 'error');
         return;
-      }
-      if (state.view === 'home' && !state.integratedPhc && (usesCorrespondenceFlow || usesProvisionalInvoiceFlow)) {
-        if (usesProvisionalInvoiceFlow && !state.controlOk) {
-          const controlled = await confirmDocumentControl({ announceSuccess: false });
-          if (!controlled) return;
-        }
-        historicalResult = await submitDocumentToPhc({ navigate: false, announceSuccess: false });
-        if (!historicalResult) return;
       }
       await fetchJson(`/api/document_ai/documents/${encodeURIComponent(state.currentDocumentId)}/workflow/validate`, {
         method: 'POST',
@@ -2932,7 +2907,6 @@ document.addEventListener('DOMContentLoaded', () => {
       window.location.href = inboxUrl();
     } catch (error) {
       setStatus(error.message || 'Não foi possível validar a etapa.', true);
-      showMessage(error.message || 'Não foi possível validar a etapa.', 'error');
     } finally {
       state.workflowSubmitting = false;
       updateSubmitPhcButton();
@@ -2969,7 +2943,6 @@ document.addEventListener('DOMContentLoaded', () => {
     renderGedDestination();
     setStatus(`Destino GED alterado para ${els.gedFolderSelect.selectedOptions[0]?.textContent || els.gedFolderSelect.value}.`);
   });
-  els.accessBtn?.addEventListener('click', openAccessModal);
   els.accessCloseTop?.addEventListener('click', closeAccessModal);
   els.accessClose?.addEventListener('click', closeAccessModal);
   els.accessModal?.addEventListener('click', (event) => { if (event.target === els.accessModal) closeAccessModal(); });
@@ -3053,7 +3026,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (pdfUrl) window.open(pdfUrl, '_blank', 'noopener,noreferrer');
   });
   els.splitBtn?.addEventListener('click', splitDocumentBatch);
-  els.suggestBlsBtn?.addEventListener('click', suggestVirtualDeliveryNotes);
   els.splitLineBtn?.addEventListener('click', distributeSelectedLinesAcrossDeliveryNotes);
   els.linesBody?.addEventListener('click', (event) => {
     const vehicle = event.target.closest('[data-line-vehicle]');

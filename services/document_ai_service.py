@@ -48,9 +48,9 @@ DOC_AI_DOC_TYPES = [
     {'value': 'provisional_invoice', 'label': 'Fatura provisória'},
     {'value': 'credit_note', 'label': 'Nota de crédito'},
     {'value': 'purchase_order', 'label': 'Nota de encomenda'},
-    {'value': 'delivery_note', 'label': 'Guia'},
-    {'value': 'bank_statement', 'label': 'Relevé bancário'},
-    {'value': 'mail', 'label': 'Lettre'},
+    {'value': 'delivery_note', 'label': 'Guia de remessa'},
+    {'value': 'bank_statement', 'label': 'Extrato bancário'},
+    {'value': 'mail', 'label': 'Correio'},
     {'value': 'advertising', 'label': 'Publicidade'},
     {'value': 'unknown', 'label': 'Desconhecido'},
 ]
@@ -4073,6 +4073,36 @@ def preflight_document_inbox_stage(
             stored_supplier_no=document.fornecedor_no,
             processing_meta=_json_loads(document.processing_meta_json, {}),
         )
+        reception_messages = {
+            'entity': 'Falta a entidade.',
+            'supplier': 'Falta o fornecedor.',
+            'classification': 'Falta a classificação.',
+            'invoice_type': 'Falta o tipo de fatura.',
+        }
+        reception_targets = {
+            'entity': 'docAiExtractCustomerCard',
+            'supplier': 'docAiExtractSupplierCard',
+            'classification': 'docAiExtractModeCard',
+            'invoice_type': 'docAiExtractModeCard',
+        }
+        canonical_missing = [
+            code for code in assessment['missing']
+            if code in reception_messages
+        ]
+        if canonical_missing:
+            required_info = dict(required_info)
+            required_info['ok'] = False
+            required_info['missing'] = list(dict.fromkeys([
+                *(required_info.get('missing') or []), *canonical_missing,
+            ]))
+            required_info['messages'] = list(dict.fromkeys([
+                *(required_info.get('messages') or []),
+                *(reception_messages[code] for code in canonical_missing),
+            ]))
+            required_info['targets'] = sorted(set([
+                *(required_info.get('targets') or []),
+                *(reception_targets[code] for code in canonical_missing),
+            ]))
         if not required_info['ok']:
             return {
                 'ok': False, 'view': stage, 'assessment': assessment,
@@ -5667,9 +5697,9 @@ def _doc_queryset_sql(filters: dict[str, Any]) -> tuple[str, dict[str, Any]]:
 
 
 DOC_AI_INBOX_VIEWS = [
-    {'value': 'home', 'label': 'Accueil'},
-    {'value': 'management', 'label': 'Contrôle de Gestion'},
-    {'value': 'accounting', 'label': 'Comptabilité'},
+    {'value': 'home', 'label': 'Receção'},
+    {'value': 'management', 'label': 'Controlo de Gestão'},
+    {'value': 'accounting', 'label': 'Contabilidade'},
 ]
 
 DOC_AI_INBOX_UNSPLIT_SOURCE_SQL = """
@@ -5822,8 +5852,6 @@ def assess_document_reception(
     )
     batch = dict(result.get('document_batch') or {})
     multiple_documents = bool(batch.get('contains_multiple_documents'))
-    document_number = str(result.get('document_number') or '').strip()
-    document_date = str(result.get('document_date') or '').strip()
     invoice_type = _normalize_invoice_type(result.get('invoice_type'))
 
     missing = []
@@ -5833,10 +5861,6 @@ def assess_document_reception(
         missing.append('supplier')
     if document_type == 'unknown':
         missing.append('classification')
-    if not document_number:
-        missing.append('document_number')
-    if not document_date:
-        missing.append('document_date')
     if document_type in {'invoice', 'provisional_invoice'} and invoice_type == 'unknown':
         missing.append('invoice_type')
 
@@ -5856,8 +5880,6 @@ def assess_document_reception(
         feid,
         supplier_no,
         document_type if document_type != 'unknown' else '',
-        document_number,
-        document_date,
         invoice_type if invoice_type != 'unknown' else '',
     ]
     if multiple_documents or str(processing_status or '').strip().lower() == 'parse_error':
@@ -6198,6 +6220,10 @@ def list_documents(filters: dict[str, Any] | None = None) -> dict[str, Any]:
         ORDER BY NOME
     """), entity_params).mappings().all()
 
+    required_fields_map: dict[str, list[str]] = {}
+    if inbox_view == 'management':
+        from services.document_ai_required_info_service import required_fields_by_class
+        required_fields_map = required_fields_by_class(inbox_view)
     items = []
     counts = {}
     for row in rows:
@@ -6244,13 +6270,28 @@ def list_documents(filters: dict[str, Any] | None = None) -> dict[str, Any]:
             if isinstance(item, dict)
         ]
         if inbox_view == 'management':
+            from services.document_ai_distribution_service import normalize_distribution_document_class
+            from services.document_ai_required_info_service import evaluate_required_info
             resolved_origins = get_phc_origins_from_meta(processing_meta)
             origin_references = [
                 item for item in (result_data.get('origin_references') or [])
                 if isinstance(item, dict) and any(str(value or '').strip() for value in item.values())
             ]
             has_resolved_origin = bool(resolved_origins)
-            business_state = 'OK' if has_resolved_origin else ('Ação' if origin_references else 'Bloqueio')
+            management_assessment = evaluate_required_info(
+                result_data,
+                inbox_view,
+                stored_feid=row.get('FEID'),
+                stored_supplier_no=row.get('FORNECEDOR_NO'),
+                processing_meta=processing_meta,
+                required_fields=required_fields_map.get(normalize_distribution_document_class(document_type), []),
+            )
+            if management_assessment['ok']:
+                business_state = 'OK'
+            elif not has_resolved_origin and not origin_references:
+                business_state = 'Bloqueio'
+            else:
+                business_state = 'Ação'
         elif inbox_view == 'accounting':
             workflow_state = str(row.get('WORKFLOW_STATE') or '').strip().lower()
             business_state = {
@@ -6292,8 +6333,12 @@ def list_documents(filters: dict[str, Any] | None = None) -> dict[str, Any]:
             'business_state': business_state,
             'business_reasons': (
                 list(reception_assessment['reasons']) + (['Documento duplicado'] if duplicate_matches else [])
-            ) if inbox_view == 'home' else [],
-            'business_missing': reception_assessment['missing'] if inbox_view == 'home' else [],
+            ) if inbox_view == 'home' else (
+                list(management_assessment['messages']) if inbox_view == 'management' else []
+            ),
+            'business_missing': reception_assessment['missing'] if inbox_view == 'home' else (
+                list(management_assessment['missing']) if inbox_view == 'management' else []
+            ),
             'duplicate_matches': duplicate_matches,
             'feid': _safe_int(row.get('FEID'), 0) or None,
             'entity_name': str(row.get('FE_NOME') or customer.get('name') or '').strip(),

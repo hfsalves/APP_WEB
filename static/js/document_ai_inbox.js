@@ -162,10 +162,12 @@ document.addEventListener('DOMContentLoaded', () => {
   function formatValue(value, currency) {
     const numeric = Number(value || 0);
     const code = String(currency || '').trim().toUpperCase();
-    try {
-      if (code) return new Intl.NumberFormat('pt-PT', { style: 'currency', currency: code }).format(numeric);
-    } catch (_) {}
-    return new Intl.NumberFormat('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(numeric);
+    const formatted = new Intl.NumberFormat('pt-PT', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+      useGrouping: true,
+    }).format(numeric);
+    return code ? `${formatted} ${code}` : formatted;
   }
 
   function stateClass(value) {
@@ -225,7 +227,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const typeCounts = new Map();
     const statePopulation = state.allItems.filter((item) => matchesFilters(item, 'state'));
     const typePopulation = state.allItems.filter((item) => matchesFilters(item, 'type'));
-    const total = state.allItems.filter((item) => matchesFilters(item)).length;
+    const total = state.total;
     const requiredStates = state.view === 'accounting'
       ? ['Pendente', 'Validado']
       : ['OK', 'Ação', 'Bloqueio'];
@@ -279,8 +281,8 @@ document.addEventListener('DOMContentLoaded', () => {
     `;
   }
 
-  function applyFilters() {
-    if (els.tableScroller) els.tableScroller.scrollTop = 0;
+  function applyFilters({ resetScroll = false } = {}) {
+    if (resetScroll && els.tableScroller) els.tableScroller.scrollTop = 0;
     renderTable();
     refreshColumnFilters();
   }
@@ -318,7 +320,7 @@ document.addEventListener('DOMContentLoaded', () => {
       state.total = Number(payload.total || 0);
       if (allowedViews.has(payload.view)) state.view = payload.view;
       renderViewTabs();
-      applyFilters();
+      applyFilters({ resetScroll: true });
     } catch (error) {
       console.error(error);
       if (els.inboxBody) els.inboxBody.innerHTML = `<tr><td colspan="9" class="docai-load-error">${escapeHtml(error.message || 'Erro ao carregar a Inbox.')}</td></tr>`;

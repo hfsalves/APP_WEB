@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Leitura Inteligente de Documentos{% endblock %}
+{% block title %}Análise de Documentos{% endblock %}
 
 {% block extra_head %}
   {{ super() }}
@@ -25,12 +25,6 @@
         </div>
       </div>
       <div class="sz_contextbar_right docai-contextbar-right">
-        {% if document_ai_access_admin %}
-        <button id="docAiIntegrationAccessBtn" type="button" class="sz_button sz_button_secondary">
-          <i class="fa-solid fa-user-shield"></i>
-          <span>Acessos</span>
-        </button>
-        {% endif %}
         <button id="docAiExtractBackBtn" type="button" class="sz_button sz_button_secondary">
           <i class="fa-solid fa-arrow-left"></i>
           <span>Voltar ao inbox</span>
@@ -160,13 +154,13 @@
               </article>
               <article id="docAiExtractModeCard" class="docai-info-card docai-classification-card">
                 <h4>Classificação</h4>
-                <strong id="docAiExtractGedFileName" tabindex="0" role="button" title="Copiar nome do documento">--</strong>
-                <div id="docAiExtractGedPath" class="docai-classification-destinations">--</div>
+                <strong id="docAiExtractClassificationValue">--</strong>
+                <span id="docAiExtractClassificationMeta" class="sz_text_muted">--</span>
               </article>
               <article id="docAiExtractProjectCard" class="docai-info-card docai-extract-project-card" tabindex="0" role="button" aria-label="Escolher obra">
                 <h4>Obra</h4>
-                <strong id="docAiExtractProjectName">Todas as obras</strong>
-                <span id="docAiExtractProjectMeta" class="sz_text_muted">Sem filtro de obra</span>
+                <strong id="docAiExtractProjectName">-</strong>
+                <span id="docAiExtractProjectMeta" class="sz_text_muted">-</span>
                 <span id="docAiExtractProjectHint" class="docai-extract-card-hint" hidden></span>
                 <button id="docAiExtractProjectClear" type="button" class="docai-extract-project-clear" hidden aria-label="Remover filtro de obra">
                   <i class="fa-solid fa-xmark"></i>
@@ -183,6 +177,8 @@
             <div id="docAiExtractGedDestination" hidden>
               <span id="docAiExtractGedStatus"></span>
               <span id="docAiExtractLegalBadge" hidden></span>
+              <strong id="docAiExtractGedFileName"></strong>
+              <div id="docAiExtractGedPath"></div>
               <div hidden>
                 <div id="docAiExtractGedFolderControl" class="docai-extract-ged-folder-control" hidden>
                   <label for="docAiExtractGedFolderSelect">Agência INTERSOL</label>
@@ -213,10 +209,6 @@
                 <h4>Detalhes</h4>
                 <div class="docai-extract-line-head-actions">
                   <span id="docAiExtractLineCount" hidden></span>
-                  <button id="docAiExtractSuggestBlsBtn" type="button" class="docai-extract-suggest-bl-btn" hidden>
-                    <i class="fa-solid fa-wand-magic-sparkles"></i>
-                    <span>Sugerir BL</span>
-                  </button>
                   <button id="docAiExtractSplitLineBtn" type="button" class="docai-extract-split-line-btn" hidden disabled>
                     <i class="fa-solid fa-code-branch"></i>
                     <span>Distribuir BL</span>
@@ -227,14 +219,14 @@
                 <div class="sz_table_wrap">
                   <table class="sz_table sz_table_compact">
                     <colgroup>
-                      <col style="width: 5%">
-                      <col style="width: 12%">
-                      <col style="width: 21%">
-                      <col style="width: 7%">
-                      <col style="width: 7%">
-                      <col style="width: 8%">
-                      <col style="width: 8%">
                       <col style="width: 4%">
+                      <col style="width: 11%">
+                      <col style="width: 19%">
+                      <col style="width: 8%">
+                      <col style="width: 7%">
+                      <col style="width: 8%">
+                      <col style="width: 8%">
+                      <col style="width: 7%">
                       <col style="width: 8%">
                       <col style="width: 3%">
                       <col style="width: 13%">
@@ -284,7 +276,7 @@
   </div>
 
   <div id="docAiTotalsModal" class="sz_modal" aria-hidden="true">
-    <div class="sz_modal_dialog docai-totals-modal" role="dialog" aria-modal="true" aria-labelledby="docAiTotalsModalTitle">
+    <div class="sz_panel docai-totals-modal" role="dialog" aria-modal="true" aria-labelledby="docAiTotalsModalTitle">
       <div class="sz_modal_header">
         <h3 id="docAiTotalsModalTitle" class="sz_h4 sz_modal_title">Detalhe dos totais</h3>
         <button id="docAiTotalsCloseTop" type="button" class="sz_icon_button" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>

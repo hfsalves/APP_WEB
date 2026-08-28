@@ -203,6 +203,22 @@ def required_fields_for(doc_type: Any, view: Any) -> list[str]:
     return [str(value or '') for value in rows]
 
 
+def required_fields_by_class(view: Any) -> dict[str, list[str]]:
+    """Load all required fields for one workflow view in a single query."""
+    ensure_required_info_schema()
+    normalized_view = str(view or '').strip().lower()
+    rows = db.session.execute(text("""
+        SELECT DOC_CLASS, FIELD_CODE
+        FROM dbo.DOC_AI_REQUIRED_FIELD
+        WHERE VIEW_CODE=:view
+        ORDER BY DOC_CLASS, FIELD_CODE
+    """), {'view': normalized_view}).mappings().all()
+    result: dict[str, list[str]] = {}
+    for row in rows:
+        result.setdefault(str(row.get('DOC_CLASS') or ''), []).append(str(row.get('FIELD_CODE') or ''))
+    return result
+
+
 def _has_value(value: Any) -> bool:
     return value is not None and (not isinstance(value, str) or bool(value.strip()))
 
@@ -230,6 +246,7 @@ def evaluate_required_info(
     stored_feid: Any = 0,
     stored_supplier_no: Any = 0,
     processing_meta: dict[str, Any] | None = None,
+    required_fields: list[str] | None = None,
 ) -> dict[str, Any]:
     data = dict(document_data or {})
     customer = dict(data.get('customer') or {})
@@ -238,7 +255,7 @@ def evaluate_required_info(
     lines = [dict(item) for item in (data.get('lines') or []) if isinstance(item, dict)]
     financial_lines = [item for item in lines if not bool(item.get('informative') or item.get('is_informative'))]
     doc_type = normalize_distribution_document_class(data.get('document_type'))
-    required = required_fields_for(doc_type, view)
+    required = list(required_fields) if required_fields is not None else required_fields_for(doc_type, view)
     meta = dict(processing_meta or {})
     origins = meta.get('phc_origins') if isinstance(meta.get('phc_origins'), list) else []
     if not origins and isinstance(meta.get('phc_origin'), dict):

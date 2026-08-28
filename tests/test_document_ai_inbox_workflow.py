@@ -5,6 +5,7 @@ from services.document_ai_service import (
     _infer_invoice_type,
     _normalize_invoice_type,
 )
+from services.document_ai_required_info_service import evaluate_required_info
 
 
 class DocumentAiInboxWorkflowTests(unittest.TestCase):
@@ -34,6 +35,23 @@ class DocumentAiInboxWorkflowTests(unittest.TestCase):
             _infer_invoice_type({'lines': [{'description': 'Béton prêt à emploi'}]}),
             'concrete',
         )
+
+    def test_management_state_uses_the_same_business_requirements_as_validation(self):
+        result = evaluate_required_info(
+            {
+                'document_type': 'invoice',
+                'invoice_type': 'services',
+                'customer': {'feid': 1},
+                'supplier': {'supplier_no': 10},
+                'lines': [{'description': 'Serviço', 'qty': 1, 'unit_price': 10, 'net_amount': 10}],
+                'totals': {'net_total': 10, 'tax_total': 2.3, 'gross_total': 12.3},
+            },
+            'management',
+            processing_meta={'phc_origins': [{'stamp': 'BC-1'}]},
+            required_fields=['entity', 'supplier', 'article'],
+        )
+        self.assertFalse(result['ok'])
+        self.assertIn('Falta o artigo.', result['messages'])
         self.assertEqual(
             _infer_invoice_type({'lines': [{'description': 'Honoraires de conseil'}]}),
             'services',

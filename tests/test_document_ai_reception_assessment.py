@@ -20,6 +20,14 @@ class DocumentAiReceptionAssessmentTests(unittest.TestCase):
         self.assertEqual(assessment['state'], 'OK')
         self.assertEqual(assessment['missing'], [])
 
+    def test_reception_does_not_require_document_number_or_date(self):
+        document = self.complete_invoice()
+        document.pop('document_number')
+        document.pop('document_date')
+        assessment = assess_document_reception(document)
+        self.assertEqual(assessment['state'], 'OK')
+        self.assertEqual(assessment['missing'], [])
+
     def test_invoice_type_is_required_only_for_invoice(self):
         invoice = self.complete_invoice()
         invoice['invoice_type'] = 'unknown'

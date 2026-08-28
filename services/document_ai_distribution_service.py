@@ -16,8 +16,8 @@ DOCUMENT_CLASSES = [
     {'value': 'invoice', 'label': 'Fatura'},
     {'value': 'credit_note', 'label': 'Nota de crédito'},
     {'value': 'purchase_order', 'label': 'Nota de encomenda'},
-    {'value': 'delivery_note', 'label': 'Guia'},
-    {'value': 'bank_statement', 'label': 'Relevé bancário'},
+    {'value': 'delivery_note', 'label': 'Guia de remessa'},
+    {'value': 'bank_statement', 'label': 'Extrato bancário'},
     {'value': 'advertising', 'label': 'Publicidade'},
 ]
 DESTINATION_STATES = [
