@@ -45,6 +45,7 @@ CLIENT_BUDGET_SERIES = (
     "etude et execution",
     "devis perdu",
 )
+APPROVAL_SERIES = frozenset({"devis", "etude et execution"})
 INTERSOL_RESTRICTED_BUDGET_NDOS = (115, 122)
 INTERSOL_OWN_BUDGET_SALESPERSONS = frozenset({10, 11, 12, 13, 14})
 INTERSOL_AGENCY_BUDGET_SALESPERSONS = {
@@ -370,6 +371,14 @@ def _series_name_key(value: Any) -> str:
     normalized = unicodedata.normalize("NFKD", _text_value(value))
     without_accents = "".join(character for character in normalized if not unicodedata.combining(character))
     return " ".join(without_accents.casefold().split())
+
+
+def _series_supports_approval(value: Any) -> bool:
+    return _series_name_key(value) in APPROVAL_SERIES
+
+
+def _approval_requires_credit_check(value: Any) -> bool:
+    return _series_name_key(value) == "devis"
 
 
 def _intersol_budget_visibility_predicate(
@@ -2051,7 +2060,7 @@ def _approval_override_limit(cursor, usercode: str) -> Decimal:
 
 
 def set_budget_approval(feid: Any, bostamp: str, approved: bool, user) -> dict[str, Any]:
-    """Approve/unapprove a PHC Devis using the same credit rules as the PHC button."""
+    """Approve or unapprove a PHC client budget document."""
     company = _company_for_user(feid, user)
     clean_stamp = _text_value(bostamp)
     if not clean_stamp:
@@ -2085,8 +2094,10 @@ def set_budget_approval(feid: Any, bostamp: str, approved: bool, user) -> dict[s
             if not rows:
                 raise BudgetsNotFoundError("Orçamento não encontrado no PHC desta empresa.")
             budget = rows[0]
-            if _series_name_key(budget.get("NMDOS")) != "devis":
-                raise BudgetsValidationError("A aprovação só está disponível para dossiers Devis.")
+            if not _series_supports_approval(budget.get("NMDOS")):
+                raise BudgetsValidationError(
+                    "A aprovação só está disponível para dossiers Devis ou Étude et Exécution."
+                )
             if any(_bool_value(budget.get(field)) for field in ("FECHADA", "ADJUDICADO", "ANULADO")):
                 raise BudgetsValidationError("O orçamento está fechado, adjudicado ou anulado e não pode ser alterado.")
             if target_approved == _bool_value(budget.get("APROVADO")):
@@ -2095,7 +2106,11 @@ def set_budget_approval(feid: Any, bostamp: str, approved: bool, user) -> dict[s
 
             usercode, user_inis = _phc_user_identity(cursor, user)
             credit: dict[str, Any] | None = None
-            if target_approved and not _bool_value(budget.get("APROVADO")):
+            if (
+                target_approved
+                and not _bool_value(budget.get("APROVADO"))
+                and _approval_requires_credit_check(budget.get("NMDOS"))
+            ):
                 credit_rows = _fetch_rows(
                     cursor,
                     """

@@ -6,6 +6,7 @@ from unittest.mock import patch
 from modules.gr_budgets.service import (
     _approval_credit_payload,
     _approval_has_credit,
+    _approval_requires_credit_check,
     _article_designation_expression,
     _budget_default_vat,
     _client_payload,
@@ -32,6 +33,7 @@ from modules.gr_budgets.service import (
     _uses_portuguese_component_designations,
     _revision_token,
     _series_name_key,
+    _series_supports_approval,
     _series_rows,
     _tax_rate_rows,
     _write_money,
@@ -96,6 +98,15 @@ class BudgetPayloadTests(unittest.TestCase):
         self.assertNotIn(_series_name_key("Contrat Sous-Traitant"), allowed)
         self.assertNotIn(_series_name_key("Devis de Maintenance"), allowed)
         self.assertNotIn(_series_name_key("Devis GE"), allowed)
+
+    def test_approval_is_available_for_devis_and_execution(self):
+        self.assertTrue(_series_supports_approval("Devis"))
+        self.assertTrue(_series_supports_approval("Étude et Exécution"))
+        self.assertFalse(_series_supports_approval("Devis Perdu"))
+
+    def test_only_devis_approval_checks_credit_again(self):
+        self.assertTrue(_approval_requires_credit_check("Devis"))
+        self.assertFalse(_approval_requires_credit_check("Étude et Exécution"))
 
     def test_series_rows_only_returns_client_budget_series_in_screen_order(self):
         source_rows = [

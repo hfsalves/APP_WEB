@@ -496,7 +496,7 @@
   "gr_budgets.error.budget_lines_invalid": "Les lignes du devis ne sont pas valides.",
   "gr_budgets.error.budget_locked": "Le devis est clôturé, attribué ou annulé et ne peut pas être modifié.",
   "gr_budgets.error.approval_credit_limit": "Le plafond disponible est insuffisant pour approuver ce devis.",
-  "gr_budgets.error.approval_devis_only": "L’approbation est uniquement disponible pour les dossiers Devis.",
+  "gr_budgets.error.approval_devis_only": "L’approbation est uniquement disponible pour les dossiers Devis ou Étude et Exécution.",
   "gr_budgets.error.approval_invalid_state": "L’état d’approbation indiqué n’est pas valide.",
   "gr_budgets.error.execution_series_missing": "La série Étude et Exécution n’existe pas pour cette société.",
   "gr_budgets.error.conversion_devis_only": "La conversion est uniquement disponible pour les dossiers Devis.",

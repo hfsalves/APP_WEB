@@ -496,7 +496,7 @@
   "gr_budgets.error.budget_lines_invalid": "Linhas do orçamento inválidas.",
   "gr_budgets.error.budget_locked": "O orçamento está fechado, adjudicado ou anulado e não pode ser alterado.",
   "gr_budgets.error.approval_credit_limit": "Não existe plafond suficiente para aprovar este orçamento.",
-  "gr_budgets.error.approval_devis_only": "A aprovação só está disponível para dossiers Devis.",
+  "gr_budgets.error.approval_devis_only": "A aprovação só está disponível para dossiers Devis ou Étude et Exécution.",
   "gr_budgets.error.approval_invalid_state": "O estado de aprovação indicado é inválido.",
   "gr_budgets.error.execution_series_missing": "A série Étude et Exécution não existe nesta empresa.",
   "gr_budgets.error.conversion_devis_only": "A conversão só está disponível para dossiers Devis.",

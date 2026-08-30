@@ -71,7 +71,7 @@ _BUDGET_ERROR_KEYS = {
     "O orçamento está fechado, adjudicado ou anulado e não pode ser alterado.": "gr_budgets.error.budget_locked",
     "O orçamento foi alterado por outro utilizador. Atualize os dados antes de voltar a gravar.": "gr_budgets.error.budget_stale",
     "Existem linhas duplicadas no orçamento.": "gr_budgets.error.budget_lines_duplicate",
-    "A aprovação só está disponível para dossiers Devis.": "gr_budgets.error.approval_devis_only",
+    "A aprovação só está disponível para dossiers Devis ou Étude et Exécution.": "gr_budgets.error.approval_devis_only",
     "Não existe plafond suficiente para aprovar este orçamento.": "gr_budgets.error.approval_credit_limit",
     "A série Étude et Exécution não existe nesta empresa.": "gr_budgets.error.execution_series_missing",
     "A conversão só está disponível para dossiers Devis.": "gr_budgets.error.conversion_devis_only",

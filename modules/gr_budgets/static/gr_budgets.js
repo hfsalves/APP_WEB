@@ -618,7 +618,7 @@
     const header = state.detail && state.detail.header;
     if (!header || !budgetCanBeEdited()) return false;
     const series = String(header.series || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
-    return series === 'devis';
+    return series === 'devis' || series === 'etude et execution';
   }
 
   function budgetConversionAvailable() {
