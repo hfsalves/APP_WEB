@@ -182,6 +182,38 @@ class BudgetPdfTests(unittest.TestCase):
             html = render_budget_pdf_html(detail)
         self.assertIn("123,000", html)
 
+    def test_plus_value_prints_unit_price_and_calculated_total(self):
+        detail = self._detail_1415()
+        detail["lines"][1]["print_quantity"] = Decimal("636")
+        detail["lines"][1]["unit_price"] = Decimal("4")
+        # Some legacy dossiers keep the price in BI.ETTDEB. The PDF must
+        # still print the actual commercial total from quantity x unit price.
+        detail["lines"][1]["total"] = Decimal("4")
+
+        document = budget_print_payload(detail)
+        adjustment = document["articles"][0]["plus_values"][0]
+        self.assertEqual(adjustment["display_total"], Decimal("2544.00"))
+
+        app = Flask(__name__, template_folder="../modules/gr_budgets/templates")
+        with app.app_context():
+            html = render_budget_pdf_html(detail)
+        self.assertIn("4,00</div><div class=\"num\">2 544,00", html)
+
+    def test_plus_value_without_quantity_prints_unit_price_as_total(self):
+        detail = self._detail_1415()
+        detail["lines"][1]["print_quantity"] = Decimal("0")
+        detail["lines"][1]["unit_price"] = Decimal("23")
+        detail["lines"][1]["total"] = Decimal("0")
+
+        document = budget_print_payload(detail)
+        adjustment = document["articles"][0]["plus_values"][0]
+        self.assertEqual(adjustment["display_total"], Decimal("23.00"))
+
+        app = Flask(__name__, template_folder="../modules/gr_budgets/templates")
+        with app.app_context():
+            html = render_budget_pdf_html(detail)
+        self.assertIn('<div>m²</div><div class="num"></div><div class="num">23,00</div>', html)
+
     def test_zero_plus_value_print_quantity_is_blank(self):
         detail = self._detail_1415()
         detail["lines"][1]["print_quantity"] = Decimal("0")

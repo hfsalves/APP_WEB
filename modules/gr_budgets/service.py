@@ -1154,6 +1154,16 @@ def budget_print_payload(detail: dict[str, Any]) -> dict[str, Any]:
         if is_plus_value and "." in item:
             adjustment = dict(line)
             adjustment["display_quantity"] = _budget_line_print_quantity(adjustment)
+            # PVL/MVL lines store the commercial unit price in EDEBITO.  The
+            # client document must show the amount resulting from the quantity
+            # applicable to the parent item, instead of the raw BI.ETTDEB
+            # value (which can contain only the unit price in older dossiers).
+            unit_price = _decimal(adjustment.get("unit_price"))
+            adjustment["display_total"] = (
+                adjustment["display_quantity"] * unit_price
+                if adjustment["display_quantity"]
+                else unit_price
+            ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
             if language == "pt":
                 adjustment["adjustment_label"] = "MENOR-VALIA" if reference == "MVL" else "MAIOR-VALIA"
             else:

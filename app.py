@@ -653,6 +653,12 @@ def create_app():
     from blueprints.obra_360 import bp as obra_360_bp
     app.register_blueprint(obra_360_bp)
 
+    from blueprints.phc_close_dates import bp as phc_close_dates_bp
+    app.register_blueprint(phc_close_dates_bp)
+    from services.phc_close_dates_service import ensure_phc_close_dates_menu
+    with app.app_context():
+        ensure_phc_close_dates_menu()
+
     from blueprints.anexos import bp as anexos_bp
     app.register_blueprint(anexos_bp)
 

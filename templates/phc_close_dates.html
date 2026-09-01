@@ -1,0 +1,49 @@
+{% extends "sz_base.html" %}
+{% block title %}Data fechada PHC{% endblock %}
+{% block extra_head %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/phc_close_dates.css') }}?v={{ static_version }}">
+{% endblock %}
+{% block content %}
+<div class="sz_page phc-close-dates-page" id="phcCloseDatesPage">
+  <div class="sz_page_container">
+    <section class="sz_contextbar phc-close-dates-contextbar">
+      <div>
+        <div class="sz_page_title">Datas fechadas PHC</div>
+        <div class="sz_page_subtitle">Configuração independente por base de dados PHC · parâmetro GE_FECHO</div>
+      </div>
+      <div class="phc-close-dates-toolbar">
+        <label class="visually-hidden" for="phcCloseDatesApplyAllDate">Data para todas as bases</label>
+        <input class="sz_input" type="date" id="phcCloseDatesApplyAllDate">
+        <button class="sz_button sz_button_primary" type="button" id="phcCloseDatesApplyAll">
+          <i class="fa-solid fa-calendar-check"></i><span>Aplicar a todas</span>
+        </button>
+        <button class="sz_button sz_button_ghost" type="button" id="phcCloseDatesRefresh" title="Atualizar">
+          <i class="fa-solid fa-rotate"></i><span>Atualizar</span>
+        </button>
+      </div>
+    </section>
+
+    <section class="sz_panel phc-close-dates-panel">
+      <div class="phc-close-dates-note">
+        <i class="fa-solid fa-circle-info"></i>
+        <span>A data impede movimentos anteriores na respetiva base PHC. As alterações são gravadas base a base.</span>
+      </div>
+      <div class="sz_table_wrap phc-close-dates-table-wrap">
+        <table class="sz_table sz_table_compact phc-close-dates-table">
+          <thead class="sz_table_head"><tr>
+            <th>Empresa</th><th>Base PHC</th><th>Data fechada</th><th>Estado</th><th aria-label="Ações"></th>
+          </tr></thead>
+          <tbody id="phcCloseDatesRows">
+            <tr><td colspan="5" class="sz_text_muted">A carregar bases de dados...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+  {{ super() }}
+  <script src="{{ url_for('static', filename='js/phc_close_dates.js') }}?v={{ static_version }}"></script>
+{% endblock %}
