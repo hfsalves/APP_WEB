@@ -26,6 +26,7 @@
 
 .phc-close-dates-panel {
   padding: 1rem;
+  min-height: 0;
 }
 
 .phc-close-dates-note {
@@ -88,6 +89,7 @@
 @media (max-width: 700px) {
   .phc-close-dates-page .sz_page_container {
     padding-inline: .75rem;
+    grid-template-rows: auto minmax(0, 1fr);
   }
 
   .phc-close-dates-contextbar {
@@ -105,8 +107,24 @@
   #phcCloseDatesApplyAll { min-width: 0; }
   #phcCloseDatesRefresh { grid-column: 1 / -1; width: 100%; }
   .phc-close-dates-note { align-items: flex-start; line-height: 1.35; }
+  .phc-close-dates-panel {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+  }
   .phc-close-dates-table-wrap { display: none; }
-  .phc-close-dates-mobile-list { display: grid; gap: .75rem; }
+  .phc-close-dates-mobile-list {
+    display: grid;
+    flex: 1 1 auto;
+    gap: .75rem;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: .75rem;
+  }
   .phc-close-date-card {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
