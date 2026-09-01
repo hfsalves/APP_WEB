@@ -41,6 +41,10 @@
   overflow-x: auto;
 }
 
+.phc-close-dates-mobile-list {
+  display: none;
+}
+
 .phc-close-dates-table {
   min-width: 46rem;
 }
@@ -82,6 +86,10 @@
 }
 
 @media (max-width: 700px) {
+  .phc-close-dates-page .sz_page_container {
+    padding-inline: .75rem;
+  }
+
   .phc-close-dates-contextbar {
     align-items: flex-start;
     flex-direction: column;
@@ -89,6 +97,29 @@
 
   .phc-close-dates-toolbar {
     width: 100%;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
   }
+
+  .phc-close-dates-toolbar .sz_input { min-width: 0; width: 100%; }
+  #phcCloseDatesApplyAll { min-width: 0; }
+  #phcCloseDatesRefresh { grid-column: 1 / -1; width: 100%; }
+  .phc-close-dates-note { align-items: flex-start; line-height: 1.35; }
+  .phc-close-dates-table-wrap { display: none; }
+  .phc-close-dates-mobile-list { display: grid; gap: .75rem; }
+  .phc-close-date-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: .75rem;
+    padding: .9rem;
+    border: 1px solid var(--sz-border, rgba(110, 150, 200, .35));
+    border-radius: 8px;
+    background: var(--sz-surface, transparent);
+  }
+  .phc-close-date-card-head { display: flex; justify-content: space-between; gap: .75rem; grid-column: 1 / -1; }
+  .phc-close-date-card-head > div { min-width: 0; display: grid; gap: .2rem; }
+  .phc-close-date-card-head strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .phc-close-date-card-head span:not(.phc-close-date-status) { color: var(--sz-text-muted); font-size: .82rem; }
+  .phc-close-date-card label { display: grid; gap: .35rem; color: var(--sz-text-muted); font-size: .82rem; }
+  .phc-close-date-card .sz_button { align-self: end; min-height: 2.5rem; white-space: nowrap; }
 }

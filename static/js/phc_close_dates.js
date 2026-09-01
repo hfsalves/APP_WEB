@@ -1,5 +1,6 @@
 (() => {
   const rows = document.getElementById('phcCloseDatesRows');
+  const mobileList = document.getElementById('phcCloseDatesMobileList');
   const refresh = document.getElementById('phcCloseDatesRefresh');
   const applyAllDate = document.getElementById('phcCloseDatesApplyAllDate');
   const applyAll = document.getElementById('phcCloseDatesApplyAll');
@@ -9,8 +10,8 @@
     '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
   }[char]));
 
-  const setRowStatus = (row, message, state = '') => {
-    const status = row.querySelector('[data-role="status"]');
+  const setRowStatus = (container, message, state = '') => {
+    const status = container.querySelector('[data-role="status"]');
     if (!status) return;
     status.textContent = message;
     status.className = `phc-close-date-status ${state}`;
@@ -19,6 +20,7 @@
   const render = (items) => {
     if (!items.length) {
       rows.innerHTML = '<tr><td colspan="5" class="sz_text_muted">Não existem bases PHC configuradas.</td></tr>';
+      if (mobileList) mobileList.innerHTML = '<div class="sz_text_muted">Não existem bases PHC configuradas.</div>';
       return;
     }
     rows.innerHTML = items.map((item) => {
@@ -32,10 +34,29 @@
         <td class="phc-close-dates-action"><button type="button" class="sz_button sz_button_primary" data-action="save" ${editable ? '' : 'disabled'} title="Gravar data"><i class="fa-solid fa-floppy-disk"></i><span>Gravar</span></button></td>
       </tr>`;
     }).join('');
+    if (mobileList) {
+      mobileList.innerHTML = items.map((item) => {
+        const editable = item.status === 'ok';
+        const message = item.status === 'ok' ? 'Configurado' : (item.message || 'Indisponível');
+        return `<article class="phc-close-date-card" data-feid="${item.feid}">
+          <div class="phc-close-date-card-head">
+            <div><strong>${escapeHtml(item.name)}</strong><span>${escapeHtml(item.phc_db)}</span></div>
+            <span data-role="status" class="phc-close-date-status ${editable ? 'is-ok' : 'is-error'}">${escapeHtml(message)}</span>
+          </div>
+          <label>Data fechada
+            <input class="sz_input" type="date" value="${escapeHtml(item.value || '')}" ${editable ? '' : 'disabled'} aria-label="Data fechada de ${escapeHtml(item.name)}">
+          </label>
+          <button type="button" class="sz_button sz_button_primary" data-action="save" ${editable ? '' : 'disabled'}>
+            <i class="fa-solid fa-floppy-disk"></i><span>Gravar</span>
+          </button>
+        </article>`;
+      }).join('');
+    }
   };
 
   const load = async () => {
     rows.innerHTML = '<tr><td colspan="5" class="sz_text_muted">A carregar bases de dados...</td></tr>';
+    if (mobileList) mobileList.innerHTML = '<div class="sz_text_muted">A carregar bases de dados...</div>';
     try {
       const response = await fetch('/api/phc-close-dates', { headers: { Accept: 'application/json' } });
       const payload = await response.json();
@@ -43,13 +64,12 @@
       render(payload.items || []);
     } catch (error) {
       rows.innerHTML = `<tr><td colspan="5" class="phc-close-date-error">${escapeHtml(error.message)}</td></tr>`;
+      if (mobileList) mobileList.innerHTML = `<div class="phc-close-date-error">${escapeHtml(error.message)}</div>`;
     }
   };
 
-  rows.addEventListener('click', async (event) => {
-    const button = event.target.closest('[data-action="save"]');
-    if (!button) return;
-    const row = button.closest('tr');
+  const saveDate = async (button) => {
+    const row = button.closest('[data-feid]');
     const input = row.querySelector('input[type="date"]');
     if (!input.value) {
       setRowStatus(row, 'Indique uma data.', 'is-error');
@@ -66,14 +86,22 @@
       });
       const payload = await response.json();
       if (!response.ok || !payload.ok) throw new Error(payload.error || 'Não foi possível gravar a data.');
-      input.value = payload.item.value;
-      setRowStatus(row, 'Gravado', 'is-ok');
+      document.querySelectorAll(`[data-feid="${row.dataset.feid}"] input[type="date"]`).forEach((field) => { field.value = payload.item.value; });
+      document.querySelectorAll(`[data-feid="${row.dataset.feid}"]`).forEach((item) => setRowStatus(item, 'Gravado', 'is-ok'));
     } catch (error) {
       setRowStatus(row, error.message, 'is-error');
     } finally {
       button.disabled = false;
     }
-  });
+  };
+
+  const onSave = async (event) => {
+    const button = event.target.closest('[data-action="save"]');
+    if (!button) return;
+    await saveDate(button);
+  };
+  rows.addEventListener('click', onSave);
+  mobileList?.addEventListener('click', onSave);
 
   refresh?.addEventListener('click', load);
   applyAll?.addEventListener('click', async () => {
@@ -94,14 +122,12 @@
       const payload = await response.json();
       if (!response.ok && !payload.results) throw new Error(payload.error || 'Não foi possível aplicar a data.');
       (payload.results || []).forEach((result) => {
-        const row = rows.querySelector(`[data-feid="${result.feid}"]`);
-        if (!row) return;
-        if (result.ok) {
-          row.querySelector('input[type="date"]').value = result.item.value;
-          setRowStatus(row, 'Gravado', 'is-ok');
-        } else {
-          setRowStatus(row, result.error || 'Não foi possível gravar.', 'is-error');
-        }
+        document.querySelectorAll(`[data-feid="${result.feid}"]`).forEach((row) => {
+          if (result.ok) {
+            row.querySelector('input[type="date"]').value = result.item.value;
+            setRowStatus(row, 'Gravado', 'is-ok');
+          } else setRowStatus(row, result.error || 'Não foi possível gravar.', 'is-error');
+        });
       });
     } catch (error) {
       window.alert(error.message);
