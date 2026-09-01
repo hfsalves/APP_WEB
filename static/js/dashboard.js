@@ -564,6 +564,17 @@ function renderObra360Search(body, data) {
 
   const input = body.querySelector('.obra360-dashboard-input');
   const results = body.querySelector('.obra360-dashboard-results');
+  let searchInputInteracted = false;
+  input.addEventListener('pointerdown', () => { searchInputInteracted = true; }, { once: true });
+  input.addEventListener('keydown', () => { searchInputInteracted = true; }, { once: true });
+  // Safari pode repor o foco num campo criado durante o carregamento do dashboard.
+  // Removemos apenas esse foco inicial; tocar no campo continua a funcionar normalmente.
+  const clearInitialSearchFocus = () => {
+    if (!searchInputInteracted && document.activeElement === input) input.blur();
+  };
+  window.requestAnimationFrame(clearInitialSearchFocus);
+  window.setTimeout(clearInitialSearchFocus, 80);
+  window.setTimeout(clearInitialSearchFocus, 320);
   let timer = null;
   const showResults = (works, emptyMessage) => {
     results.innerHTML = works.length

@@ -2724,6 +2724,11 @@ body.sz-base-shell.authenticated .main-content:has(.sz_dashboard_page)::-webkit-
 .obra360-dashboard-recent > div { display: flex; flex-wrap: wrap; gap: .4rem; }
 .obra360-dashboard-recent .obra360-dashboard-work { background: var(--sz-color-surface-alt); border: 1px solid var(--sz-color-border); border-radius: 999px; color: var(--sz-color-text); display: block; font-size: var(--sz-font-size-xs); padding: .32rem .55rem; width: auto; }
 
+@media (max-width: 700px) {
+  /* O Safari faz zoom automático em campos de texto com menos de 16px. */
+  .obra360-dashboard-input { font-size: 16px; }
+}
+
 .sz_dashboard_page .sz_dashboard_widget {
   background: var(--sz-color-surface);
   border: 1px solid var(--sz-color-border);
