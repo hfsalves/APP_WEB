@@ -20,7 +20,7 @@ FIELD_DEFINITIONS = (
     {'value': 'project', 'label': 'Obra', 'views': ('home', 'management', 'accounting')},
     {'value': 'article', 'label': 'Artigo', 'views': ('management', 'accounting')},
     {'value': 'description', 'label': 'Designação', 'views': ('management', 'accounting')},
-    {'value': 'origin', 'label': 'BC/Contrato', 'views': ('management', 'accounting')},
+    {'value': 'origin', 'label': 'Nota de Encomenda/Contrato', 'views': ('management', 'accounting')},
     {'value': 'quantity', 'label': 'Quantidade', 'views': ('management', 'accounting')},
     {'value': 'unit_price', 'label': 'PU', 'views': ('management', 'accounting')},
     {'value': 'line_total', 'label': 'PT', 'views': ('management', 'accounting')},
@@ -28,7 +28,7 @@ FIELD_DEFINITIONS = (
     {'value': 'gross_total', 'label': 'Total', 'views': ('home', 'management', 'accounting')},
     {'value': 'tax_total', 'label': 'IVA', 'views': ('home', 'management', 'accounting')},
     {'value': 'net_total', 'label': 'Total s/IVA', 'views': ('home', 'management', 'accounting')},
-    {'value': 'delivery_note', 'label': 'BL', 'views': ('management', 'accounting')},
+    {'value': 'delivery_note', 'label': 'Guia de Remessa', 'views': ('management', 'accounting')},
     {'value': 'vehicle', 'label': 'Matrícula', 'views': ('management', 'accounting')},
 )
 VALID_CLASSES = {item['value'] for item in DOCUMENT_CLASSES}
@@ -336,7 +336,7 @@ def evaluate_required_info(
         'entity': 'Falta a entidade.', 'supplier': 'Falta o fornecedor.',
         'supplier_resolved': 'Falta resolver o fornecedor.', 'classification': 'Falta a classificação.',
         'project': 'Falta a obra.', 'article': 'Falta o artigo.',
-        'description': 'Falta a designação.', 'origin': 'Falta associar um BC ou contrato.',
+        'description': 'Falta a designação.', 'origin': 'Falta associar uma Nota de Encomenda ou contrato.',
         'quantity': 'Falta a quantidade.', 'unit_price': 'Falta o PU.',
         'line_total': 'Falta o PT.', 'date': 'Falta a data.',
         'gross_total': 'Falta o total.', 'tax_total': 'Falta o IVA.',

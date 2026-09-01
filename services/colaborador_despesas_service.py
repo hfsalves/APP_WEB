@@ -22,6 +22,7 @@ from sqlalchemy import text
 from werkzeug.utils import secure_filename
 
 from models import db
+from services.document_duplicate_service import acquire_duplicate_lock, find_exact_file_duplicate
 
 
 ALLOWED_EXPENSE_FILE_EXTENSIONS = {
@@ -1092,6 +1093,24 @@ def upsert_expense_line(user, payload: dict[str, Any], file_storage=None) -> dic
     file_payload = None
     if file_storage:
         file_payload = _store_line_file(file_storage, header_stamp, line_stamp)
+        acquire_duplicate_lock(db.session, file_payload.get('hash'))
+        duplicate = find_exact_file_duplicate(
+            db.session,
+            file_payload.get('hash'),
+            exclude_expense_id=line_stamp,
+        )
+        if duplicate:
+            try:
+                absolute_path = os.path.join(current_app.root_path, file_payload['path'].lstrip('/'))
+                if os.path.isfile(absolute_path):
+                    os.remove(absolute_path)
+            except OSError:
+                current_app.logger.warning('Não foi possível remover comprovativo duplicado.', exc_info=True)
+            source_label = 'Documents AI' if duplicate.get('source_area') == 'document_ai' else 'Despesas'
+            raise ValueError(
+                f"Este comprovativo já existe em {source_label} "
+                f"({duplicate.get('file_name') or duplicate.get('record_id')})."
+            )
 
     data_despesa = str(payload.get('data_despesa') or '').strip() or None
     tipo = str(payload.get('tipo') or '').strip().upper()[:30]

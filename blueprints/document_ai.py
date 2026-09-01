@@ -38,6 +38,7 @@ from services.document_ai_service import (
     reprocess_document,
     reconcile_extracted_document,
     recover_document_to_inbox,
+    record_document_duplicate_decision,
     reset_llm_extraction,
     require_document_control_ok,
     resolve_fe_entity,
@@ -749,12 +750,12 @@ def api_document_ai_provisional_invoice_submit():
     if not _current_document_ai_permission(requested_view, 'validate'):
         return jsonify({'error': 'Sem permissão para validar nesta visualização.'}), 403
     if not _document_ai_has_integration_access('provisional_invoice'):
-        return jsonify({'error': 'Não tens acesso para integrar Facture Provisoire no PHC.'}), 403
+        return jsonify({'error': 'Não tens acesso para integrar Fatura Provisória no PHC.'}), 403
     uploaded_file = request.files.get('file')
     if not uploaded_file or not str(uploaded_file.filename or '').strip():
         return jsonify({'error': 'O PDF original é obrigatório.'}), 400
     if not str(uploaded_file.filename or '').lower().endswith('.pdf'):
-        return jsonify({'error': 'A Facture Provisoire deve ser submetida em PDF.'}), 400
+        return jsonify({'error': 'A Fatura Provisória deve ser submetida em PDF.'}), 400
     max_file_size = 50 * 1024 * 1024
     file_bytes = uploaded_file.stream.read(max_file_size + 1)
     if not file_bytes:
@@ -764,7 +765,7 @@ def api_document_ai_provisional_invoice_submit():
     try:
         document_data = json.loads(request.form.get('document_data') or '{}')
     except Exception:
-        return jsonify({'error': 'Os dados da Facture Provisoire não são válidos.'}), 400
+        return jsonify({'error': 'Os dados da Fatura Provisória não são válidos.'}), 400
     document_id = str(request.form.get('document_id') or '').strip()
     if not document_id:
         return jsonify({'error': 'O documento tem de estar guardado no inbox antes da validação.'}), 400
@@ -796,7 +797,7 @@ def api_document_ai_provisional_invoice_submit():
             mark_document_validation_error(document_id, str(exc), _current_login())
         except Exception:
             current_app.logger.warning('Falhou registo do erro de validação Document AI.', exc_info=True)
-        current_app.logger.exception('Erro ao submeter Facture Provisoire no PHC')
+        current_app.logger.exception('Erro ao submeter Fatura Provisória no PHC')
         return jsonify({'error': str(exc)}), 500
 
 
@@ -809,7 +810,7 @@ def api_document_ai_document_control_ok(docinstamp: str):
     if not _document_ai_has_access('editar'):
         return jsonify({'error': 'Sem permissão para concluir o controlo.'}), 403
     if not _document_ai_has_integration_access('provisional_invoice'):
-        return jsonify({'error': 'Sem permissão para validar Facture Provisoire.'}), 403
+        return jsonify({'error': 'Sem permissão para validar Fatura Provisória.'}), 403
     body = request.get_json(silent=True) or {}
     try:
         return jsonify(mark_document_control_ok(docinstamp, _current_login(), body.get('document') or {}))
@@ -923,6 +924,31 @@ def api_document_ai_upload():
             db.session.rollback()
         except Exception:
             pass
+        return jsonify({'error': str(exc)}), 500
+
+
+@bp.route('/api/document_ai/documents/<docinstamp>/duplicate-decision', methods=['POST'])
+@login_required
+def api_document_ai_duplicate_decision(docinstamp: str):
+    requested_view = _requested_document_ai_view()
+    if not _current_document_ai_permission(requested_view, 'validate'):
+        return jsonify({'error': 'Sem permissão para decidir duplicados.'}), 403
+    if not _current_document_access(docinstamp, requested_view, 'validate'):
+        return jsonify({'error': 'Sem acesso a este documento.'}), 403
+    body = request.get_json(silent=True) or {}
+    try:
+        payload = record_document_duplicate_decision(
+            docinstamp,
+            str(body.get('duplicate_document_id') or ''),
+            str(body.get('decision') or ''),
+            _current_login(),
+        )
+        return jsonify(payload)
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception as exc:
+        current_app.logger.exception('Erro ao guardar decisão de duplicado')
+        db.session.rollback()
         return jsonify({'error': str(exc)}), 500
 
 

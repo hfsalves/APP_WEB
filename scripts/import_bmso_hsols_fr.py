@@ -7,7 +7,8 @@ BI.OBISTAMP: BC line -> BL line -> pre-invoice line.
 
 The script is deliberately dry-run by default.  Use --execute only after the
 validation summary is clean.  Re-running is safe: pre-invoices are identified
-by their external invoice number in BO.FREF.
+by their external invoice number in BO.FREF. Delivery-note numbers are stored
+in BO.MAQUINA, which is the PHC header field used by Bon Livraison Fourn.
 """
 
 from __future__ import annotations
@@ -289,7 +290,9 @@ def header_values(stamp: str, ndos: int, name: str, number: int, doc_date: date,
         "ncont": text(source_header.get("NCONT")), "morada": text(source_header.get("MORADA")),
         "local": text(source_header.get("LOCAL")), "codpost": text(source_header.get("CODPOST")),
         "estab": int(dec(source_header.get("ESTAB"))), "moeda": text(source_header.get("MOEDA")) or "EURO",
-        "ccusto": text(source_header.get("CCUSTO")), "fref": external_ref[:20],
+        "ccusto": text(source_header.get("CCUSTO")),
+        "fref": external_ref[:20] if ndos != BL_NDOS else "",
+        "maquina": external_ref[:100] if ndos == BL_NDOS else "",
         "totaldeb": _phc_value(net), "etotaldeb": net, "total": _phc_value(net + vat),
         "etotal": net + vat, "fechada": 1 if closed else 0,
         "ousrinis": "APP", "ousrdata": now, "ousrhora": hour,
@@ -308,11 +311,10 @@ def insert_header(cursor, stamp: str, ndos: int, name: str, number: int, doc_dat
         "armazem": 1, "ousrinis": "APP", "ousrdata": now, "ousrhora": hour,
         "usrinis": "APP", "usrdata": now, "usrhora": hour,
     })
-    # PHC presents BO3.DOCUMENTNUMBERORI in the "Equipe" field of these
-    # dossiers. The external document number belongs in BO.FREF only.
-    document_number = ""
+    # PHC presents BO3.DOCUMENTNUMBERORI in the "Equipe" field. Keep it empty:
+    # Bon Livraison Fourn. stores its external number in BO.MAQUINA.
     _phc_insert(cursor, "BO3", {
-        "bo3stamp": stamp, "documentnumberori": document_number, "arquivadodigital": 0,
+        "bo3stamp": stamp, "documentnumberori": "", "arquivadodigital": 0,
         "ousrinis": "APP", "ousrdata": now, "ousrhora": hour,
         "usrinis": "APP", "usrdata": now, "usrhora": hour,
     })

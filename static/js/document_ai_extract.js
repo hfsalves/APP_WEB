@@ -430,8 +430,8 @@ document.addEventListener('DOMContentLoaded', () => {
   function formatBcLabel(origin) {
     const number = String(origin?.origin_number || origin?.number || '').trim();
     const year = String(origin?.origin_year || origin?.year || '').trim();
-    if (!number) return 'BC';
-    return `BC N.º ${number}${year ? ` / ${year}` : ''}`;
+    if (!number) return 'NdE';
+    return `NdE N.º ${number}${year ? ` / ${year}` : ''}`;
   }
 
   function associatedBcOrigins() {
@@ -1085,20 +1085,55 @@ document.addEventListener('DOMContentLoaded', () => {
   function openDuplicateModal(matches) {
     state.duplicateMatches = Array.isArray(matches) ? matches : [];
     if (!els.duplicateModal || !els.duplicateList || !state.duplicateMatches.length) return;
+    const duplicateFieldLabels = {
+      file_hash: 'ficheiro',
+      feid: 'entidade',
+      supplier: 'fornecedor',
+      doc_class: 'tipo de documento',
+      document_date: 'data',
+      document_number: 'número',
+      gross_total: 'valor total',
+      currency: 'moeda',
+    };
     els.duplicateList.innerHTML = state.duplicateMatches.map((match) => `
       <article class="docai-duplicate-item">
         <div>
           <strong>${escapeHtml(match.file_name || match.document_id || 'Documento existente')}</strong>
-          <span class="sz_text_muted">${match.match_type === 'exact' ? 'Mesmo ficheiro' : 'Mesma identidade documental'} · ${escapeHtml(match.processing_stage || 'inbox')}</span>
+          <span class="sz_text_muted">
+            ${match.classification === 'possible' ? 'Possível duplicado' : 'Duplicado certo'}
+            · ${Number(match.score || 0)}%
+            · ${escapeHtml((match.matching_fields || []).map((field) => duplicateFieldLabels[field] || field).join(', ') || 'correspondência documental')}
+          </span>
         </div>
-        <button type="button" class="sz_button sz_button_secondary" data-open-duplicate="${escapeHtml(match.document_id || '')}">
-          <i class="fa-solid fa-arrow-up-right-from-square"></i>
-          <span>Abrir documento</span>
-        </button>
+        <div class="docai-duplicate-actions">
+          <button type="button" class="sz_button sz_button_secondary" data-open-duplicate="${escapeHtml(match.document_id || '')}">
+            <i class="fa-solid fa-arrow-up-right-from-square"></i>
+            <span>Abrir documento</span>
+          </button>
+          <button type="button" class="sz_button sz_button_primary" data-associate-duplicate="${escapeHtml(match.document_id || '')}">
+            <i class="fa-solid fa-link"></i>
+            <span>Associar ao existente</span>
+          </button>
+        </div>
       </article>
     `).join('');
     els.duplicateModal.classList.add('sz_is_open');
     els.duplicateModal.setAttribute('aria-hidden', 'false');
+  }
+
+  async function saveDuplicateDecision(decision, duplicateDocumentId) {
+    if (!state.currentDocumentId || !duplicateDocumentId) return null;
+    const response = await fetch(
+      `/api/document_ai/documents/${encodeURIComponent(state.currentDocumentId)}/duplicate-decision?view=${encodeURIComponent(state.view)}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ decision, duplicate_document_id: duplicateDocumentId }),
+      },
+    );
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || 'Não foi possível guardar a decisão de duplicado.');
+    return payload;
   }
 
   function accessPermissionInputs() {
@@ -1415,15 +1450,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const hasWorkSituationColumn = primaryFamily === 'subcontract';
     const primaryHead = document.getElementById('docAiExtractPrimaryOriginHead');
     const secondaryHead = document.getElementById('docAiExtractSecondaryOriginHead');
-    if (primaryHead) primaryHead.textContent = primaryFamily === 'contract' ? 'Contrato' : (primaryFamily === 'subcontract' ? 'Contrato ST' : 'BC');
+    if (primaryHead) primaryHead.textContent = primaryFamily === 'contract' ? 'Contrato' : (primaryFamily === 'subcontract' ? 'C Sub.Emp.' : 'NdE');
     if (secondaryHead) {
-      secondaryHead.textContent = hasWorkSituationColumn ? 'Situação de Trabalho' : 'BL';
+      secondaryHead.textContent = hasWorkSituationColumn ? 'SdT Sub.Emp.' : 'GdR';
       secondaryHead.hidden = !hasDeliveryNoteColumn && !hasWorkSituationColumn;
     }
     const canDistributeDeliveryNotes = state.virtualDeliveryNotesActive && proportionalGroups.length > 0;
     els.splitLineBtn.hidden = !canDistributeDeliveryNotes;
     els.splitLineBtn.disabled = !canDistributeDeliveryNotes || state.selectedSplitLines.size === 0;
-    els.splitLineBtn.innerHTML = `<i class="fa-solid fa-code-branch"></i><span>${proportionalGroups.length === 1 ? 'Distribuir BL' : `Distribuir ${proportionalGroups.length} BL`}</span>`;
+    els.splitLineBtn.innerHTML = `<i class="fa-solid fa-code-branch"></i><span>${proportionalGroups.length === 1 ? 'Distribuir Guia de Remessa' : `Distribuir ${proportionalGroups.length} Guias de Remessa`}</span>`;
     els.lineCount.textContent = `${items.length} linha(s)`;
     if (!items.length) {
       els.linesBody.innerHTML = '<tr><td colspan="12" class="sz_text_muted">Não foram encontradas linhas comerciais visíveis.</td></tr>';
@@ -1449,13 +1484,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!uniqueBc.has(key)) uniqueBc.set(key, allocation);
       });
       const bcSummary = uniqueBc.size > 1
-        ? `${uniqueBc.size} BC`
+        ? `${uniqueBc.size} NdE`
         : uniqueBc.size === 1
           ? formatBcLabel(Array.from(uniqueBc.values())[0])
           : 'Escolher';
       const hasDistribution = bcAllocations.length > 1;
       const distributionButton = hasDistribution
-        ? `<button type="button" class="docai-extract-bc-distribution-toggle" data-line-bc-toggle="${lineIndex}" aria-expanded="${state.expandedBcLines.has(lineIndex) ? 'true' : 'false'}" aria-label="${state.expandedBcLines.has(lineIndex) ? 'Ocultar distribuição por BC' : 'Mostrar distribuição por BC'}">${state.expandedBcLines.has(lineIndex) ? '−' : '+'}</button>`
+        ? `<button type="button" class="docai-extract-bc-distribution-toggle" data-line-bc-toggle="${lineIndex}" aria-expanded="${state.expandedBcLines.has(lineIndex) ? 'true' : 'false'}" aria-label="${state.expandedBcLines.has(lineIndex) ? 'Ocultar distribuição por Nota de Encomenda' : 'Mostrar distribuição por Nota de Encomenda'}">${state.expandedBcLines.has(lineIndex) ? '−' : '+'}</button>`
         : '';
       const bcRows = primaryFamily === 'bc' && hasDistribution && state.expandedBcLines.has(lineIndex)
         ? bcAllocations.map((allocation) => `<tr class="docai-extract-bc-allocation-row">
@@ -1469,11 +1504,11 @@ document.addEventListener('DOMContentLoaded', () => {
         : '';
       const primaryOrigin = state.selectedOrigins.find((origin) => originFamily(origin) === primaryFamily);
       const primaryReference = primaryFamily === 'bc'
-        ? `<button type="button" class="docai-extract-cell-link" data-line-bc="${lineIndex}" title="Associar BC à linha">${escapeHtml(bcSummary)}</button>${distributionButton}`
-        : `<span class="docai-extract-bc-ref">${escapeHtml(primaryOrigin ? `${primaryFamily === 'subcontract' ? 'Contrato ST' : 'Contrato'} N.º ${primaryOrigin.number || '--'}${primaryOrigin.year ? ` / ${primaryOrigin.year}` : ''}` : '--')}</span>`;
+        ? `<button type="button" class="docai-extract-cell-link" data-line-bc="${lineIndex}" title="Associar Nota de Encomenda à linha">${escapeHtml(bcSummary)}</button>${distributionButton}`
+        : `<span class="docai-extract-bc-ref">${escapeHtml(primaryOrigin ? `${primaryFamily === 'subcontract' ? 'Contrato de SubEmpreitada' : 'Contrato'} N.º ${primaryOrigin.number || '--'}${primaryOrigin.year ? ` / ${primaryOrigin.year}` : ''}` : '--')}</span>`;
       const workSituation = state.selectedOrigins.find((origin) => originFamily(origin) === 'work_situation');
       const secondaryCell = hasDeliveryNoteColumn
-        ? `<td class="docai-extract-line-picker-cell"><input type="checkbox" class="docai-extract-bl-selector" data-line-select="${lineIndex}" role="checkbox" aria-label="Selecionar para distribuir por BL" aria-checked="${selectedForSplit ? 'true' : 'false'}" ${selectedForSplit ? 'checked' : ''} ${line._virtual_split_allocation ? 'disabled' : ''}></td>`
+        ? `<td class="docai-extract-line-picker-cell"><input type="checkbox" class="docai-extract-bl-selector" data-line-select="${lineIndex}" role="checkbox" aria-label="Selecionar para distribuir por Guia de Remessa" aria-checked="${selectedForSplit ? 'true' : 'false'}" ${selectedForSplit ? 'checked' : ''} ${line._virtual_split_allocation ? 'disabled' : ''}></td>`
         : hasWorkSituationColumn
           ? `<td><span class="docai-extract-bc-ref">${escapeHtml(workSituation ? `N.º ${workSituation.number || '--'}${workSituation.year ? ` / ${workSituation.year}` : ''}` : '--')}</span></td>`
           : '';
@@ -1775,7 +1810,7 @@ document.addEventListener('DOMContentLoaded', () => {
       els.originTabs.hidden = true;
       els.originTabs.innerHTML = '';
       els.originMeta.textContent = virtualStageHtml
-        ? `${state.deliveryNoteGroups.length} BL(s) identificado(s) na fatura, ainda por criar no PHC.`
+        ? `${state.deliveryNoteGroups.length} Guia(s) de Remessa identificada(s) na fatura, ainda por criar no PHC.`
         : payload.message || 'Não foi possível procurar origens no PHC.';
       const unavailableHtml = `<div class="docai-extract-origin-unavailable"><i class="fa-solid fa-circle-info"></i><span>${escapeHtml(payload.message || 'Pesquisa PHC indisponível.')}</span></div>`;
       els.originFlow.innerHTML = `${virtualStageHtml}${unavailableHtml}`;
@@ -1822,7 +1857,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const singular = stage.key === 'delivery_note' ? 'Guia de remessa' : (stage.key === 'purchase_order' ? 'Nota de encomenda' : (stage.label || 'Origem'));
       const plural = stage.key === 'delivery_note' ? 'Guias de remessa' : (stage.key === 'purchase_order' ? 'Notas de encomenda' : `${singular}s`);
       const stageTitle = stage.key === 'delivery_note'
-        ? 'BL no PHC'
+        ? 'Guias de Remessa no PHC'
         : stage.key === 'subcontract_measurement'
           ? 'Situações de Trabalho no PHC'
           : `${count} ${count === 1 ? singular : plural}`;
@@ -1842,7 +1877,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }));
     if (virtualStageHtml) {
       const virtualIndex = Math.max(0, tabStages.findIndex((stage) => ['delivery_note', 'purchase_order'].includes(stage.key)));
-      tabStages.splice(virtualIndex, 0, { key: 'delivery_note', label: 'BL', count: state.deliveryNoteGroups.length });
+      tabStages.splice(virtualIndex, 0, { key: 'delivery_note', label: 'GdR', count: state.deliveryNoteGroups.length });
     }
     renderOriginTabs(tabStages.filter((stage, index, items) => items.findIndex((item) => item.key === stage.key) === index));
   }
@@ -1859,14 +1894,14 @@ document.addEventListener('DOMContentLoaded', () => {
     els.originTabs.innerHTML = stages.map((stage) => {
       const active = stage.key === state.activeOriginStage;
       const officialLabels = {
-        bc_contracts: 'BC / Contratos',
-        purchase_order: 'BC / Contratos',
-        delivery_note: 'BL',
-        proforma_invoice: 'Pré-fatura',
+        bc_contracts: 'Notas de Encomenda / Contratos',
+        purchase_order: 'Notas de Encomenda / Contratos',
+        delivery_note: 'Guia de Remessa',
+        proforma_invoice: 'Pré-Fatura',
         contract: 'Contrato',
-        subcontract_contract: 'Contrato ST',
-        work_situation: 'Situação de Trabalho',
-        subcontract_measurement: 'Situação de Trabalho',
+        subcontract_contract: 'Contrato de SubEmpreitada',
+        work_situation: 'Situação de Trabalhos de SubEmpreitada',
+        subcontract_measurement: 'Situação de Trabalhos de SubEmpreitada',
       };
       const label = officialLabels[stage.key] || stage.label;
       return `<button type="button" class="docai-extract-origin-tab${active ? ' is-active' : ''}" role="tab" data-origin-tab="${escapeHtml(stage.key)}" aria-selected="${active ? 'true' : 'false'}">${escapeHtml(label)}</button>`;
@@ -1891,7 +1926,7 @@ document.addEventListener('DOMContentLoaded', () => {
       origin_stamp: origin.stamp || '',
       origin_number: origin.number || '',
       origin_year: origin.year || null,
-      origin_reference_label: `BC ${origin.number || ''}${origin.year ? ` / ${origin.year}` : ''}`.trim(),
+      origin_reference_label: `NdE ${origin.number || ''}${origin.year ? ` / ${origin.year}` : ''}`.trim(),
     })));
     state.originLineMatches = matches;
     state.originLineMatchByLine = new WeakMap();
@@ -1903,7 +1938,7 @@ document.addEventListener('DOMContentLoaded', () => {
         state.originLineMatchByLine.set(line, lineMatches);
       }
     });
-    state.originLineReferenceLabel = purchaseOrders.map((origin) => `BC ${origin.number || ''}`).join(', ');
+    state.originLineReferenceLabel = purchaseOrders.map((origin) => `NdE ${origin.number || ''}`).join(', ');
     if (state.documentData?.lines) renderLines(state.documentData.lines, state.documentData.currency || '');
   }
 
@@ -1914,14 +1949,14 @@ document.addEventListener('DOMContentLoaded', () => {
       return `
         <label class="docai-extract-origin-proposal">
           <input type="checkbox" data-virtual-bl="${escapeHtml(group.number)}" ${checked ? 'checked' : ''}>
-          <strong>BL ${escapeHtml(group.number)}</strong>
+          <strong>GdR ${escapeHtml(group.number)}</strong>
           <span>${escapeHtml(group.line_count)} linha(s)</span>
         </label>`;
     }).join('');
     return `
       <article class="docai-extract-origin-stage is-virtual-stage" data-origin-stage="delivery_note">
         <div class="docai-extract-origin-stage-title">
-          <strong>${state.deliveryNoteGroups.length} ${state.deliveryNoteGroups.length === 1 ? 'BL a criar' : 'BLs a criar'}</strong>
+          <strong>${state.deliveryNoteGroups.length} ${state.deliveryNoteGroups.length === 1 ? 'Guia de Remessa a criar' : 'Guias de Remessa a criar'}</strong>
         </div>
         <div class="docai-extract-origin-proposals">${cards}</div>
       </article>`;
@@ -1949,7 +1984,7 @@ document.addEventListener('DOMContentLoaded', () => {
     ));
     const totalWeight = targetGroups.reduce((total, group) => total + Number(group.base_quantity || 0), 0);
     if (!targetGroups.length || totalWeight <= 0) {
-      showMessage('É necessário pelo menos um BL com quantidade identificada.', 'error');
+      showMessage('É necessária pelo menos uma Guia de Remessa com quantidade identificada.', 'error');
       return;
     }
 
@@ -1992,7 +2027,7 @@ document.addEventListener('DOMContentLoaded', () => {
       renderOriginCandidates(state.originPayload, { skipLineMapping: true });
     }
     els.splitLineBtn.disabled = true;
-    setStatus(`A guardar ${selectedLines.length} linha(s) distribuída(s) por ${targetGroups.length} BL(s)...`);
+    setStatus(`A guardar ${selectedLines.length} linha(s) distribuída(s) por ${targetGroups.length} Guia(s) de Remessa...`);
     if (state.currentDocumentId) {
       try {
         const payload = await fetchJson(`/api/document_ai/documents/${encodeURIComponent(state.currentDocumentId)}/lines`, {
@@ -2015,10 +2050,10 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
     const allocationSummary = createdLines
-      .map((line) => `BL ${line.origin_delivery_note_number}: ${formatNumber(line.qty)}`)
+      .map((line) => `GdR ${line.origin_delivery_note_number}: ${formatNumber(line.qty)}`)
       .join(' · ');
     setStatus(`${selectedLines.length} linha(s) repartida(s) proporcionalmente. ${allocationSummary}`);
-    showMessage(`${selectedLines.length} linha(s) distribuída(s) por ${targetGroups.length} BL(s) sem alterar os totais.`, 'success');
+    showMessage(`${selectedLines.length} linha(s) distribuída(s) por ${targetGroups.length} Guia(s) de Remessa sem alterar os totais.`, 'success');
   }
 
   async function loadOriginCandidates(documentData) {
@@ -2591,7 +2626,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderBcAssignments() {
     const origins = associatedBcOrigins();
     if (!origins.length) {
-      els.bcList.innerHTML = '<div class="docai-empty-state">Associa primeiro um BC no bloco Origem.</div>';
+      els.bcList.innerHTML = '<div class="docai-empty-state">Associa primeiro uma Nota de Encomenda no bloco Origem.</div>';
       els.bcSave.disabled = true;
       return;
     }
@@ -2676,7 +2711,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (allocations.length < 2) state.expandedBcLines.delete(lineIndex);
     closeBcModal();
     renderLines(state.documentData.lines || [], state.documentData.currency || '');
-    await saveAdjustedLines(allocations.length ? 'Distribuição por BC guardada.' : 'Associação a BC removida.');
+    await saveAdjustedLines(allocations.length ? 'Distribuição por Nota de Encomenda guardada.' : 'Associação à Nota de Encomenda removida.');
   }
 
   async function pruneLineBcAllocations() {
@@ -2690,7 +2725,7 @@ document.addEventListener('DOMContentLoaded', () => {
         changed = true;
       }
     });
-    if (changed) await saveAdjustedLines('Distribuições por BC atualizadas.');
+    if (changed) await saveAdjustedLines('Distribuições por Nota de Encomenda atualizadas.');
   }
 
   async function clearProject(event) {
@@ -3299,11 +3334,24 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   els.duplicateCloseTop?.addEventListener('click', closeDuplicateModal);
   els.duplicateCancel?.addEventListener('click', closeDuplicateModal);
-  els.duplicateConfirm?.addEventListener('click', () => {
-    closeDuplicateModal();
-    validateWorkflowStage({ confirmDuplicate: true });
+  els.duplicateConfirm?.addEventListener('click', async () => {
+    const duplicateDocumentId = state.duplicateMatches[0]?.document_id;
+    try {
+      await saveDuplicateDecision('different', duplicateDocumentId);
+      closeDuplicateModal();
+      validateWorkflowStage({ confirmDuplicate: true });
+    } catch (error) {
+      setStatus(error.message, true);
+    }
   });
   els.duplicateList?.addEventListener('click', (event) => {
+    const associateDocumentId = event.target.closest('[data-associate-duplicate]')?.dataset.associateDuplicate;
+    if (associateDocumentId) {
+      saveDuplicateDecision('associate', associateDocumentId)
+        .then((payload) => { window.location.href = extractUrl(payload.open_document_id || associateDocumentId); })
+        .catch((error) => setStatus(error.message, true));
+      return;
+    }
     const documentId = event.target.closest('[data-open-duplicate]')?.dataset.openDuplicate;
     if (!documentId) return;
     window.open(extractUrl(documentId), '_blank', 'noopener');

@@ -12,8 +12,8 @@ class DocumentAiOriginDetailsUiTests(unittest.TestCase):
 
         self.assertIn('docAiExtractPrimaryOriginHead', template)
         self.assertIn('docAiExtractSecondaryOriginHead', template)
-        self.assertIn("'Contrato ST'", script)
-        self.assertIn("'Situação de Trabalho'", script)
+        self.assertIn("'C Sub.Emp.'", script)
+        self.assertIn("'SdT Sub.Emp.'", script)
 
     def test_delivery_note_proposals_are_compact_and_selectable(self):
         script = (ROOT / 'static' / 'js' / 'document_ai_extract.js').read_text(encoding='utf-8')

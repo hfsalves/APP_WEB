@@ -13,7 +13,7 @@ class DocumentAiDeliveryNoteFrontendTests(unittest.TestCase):
         self.assertNotIn('docAiExtractSuggestBlsBtn', self.template)
         self.assertNotIn('Sugerir BL', self.template)
         self.assertIn('docAiExtractSplitLineBtn', self.template)
-        self.assertIn('Distribuir BL', self.template)
+        self.assertIn('Distribuir Guia de Remessa', self.template)
 
     def test_delivery_note_suggestions_are_activated_automatically(self):
         self.assertIn(
@@ -24,7 +24,7 @@ class DocumentAiDeliveryNoteFrontendTests(unittest.TestCase):
 
     def test_distribution_label_counts_delivery_note_groups(self):
         self.assertIn('proportionalGroups.length === 1', self.script)
-        self.assertIn('`Distribuir ${proportionalGroups.length} BL`', self.script)
+        self.assertIn('`Distribuir ${proportionalGroups.length} Guias de Remessa`', self.script)
 
 
 if __name__ == '__main__':

@@ -29,6 +29,7 @@ from models import db, DocInbox, DocParser, DocProcessLog, DocSource, DocTemplat
 from services.document_ai_llm_service import classify_document_visual, llm_suggestions_available, suggest_template_definition
 from services.document_ai_ocr_service import ocr_engine_available
 from services.document_ai_processing_orchestrator import extract_document_with_cascade
+from services.document_duplicate_service import acquire_duplicate_lock, evaluate_duplicate_match, find_exact_file_duplicate
 from services.multiempresa_service import MissingCurrentEntityError, get_current_feid
 
 
@@ -45,13 +46,13 @@ DOC_AI_ALLOWED_UPLOAD_EXTENSIONS = {
 
 DOC_AI_DOC_TYPES = [
     {'value': 'invoice', 'label': 'Fatura'},
-    {'value': 'provisional_invoice', 'label': 'Fatura provisória'},
-    {'value': 'credit_note', 'label': 'Nota de crédito'},
+    {'value': 'provisional_invoice', 'label': 'Fatura Provisória'},
+    {'value': 'credit_note', 'label': 'Nota de Crédito'},
     {'value': 'contract', 'label': 'Contrato'},
-    {'value': 'subcontract', 'label': 'Contrato Sout-Traitant'},
-    {'value': 'purchase_order', 'label': 'Nota de encomenda'},
-    {'value': 'delivery_note', 'label': 'Guia de remessa'},
-    {'value': 'bank_statement', 'label': 'Extrato bancário'},
+    {'value': 'subcontract', 'label': 'Contrato de SubEmpreitada'},
+    {'value': 'purchase_order', 'label': 'Nota de Encomenda'},
+    {'value': 'delivery_note', 'label': 'Guia de Remessa'},
+    {'value': 'bank_statement', 'label': 'Extrato Bancário'},
     {'value': 'mail', 'label': 'Correio'},
     {'value': 'advertising', 'label': 'Publicidade'},
     {'value': 'unknown', 'label': 'Desconhecido'},
@@ -183,7 +184,7 @@ DOC_AI_STATUSES = [
     {'value': 'template_unknown', 'label': 'Template desconhecido'},
     {'value': 'review_required', 'label': 'Por validar'},
     {'value': 'parsed_ok', 'label': 'Processado'},
-    {'value': 'provisional_invoice', 'label': 'Facture Provisoire'},
+    {'value': 'provisional_invoice', 'label': 'Fatura Provisória'},
     {'value': 'parse_error', 'label': 'Erro'},
 ]
 
@@ -1489,19 +1490,19 @@ def reconcile_extracted_document(document_data: dict[str, Any] | None) -> dict[s
 
 
 DOC_AI_PHC_PURCHASE_FLOW = [
-    {'key': 'purchase_order', 'label': 'Bon de Commande Fournisseur', 'ndos': 102, 'order': 1},
-    {'key': 'delivery_note', 'label': 'Bon de Livraison Fournisseur', 'ndos': 130, 'order': 2},
-    {'key': 'proforma_invoice', 'label': 'Pré-Facture', 'ndos': 218, 'order': 3},
-    {'key': 'invoice', 'label': 'Facture', 'table': 'FO', 'order': 4},
+    {'key': 'purchase_order', 'label': 'Nota de Encomenda', 'ndos': 102, 'order': 1},
+    {'key': 'delivery_note', 'label': 'Guia de Remessa', 'ndos': 130, 'order': 2},
+    {'key': 'proforma_invoice', 'label': 'Pré-Fatura', 'ndos': 218, 'order': 3},
+    {'key': 'invoice', 'label': 'Fatura', 'table': 'FO', 'order': 4},
 ]
 
 DOC_AI_INTEGRATION_ACCESS_TYPES = [
-    ('purchase_order', 'Bon de Commande', 'PURCHASE_ORDER'),
-    ('delivery_note', 'Bon de Livraison', 'DELIVERY_NOTE'),
-    ('proforma_invoice', 'Pré-Facture', 'PROFORMA_INVOICE'),
-    ('provisional_invoice', 'Facture Provisoire', 'PROVISIONAL_INVOICE'),
-    ('invoice', 'Facture', 'INVOICE'),
-    ('correspondence', 'Correspondence', 'CORRESPONDENCE'),
+    ('purchase_order', 'Nota de Encomenda', 'PURCHASE_ORDER'),
+    ('delivery_note', 'Guia de Remessa', 'DELIVERY_NOTE'),
+    ('proforma_invoice', 'Pré-Fatura', 'PROFORMA_INVOICE'),
+    ('provisional_invoice', 'Fatura Provisória', 'PROVISIONAL_INVOICE'),
+    ('invoice', 'Fatura', 'INVOICE'),
+    ('correspondence', 'Correspondência', 'CORRESPONDENCE'),
 ]
 
 
@@ -1694,7 +1695,7 @@ def _validate_phc_origin_combination(origins: list[dict[str, Any]], candidate: d
             raise ValueError('Contrato associado.')
         return
     if family == 'delivery_note' and existing_family != 'bc':
-        raise ValueError('Associa primeiro um BC.')
+        raise ValueError('Associa primeiro uma Nota de Encomenda.')
     if family == 'work_situation':
         if existing_family != 'subcontract':
             raise ValueError('Associa primeiro um Contrato Sout-Traitant.')
@@ -2251,7 +2252,7 @@ def _phc_provisional_purchase_doc_config(cursor, database_name: str, document_ty
         'file_prefix': 'NC' if is_credit_note else 'FAC',
         'correspondence_type': DOC_AI_PURCHASE_CREDIT_NOTE_CORRESPONDENCE_TYPE if is_credit_note else DOC_AI_PURCHASE_INVOICE_CORRESPONDENCE_TYPE,
         'label': 'nota de crédito' if is_credit_note else 'fatura',
-        'phc_label': 'V/Avoir' if is_credit_note else 'Facture Provisoire',
+        'phc_label': 'Nota de Crédito' if is_credit_note else 'Fatura Provisória',
     }
 
 
@@ -2368,7 +2369,7 @@ def _phc_provisional_supplier(cursor, supplier_data: dict[str, Any]) -> dict[str
     supplier_no = _safe_int(matched.get('no'), 0)
     supplier_estab = _safe_int(matched.get('estab'), 0)
     if not supplier_no:
-        raise ValueError('Escolhe um fornecedor existente no PHC antes de submeter a Facture Provisoire.')
+        raise ValueError('Escolhe um fornecedor existente no PHC antes de submeter a Fatura Provisória.')
     row = cursor.execute("""
         SELECT TOP 1
             CAST(ISNULL(NO, 0) AS int), CAST(ISNULL(ESTAB, 0) AS int),
@@ -2806,13 +2807,13 @@ def submit_provisional_invoice_to_phc(
     if not _is_provisional_purchase_source_type(document.get('document_type')):
         raise ValueError('Este circuito aceita apenas faturas ou notas de crédito de fornecedor para lançar no PHC.')
     if not file_bytes or not str(original_file_name or '').lower().endswith('.pdf'):
-        raise ValueError('O PDF original é obrigatório para submeter a Facture Provisoire.')
+        raise ValueError('O PDF original é obrigatório para submeter a Fatura Provisória.')
     document_number = str(document.get('document_number') or '').strip()
     if not document_number:
-        raise ValueError('Confirma o número da Facture Provisoire antes de submeter.')
+        raise ValueError('Confirma o número da Fatura Provisória antes de submeter.')
     lines = [dict(item or {}) for item in (document.get('lines') or []) if isinstance(item, dict)]
     if not lines:
-        raise ValueError('A Facture Provisoire tem de ter pelo menos uma linha.')
+        raise ValueError('A Fatura Provisória tem de ter pelo menos uma linha.')
     customer = dict(document.get('customer') or {})
     if not _safe_int(customer.get('feid'), 0):
         raise ValueError('Escolhe a entidade antes de submeter.')
@@ -3331,7 +3332,7 @@ def _explicit_document_origins(document_data: dict[str, Any]) -> list[dict[str, 
         origins.append({
             'document_type': 'delivery_note',
             'document_number': document_number,
-            'visible_text': 'Referência BL associada às linhas da fatura',
+            'visible_text': 'Referência de Guia de Remessa associada às linhas da fatura',
             'page': None,
         })
     return origins
@@ -3429,7 +3430,7 @@ def _match_document_lines_to_origin(
                 'origin_description': str(origin_line.get('description') or origin_line.get('design') or '').strip(),
                 'origin_quantity': origin_quantity,
                 'score': round(min(0.99, 0.86 + ((1.0 - quantity_difference) * 0.13)), 4),
-                'reasons': ['Quantidade agregada coincide', 'Única linha quantitativa do BC'],
+                'reasons': ['Quantidade agregada coincide', 'Única linha quantitativa da Nota de Encomenda'],
             } for current_index, _ in indexed_current]
 
     ranked_pairs = []
@@ -4067,7 +4068,7 @@ def mark_document_control_ok(
         document_data = {}
     document_type = str(document_data.get('document_type') or '').strip().lower()
     if not _is_provisional_purchase_source_type(document_type):
-        raise ValueError('O Contrôle OK aplica-se apenas a documentos de compra preparados para Facture Provisoire.')
+        raise ValueError('O Controlo OK aplica-se apenas a documentos de compra preparados para Fatura Provisória.')
     customer = dict(document_data.get('customer') or {})
     supplier = dict(document_data.get('supplier') or {})
     if not _safe_int(customer.get('feid'), 0):
@@ -4080,7 +4081,7 @@ def mark_document_control_ok(
         raise ValueError('Confirma pelo menos uma linha antes do Contrôle OK.')
     origins = get_phc_origins_from_meta(meta)
     if not any(_phc_origin_family(origin) in {'', 'bc', 'contract', 'subcontract'} for origin in origins):
-        raise ValueError('Falta associar um BC ou Contrato.')
+        raise ValueError('Falta associar uma Nota de Encomenda ou um Contrato.')
     now = _now()
     workflow = dict(meta.get('workflow') or {})
     workflow.update({
@@ -6164,39 +6165,18 @@ def normalize_document_duplicate_identity(
 
 
 def document_duplicate_identities_match(left: dict[str, Any], right: dict[str, Any]) -> str:
-    """Return exact, business or empty according to the duplicate policy."""
-    left_hash = str(left.get('file_hash') or '').strip().lower()
-    right_hash = str(right.get('file_hash') or '').strip().lower()
-    if left_hash and right_hash and left_hash == right_hash:
-        return 'exact'
-    if str(left.get('doc_class') or '') not in {'invoice', 'credit_note'}:
-        return ''
-    if left.get('doc_class') != right.get('doc_class'):
-        return ''
-    supplier_matches = (
-        left.get('supplier_no') and left.get('supplier_no') == right.get('supplier_no')
-    ) or (
-        left.get('supplier_tax_id')
-        and left.get('supplier_tax_id') == right.get('supplier_tax_id')
-    )
-    required_pairs = (
-        ('feid', left.get('feid'), right.get('feid')),
-        ('supplier', supplier_matches, True),
-        ('document_number', left.get('document_number'), right.get('document_number')),
-        ('document_year', left.get('document_year'), right.get('document_year')),
-        ('gross_total', left.get('gross_total'), right.get('gross_total')),
-        ('currency', left.get('currency'), right.get('currency')),
-    )
-    return 'business' if all(current and current == expected for _, current, expected in required_pairs) else ''
+    """Return the central duplicate match type, preserving the public API."""
+    return str(evaluate_duplicate_match(left, right).get('match_type') or '')
 
 
 def _sync_document_duplicate_index(document: DocInbox, result: dict[str, Any] | None = None) -> dict[str, Any]:
+    processing_meta = _json_loads(document.processing_meta_json, {})
     identity = normalize_document_duplicate_identity(
         result if isinstance(result, dict) else _json_loads(document.json_resultado, {}),
         stored_feid=document.feid,
         stored_supplier_no=document.fornecedor_no,
         stored_supplier_tax_id=document.fornecedor_nif_detetado,
-        file_hash=document.file_hash,
+        file_hash=processing_meta.get('content_hash') or document.file_hash,
     )
     params = {
         'docinstamp': document.docinstamp,
@@ -6250,7 +6230,7 @@ def find_document_duplicates(
             stored_feid=document.feid,
             stored_supplier_no=document.fornecedor_no,
             stored_supplier_tax_id=document.fornecedor_nif_detetado,
-            file_hash=document.file_hash,
+            file_hash=_json_loads(document.processing_meta_json, {}).get('content_hash') or document.file_hash,
         )
     )
     rows = db.session.execute(text("""
@@ -6267,18 +6247,14 @@ def find_document_duplicates(
           AND (
                 (:file_hash <> '' AND I.FILE_HASH = :file_hash)
                 OR (
-                    :doc_class IN ('invoice', 'credit_note')
+                    :doc_class <> 'unknown'
                     AND I.DOC_CLASS = :doc_class
-                    AND ISNULL(I.FEID, 0) = ISNULL(:feid, 0)
                     AND (
-                        (ISNULL(:supplier_no, 0) > 0 AND I.FORNECEDOR_NO = :supplier_no)
+                        (ISNULL(:feid, 0) > 0 AND I.FEID = :feid)
+                        OR (ISNULL(:supplier_no, 0) > 0 AND I.FORNECEDOR_NO = :supplier_no)
                         OR (:supplier_tax_id <> '' AND I.FORNECEDOR_NIF = :supplier_tax_id)
+                        OR (:document_number <> '' AND I.DOC_NUMBER_NORMALIZED = :document_number)
                     )
-                    AND :document_number <> ''
-                    AND I.DOC_NUMBER_NORMALIZED = :document_number
-                    AND I.DOC_YEAR = :document_year
-                    AND I.GROSS_TOTAL = :gross_total
-                    AND I.CURRENCY = :currency
                 )
           )
         ORDER BY I.DTALT DESC
@@ -6291,17 +6267,23 @@ def find_document_duplicates(
             'supplier_tax_id': _digits_only(row.get('FORNECEDOR_NIF')),
             'doc_class': str(row.get('DOC_CLASS') or ''),
             'document_number': str(row.get('DOC_NUMBER_NORMALIZED') or ''),
+            'document_date': row.get('DOC_DATE').isoformat() if row.get('DOC_DATE') else None,
             'document_year': _safe_int(row.get('DOC_YEAR'), 0) or None,
             'gross_total': float(row.get('GROSS_TOTAL')) if row.get('GROSS_TOTAL') is not None else None,
             'currency': str(row.get('CURRENCY') or ''),
             'file_hash': str(row.get('FILE_HASH') or '').lower(),
         }
-        match_type = document_duplicate_identities_match(identity, candidate)
+        assessment = evaluate_duplicate_match(identity, candidate)
+        match_type = str(assessment.get('match_type') or '')
         if match_type:
             duplicates.append({
                 'document_id': str(row.get('DOCINSTAMP') or ''),
                 'file_name': str(row.get('FILE_NAME') or ''),
                 'match_type': match_type,
+                'classification': str(assessment.get('classification') or 'new'),
+                'score': int(assessment.get('score') or 0),
+                'matching_fields': list(assessment.get('matching_fields') or []),
+                'missing_fields': list(assessment.get('missing_fields') or []),
                 'processing_stage': str(row.get('PROCESSING_STAGE') or ''),
                 'reception_validated': bool(row.get('RECEPTION_VALIDATED')),
                 'management_validated': bool(row.get('MANAGEMENT_VALIDATED')),
@@ -6323,6 +6305,76 @@ def _refresh_document_duplicate_state(
     }
     document.processing_meta_json = _json_dumps(meta)
     return duplicates
+
+
+def record_document_duplicate_decision(
+    document_stamp: str,
+    duplicate_document_stamp: str,
+    decision: str,
+    requested_by: str = '',
+) -> dict[str, Any]:
+    """Persist a user's duplicate decision and keep the supporting evidence."""
+    document = db.session.get(DocInbox, str(document_stamp or '').strip())
+    duplicate_document = db.session.get(DocInbox, str(duplicate_document_stamp or '').strip())
+    if not document or not duplicate_document or document.docinstamp == duplicate_document.docinstamp:
+        raise ValueError('Correspondência de duplicado inválida.')
+    normalized_decision = str(decision or '').strip().lower()
+    if normalized_decision not in {'different', 'associate'}:
+        raise ValueError('Decisão de duplicado inválida.')
+
+    now = _now()
+    meta = _json_loads(document.processing_meta_json, {})
+    decisions = list(meta.get('duplicate_decisions') or [])
+    decisions.append({
+        'decision': normalized_decision,
+        'duplicate_document_id': duplicate_document.docinstamp,
+        'decided_at': now.isoformat(),
+        'decided_by': requested_by or '',
+    })
+    meta['duplicate_decisions'] = decisions[-20:]
+    meta['duplicate_resolution'] = {
+        'decision': normalized_decision,
+        'duplicate_document_id': duplicate_document.docinstamp,
+        'decided_at': now.isoformat(),
+        'decided_by': requested_by or '',
+    }
+    document.processing_meta_json = _json_dumps(meta)
+    document.dtalt = now
+    document.useralteracao = requested_by or document.useralteracao or ''
+    _document_log(
+        document.docinstamp,
+        'duplicate_decision',
+        'warning' if normalized_decision == 'different' else 'ok',
+        'Documento confirmado como diferente.' if normalized_decision == 'different' else 'Documento associado ao registo existente.',
+        meta['duplicate_resolution'],
+    )
+    if normalized_decision == 'associate':
+        db.session.execute(text("""
+            UPDATE dbo.DOC_DUPLICATE_INDEX
+            SET ATIVO = 0, DTALT = GETDATE()
+            WHERE DOCINSTAMP = :document_stamp
+        """), {'document_stamp': document.docinstamp})
+        db.session.execute(text("""
+            INSERT INTO dbo.DOC_AI_VIEW_EVENT (
+                DOCVIEWEVENTSTAMP, DOCINSTAMP, VIEW_CODE, EVENT_CODE,
+                PREVIOUS_STATE, USUARIO, DTCRI
+            ) VALUES (
+                :event_stamp, :document_stamp, 'home', 'deleted',
+                'duplicate_associated', :requested_by, GETDATE()
+            )
+        """), {
+            'event_stamp': _new_stamp(),
+            'document_stamp': document.docinstamp,
+            'requested_by': str(requested_by or '')[:50],
+        })
+    db.session.commit()
+    return {
+        'ok': True,
+        'decision': normalized_decision,
+        'document_id': document.docinstamp,
+        'duplicate_document_id': duplicate_document.docinstamp,
+        'open_document_id': duplicate_document.docinstamp if normalized_decision == 'associate' else document.docinstamp,
+    }
 
 
 def _document_inbox_global_total(view: str = 'home', archived: bool = False) -> int:
@@ -8034,6 +8086,14 @@ def ensure_llm_inbox_document(
     content_hash = hashlib.sha256(file_bytes or b'').hexdigest()
     existing = DocInbox.query.filter_by(file_hash=content_hash).order_by(DocInbox.dtcri.desc()).first()
     if existing:
+        _document_log(existing.docinstamp, 'duplicate_rejected', 'warning', 'Leitura repetida recusada pelo hash do ficheiro.', {
+            'source_table': 'DOC_AI_LLM',
+            'requested_by': created_by or '',
+            'file_name': str(file_name or ''),
+            'score': 100,
+            'matching_fields': ['file_hash'],
+        })
+        db.session.commit()
         return {'id': existing.docinstamp, 'created': False, 'duplicate': True}
 
     uploaded = FileStorage(
@@ -8259,6 +8319,7 @@ def split_extracted_pdf_into_inbox(
     source_document = db.session.get(DocInbox, str(source_document_id or '').strip()) if source_document_id else None
     created_paths = []
     created_documents = []
+    skipped_duplicates = []
     now = _now()
     try:
         for index, part in enumerate(parts, start=1):
@@ -8269,6 +8330,16 @@ def split_extracted_pdf_into_inbox(
             supplier_part = _safe_split_file_part(supplier.get('name'), 'FORNECEDOR', 110)
             number_part = _safe_split_file_part(document_number, f'SEM_NUMERO_{index}', 70)
             output_name = f'{prefix}_{supplier_part}_{number_part}.pdf'[:260]
+            content_hash = hashlib.sha256(part.get('pdf_bytes') or b'').hexdigest()
+            acquire_duplicate_lock(db.session, content_hash)
+            duplicate = find_exact_file_duplicate(db.session, content_hash)
+            if duplicate:
+                skipped_duplicates.append({
+                    'part': index,
+                    'file_name': output_name,
+                    **duplicate,
+                })
+                continue
             stored = _store_split_pdf_bytes(part.get('pdf_bytes') or b'', output_name)
             created_paths.append(stored['absolute_path'])
 
@@ -8293,7 +8364,6 @@ def split_extracted_pdf_into_inbox(
                 'start_page': part.get('start_page'),
                 'end_page': part.get('end_page'),
             }
-            content_hash = hashlib.sha256(part.get('pdf_bytes') or b'').hexdigest()
             unique_hash = hashlib.sha256(f'{batch_stamp}:{index}:{content_hash}'.encode('utf-8')).hexdigest()
             document = DocInbox(
                 docinstamp=_new_stamp(),
@@ -8358,7 +8428,8 @@ def split_extracted_pdf_into_inbox(
             source_meta = _json_loads(source_document.processing_meta_json, {})
             source_meta['split_output'] = {
                 'batch_id': batch_stamp,
-                'count': total,
+                'count': len(created_documents),
+                'duplicates_skipped': len(skipped_duplicates),
                 'created_at': now.isoformat(),
                 'created_by': created_by or '',
             }
@@ -8377,7 +8448,15 @@ def split_extracted_pdf_into_inbox(
         raise
 
     group = _document_group_payload(batch_stamp, created_documents[0].docinstamp if created_documents else '')
-    return {'ok': True, 'message': f'{total} documentos separados e adicionados ao inbox.', 'group': group}
+    return {
+        'ok': True,
+        'message': (
+            f'{len(created_documents)} documentos separados e adicionados ao inbox.'
+            + (f' {len(skipped_duplicates)} duplicado(s) ignorado(s).' if skipped_duplicates else '')
+        ),
+        'group': group,
+        'duplicates': skipped_duplicates,
+    }
 
 
 def _create_inbox_document_from_stored_file(
@@ -8387,6 +8466,41 @@ def _create_inbox_document_from_stored_file(
     source_recstamp: str = '',
     process_after_create: bool = True,
 ) -> dict[str, Any]:
+    acquire_duplicate_lock(db.session, stored.get('hash'))
+    duplicate = find_exact_file_duplicate(db.session, stored.get('hash'))
+    if duplicate:
+        try:
+            if stored.get('absolute_path') and os.path.isfile(stored['absolute_path']):
+                os.remove(stored['absolute_path'])
+        except OSError:
+            current_app.logger.warning('Não foi possível remover upload documental duplicado.', exc_info=True)
+        if duplicate.get('source_area') == 'document_ai':
+            _document_log(
+                str(duplicate.get('record_id') or ''),
+                'duplicate_rejected',
+                'warning',
+                'Importação repetida recusada pelo hash do ficheiro.',
+                {
+                    'source_table': str(source_table or '').strip(),
+                    'source_recstamp': str(source_recstamp or '').strip(),
+                    'requested_by': created_by or '',
+                    'file_name': stored.get('original_name') or '',
+                    'score': 100,
+                    'matching_fields': ['file_hash'],
+                },
+            )
+            db.session.commit()
+            detail = get_document_detail(str(duplicate.get('record_id') or ''))
+            detail.update({
+                'created': False,
+                'duplicate': True,
+                'duplicate_detection': duplicate,
+            })
+            return detail
+        raise ValueError(
+            f"Este ficheiro já existe em Despesas ({duplicate.get('file_name') or duplicate.get('record_id')})."
+        )
+
     try:
         feid = get_current_feid(db.session)
     except (MissingCurrentEntityError, Exception):

@@ -203,7 +203,7 @@
               <div id="docAiExtractOriginTabs" class="docai-extract-origin-tabs" role="tablist" aria-label="Tipos de origem" hidden></div>
               <div id="docAiExtractOriginLoading" class="docai-extract-origin-loading">
                 <i class="fa-solid fa-circle-notch fa-spin"></i>
-                <span>A procurar BC, BL e pré-faturas do fornecedor...</span>
+                <span>A procurar Notas de Encomenda, Guias de Remessa e Pré-Faturas do fornecedor...</span>
               </div>
               <div id="docAiExtractOriginFlow" class="docai-extract-origin-flow" hidden></div>
             </section>
@@ -215,7 +215,7 @@
                   <span id="docAiExtractLineCount" hidden></span>
                   <button id="docAiExtractSplitLineBtn" type="button" class="docai-extract-split-line-btn" hidden disabled>
                     <i class="fa-solid fa-code-branch"></i>
-                    <span>Distribuir BL</span>
+                    <span>Distribuir Guia de Remessa</span>
                   </button>
                 </div>
               </div>
@@ -248,8 +248,8 @@
                         <th>Matrícula</th>
                         <th>Data</th>
                         <th id="docAiExtractDistributionHead" aria-label="Distribuição" hidden></th>
-                        <th id="docAiExtractPrimaryOriginHead">BC</th>
-                        <th id="docAiExtractSecondaryOriginHead">BL</th>
+                        <th id="docAiExtractPrimaryOriginHead">NdE</th>
+                        <th id="docAiExtractSecondaryOriginHead">GdR</th>
                       </tr>
                     </thead>
                     <tbody id="docAiExtractLinesBody"></tbody>
@@ -444,8 +444,8 @@
   <div class="sz_panel docai-duplicate-panel">
     <div class="sz_modal_header">
       <div>
-        <h3 id="docAiDuplicateTitle" class="sz_h4 sz_modal_title">Documento duplicado</h3>
-        <p class="sz_text_muted">Confirma as correspondências antes de validar este documento.</p>
+        <h3 id="docAiDuplicateTitle" class="sz_h4 sz_modal_title">Verificação de duplicado</h3>
+        <p class="sz_text_muted">Compara a correspondência encontrada antes de continuar.</p>
       </div>
       <button id="docAiDuplicateCloseTop" type="button" class="sz_button sz_button_ghost" aria-label="Fechar">
         <i class="fa-solid fa-xmark"></i>
@@ -455,11 +455,11 @@
       <div id="docAiDuplicateList" class="docai-duplicate-list"></div>
     </div>
     <div class="sz_modal_footer">
-      <button id="docAiDuplicateCancel" type="button" class="sz_button sz_button_secondary">Cancelar</button>
+      <button id="docAiDuplicateCancel" type="button" class="sz_button sz_button_secondary">Voltar</button>
       {% if can_validate_document %}
       <button id="docAiDuplicateConfirm" type="button" class="sz_button sz_button_primary">
         <i class="fa-solid fa-check-double"></i>
-        <span>Validar mesmo assim</span>
+        <span>É um documento diferente</span>
       </button>
       {% endif %}
     </div>
@@ -582,8 +582,8 @@
   <div class="sz_panel docai-supplier-match-panel">
     <div class="sz_modal_header">
       <div>
-        <h3 id="docAiBcTitle" class="sz_h4 sz_modal_title">Associar BC à linha</h3>
-        <p class="sz_text_muted">Apenas são apresentados os BC já associados em Origem.</p>
+        <h3 id="docAiBcTitle" class="sz_h4 sz_modal_title">Associar Nota de Encomenda à linha</h3>
+        <p class="sz_text_muted">Apenas são apresentadas as Notas de Encomenda já associadas em Origem.</p>
       </div>
       <button id="docAiBcCloseTop" type="button" class="sz_button sz_button_ghost" aria-label="Fechar">
         <i class="fa-solid fa-xmark"></i>

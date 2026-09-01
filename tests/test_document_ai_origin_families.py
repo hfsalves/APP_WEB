@@ -25,7 +25,7 @@ class DocumentAiOriginFamilyTests(unittest.TestCase):
             _validate_phc_origin_combination([{'ndos': 119}], {'ndos': 119})
 
     def test_delivery_note_requires_purchase_order(self):
-        with self.assertRaisesRegex(ValueError, 'primeiro um BC'):
+        with self.assertRaisesRegex(ValueError, 'primeiro uma Nota de Encomenda'):
             _validate_phc_origin_combination([], {'ndos': 130})
 
     def test_work_situation_requires_subcontract(self):

@@ -256,6 +256,50 @@ def _optional_first_column(
     return f"{default_sql} AS [{result_alias}]"
 
 
+def _plus_value_print_quantity_expression(columns: set[str], table_alias: str = "I") -> str:
+    """Return the PHC quantity rule used when printing PVL/MVL lines.
+
+    A plus/minus value is a commercial adjustment, so its applicable quantity
+    depends on its unit (linear metres, units, surface or volume), rather than
+    always using the adjustment line's stored BI.QTT. BI.QTT itself remains
+    untouched for editing and financial calculations.
+    """
+    normalized_columns = {str(column).casefold() for column in columns}
+    coefficient = f"ISNULL({table_alias}.[U_COEF], 0)" if "u_coef" in normalized_columns else "0"
+    consumption = f"ISNULL({table_alias}.[U_CONSUMO], 0)" if "u_consumo" in normalized_columns else "0"
+    parent_thickness = "ISNULL(B.[U_ESPESS], 0)" if "u_espess" in normalized_columns else "0"
+    parent_item = (
+        f"LEFT({table_alias}.[LITEM], CASE WHEN CHARINDEX('.', {table_alias}.[LITEM]) > 0 "
+        f"THEN CHARINDEX('.', {table_alias}.[LITEM]) - 1 ELSE 0 END)"
+    )
+    parent_predicate = (
+        f"B.[BOSTAMP] = {table_alias}.[BOSTAMP] "
+        "AND UPPER(LTRIM(RTRIM(ISNULL(B.[REF], '')))) NOT IN ('MVL', 'PVL') "
+        f"AND B.[LITEM] = {parent_item}"
+    )
+    return f"""
+        CASE
+            WHEN UPPER(LTRIM(RTRIM(ISNULL({table_alias}.[REF], '')))) IN ('MVL', 'PVL') THEN
+                CASE
+                    WHEN {table_alias}.[UNIDADE] = 'ml' THEN {coefficient}
+                    WHEN {table_alias}.[UNIDADE] = 'Un' THEN {consumption}
+                    WHEN {table_alias}.[UNIDADE] = 'm²' THEN ISNULL((
+                        SELECT TOP 1 B.[QTT]
+                        FROM dbo.BI B
+                        WHERE {parent_predicate}
+                    ), 0)
+                    WHEN {table_alias}.[UNIDADE] = 'm³' THEN ISNULL((
+                        SELECT TOP 1 B.[QTT] * {parent_thickness}
+                        FROM dbo.BI B
+                        WHERE {parent_predicate}
+                    ), 0)
+                    ELSE 0
+                END
+            ELSE {table_alias}.[QTT]
+        END
+    """
+
+
 def _uses_portuguese_component_designations(company: dict[str, Any]) -> bool:
     """Betaoconcept keeps the component catalogue in PHC's Portuguese descriptions."""
     database_key = _series_name_key(company.get("phc_db")).replace(" ", "")
@@ -791,6 +835,9 @@ def get_budget_detail(feid: Any, bostamp: str, user) -> dict[str, Any]:
                 I.DESCONTO, I.DESC2, I.EDEBITO, I.ETTDEB, I.IVA, I.TABIVA,
                 I.QTT, I.EPCUSTO, I.ECUSTOIND, I.TEMOCI, I.UNIDADE,
                 {_optional_column(bi_columns, 'I', 'U_ESPESS', 'U_ESPESS', '0')},
+                {_optional_column(bi_columns, 'I', 'U_COEF', 'U_COEF', '0')},
+                {_optional_column(bi_columns, 'I', 'U_CONSUMO', 'U_CONSUMO', '0')},
+                {_plus_value_print_quantity_expression(bi_columns, 'I')} AS [PRINT_QTT],
                 {_optional_column(bi_columns, 'I', 'U_ALT', 'U_ALT', '0')},
                 {_optional_column(bi_columns, 'I', 'U_BLOQPV', 'U_BLOQPV', '0')},
                 {_optional_column(bi_columns, 'I', 'U_BOMBA', 'U_BOMBA', '0')},
@@ -941,6 +988,7 @@ def _header_payload(row: dict[str, Any], company: dict[str, Any]) -> dict[str, A
 
 def _line_payload(row: dict[str, Any]) -> dict[str, Any]:
     quantity = _decimal(row.get("QTT"))
+    print_quantity = _decimal(row.get("PRINT_QTT")) if row.get("PRINT_QTT") is not None else quantity
     unit_cost = _decimal(row.get("EPCUSTO"))
     thickness = _decimal(row.get("U_ESPESS"))
     total = _decimal(row.get("ETTDEB"))
@@ -963,6 +1011,7 @@ def _line_payload(row: dict[str, Any]) -> dict[str, Any]:
         "vat_rate": _percent(row.get("IVA")),
         "vat_table": int(_number_value(row.get("TABIVA"))),
         "quantity": _qty(quantity),
+        "print_quantity": _qty(print_quantity),
         "surface": _qty(quantity),
         "unit": _text_value(row.get("UNIDADE")),
         "unit_cost": _qty(unit_cost),
@@ -1104,6 +1153,7 @@ def budget_print_payload(detail: dict[str, Any]) -> dict[str, Any]:
         is_plus_value = reference in {"PVL", "MVL"}
         if is_plus_value and "." in item:
             adjustment = dict(line)
+            adjustment["display_quantity"] = _budget_line_print_quantity(adjustment)
             if language == "pt":
                 adjustment["adjustment_label"] = "MENOR-VALIA" if reference == "MVL" else "MAIOR-VALIA"
             else:
@@ -1133,6 +1183,7 @@ def budget_print_payload(detail: dict[str, Any]) -> dict[str, Any]:
         )
         article["plus_values"] = children.get(str(line.get("item_label") or "").strip(), [])
         article["technical_lines"] = list(line.get("technical_lines") or [])
+        article["display_quantity"] = _budget_line_print_quantity(article)
         article["display_total"] = _budget_line_display_total(article)
         articles.append(article)
 
@@ -1183,6 +1234,13 @@ def _budget_line_display_total(line: dict[str, Any]) -> Decimal:
     # need to show the commercial value of the alternative itself.
     calculated = _decimal(line.get("quantity")) * _decimal(line.get("unit_price"))
     return calculated.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
+def _budget_line_print_quantity(line: dict[str, Any]) -> Decimal:
+    """Choose the quantity prepared for client print without changing BI.QTT."""
+    if line.get("print_quantity") is None:
+        return _decimal(line.get("quantity"))
+    return _decimal(line.get("print_quantity"))
 
 
 def _format_fr_number(value: Any, decimals: int = 2) -> str:
@@ -1709,6 +1767,9 @@ def get_budget_line_oci(feid: Any, bistamp: Any, user) -> dict[str, Any]:
                 I.DESCONTO, I.DESC2, I.EDEBITO, I.ETTDEB, I.IVA, I.TABIVA,
                 I.QTT, I.EPCUSTO, I.ECUSTOIND, I.TEMOCI, I.UNIDADE,
                 {_optional_column(bi_columns, 'I', 'U_ESPESS', 'U_ESPESS', '0')},
+                {_optional_column(bi_columns, 'I', 'U_COEF', 'U_COEF', '0')},
+                {_optional_column(bi_columns, 'I', 'U_CONSUMO', 'U_CONSUMO', '0')},
+                {_plus_value_print_quantity_expression(bi_columns, 'I')} AS [PRINT_QTT],
                 {_optional_column(bi_columns, 'I', 'U_ALT', 'U_ALT', '0')},
                 {_optional_column(bi_columns, 'I', 'U_BLOQPV', 'U_BLOQPV', '0')},
                 {_optional_column(bi_columns, 'I', 'U_BOMBA', 'U_BOMBA', '0')},

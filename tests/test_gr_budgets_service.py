@@ -22,6 +22,7 @@ from modules.gr_budgets.service import (
     _line_item_sort_key,
     _line_order_for_write,
     _line_payload,
+    _plus_value_print_quantity_expression,
     _oci_payload,
     _ouvrage_payload,
     _pick_default_series,
@@ -210,6 +211,32 @@ class BudgetPayloadTests(unittest.TestCase):
         self.assertTrue(line["has_technical_detail"])
         self.assertEqual(line["surface"], 12275.0)
         self.assertEqual(line["volume"], 1964.0)
+
+    def test_plus_value_print_quantity_is_separate_from_bi_qtt(self):
+        line = _line_payload(
+            {
+                "REF": "PVL",
+                "QTT": Decimal("1"),
+                "PRINT_QTT": Decimal("860.5"),
+                "EPCUSTO": Decimal("0"),
+                "ETTDEB": Decimal("0"),
+            }
+        )
+
+        self.assertEqual(line["quantity"], 1.0)
+        self.assertEqual(line["print_quantity"], 860.5)
+
+    def test_plus_value_print_quantity_sql_covers_each_unit_rule(self):
+        expression = _plus_value_print_quantity_expression(
+            {"qtt", "ref", "unidade", "litem", "bostamp", "u_coef", "u_consumo", "u_espess"}
+        )
+
+        self.assertIn("WHEN I.[UNIDADE] = 'ml' THEN ISNULL(I.[U_COEF], 0)", expression)
+        self.assertIn("WHEN I.[UNIDADE] = 'Un' THEN ISNULL(I.[U_CONSUMO], 0)", expression)
+        self.assertIn("WHEN I.[UNIDADE] = 'm²' THEN ISNULL((", expression)
+        self.assertIn("WHEN I.[UNIDADE] = 'm³' THEN ISNULL((", expression)
+        self.assertIn("NOT IN ('MVL', 'PVL')", expression)
+        self.assertIn("ELSE I.[QTT]", expression)
 
     def test_orders_line_items_by_each_numeric_segment(self):
         lines = [

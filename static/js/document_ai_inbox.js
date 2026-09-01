@@ -87,7 +87,10 @@ document.addEventListener('DOMContentLoaded', () => {
   function matchesFilters(item, excludedField = '') {
     if (excludedField !== 'state' && state.stateFilters.size && !state.stateFilters.has(String(item.business_state || ''))) return false;
     if (excludedField !== 'document_type' && state.typeFilters.size && !state.typeFilters.has(String(item.document_type || 'unknown'))) return false;
-    if (excludedField !== 'invoice_type' && state.invoiceTypeFilters.size && !state.invoiceTypeFilters.has(String(item.invoice_type || 'unknown'))) return false;
+    if (excludedField !== 'invoice_type' && state.invoiceTypeFilters.size) {
+      if (String(item.document_type || 'unknown') !== 'invoice') return false;
+      if (!state.invoiceTypeFilters.has(String(item.invoice_type || 'unknown'))) return false;
+    }
     for (const field of filterFields) {
       if (field === excludedField) continue;
       const selected = state.filters[field];
@@ -303,14 +306,19 @@ document.addEventListener('DOMContentLoaded', () => {
       stateCounts.set(businessState, (stateCounts.get(businessState) || 0) + 1);
     });
     const counterGroup = (title, filterName, property, options, selected) => {
-      const population = state.allItems.filter((item) => matchesFilters(item, filterName));
+      const population = state.allItems.filter((item) => (
+        matchesFilters(item, filterName)
+        && (filterName !== 'invoice_type' || String(item.document_type || 'unknown') === 'invoice')
+      ));
       const counts = new Map(options.map((option) => [String(option.value), { count: 0, label: option.label }]));
       population.forEach((item) => {
         const value = String(item[property] || 'unknown');
         const current = counts.get(value) || { count: 0, label: value || '-' };
         counts.set(value, { ...current, count: current.count + 1 });
       });
-      const ordered = [...counts.entries()].sort((left, right) => String(left[1].label).localeCompare(String(right[1].label), 'pt', { sensitivity: 'base' }));
+      const ordered = [...counts.entries()]
+        .filter(([value, data]) => value !== 'unknown' || data.count > 0)
+        .sort((left, right) => String(left[1].label).localeCompare(String(right[1].label), 'pt', { sensitivity: 'base' }));
       return `<div class="docai-business-count-group" aria-label="Filtros de ${escapeHtml(title.toLowerCase())}">
         <span class="docai-business-count-title">${escapeHtml(title)}</span>
         <div class="docai-business-count-options">${ordered.map(([value, data]) => `
@@ -320,7 +328,7 @@ document.addEventListener('DOMContentLoaded', () => {
           </button>`).join('')}</div></div>`;
     };
     const typeGroups = [];
-    if (state.view !== 'management') typeGroups.push(counterGroup('Tipo de documento', 'document_type', 'document_type', state.docTypes, state.typeFilters));
+    typeGroups.push(counterGroup('Tipo de documento', 'document_type', 'document_type', state.docTypes, state.typeFilters));
     if (state.view !== 'home') typeGroups.push(counterGroup('Tipo de fatura', 'invoice_type', 'invoice_type', state.invoiceTypes, state.invoiceTypeFilters));
     els.counts.innerHTML = `
       <div class="docai-counts-scroll">

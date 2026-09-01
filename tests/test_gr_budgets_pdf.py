@@ -146,6 +146,7 @@ class BudgetPdfTests(unittest.TestCase):
 
     def test_mvl_prints_as_moins_value_and_pvl_as_plus_value(self):
         detail = self._detail_1415()
+        detail["lines"][1]["print_quantity"] = Decimal("123")
         detail["lines"].insert(
             2,
             self._line(
@@ -168,6 +169,27 @@ class BudgetPdfTests(unittest.TestCase):
             html = render_budget_pdf_html(detail)
         self.assertIn(">PLUS-VALUE</span>", html)
         self.assertIn(">MOINS-VALUE</span>", html)
+
+    def test_plus_value_prints_its_effective_quantity_not_the_parent_quantity(self):
+        detail = self._detail_1415()
+        detail["lines"][1]["print_quantity"] = Decimal("123")
+
+        document = budget_print_payload(detail)
+        self.assertEqual(document["articles"][0]["plus_values"][0]["display_quantity"], Decimal("123"))
+
+        app = Flask(__name__, template_folder="../modules/gr_budgets/templates")
+        with app.app_context():
+            html = render_budget_pdf_html(detail)
+        self.assertIn("123,000", html)
+
+    def test_zero_plus_value_print_quantity_is_blank(self):
+        detail = self._detail_1415()
+        detail["lines"][1]["print_quantity"] = Decimal("0")
+
+        app = Flask(__name__, template_folder="../modules/gr_budgets/templates")
+        with app.app_context():
+            html = render_budget_pdf_html(detail)
+        self.assertIn('<div class="num"></div><div>m²</div>', html)
 
     def test_portuguese_company_uses_portuguese_labels_terms_and_adjustments(self):
         detail = self._detail_1415()

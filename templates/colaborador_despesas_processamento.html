@@ -1494,7 +1494,7 @@
         const result = await response.json().catch(() => ({}));
         if (!response.ok || !result.ok) throw new Error(result.error || 'Erro ao lançar no PHC.');
         selectedStamps.clear();
-        window.alert(`Despesas validadas. Dossier criado: ${result.nmdos || 'Notes de Frais'} nº ${result.obrano || ''}`);
+        window.alert(`Despesas validadas. Dossier criado: ${result.nmdos || 'Despesas'} nº ${result.obrano || ''}`);
         await loadRows();
       } catch (error) {
         console.error(error);

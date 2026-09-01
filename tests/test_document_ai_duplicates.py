@@ -4,6 +4,7 @@ from services.document_ai_service import (
     document_duplicate_identities_match,
     normalize_document_duplicate_identity,
 )
+from services.document_duplicate_service import evaluate_duplicate_match
 
 
 class DocumentAiDuplicateTests(unittest.TestCase):
@@ -41,19 +42,42 @@ class DocumentAiDuplicateTests(unittest.TestCase):
         right = self.identity(document_type='advertising')
         self.assertEqual(document_duplicate_identities_match(left, right), 'exact')
 
-    def test_mail_does_not_match_by_business_fields(self):
+    def test_all_document_types_match_by_complete_business_key(self):
         left = self.identity(document_type='mail')
         right = self.identity(document_type='mail')
         left['file_hash'] = 'left'
         right['file_hash'] = 'right'
-        self.assertEqual(document_duplicate_identities_match(left, right), '')
+        self.assertEqual(document_duplicate_identities_match(left, right), 'business')
 
-    def test_different_amount_does_not_match(self):
+    def test_amount_is_not_part_of_the_complete_business_key(self):
         left = self.identity()
         right = self.identity(totals={'gross_total': '1234,51'})
         left['file_hash'] = 'left'
         right['file_hash'] = 'right'
-        self.assertEqual(document_duplicate_identities_match(left, right), '')
+        self.assertEqual(document_duplicate_identities_match(left, right), 'business')
+
+    def test_incomplete_high_score_is_possible_duplicate(self):
+        left = self.identity()
+        right = self.identity()
+        left['file_hash'] = 'left'
+        right['file_hash'] = 'right'
+        right['document_date'] = None
+        right['document_year'] = None
+        assessment = evaluate_duplicate_match(left, right)
+        self.assertEqual(assessment['classification'], 'possible')
+        self.assertEqual(assessment['match_type'], 'possible')
+        self.assertGreaterEqual(assessment['score'], 85)
+        self.assertIn('document_date', assessment['missing_fields'])
+
+    def test_conflicting_business_field_is_new_document(self):
+        left = self.identity()
+        right = self.identity()
+        left['file_hash'] = 'left'
+        right['file_hash'] = 'right'
+        right['document_number'] = 'OUTRO2026'
+        assessment = evaluate_duplicate_match(left, right)
+        self.assertEqual(assessment['classification'], 'new')
+        self.assertIn('document_number', assessment['conflicting_fields'])
 
 
 if __name__ == '__main__':

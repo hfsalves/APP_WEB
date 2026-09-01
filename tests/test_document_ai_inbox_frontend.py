@@ -23,10 +23,18 @@ class DocumentAiInboxFrontendTests(unittest.TestCase):
         self.assertIn("counterGroup('Tipo de fatura', 'invoice_type'", self.source)
         self.assertIn("excludedField !== 'document_type'", self.source)
         self.assertIn("excludedField !== 'invoice_type'", self.source)
+
+    def test_management_keeps_document_type_and_invoice_type_counters(self):
+        self.assertIn("typeGroups.push(counterGroup('Tipo de documento'", self.source)
+        self.assertNotIn("state.view !== 'management') typeGroups.push", self.source)
+
+    def test_invoice_type_counts_only_invoices_and_hides_empty_unknown(self):
+        self.assertIn("filterName !== 'invoice_type' || String(item.document_type || 'unknown') === 'invoice'", self.source)
+        self.assertIn("value !== 'unknown' || data.count > 0", self.source)
         self.assertIn("options.map((option) => [String(option.value), { count: 0", self.source)
 
     def test_each_view_has_the_expected_counter_groups(self):
-        self.assertIn("if (state.view !== 'management')", self.source)
+        self.assertIn("typeGroups.push(counterGroup('Tipo de documento'", self.source)
         self.assertIn("if (state.view !== 'home')", self.source)
 
     def test_rows_open_analysis_and_restore_list_position(self):
