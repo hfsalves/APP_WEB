@@ -47,6 +47,7 @@ from services.document_ai_service import (
     _expand_phc_invoice_lines,
     _phc_base_currency_per_euro,
     _phc_local_amount,
+    _phc_provisional_effective_datetime,
     _phc_tax_configuration,
     _phc_tax_code,
     _doc_queryset_sql,
@@ -58,6 +59,38 @@ from services import document_ai_service
 
 
 class DocumentAiPhcOriginTests(unittest.TestCase):
+    def test_provisional_date_moves_to_day_after_phc_closing_date(self):
+        cursor = MagicMock()
+        cursor.execute.return_value.fetchone.return_value = (
+            datetime(2026, 8, 17, 0, 0, 0),
+            datetime(2026, 7, 31, 0, 0, 0),
+        )
+
+        effective_at = _phc_provisional_effective_datetime(
+            cursor,
+            'HSOLS_FR',
+            datetime(2026, 8, 10, 0, 0, 0),
+            datetime(2026, 9, 1, 14, 23, 45, 123456),
+        )
+
+        self.assertEqual(effective_at, datetime(2026, 8, 18, 14, 23, 45, 123456))
+
+    def test_provisional_date_after_year_end_closing_uses_next_calendar_day(self):
+        cursor = MagicMock()
+        cursor.execute.return_value.fetchone.return_value = (
+            datetime(2026, 12, 31, 0, 0, 0),
+            None,
+        )
+
+        effective_at = _phc_provisional_effective_datetime(
+            cursor,
+            'HSOLS_FR',
+            datetime(2026, 12, 15, 0, 0, 0),
+            datetime(2027, 1, 3, 8, 5, 6),
+        )
+
+        self.assertEqual(effective_at, datetime(2027, 1, 1, 8, 5, 6))
+
     def test_document_draft_updates_persistent_result_and_cached_extraction(self):
         moment = datetime(2026, 9, 1, 10, 30, 0)
         cached = {'version': 4, 'document': {'document_number': 'OLD'}}
@@ -175,11 +208,11 @@ class DocumentAiPhcOriginTests(unittest.TestCase):
         self.assertEqual(document.processing_stage, 'phc_integrated')
         self.assertEqual(meta['phc_integration']['type'], 'provisional_invoice')
         self.assertEqual(meta['phc_integration']['fostamp'], 'FO-1')
-        self.assertEqual(meta['workflow']['validation_status'], 'accounting')
+        self.assertEqual(meta['workflow']['validation_status'], 'management')
         self.assertEqual(meta['workflow']['distribution_status'], 'completed')
         self.assertTrue(document.reception_validated)
-        self.assertTrue(document.management_validated)
-        self.assertEqual([call.args[1] for call in distribute.call_args_list], ['home', 'management'])
+        self.assertFalse(document.management_validated)
+        self.assertEqual([call.args[1] for call in distribute.call_args_list], ['home'])
         self.assertEqual(commit.call_count, 2)
 
     def test_control_ok_persists_reviewed_document_and_unlocks_validation(self):

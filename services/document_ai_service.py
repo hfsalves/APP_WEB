@@ -2257,7 +2257,7 @@ def _phc_provisional_purchase_doc_config(cursor, database_name: str, document_ty
 
 
 def _phc_provisional_effective_datetime(cursor, database_name: str, document_date: datetime, received_at: datetime) -> datetime:
-    """Data operacional da compra provisória: data do documento, salvo mês PHC fechado.
+    """Data operacional da compra provisória: data do documento, salvo período PHC fechado.
 
     Primeiro tenta respeitar a data de fecho registada na empresa PHC. Quando
     essa data não existe/não é útil, pode ser indicada por configuração. Sem
@@ -2281,10 +2281,7 @@ def _phc_provisional_effective_datetime(cursor, database_name: str, document_dat
     if closed_dates:
         closed_until = max(closed_dates)
         if document_date.date() <= closed_until.date():
-            if closed_until.month == 12:
-                open_date = datetime(closed_until.year + 1, 1, 1)
-            else:
-                open_date = datetime(closed_until.year, closed_until.month + 1, 1)
+            open_date = closed_until + timedelta(days=1)
             return open_date.replace(
                 hour=received_at.hour,
                 minute=received_at.minute,
@@ -4586,7 +4583,7 @@ def mark_document_as_provisional_invoice(
     workflow = dict(meta.get('workflow') or {})
     workflow.update({
         'control_ok': True,
-        'validation_status': 'accounting',
+        'validation_status': 'management',
         'validation_error': '',
         'validation_at': now.isoformat(),
         'validation_by': requested_by or '',
@@ -4598,11 +4595,6 @@ def mark_document_as_provisional_invoice(
     document.reception_validated = True
     document.reception_validated_at = getattr(document, 'reception_validated_at', None) or now
     document.reception_validated_by = getattr(document, 'reception_validated_by', '') or requested_by or ''
-    document_type = str(getattr(document, 'doc_type_detected', '') or '').strip().lower()
-    if document_type != 'credit_note':
-        document.management_validated = True
-        document.management_validated_at = getattr(document, 'management_validated_at', None) or now
-        document.management_validated_by = getattr(document, 'management_validated_by', '') or requested_by or ''
     document.dtalt = now
     document.useralteracao = requested_by or document.useralteracao or ''
     # Persist the confirmed PHC identity before distribution. If distribution
@@ -4614,8 +4606,6 @@ def mark_document_as_provisional_invoice(
         from services.document_ai_distribution_service import apply_document_distribution
 
         distribution['outcomes'].append(apply_document_distribution(document, 'home', requested_by))
-        if document_type != 'credit_note':
-            distribution['outcomes'].append(apply_document_distribution(document, 'management', requested_by))
         meta = _json_loads(document.processing_meta_json, {})
         workflow = dict(meta.get('workflow') or {})
         workflow.update({

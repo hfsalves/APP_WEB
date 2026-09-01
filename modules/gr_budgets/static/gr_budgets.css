@@ -11,22 +11,31 @@
 }
 
 .gr-budget-contextbar {
-  align-items: flex-end;
+  align-items: flex-start;
   gap: var(--sz-space-4);
 }
 
 .gr-budget-contextbar > .sz_contextbar_left {
   flex: 1 1 18rem;
   width: auto;
+  padding-top: 0.1rem;
+}
+
+.gr-budget-contextbar .sz_page_subtitle {
+  line-height: 1.3;
 }
 
 .gr-budget-context-actions {
-  flex: 0 1 auto;
+  flex: 1 1 auto;
   width: min(100%, 68rem);
+  flex-direction: row;
+  align-items: flex-end;
 }
 
 .gr-budget-filters {
-  width: 100%;
+  min-width: 0;
+  flex: 1 1 auto;
+  width: auto;
   display: grid;
   grid-template-columns: minmax(12rem, 1.2fr) minmax(8rem, 0.7fr) 5.5rem minmax(14rem, 1.5fr) auto;
   align-items: end;
@@ -66,6 +75,11 @@
   white-space: nowrap;
 }
 
+.gr-budget-new {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
 .gr-budget-body {
   display: flex;
   min-height: 0;
@@ -73,6 +87,83 @@
   gap: var(--sz-space-3);
   padding-bottom: var(--sz-space-4);
   overflow: hidden;
+}
+
+.gr-budget-list-card {
+  min-height: 0;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+.gr-budget-list-header {
+  align-items: center;
+}
+
+.gr-budget-list-header > div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sz-space-1);
+}
+
+.gr-budget-list-table-host {
+  min-height: 0;
+  flex: 1 1 auto;
+  border: 0;
+  border-radius: 0 0 var(--sz-radius-md) var(--sz-radius-md);
+}
+
+.gr-budget-list-table {
+  width: 100%;
+  min-width: 72rem;
+}
+
+.gr-budget-list-table tbody tr {
+  cursor: pointer;
+}
+
+.gr-budget-list-table tbody tr:hover,
+.gr-budget-list-table tbody tr:focus-visible {
+  outline: none;
+  background: color-mix(in srgb, var(--sz-color-primary) 10%, var(--sz-color-surface));
+}
+
+.gr-budget-list-document {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.gr-budget-list-document strong {
+  color: var(--sz-color-text);
+}
+
+.gr-budget-list-document span,
+.gr-budget-list-work {
+  color: var(--sz-color-text-muted);
+  font-size: var(--sz-font-size-xs);
+}
+
+.gr-budget-list-salesperson {
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gr-budget-list-work {
+  display: block;
+  max-width: 22rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gr-budget-list-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sz-space-1);
+  white-space: nowrap;
 }
 
 .gr-budget-alert {
@@ -312,7 +403,7 @@
 
 .gr-budget-form-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(12, minmax(0, 1fr));
   align-content: start;
   gap: var(--sz-space-3);
 }
@@ -323,24 +414,76 @@
 }
 
 .gr-budget-client-field,
+.gr-budget-work-field,
+.gr-budget-locality-field,
+.gr-budget-associated-work-field,
+.gr-budget-date-field,
+.gr-budget-salesperson-field,
+.gr-budget-attention-field {
+  min-width: 0;
+}
+
+.gr-budget-client-field {
+  grid-column: span 5;
+}
+
+.gr-budget-locality-field {
+  grid-column: span 3;
+}
+
 .gr-budget-work-field {
+  grid-column: span 4;
+}
+
+.gr-budget-work-control {
+  display: flex;
+  min-width: 0;
+  gap: var(--sz-space-2);
+}
+
+.gr-budget-work-control .sz_input {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.gr-budget-address-button {
+  flex: 0 0 var(--sz-input-height, 2.5rem);
+  width: var(--sz-input-height, 2.5rem);
+  min-width: var(--sz-input-height, 2.5rem);
+  padding: 0;
+}
+
+.gr-budget-associated-work-field {
+  grid-column: span 4;
+}
+
+.gr-budget-date-field {
   grid-column: span 2;
 }
 
-.gr-budget-address-field {
-  grid-column: 1 / -1;
+.gr-budget-salesperson-field,
+.gr-budget-attention-field {
+  grid-column: span 3;
+}
+
+.sz_modal > .gr-budget-address-modal-panel {
+  width: min(92vw, 42rem);
+}
+
+.gr-budget-address-modal .sz_modal_body {
+  padding-top: var(--sz-space-3);
 }
 
 .gr-budget-address-input {
-  min-height: 3.75rem;
+  min-height: 8rem;
   height: auto;
   resize: vertical;
   line-height: 1.35;
   white-space: pre-wrap;
 }
 
-.gr-budget-associated-work-field {
-  grid-column: span 2;
+.gr-budget-address-modal-footer {
+  justify-content: flex-end;
 }
 
 .gr-budget-associated-work {
@@ -551,14 +694,14 @@
 .gr-budget-oci-line-layout {
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(0, 2.15fr) minmax(30rem, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--sz-space-3);
   align-items: stretch;
 }
 
 .gr-budget-oci-fields {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(18, minmax(0, 1fr));
   gap: var(--sz-space-2);
   align-content: start;
 }
@@ -569,23 +712,34 @@
 }
 
 .gr-budget-oci-field-ouvrage {
+  grid-column: span 5;
+}
+
+.gr-budget-oci-field-position {
   grid-column: span 2;
 }
 
 .gr-budget-oci-field-description {
-  grid-column: span 3;
+  grid-column: span 5;
 }
 
-.gr-budget-oci-field-purchase-price {
-  grid-column: auto;
-}
-
-.gr-budget-oci-field-sale-price {
-  grid-column: 1;
+.gr-budget-oci-field-surface,
+.gr-budget-oci-field-unit,
+.gr-budget-oci-field-thickness,
+.gr-budget-oci-field-volume,
+.gr-budget-oci-field-purchase-price,
+.gr-budget-oci-field-purchase-total,
+.gr-budget-oci-field-sale-price,
+.gr-budget-oci-field-sale-total,
+.gr-budget-oci-field-margin-unit,
+.gr-budget-oci-field-margin-total,
+.gr-budget-oci-field-margin-percent,
+.gr-budget-oci-field-prorata {
+  grid-column: span 2;
 }
 
 .gr-budget-oci-field-prorata {
-  min-width: 7.5rem;
+  min-width: 0;
 }
 
 .gr-budget-number-input {
@@ -610,6 +764,27 @@
   border: 1px solid var(--sz-color-border);
   border-radius: var(--sz-radius-sm);
   background: color-mix(in srgb, var(--sz-color-surface-alt) 72%, transparent);
+}
+
+.gr-budget-oci-settings-panel {
+  width: min(92vw, 44rem) !important;
+  overflow: hidden;
+}
+
+.gr-budget-oci-settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sz-space-3);
+}
+
+.gr-budget-oci-settings-body {
+  padding-top: 0;
+}
+
+.gr-budget-oci-settings-body .gr-budget-oci-rules {
+  padding: var(--sz-space-4);
+  background: transparent;
 }
 
 .gr-budget-oci-flags {
@@ -1348,7 +1523,7 @@
 
   .gr-budget-context-actions {
     width: 100%;
-    align-items: stretch;
+    align-items: flex-end;
   }
 
   .gr-budget-filters {
@@ -1363,22 +1538,8 @@
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
-  .gr-budget-oci-fields {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-
   .gr-budget-oci-line-layout {
     grid-template-columns: 1fr;
-  }
-
-  .gr-budget-oci-field-ouvrage,
-  .gr-budget-oci-field-description {
-    grid-column: span 2;
-  }
-
-  .gr-budget-oci-field-purchase-price,
-  .gr-budget-oci-field-sale-price {
-    grid-column: auto;
   }
 
   .gr-budget-simultaneous-summary {
@@ -1477,6 +1638,51 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .gr-budget-oci-fields {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .gr-budget-oci-field-ouvrage {
+    grid-column: span 3;
+  }
+
+  .gr-budget-oci-field-position {
+    grid-column: span 1;
+  }
+
+  .gr-budget-oci-field-description {
+    grid-column: span 2;
+  }
+
+  .gr-budget-oci-field-surface,
+  .gr-budget-oci-field-unit,
+  .gr-budget-oci-field-thickness,
+  .gr-budget-oci-field-volume,
+  .gr-budget-oci-field-purchase-price,
+  .gr-budget-oci-field-purchase-total,
+  .gr-budget-oci-field-sale-price,
+  .gr-budget-oci-field-sale-total,
+  .gr-budget-oci-field-margin-unit,
+  .gr-budget-oci-field-margin-total,
+  .gr-budget-oci-field-margin-percent,
+  .gr-budget-oci-field-prorata {
+    grid-column: span 2;
+  }
+
+  .gr-budget-list-card {
+    min-height: 28rem;
+  }
+
+  .gr-budget-client-field,
+  .gr-budget-locality-field,
+  .gr-budget-work-field,
+  .gr-budget-associated-work-field,
+  .gr-budget-date-field,
+  .gr-budget-salesperson-field,
+  .gr-budget-attention-field {
+    grid-column: span 1;
+  }
+
 }
 
 @media (max-width: 620px) {
@@ -1486,7 +1692,25 @@
     grid-template-columns: 1fr;
   }
 
+  .gr-budget-client-field,
+  .gr-budget-locality-field,
+  .gr-budget-work-field,
+  .gr-budget-associated-work-field,
+  .gr-budget-date-field,
+  .gr-budget-salesperson-field,
+  .gr-budget-attention-field {
+    grid-column: 1;
+  }
+
   .gr-budget-refresh {
+    width: 100%;
+  }
+
+  .gr-budget-context-actions {
+    flex-direction: column;
+  }
+
+  .gr-budget-new {
     width: 100%;
   }
 
@@ -1556,9 +1780,20 @@
   }
 
   .gr-budget-oci-field-ouvrage,
+  .gr-budget-oci-field-position,
   .gr-budget-oci-field-description,
+  .gr-budget-oci-field-surface,
+  .gr-budget-oci-field-unit,
+  .gr-budget-oci-field-thickness,
+  .gr-budget-oci-field-volume,
   .gr-budget-oci-field-purchase-price,
-  .gr-budget-oci-field-sale-price {
+  .gr-budget-oci-field-purchase-total,
+  .gr-budget-oci-field-sale-price,
+  .gr-budget-oci-field-sale-total,
+  .gr-budget-oci-field-margin-unit,
+  .gr-budget-oci-field-margin-total,
+  .gr-budget-oci-field-margin-percent,
+  .gr-budget-oci-field-prorata {
     grid-column: auto;
   }
 

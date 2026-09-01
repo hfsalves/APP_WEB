@@ -659,6 +659,12 @@ def create_app():
     with app.app_context():
         ensure_phc_close_dates_menu()
 
+    from blueprints.phc_approval_limits import bp as phc_approval_limits_bp
+    app.register_blueprint(phc_approval_limits_bp)
+    from services.phc_approval_limits_service import ensure_phc_approval_limits_menu
+    with app.app_context():
+        ensure_phc_approval_limits_menu()
+
     from blueprints.anexos import bp as anexos_bp
     app.register_blueprint(anexos_bp)
 

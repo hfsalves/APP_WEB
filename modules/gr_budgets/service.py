@@ -2122,6 +2122,9 @@ def _approval_override_limit(cursor, usercode: str) -> Decimal:
             SELECT TOP 1 ISNULL(PLAFOND, 0) AS PLAFOND
             FROM HSOLS_MASTER.dbo.U_APROPLAF
             WHERE UPPER(LTRIM(RTRIM(ISNULL(USERCODE, '')))) = UPPER(?)
+            ORDER BY ISNULL(USRDATA, OUSRDATA) DESC,
+                     ISNULL(USRHORA, OUSRHORA) DESC,
+                     U_APROPLAFSTAMP DESC
             """,
             (usercode,),
         )
@@ -2253,6 +2256,13 @@ def _execution_series(cursor) -> dict[str, Any]:
         if _series_name_key(series.get("name")) == "etude et execution":
             return series
     raise BudgetsValidationError("A série Étude et Exécution não existe nesta empresa.")
+
+
+def _lost_series(cursor) -> dict[str, Any]:
+    for series in _series_rows(cursor):
+        if _series_name_key(series.get("name")) == "devis perdu":
+            return series
+    raise BudgetsValidationError("A série Devis Perdu não existe nesta empresa.")
 
 
 def _opc_origin_matches_company(origin: Any, company: dict[str, Any]) -> bool:
@@ -2594,6 +2604,99 @@ def convert_budget_to_execution(feid: Any, bostamp: str, target: Any, existing_o
     }
 
 
+def mark_budget_as_lost(feid: Any, bostamp: str, user) -> dict[str, Any]:
+    """Move one Devis to the configured Devis Perdu series and renumber it."""
+    company = _company_for_user(feid, user)
+    clean_stamp = _text_value(bostamp)
+    if not clean_stamp:
+        raise BudgetsValidationError("Orçamento não indicado.")
+
+    conn_str = _phc_conn_str(company["phc_db"], company.get("phc_server", ""))
+    with pyodbc.connect(conn_str, timeout=30) as conn:
+        conn.autocommit = False
+        cursor = conn.cursor()
+        try:
+            visibility_sql, visibility_params = _budget_visibility_predicate(company, user, "B")
+            rows = _fetch_rows(
+                cursor,
+                f"""
+                SELECT TOP 1
+                    B.BOSTAMP, B.NDOS, B.NMDOS, B.BOANO, B.DATAOBRA,
+                    B.FECHADA, ISNULL(B2.ADJUDICADO, 0) AS ADJUDICADO,
+                    ISNULL(B2.ANULADO, 0) AS ANULADO
+                FROM dbo.BO B WITH (UPDLOCK, HOLDLOCK)
+                LEFT JOIN dbo.BO2 B2 WITH (UPDLOCK, HOLDLOCK) ON B2.BO2STAMP = B.BOSTAMP
+                WHERE B.BOSTAMP = ? AND {visibility_sql}
+                """,
+                (clean_stamp, *visibility_params),
+            )
+            if not rows:
+                raise BudgetsNotFoundError("Orçamento não encontrado no PHC desta empresa.")
+            budget = rows[0]
+            if _series_name_key(budget.get("NMDOS")) != "devis":
+                raise BudgetsValidationError("A perda só está disponível para dossiers Devis.")
+            if not _budget_can_link_to_work(budget):
+                raise BudgetsConflictError("O orçamento está fechado, adjudicado ou anulado e não pode ser alterado.")
+
+            lost_series = _lost_series(cursor)
+            dataobra = budget.get("DATAOBRA")
+            year = int(_number_value(budget.get("BOANO")))
+            if not year and isinstance(dataobra, (date, datetime)):
+                year = dataobra.year
+            if year <= 1900:
+                year = datetime.now().year
+
+            lost_ndos = int(_number_value(lost_series.get("ndos")))
+            lost_name = _text_value(lost_series.get("name"))
+            lost_number = _next_budget_number(cursor, lost_ndos, year)
+            now_sql = datetime.now()
+            audit_values = {
+                "usrinis": _user_inis(user),
+                "usrdata": now_sql.date(),
+                "usrhora": now_sql.strftime("%H:%M:%S"),
+            }
+
+            _phc_update(cursor, "BO", {
+                "ndos": lost_ndos,
+                "nmdos": lost_name,
+                "obrano": lost_number,
+                "boano": year,
+                "ocupacao": int(_number_value(lost_series.get("occupation"))),
+                "aprovado": 0,
+                **audit_values,
+            }, "BOSTAMP", clean_stamp)
+            _phc_update(cursor, "BI", {
+                "ndos": lost_ndos,
+                "nmdos": lost_name,
+                "obrano": lost_number,
+                "armazem": int(_number_value(lost_series.get("warehouse"))) or 1,
+                "qtt2": 0,
+                **audit_values,
+            }, "BOSTAMP", clean_stamp)
+            _phc_update(cursor, "BO2", {
+                "armazem": int(_number_value(lost_series.get("warehouse"))) or 1,
+                "tiposaft": _text_value(lost_series.get("saft_type")),
+                "idserie": _text_value(lost_series.get("series_id")),
+                **audit_values,
+            }, "BO2STAMP", clean_stamp)
+            _phc_update(cursor, "BO3", {
+                "u_aprovdat": PHC_ZERO_DATE,
+                "u_aprovusr": "",
+                **audit_values,
+            }, "BO3STAMP", clean_stamp)
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+
+    return {
+        "bostamp": clean_stamp,
+        "ndos": lost_ndos,
+        "number": lost_number,
+        "year": year,
+    }
+
+
 def _line_technical_rows(line: dict[str, Any]) -> list[dict[str, Any]]:
     rows = line.get("_ociRows")
     if not isinstance(rows, list):
@@ -2831,6 +2934,7 @@ def save_budget(payload: dict[str, Any], user) -> dict[str, Any]:
             customer_name = _limited(client.get("NOME"), bo_lengths, "nome")
             work_name = _limited(header.get("work_name"), bo_lengths, "trab1")
             work_locality = _limited(header.get("locality"), bo_lengths, "obranome")
+            work_address = _text_value(header.get("address"))
             attention = _limited(header.get("attention"), bo_lengths, "serie")
             salesperson_number = int(_number_value(salesperson.get("CM")))
             salesperson_name = _limited(salesperson.get("CMDESC"), bo_lengths, "vendnm")
@@ -2845,7 +2949,7 @@ def save_budget(payload: dict[str, Any], user) -> dict[str, Any]:
                 "no": customer_number,
                 "estab": customer_establishment,
                 "ncont": _limited(client.get("NCONT"), bo_lengths, "ncont"),
-                "morada": _limited(client.get("MORADA"), bo_lengths, "morada"),
+                "morada": _limited(work_address, bo_lengths, "morada"),
                 "local": _limited(client.get("LOCAL"), bo_lengths, "local"),
                 "codpost": _limited(client.get("CODPOST"), bo_lengths, "codpost"),
                 "zona": _limited(client.get("ZONA"), bo_lengths, "zona"),
@@ -2916,7 +3020,7 @@ def save_budget(payload: dict[str, Any], user) -> dict[str, Any]:
                 "processo": _limited(header.get("process"), bo2_lengths, "processo"),
                 "area": _limited(header.get("area"), bo2_lengths, "area"),
                 "armazem": int(_number_value(selected_series.get("warehouse"))) or 1,
-                "morada": _limited(client.get("MORADA"), bo2_lengths, "morada"),
+                "morada": _limited(work_address, bo2_lengths, "morada"),
                 "local": _limited(client.get("LOCAL"), bo2_lengths, "local"),
                 "codpost": _limited(client.get("CODPOST"), bo2_lengths, "codpost"),
                 "cladrszona": _limited(client.get("ZONA"), bo2_lengths, "cladrszona"),
@@ -3044,7 +3148,7 @@ def save_budget(payload: dict[str, Any], user) -> dict[str, Any]:
                     "serie": attention,
                     "rdata": dataobra,
                     "obranome": work_locality,
-                    "morada": _limited(client.get("MORADA"), bi_lengths, "morada"),
+                    "morada": _limited(work_address, bi_lengths, "morada"),
                     "local": _limited(client.get("LOCAL"), bi_lengths, "local"),
                     "codpost": _limited(client.get("CODPOST"), bi_lengths, "codpost"),
                     "zona": _limited(client.get("ZONA"), bi_lengths, "zona"),
@@ -3090,7 +3194,7 @@ def save_budget(payload: dict[str, Any], user) -> dict[str, Any]:
                 bi2_values = {
                     "bi2stamp": bistamp,
                     "bostamp": bostamp,
-                    "morada": _limited(client.get("MORADA"), bi2_lengths, "morada"),
+                    "morada": _limited(work_address, bi2_lengths, "morada"),
                     "local": _limited(client.get("LOCAL"), bi2_lengths, "local"),
                     "codpost": _limited(client.get("CODPOST"), bi2_lengths, "codpost"),
                     "cladrszona": _limited(client.get("ZONA"), bi2_lengths, "cladrszona"),
@@ -3207,6 +3311,7 @@ __all__ = [
     "BudgetsError",
     "assign_budget_work",
     "convert_budget_to_execution",
+    "mark_budget_as_lost",
     "get_budget_detail",
     "get_budget_line_oci",
     "get_budget_salespeople",

@@ -1,7 +1,7 @@
 from decimal import Decimal
 from types import SimpleNamespace
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from modules.gr_budgets.service import (
     _approval_credit_payload,
@@ -22,6 +22,8 @@ from modules.gr_budgets.service import (
     _line_item_sort_key,
     _line_order_for_write,
     _line_payload,
+    _lost_series,
+    mark_budget_as_lost,
     _plus_value_print_quantity_expression,
     _oci_payload,
     _ouvrage_payload,
@@ -138,6 +140,56 @@ class BudgetPayloadTests(unittest.TestCase):
         ]
         with patch("modules.gr_budgets.service._series_rows", return_value=series):
             self.assertEqual(_execution_series(object())["ndos"], 911)
+
+    def test_lost_series_is_resolved_by_name_and_not_by_fixed_ndos(self):
+        series = [
+            {"ndos": 115, "name": "Devis"},
+            {"ndos": 812, "name": "Devis Perdu"},
+        ]
+        with patch("modules.gr_budgets.service._series_rows", return_value=series):
+            self.assertEqual(_lost_series(object())["ndos"], 812)
+
+    def test_mark_budget_as_lost_renumbers_header_and_lines(self):
+        connection = MagicMock()
+        connection.__enter__.return_value = connection
+        cursor = connection.cursor.return_value
+        budget = {
+            "BOSTAMP": "BUDGET-1",
+            "NMDOS": "Devis",
+            "BOANO": 2026,
+            "FECHADA": 0,
+            "ADJUDICADO": 0,
+            "ANULADO": 0,
+        }
+        lost_series = {
+            "ndos": 812,
+            "name": "Devis Perdu",
+            "warehouse": 2,
+            "occupation": 7,
+            "saft_type": "PP",
+            "series_id": "PERDU",
+        }
+
+        with (
+            patch("modules.gr_budgets.service._company_for_user", return_value={"phc_db": "PHC_TEST"}),
+            patch("modules.gr_budgets.service._phc_conn_str", return_value="connection"),
+            patch("modules.gr_budgets.service.pyodbc.connect", return_value=connection),
+            patch("modules.gr_budgets.service._fetch_rows", return_value=[budget]),
+            patch("modules.gr_budgets.service._lost_series", return_value=lost_series),
+            patch("modules.gr_budgets.service._next_budget_number", return_value=42),
+            patch("modules.gr_budgets.service._user_inis", return_value="AC"),
+            patch("modules.gr_budgets.service._phc_update") as update,
+        ):
+            result = mark_budget_as_lost(8, "BUDGET-1", SimpleNamespace())
+
+        values_by_table = {call.args[1]: call.args[2] for call in update.call_args_list}
+        self.assertEqual(result["ndos"], 812)
+        self.assertEqual(result["number"], 42)
+        self.assertEqual(values_by_table["BO"]["nmdos"], "Devis Perdu")
+        self.assertEqual(values_by_table["BO"]["aprovado"], 0)
+        self.assertEqual(values_by_table["BI"]["qtt2"], 0)
+        self.assertEqual(values_by_table["BO2"]["idserie"], "PERDU")
+        connection.commit.assert_called_once_with()
 
     def test_existing_work_must_belong_to_the_selected_company(self):
         france = {"name": "HSOLS France", "phc_db": "HSOLS_FR"}

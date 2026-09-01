@@ -31,6 +31,11 @@ class DocumentAiInboxFiltersTests(unittest.TestCase):
         self.assertIn('options.map((option) => [String(option.value), { count: 0', source)
         self.assertNotIn('const hasUnknownType = state.allItems.some', source)
 
+    def test_column_filter_click_does_not_immediately_close_the_redrawn_menu(self):
+        source = (ROOT / 'static/js/document_ai_inbox.js').read_text(encoding='utf-8')
+        listener = source[source.index("host.addEventListener('click'"):source.index("host.addEventListener('input'")]
+        self.assertIn('event.stopPropagation();', listener)
+
 
 if __name__ == '__main__':
     unittest.main()

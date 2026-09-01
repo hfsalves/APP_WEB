@@ -503,6 +503,19 @@ class BudgetPdfTests(unittest.TestCase):
         self.assertIn("data-tooltip=", script)
         self.assertIn("elements.positionDuplicateSave.addEventListener('click', confirmPositionDuplicate)", script)
 
+    def test_technical_line_options_are_opened_in_a_settings_modal(self):
+        root = Path(__file__).resolve().parents[1]
+        template = (root / "modules/gr_budgets/templates/gr_budgets/budgets.html").read_text(encoding="utf-8")
+        script = (root / "modules/gr_budgets/static/gr_budgets.js").read_text(encoding="utf-8")
+
+        self.assertIn('id="budgetOciSettingsOpen"', template)
+        self.assertIn('class="fa-solid fa-gear"', template)
+        self.assertIn('id="budgetOciSettingsModal"', template)
+        self.assertIn('aria-controls="budgetOciSettingsModal"', template)
+        self.assertIn("function openOciSettings()", script)
+        self.assertIn("function closeOciSettings()", script)
+        self.assertIn("elements.ociSettingsOpen.addEventListener('click', openOciSettings)", script)
+
     def test_grid_line_actions_are_at_the_end_and_delete_is_confirmed(self):
         root = Path(__file__).resolve().parents[1]
         template = (root / "modules/gr_budgets/templates/gr_budgets/budgets.html").read_text(encoding="utf-8")

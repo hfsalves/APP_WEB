@@ -462,6 +462,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.querySelectorAll('.docai-column-filter').forEach((host) => {
     host.addEventListener('click', (event) => {
+      // Rendering replaces the clicked control. Without stopping propagation,
+      // the document listener sees the detached target as an outside click.
+      event.stopPropagation();
       const field = host.dataset.filter;
       if (event.target.closest('.docai-column-filter-trigger')) {
         const opening = !host.classList.contains('is-open');
@@ -485,6 +488,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
     host.addEventListener('input', (event) => {
+      event.stopPropagation();
       if (!event.target.matches('.docai-column-filter-search')) return;
       const cursorValue = event.target.value;
       renderColumnFilter(host.dataset.filter);

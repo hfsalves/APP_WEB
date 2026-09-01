@@ -1,0 +1,130 @@
+{% extends "sz_base.html" %}
+{% block title %}Plafonds de aprovação{% endblock %}
+{% block extra_head %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/phc_approval_limits.css') }}?v={{ static_version }}-3">
+{% endblock %}
+{% block content %}
+<div class="sz_page phc-approval-limits-page" id="phcApprovalLimitsPage">
+  <div class="sz_page_container">
+    <section class="sz_contextbar phc-approval-limits-contextbar">
+      <div>
+        <div class="sz_page_title">Plafonds de aprovação</div>
+        <div class="sz_page_subtitle">PHC · U_APROPLAF</div>
+      </div>
+      <div class="phc-approval-limits-toolbar">
+        <label class="sz_field phc-approval-limits-search">
+          <span class="sz_label">Pesquisar</span>
+          <span class="sz_input_icon">
+            <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+            <input id="approvalLimitsSearch" class="sz_input" type="search" autocomplete="off" placeholder="Login ou utilizador">
+          </span>
+        </label>
+        <button class="sz_button sz_button_primary" type="button" id="approvalLimitsNew">
+          <i class="fa-solid fa-plus" aria-hidden="true"></i><span>Novo</span>
+        </button>
+        <button class="sz_button sz_button_ghost" type="button" id="approvalLimitsRefresh" title="Atualizar">
+          <i class="fa-solid fa-rotate" aria-hidden="true"></i><span>Atualizar</span>
+        </button>
+      </div>
+    </section>
+
+    <div id="approvalLimitsAlert" class="sz_alert sz_alert_danger" role="alert" hidden></div>
+
+    <section class="sz_panel phc-approval-limits-panel">
+      <header class="phc-approval-limits-panel-header">
+        <div>
+          <h2 class="sz_h3">Utilizadores com plafond</h2>
+          <span id="approvalLimitsCount" class="sz_text_muted">A carregar...</span>
+        </div>
+      </header>
+
+      <div class="sz_table_wrap phc-approval-limits-table-wrap">
+        <table class="sz_table sz_table_compact phc-approval-limits-table">
+          <thead class="sz_table_head">
+            <tr>
+              <th>Nome login</th>
+              <th>Utilizador</th>
+              <th class="phc-approval-limit-number">Plafond</th>
+              <th>Atualizado</th>
+              <th aria-label="Ações"></th>
+            </tr>
+          </thead>
+          <tbody id="approvalLimitsRows">
+            <tr><td colspan="5" class="sz_text_muted">A carregar plafonds...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div id="approvalLimitsMobileList" class="phc-approval-limits-mobile-list" aria-live="polite">
+        <div class="sz_text_muted">A carregar plafonds...</div>
+      </div>
+    </section>
+  </div>
+
+  <div id="approvalLimitEditor" class="sz_modal" role="dialog" aria-modal="true" aria-labelledby="approvalLimitEditorTitle" aria-hidden="true">
+    <div class="sz_panel phc-approval-limit-modal-panel">
+      <div class="sz_modal_header">
+        <div>
+          <span class="sz_caption">GESTÃO DE PLAFOND</span>
+          <h3 id="approvalLimitEditorTitle" class="sz_modal_title">Novo plafond</h3>
+        </div>
+        <button type="button" class="sz_button sz_button_icon sz_button_ghost" data-editor-close title="Fechar">
+          <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+        </button>
+      </div>
+      <form id="approvalLimitForm">
+        <div class="sz_modal_body phc-approval-limit-form">
+          <label class="sz_field">
+            <span class="sz_label">Nome login</span>
+            <select id="approvalLimitUsercode" class="sz_select" required></select>
+          </label>
+          <label class="sz_field">
+            <span class="sz_label">Utilizador</span>
+            <input id="approvalLimitUsername" class="sz_input" type="text" readonly>
+          </label>
+          <label class="sz_field">
+            <span class="sz_label">Plafond</span>
+            <span class="sz_input_suffix">
+              <input id="approvalLimitValue" class="sz_input" type="number" min="0" max="99999999999999999.99" step="0.01" inputmode="decimal" required>
+              <span>€</span>
+            </span>
+          </label>
+          <p id="approvalLimitFormError" class="sz_alert sz_alert_danger" hidden></p>
+        </div>
+        <div class="sz_modal_footer">
+          <button type="button" class="sz_button sz_button_ghost" data-editor-close>Cancelar</button>
+          <button id="approvalLimitSave" type="submit" class="sz_button sz_button_primary">
+            <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i><span>Gravar</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="approvalLimitDeleteConfirm" class="sz_modal" role="dialog" aria-modal="true" aria-labelledby="approvalLimitDeleteTitle" aria-hidden="true">
+    <div class="sz_panel phc-approval-limit-delete-panel">
+      <div class="sz_modal_header">
+        <div>
+          <span class="sz_caption">ELIMINAR PLAFOND</span>
+          <h3 id="approvalLimitDeleteTitle" class="sz_modal_title">Eliminar registo?</h3>
+        </div>
+      </div>
+      <div class="sz_modal_body">
+        <p id="approvalLimitDeleteText"></p>
+        <p id="approvalLimitDeleteError" class="sz_alert sz_alert_danger" hidden></p>
+      </div>
+      <div class="sz_modal_footer">
+        <button type="button" class="sz_button sz_button_ghost" data-delete-close>Cancelar</button>
+        <button id="approvalLimitDeleteApply" type="button" class="sz_button sz_button_danger">
+          <i class="fa-solid fa-trash" aria-hidden="true"></i><span>Eliminar</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+  {{ super() }}
+  <script src="{{ url_for('static', filename='js/phc_approval_limits.js') }}?v={{ static_version }}-1"></script>
+{% endblock %}

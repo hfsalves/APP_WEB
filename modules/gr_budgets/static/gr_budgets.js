@@ -23,14 +23,17 @@
     search: document.getElementById('budgetSearch'),
     refresh: document.getElementById('budgetRefresh'),
     document: document.getElementById('budgetDocument'),
-    previous: document.getElementById('budgetPrevious'),
-    next: document.getElementById('budgetNext'),
+    list: document.getElementById('budgetList'),
+    listRows: document.getElementById('budgetListRows'),
+    listCount: document.getElementById('budgetListCount'),
+    back: document.getElementById('budgetBack'),
     actionsMenu: document.getElementById('budgetActionsMenu'),
     actionsToggle: document.getElementById('budgetActionsToggle'),
     printBudget: document.getElementById('budgetPrint'),
     approvalBudget: document.getElementById('budgetApproval'),
     approvalBudgetLabel: document.getElementById('budgetApprovalLabel'),
     convertExecution: document.getElementById('budgetConvertExecution'),
+    markLost: document.getElementById('budgetMarkLost'),
     assignWork: document.getElementById('budgetAssignWork'),
     duplicateBudget: document.getElementById('budgetDuplicate'),
     finalPriceBudget: document.getElementById('budgetFinalPrice'),
@@ -56,6 +59,8 @@
     workInput: document.getElementById('budgetWorkInput'),
     associatedWork: document.getElementById('budgetAssociatedWork'),
     localityInput: document.getElementById('budgetLocalityInput'),
+    addressOpen: document.getElementById('budgetAddressOpen'),
+    addressModal: document.getElementById('budgetAddressModal'),
     addressInput: document.getElementById('budgetAddressInput'),
     dateInput: document.getElementById('budgetDateInput'),
     salesperson: document.getElementById('budgetSalespersonSelect'),
@@ -67,6 +72,8 @@
     ociMode: document.getElementById('budgetOciMode'),
     ociPositions: document.getElementById('budgetOciPositions'),
     ociPositionsCount: document.getElementById('budgetOciPositionsCount'),
+    ociSettingsOpen: document.getElementById('budgetOciSettingsOpen'),
+    ociSettingsModal: document.getElementById('budgetOciSettingsModal'),
     ociError: document.getElementById('budgetOciError'),
     ociDuplicate: document.getElementById('budgetOciDuplicate'),
     ociCancel: document.getElementById('budgetOciCancel'),
@@ -145,6 +152,9 @@
     convertWorkSearch: document.getElementById('budgetConvertWorkSearch'),
     convertWorkResults: document.getElementById('budgetConvertWorkResults'),
     convertWorkMeta: document.getElementById('budgetConvertWorkMeta'),
+    markLostConfirm: document.getElementById('budgetMarkLostConfirm'),
+    markLostApply: document.getElementById('budgetMarkLostApply'),
+    markLostError: document.getElementById('budgetMarkLostError'),
     assignWorkConfirm: document.getElementById('budgetAssignWorkConfirm'),
     assignWorkApply: document.getElementById('budgetAssignWorkApply'),
     assignWorkError: document.getElementById('budgetAssignWorkError'),
@@ -194,6 +204,7 @@
     ociPriceLocked: true,
     ociTargetMargin: 0,
     mode: 'view',
+    screen: 'list',
     returnStamp: '',
     loadingCount: 0,
     searchTimer: 0,
@@ -266,6 +277,74 @@
   function showError(message) {
     elements.error.textContent = message || '';
     elements.error.hidden = !message;
+  }
+
+  function dateLabel(value) {
+    const textValue = String(value || '').trim();
+    const match = textValue.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    return match ? `${match[3]}/${match[2]}/${match[1]}` : (textValue || '—');
+  }
+
+  function budgetListStatus(row) {
+    if (row.cancelled) return ['danger', 'fa-ban', tr('gr_budgets.status.cancelled')];
+    if (row.closed) return ['danger', 'fa-lock', tr('gr_budgets.status.closed')];
+    if (row.awarded) return ['info', 'fa-trophy', tr('gr_budgets.status.awarded')];
+    if (row.approved) return ['success', 'fa-circle-check', tr('gr_budgets.status.approved')];
+    return ['warning', 'fa-clock', tr('gr_budgets.status.preparation')];
+  }
+
+  function renderBudgetList() {
+    const rows = state.budgets || [];
+    elements.listRows.innerHTML = rows.map((row) => {
+      const [kind, icon, label] = budgetListStatus(row);
+      const documentLabel = [row.series, row.number].filter((value) => value !== '' && value != null).join(' ');
+      const process = row.process || '';
+      const work = row.work_name || '—';
+      return `<tr class="sz_table_row" data-budget-stamp="${escapeHtml(row.bostamp)}" tabindex="0">
+        <td><div class="gr-budget-list-document"><strong>${escapeHtml(documentLabel || '—')}</strong>${process ? `<span>${escapeHtml(process)}</span>` : ''}</div></td>
+        <td>${escapeHtml(dateLabel(row.date))}</td>
+        <td>${escapeHtml(row.client_name || tr('gr_budgets.label.no_client'))}</td>
+        <td class="gr-budget-list-salesperson" title="${escapeHtml(row.salesperson || '')}">${escapeHtml(row.salesperson || '—')}</td>
+        <td>${escapeHtml(row.locality || '—')}</td>
+        <td><strong>${escapeHtml(work)}</strong></td>
+        <td class="gr-budget-num">${escapeHtml(money(row.total, row.currency))}</td>
+        <td><span class="sz_badge sz_badge_${kind} gr-budget-list-status"><i class="fa-solid ${icon}" aria-hidden="true"></i>${escapeHtml(label)}</span></td>
+      </tr>`;
+    }).join('');
+    elements.listCount.textContent = plural('gr_budgets.count.budget_one', 'gr_budgets.count.budget_other', rows.length);
+  }
+
+  function showListView() {
+    state.screen = 'list';
+    elements.content.hidden = true;
+    elements.empty.hidden = Boolean(state.budgets.length);
+    elements.list.hidden = !state.budgets.length;
+    updateInteractionState();
+  }
+
+  function showDetailView() {
+    state.screen = 'detail';
+    elements.list.hidden = true;
+    elements.empty.hidden = true;
+    elements.content.hidden = !state.detail;
+    updateInteractionState();
+  }
+
+  function openBudgetDetail(bostamp) {
+    if (isEditing() || !bostamp) return;
+    elements.document.value = bostamp;
+    state.screen = 'detail';
+    elements.list.hidden = true;
+    elements.empty.hidden = true;
+    elements.content.hidden = true;
+    updateInteractionState();
+    loadDetail(bostamp);
+  }
+
+  function returnToBudgetList() {
+    if (isEditing() || state.loadingCount) return;
+    showError('');
+    showListView();
   }
 
   async function getJson(path, params) {
@@ -371,7 +450,7 @@
         }
         if (header.year) elements.year.value = String(header.year);
         initialBudget.applied = true;
-        await loadBudgets(initialBudget.bostamp);
+        await loadBudgets(initialBudget.bostamp, true);
       } else {
         await loadBudgets();
       }
@@ -383,7 +462,7 @@
     }
   }
 
-  async function loadBudgets(preferredStamp) {
+  async function loadBudgets(preferredStamp, openDetail = false) {
     if (isEditing()) return;
     if (!elements.company.value || !elements.series.value) return;
     const version = ++state.requestVersion;
@@ -406,13 +485,16 @@
         (row) => `${row.series} ${row.number} · ${row.client_name || tr('gr_budgets.label.no_client')}${row.process ? ` · ${row.process}` : ''}${row.work_name ? ` — ${row.work_name}` : ''}`,
         selected && selected.bostamp
       );
-      elements.resultCount.textContent = plural('gr_budgets.count.budget_one', 'gr_budgets.count.budget_other', state.budgets.length);
-      updateNavigation();
+      renderBudgetList();
       if (!selected) {
         renderNoResults();
         return;
       }
-      await loadDetail(selected.bostamp, version);
+      if (openDetail) {
+        await loadDetail(selected.bostamp, version);
+      } else {
+        showListView();
+      }
     } catch (error) {
       if (version !== state.requestVersion) return;
       showError(error.message);
@@ -432,9 +514,10 @@
       if (listVersion && listVersion !== state.requestVersion) return;
       state.detail = payload;
       renderDetail(payload);
+      showDetailView();
     } catch (error) {
       showError(error.message);
-      elements.content.hidden = true;
+      showListView();
     } finally {
       showLoading(false);
     }
@@ -442,13 +525,16 @@
 
   function renderNoResults(message) {
     state.detail = null;
+    state.screen = 'list';
     elements.content.hidden = true;
+    elements.list.hidden = true;
     elements.empty.hidden = false;
     const strong = elements.empty.querySelector('strong');
     if (strong) strong.textContent = message || tr('gr_budgets.empty.title');
     elements.document.replaceChildren();
     elements.resultCount.textContent = tr('gr_budgets.count.budget_other', { count: 0 });
-    updateNavigation();
+    elements.listCount.textContent = tr('gr_budgets.count.budget_other', { count: 0 });
+    updateInteractionState();
   }
 
   function text(id, value, fallback) {
@@ -494,6 +580,7 @@
       establishment: Number(elements.clientEstablishment.value || 0),
       work_name: elements.workInput.value.trim(),
       locality: elements.localityInput.value.trim(),
+      address: elements.addressInput.value.trim(),
       date: elements.dateInput.value,
       salesperson_number: salespersonNumber,
       salesperson: salesperson ? salesperson.name : '',
@@ -552,6 +639,7 @@
     elements.content.hidden = false;
 
     text('budgetDocumentEyebrow', tr('gr_budgets.document.dossier_series', { series: header.series || tr('gr_budgets.label.budget') }));
+    elements.resultCount.textContent = [header.series, header.number].filter((value) => value !== '' && value != null).join(' ') || tr('gr_budgets.label.budget_new');
     setInputValue(elements.clientSearch, header.client_name);
     setInputValue(elements.clientNumber, header.client_number);
     setInputValue(elements.clientEstablishment, header.establishment);
@@ -600,6 +688,19 @@
     elements.associatedWork.title = label;
   }
 
+  function openAddressModal() {
+    if (!elements.addressModal) return;
+    elements.addressModal.classList.add('sz_is_open');
+    elements.addressModal.setAttribute('aria-hidden', 'false');
+  }
+
+  function closeAddressModal() {
+    if (!elements.addressModal) return;
+    elements.addressModal.classList.remove('sz_is_open');
+    elements.addressModal.setAttribute('aria-hidden', 'true');
+    elements.addressOpen?.focus();
+  }
+
   function renderStatuses(header) {
     const statuses = [];
     if (header._draft) statuses.push(['warning', 'fa-pen', tr('gr_budgets.status.new_editing')]);
@@ -626,6 +727,10 @@
     if (!header || header.closed || header.cancelled) return false;
     const series = String(header.series || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
     return series === 'devis';
+  }
+
+  function budgetLossAvailable() {
+    return budgetConversionAvailable();
   }
 
   function updateApprovalAction(header) {
@@ -696,7 +801,7 @@
         approved: target
       });
       closeApprovalConfirm();
-      await loadBudgets(bostamp);
+      await loadBudgets(bostamp, true);
     } catch (error) {
       elements.approvalError.textContent = error.message;
       elements.approvalError.hidden = false;
@@ -796,6 +901,47 @@
     elements.convertExecutionApply.disabled = false;
     root.querySelector('input[name="budgetConvertTarget"][value="new"]').checked = true;
     updateConvertTarget();
+  }
+
+  function openBudgetLoss() {
+    if (isEditing() || state.loadingCount || !selectedBudgetStamp() || !budgetLossAvailable()) return;
+    elements.markLostError.hidden = true;
+    elements.markLostError.textContent = '';
+    elements.markLostConfirm.classList.add('sz_is_open');
+    elements.markLostConfirm.setAttribute('aria-hidden', 'false');
+    elements.markLostApply.focus();
+  }
+
+  function closeBudgetLoss() {
+    elements.markLostConfirm.classList.remove('sz_is_open');
+    elements.markLostConfirm.setAttribute('aria-hidden', 'true');
+    elements.markLostError.hidden = true;
+    elements.markLostError.textContent = '';
+    elements.markLostApply.disabled = false;
+  }
+
+  async function applyBudgetLoss() {
+    const bostamp = selectedBudgetStamp();
+    if (!bostamp || state.loadingCount) return;
+    elements.markLostApply.disabled = true;
+    elements.markLostError.hidden = true;
+    showLoading(true);
+    try {
+      const payload = await postJson(`/orcamento/${encodeURIComponent(bostamp)}/marcar-perdido`, {
+        feid: elements.company.value
+      });
+      closeBudgetLoss();
+      await loadSeries();
+      elements.series.value = String(payload.ndos || elements.series.value);
+      elements.year.value = String(payload.year || elements.year.value);
+      await loadBudgets(bostamp, true);
+    } catch (error) {
+      elements.markLostError.textContent = error.message;
+      elements.markLostError.hidden = false;
+      elements.markLostApply.disabled = false;
+    } finally {
+      showLoading(false);
+    }
   }
 
   function closeAssignWorkLookup() {
@@ -911,7 +1057,7 @@
         opcstamp: state.assignWorkStamp
       });
       closeAssignWork();
-      await loadBudgets(bostamp);
+      await loadBudgets(bostamp, true);
     } catch (error) {
       elements.assignWorkError.textContent = error.message;
       elements.assignWorkError.hidden = false;
@@ -954,7 +1100,7 @@
       await loadSeries();
       elements.series.value = String(payload.ndos || elements.series.value);
       elements.year.value = String(payload.year || elements.year.value);
-      await loadBudgets(bostamp);
+      await loadBudgets(bostamp, true);
     } catch (error) {
       elements.convertExecutionError.textContent = error.message;
       elements.convertExecutionError.hidden = false;
@@ -1197,8 +1343,8 @@
 
   function renderLines(lines, currency, totals) {
     elements.lines.innerHTML = lines.map((line, index) => {
-      const title = line.designation || line.description || tr('gr_budgets.line.no_designation');
-      const secondary = line.description && line.description !== line.designation ? line.description : '';
+      const title = line.description || line.designation || tr('gr_budgets.line.no_designation');
+      const secondary = line.designation && line.designation !== line.description ? line.designation : '';
       const plusValue = isPlusValue(line.reference);
       const commercialAdjustment = isBudgetDiscountLine(line);
       const nonTechnicalLine = plusValue || commercialAdjustment;
@@ -2103,6 +2249,20 @@
     elements.positionPicker.setAttribute('aria-hidden', 'true');
   }
 
+  function openOciSettings() {
+    if (!elements.ociSettingsModal) return;
+    elements.ociSettingsModal.classList.add('sz_is_open');
+    elements.ociSettingsModal.setAttribute('aria-hidden', 'false');
+    elements.ociSimultaneous?.focus();
+  }
+
+  function closeOciSettings() {
+    if (!elements.ociSettingsModal) return;
+    elements.ociSettingsModal.classList.remove('sz_is_open');
+    elements.ociSettingsModal.setAttribute('aria-hidden', 'true');
+    elements.ociSettingsOpen?.focus();
+  }
+
   function closePositionSwitchConfirm() {
     elements.positionSwitchConfirm.classList.remove('sz_is_open');
     elements.positionSwitchConfirm.setAttribute('aria-hidden', 'true');
@@ -2286,6 +2446,7 @@
   }
 
   function closeOciView() {
+    closeOciSettings();
     closeComponentPicker();
     closePositionPicker();
     closePositionSwitchConfirm();
@@ -2652,11 +2813,14 @@
     elements.applyVatBudget.disabled = busy || !state.detail || !selectedBudgetStamp() || !elements.company.value || !budgetCanBeEdited() || !availableVatRates().length;
     elements.approvalBudget.disabled = navigationLocked || !state.detail || !selectedBudgetStamp() || !elements.company.value || !budgetApprovalAvailable();
     elements.convertExecution.disabled = navigationLocked || !state.detail || !selectedBudgetStamp() || !elements.company.value || !budgetConversionAvailable();
+    elements.markLost.disabled = navigationLocked || !state.detail || !selectedBudgetStamp() || !elements.company.value || !budgetLossAvailable();
     elements.assignWork.disabled = navigationLocked || !state.detail || !selectedBudgetStamp() || !elements.company.value || state.detail.header.closed || state.detail.header.cancelled;
     elements.actionsMenu.hidden = editing;
     elements.actionsToggle.disabled = busy || !state.detail || !selectedBudgetStamp() || !elements.company.value;
     elements.newBudget.hidden = editing;
     elements.newBudget.disabled = busy || !elements.company.value || !elements.series.value;
+    elements.back.hidden = editing || state.screen !== 'detail';
+    elements.back.disabled = busy;
     elements.editBudget.hidden = editing || !budgetCanBeEdited() || !selectedBudgetStamp();
     elements.editBudget.disabled = busy || !state.detail;
     elements.cancelEdit.hidden = !editing;
@@ -2665,13 +2829,12 @@
     elements.saveBudget.disabled = busy || !state.detail;
     elements.addLine.disabled = busy || !state.detail || !budgetCanBeEdited();
 
-    [elements.clientSearch, elements.workInput, elements.localityInput, elements.dateInput, elements.attentionInput]
+    [elements.clientSearch, elements.workInput, elements.localityInput, elements.addressInput, elements.dateInput, elements.attentionInput]
       .forEach((input) => {
         input.readOnly = !editing;
         input.setAttribute('aria-readonly', editing ? 'false' : 'true');
       });
     elements.salesperson.disabled = !editing || busy;
-    updateNavigation();
   }
 
   function todayForInput() {
@@ -2716,7 +2879,7 @@
     };
     state.detail = draft;
     renderDetail(draft);
-    updateInteractionState();
+    showDetailView();
     elements.clientSearch.focus();
   }
 
@@ -2765,7 +2928,7 @@
     };
     recalculateBudgetDraftTotals();
     renderDetail(state.detail);
-    updateInteractionState();
+    showDetailView();
   }
 
   function startEditBudget() {
@@ -2802,6 +2965,7 @@
         establishment: Number(elements.clientEstablishment.value || 0),
         work_name: elements.workInput.value.trim(),
         locality: elements.localityInput.value.trim(),
+        address: elements.addressInput.value.trim(),
         date: elements.dateInput.value,
         salesperson_number: Number(elements.salesperson.value || 0),
         attention: elements.attentionInput.value.trim(),
@@ -2836,7 +3000,7 @@
       elements.document.querySelectorAll('[data-draft="true"]').forEach((option) => option.remove());
       if (saved.year) elements.year.value = String(saved.year);
       updateInteractionState();
-      await loadBudgets(saved.bostamp);
+      await loadBudgets(saved.bostamp, true);
     } catch (error) {
       showError(error.message);
     } finally {
@@ -2852,50 +3016,51 @@
     state.ociCache.clear();
     closeClientLookup();
     elements.document.querySelectorAll('[data-draft="true"]').forEach((option) => option.remove());
-    elements.resultCount.textContent = plural('gr_budgets.count.budget_one', 'gr_budgets.count.budget_other', state.budgets.length);
     if (returnStamp && state.budgets.some((row) => row.bostamp === returnStamp)) {
       elements.document.value = returnStamp;
       updateInteractionState();
       loadDetail(returnStamp);
       return;
     }
-    updateInteractionState();
+    showListView();
     loadBudgets();
   }
 
-  function updateNavigation() {
-    const index = state.budgets.findIndex((row) => row.bostamp === elements.document.value);
-    const locked = isEditing() || state.loadingCount > 0;
-    elements.previous.disabled = locked || index <= 0;
-    elements.next.disabled = locked || index < 0 || index >= state.budgets.length - 1;
-  }
-
-  function moveSelection(delta) {
-    if (isEditing() || state.loadingCount) return;
-    const index = state.budgets.findIndex((row) => row.bostamp === elements.document.value);
-    const nextIndex = Math.min(state.budgets.length - 1, Math.max(0, index + delta));
-    if (nextIndex === index || !state.budgets[nextIndex]) return;
-    elements.document.value = state.budgets[nextIndex].bostamp;
-    updateNavigation();
-    loadDetail(elements.document.value);
-  }
-
   elements.company.addEventListener('change', loadSeries);
-  elements.series.addEventListener('change', () => loadBudgets());
-  elements.year.addEventListener('change', () => loadBudgets());
+  elements.series.addEventListener('change', () => {
+    showListView();
+    loadBudgets();
+  });
+  elements.year.addEventListener('change', () => {
+    showListView();
+    loadBudgets();
+  });
   elements.search.addEventListener('input', () => {
     window.clearTimeout(state.searchTimer);
-    state.searchTimer = window.setTimeout(() => loadBudgets(), 350);
+    state.searchTimer = window.setTimeout(() => {
+      showListView();
+      loadBudgets();
+    }, 350);
   });
-  elements.refresh.addEventListener('click', () => loadBudgets(elements.document.value));
-  elements.document.addEventListener('change', () => {
-    updateNavigation();
-    loadDetail(elements.document.value);
+  elements.refresh.addEventListener('click', () => {
+    showListView();
+    loadBudgets();
   });
-  elements.previous.addEventListener('click', () => moveSelection(-1));
-  elements.next.addEventListener('click', () => moveSelection(1));
+  elements.listRows.addEventListener('click', (event) => {
+    const row = event.target.closest('[data-budget-stamp]');
+    if (row) openBudgetDetail(row.dataset.budgetStamp);
+  });
+  elements.listRows.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    const row = event.target.closest('[data-budget-stamp]');
+    if (!row) return;
+    event.preventDefault();
+    openBudgetDetail(row.dataset.budgetStamp);
+  });
+  elements.back.addEventListener('click', returnToBudgetList);
   elements.approvalBudget.addEventListener('click', openApprovalConfirm);
   elements.convertExecution.addEventListener('click', openBudgetConversion);
+  elements.markLost.addEventListener('click', openBudgetLoss);
   elements.printBudget.addEventListener('click', printBudget);
   elements.duplicateBudget.addEventListener('click', startDuplicateBudget);
   elements.finalPriceBudget.addEventListener('click', () => openCommercialAdjustment('final'));
@@ -2915,8 +3080,15 @@
     syncEditableHeaderToState();
     scheduleClientSearch();
   });
-  [elements.workInput, elements.localityInput, elements.dateInput, elements.attentionInput]
+  [elements.workInput, elements.localityInput, elements.addressInput, elements.dateInput, elements.attentionInput]
     .forEach((input) => input.addEventListener('input', syncEditableHeaderToState));
+  elements.addressOpen?.addEventListener('click', openAddressModal);
+  root.querySelectorAll('[data-address-modal-close]').forEach((button) => {
+    button.addEventListener('click', closeAddressModal);
+  });
+  elements.addressModal?.addEventListener('click', (event) => {
+    if (event.target === elements.addressModal) closeAddressModal();
+  });
   elements.salesperson.addEventListener('change', syncEditableHeaderToState);
   elements.clientSearch.addEventListener('focus', () => {
     if (!isEditing()) return;
@@ -2977,6 +3149,13 @@
   elements.ociCancel.addEventListener('click', closeOciView);
   elements.ociSave.addEventListener('click', saveOciLine);
   elements.ociPositions.addEventListener('click', openPositionPicker);
+  elements.ociSettingsOpen.addEventListener('click', openOciSettings);
+  root.querySelectorAll('[data-oci-settings-close]').forEach((button) => {
+    button.addEventListener('click', closeOciSettings);
+  });
+  elements.ociSettingsModal.addEventListener('click', (event) => {
+    if (event.target === elements.ociSettingsModal) closeOciSettings();
+  });
   elements.ociAddRow.addEventListener('click', () => openComponentPicker());
   elements.ociFamilyList.addEventListener('click', (event) => {
     const button = event.target.closest('[data-oci-family-add]');
@@ -3062,6 +3241,13 @@
   elements.convertWorkSearch.addEventListener('input', scheduleConvertWorkSearch);
   elements.convertWorkSearch.addEventListener('blur', () => window.setTimeout(closeConvertWorkLookup, 150));
   elements.convertExecutionApply.addEventListener('click', applyBudgetConversion);
+  root.querySelectorAll('[data-mark-lost-cancel]').forEach((button) => {
+    button.addEventListener('click', closeBudgetLoss);
+  });
+  elements.markLostConfirm.addEventListener('click', (event) => {
+    if (event.target === elements.markLostConfirm) closeBudgetLoss();
+  });
+  elements.markLostApply.addEventListener('click', applyBudgetLoss);
   elements.assignWork.addEventListener('click', openAssignWork);
   root.querySelectorAll('[data-assign-work-cancel]').forEach((button) => {
     button.addEventListener('click', closeAssignWork);
@@ -3161,7 +3347,9 @@
   });
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape') return;
-    if (elements.vatApply.classList.contains('sz_is_open')) {
+    if (elements.ociSettingsModal.classList.contains('sz_is_open')) {
+      closeOciSettings();
+    } else if (elements.vatApply.classList.contains('sz_is_open')) {
       closeVatApply();
     } else if (elements.lineDeleteConfirm.classList.contains('sz_is_open')) {
       closeLineDeleteConfirm();
@@ -3169,6 +3357,8 @@
       closeAssignWork();
     } else if (elements.convertExecutionConfirm.classList.contains('sz_is_open')) {
       closeBudgetConversion();
+    } else if (elements.markLostConfirm.classList.contains('sz_is_open')) {
+      closeBudgetLoss();
     } else if (elements.approvalConfirm.classList.contains('sz_is_open')) {
       closeApprovalConfirm();
     } else if (elements.commercialAdjustment.classList.contains('sz_is_open')) {

@@ -28,6 +28,7 @@ from .service import (
     search_budget_works,
     set_budget_approval,
     list_companies_for_user,
+    mark_budget_as_lost,
     search_budget_clients,
 )
 from services.ft_pdf_service import generate_ft_pdf_bytes, generate_ft_pdf_bytes_xhtml2pdf
@@ -74,7 +75,9 @@ _BUDGET_ERROR_KEYS = {
     "A aprovação só está disponível para dossiers Devis ou Étude et Exécution.": "gr_budgets.error.approval_devis_only",
     "Não existe plafond suficiente para aprovar este orçamento.": "gr_budgets.error.approval_credit_limit",
     "A série Étude et Exécution não existe nesta empresa.": "gr_budgets.error.execution_series_missing",
+    "A série Devis Perdu não existe nesta empresa.": "gr_budgets.error.lost_series_missing",
     "A conversão só está disponível para dossiers Devis.": "gr_budgets.error.conversion_devis_only",
+    "A perda só está disponível para dossiers Devis.": "gr_budgets.error.loss_devis_only",
     "Indique se o orçamento cria uma obra nova ou é um aditamento.": "gr_budgets.error.conversion_target_invalid",
     "Selecione uma obra existente.": "gr_budgets.error.work_required",
     "A obra selecionada não está disponível nesta empresa.": "gr_budgets.error.work_unavailable",
@@ -382,6 +385,29 @@ def api_budget_convert_execution(bostamp):
             payload.get("feid"),
             getattr(current_user, "LOGIN", ""),
             payload.get("target"),
+        )
+        return _handle_error(exc)
+
+
+@bp.route("/api/gr_orcamentos/orcamento/<bostamp>/marcar-perdido", methods=["POST"])
+@login_required
+def api_budget_mark_lost(bostamp):
+    if not _has_write_acl(False):
+        return jsonify({"error": translate("gr_budgets.error.forbidden_edit")}), 403
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(
+            {
+                "ok": True,
+                **mark_budget_as_lost(payload.get("feid"), bostamp, current_user),
+            }
+        )
+    except Exception as exc:
+        current_app.logger.exception(
+            "Falha ao marcar orçamento como perdido: bostamp=%s feid=%s utilizador=%s",
+            bostamp,
+            payload.get("feid"),
+            getattr(current_user, "LOGIN", ""),
         )
         return _handle_error(exc)
 

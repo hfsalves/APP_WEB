@@ -1,0 +1,271 @@
+.phc-approval-limits-page .sz_page_container {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  min-height: 0;
+  height: 100%;
+}
+
+.phc-approval-limits-contextbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.phc-approval-limits-toolbar {
+  display: flex;
+  align-items: end;
+  gap: .5rem;
+}
+
+.phc-approval-limits-search {
+  min-width: 18rem;
+}
+
+.phc-approval-limits-search .sz_input_icon {
+  position: relative;
+  display: block;
+}
+
+.phc-approval-limits-search .sz_input_icon i {
+  position: absolute;
+  left: .75rem;
+  top: 50%;
+  color: var(--sz-color-text-muted);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.phc-approval-limits-search .sz_input {
+  width: 100%;
+  padding-left: 2.25rem;
+}
+
+.phc-approval-limits-panel {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.phc-approval-limits-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem;
+  border-bottom: 1px solid var(--sz-color-border);
+}
+
+.phc-approval-limits-panel-header > div {
+  display: grid;
+  gap: .2rem;
+}
+
+.phc-approval-limits-table-wrap {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: auto;
+}
+
+.phc-approval-limits-table {
+  min-width: 54rem;
+}
+
+.phc-approval-limit-number {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.phc-approval-limit-user {
+  display: grid;
+  gap: .15rem;
+}
+
+.phc-approval-limit-user small,
+.phc-approval-limit-updated {
+  color: var(--sz-color-text-muted);
+  font-size: var(--sz-font-size-xs);
+}
+
+.phc-approval-limit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: .35rem;
+  white-space: nowrap;
+}
+
+.phc-approval-limit-duplicate {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  color: var(--sz-color-warning);
+  font-size: var(--sz-font-size-xs);
+}
+
+.phc-approval-limits-mobile-list {
+  display: none;
+}
+
+.phc-approval-limit-modal-panel {
+  width: min(34rem, calc(100vw - 2rem));
+}
+
+.phc-approval-limit-modal-panel .sz_modal_header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.phc-approval-limit-delete-panel {
+  width: min(30rem, calc(100vw - 2rem));
+}
+
+.phc-approval-limit-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1rem;
+}
+
+.phc-approval-limit-form > .sz_field:last-of-type,
+.phc-approval-limit-form > .sz_alert {
+  grid-column: 1 / -1;
+}
+
+.phc-approval-limit-form .sz_input_suffix {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.phc-approval-limit-form .sz_input_suffix .sz_input {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  padding-right: 2.25rem;
+}
+
+.phc-approval-limit-form .sz_input_suffix span {
+  z-index: 1;
+  grid-column: 2;
+  grid-row: 1;
+  padding-right: .8rem;
+  color: var(--sz-color-text-muted);
+  pointer-events: none;
+}
+
+@media (max-width: 760px) {
+  .phc-approval-limits-page .sz_page_container {
+    padding-inline: .75rem;
+  }
+
+  .phc-approval-limits-contextbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .phc-approval-limits-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+
+  .phc-approval-limits-search {
+    min-width: 0;
+  }
+
+  .phc-approval-limits-table-wrap {
+    display: none;
+  }
+
+  .phc-approval-limits-mobile-list {
+    display: grid;
+    min-height: 0;
+    flex: 1 1 auto;
+    align-content: start;
+    gap: .65rem;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: .75rem;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .phc-approval-limit-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: .75rem;
+    padding: .85rem;
+    border: 1px solid var(--sz-color-border);
+    border-radius: 6px;
+    background: var(--sz-color-surface);
+  }
+
+  .phc-approval-limit-card-main {
+    display: grid;
+    min-width: 0;
+    gap: .2rem;
+  }
+
+  .phc-approval-limit-card-main strong,
+  .phc-approval-limit-card-main span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .phc-approval-limit-card-main span,
+  .phc-approval-limit-card-meta {
+    color: var(--sz-color-text-muted);
+    font-size: var(--sz-font-size-xs);
+  }
+
+  .phc-approval-limit-card-value {
+    align-self: start;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .phc-approval-limit-card-footer {
+    display: flex;
+    grid-column: 1 / -1;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    padding-top: .6rem;
+    border-top: 1px solid var(--sz-color-border);
+  }
+
+  .phc-approval-limit-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .phc-approval-limit-form > .sz_field:last-of-type,
+  .phc-approval-limit-form > .sz_alert {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 520px) {
+  .phc-approval-limits-toolbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  #approvalLimitsRefresh {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .phc-approval-limit-modal-panel .sz_modal_footer .sz_button,
+  .phc-approval-limit-delete-panel .sz_modal_footer .sz_button {
+    min-width: auto;
+    min-height: 2.5rem;
+    padding: .5rem .75rem;
+    flex-direction: row;
+    gap: .4rem;
+  }
+
+  .phc-approval-limit-modal-panel .sz_modal_footer .sz_button span,
+  .phc-approval-limit-delete-panel .sz_modal_footer .sz_button span {
+    display: inline;
+    font-size: var(--sz-font-size-sm);
+    line-height: normal;
+  }
+}
