@@ -182,6 +182,7 @@ document.addEventListener('DOMContentLoaded', () => {
     expandedBcLines: new Set(),
     projectSuggestionDismissed: false,
     deliveryNoteGroups: [],
+    selectedDeliveryNoteGroups: new Set(),
     virtualDeliveryNotesActive: false,
     originLineMatches: [],
     originLineReferenceLabel: '',
@@ -215,6 +216,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const typeLabels = {
     invoice: 'Fatura',
     credit_note: 'Nota de crédito',
+    contract: 'Contrato',
+    subcontract: 'Contrato Sout-Traitant',
     debit_note: 'Nota de débito',
     purchase_order: 'Nota de encomenda',
     delivery_note: 'Guia de remessa',
@@ -243,7 +246,11 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function setStatus(message, isError = false) {
-    els.status.textContent = message || '';
+    const visibleMessage = /^(Leitura guardada carregada do inbox\.|Leitura concluída\.|Filtro de obra .* aplicado às origens\.)$/i.test(String(message || '').trim())
+      ? ''
+      : String(message || '');
+    els.status.textContent = visibleMessage;
+    els.status.hidden = !visibleMessage;
     els.status.style.color = isError ? 'var(--sz-color-danger)' : '';
   }
 
@@ -408,6 +415,29 @@ document.addEventListener('DOMContentLoaded', () => {
     return state.selectedOrigins.map((selected) => (
       state.originCandidates.find((candidate) => candidate.stamp === selected.stamp) || selected
     )).filter((origin) => origin?.document_type === 'purchase_order' || Number(origin?.ndos || 0) === 102);
+  }
+
+  function originFamily(origin) {
+    const type = String(origin?.document_type || '').trim().toLowerCase();
+    const key = String(origin?.key || origin?.stage_key || '').trim().toLowerCase();
+    const ndos = Number(origin?.ndos || 0);
+    if (type === 'purchase_order' || key === 'purchase_order' || ndos === 102) return 'bc';
+    if (type === 'delivery_note' || key === 'delivery_note' || ndos === 130) return 'delivery_note';
+    if (type === 'work_situation' || key === 'subcontract_measurement' || ndos === 129) return 'work_situation';
+    if (type === 'subcontract' || key === 'subcontract_contract' || ndos === 128) return 'subcontract';
+    if (type === 'contract' || key === 'contract' || ndos === 119) return 'contract';
+    return '';
+  }
+
+  function selectedPrimaryOriginFamily() {
+    return state.selectedOrigins.map(originFamily).find((family) => ['bc', 'contract', 'subcontract'].includes(family)) || '';
+  }
+
+  function originDisplayStage(stageKey) {
+    if (['purchase_order', 'contract', 'subcontract_contract'].includes(stageKey)) return 'bc_contracts';
+    if (stageKey === 'delivery_note' || stageKey === 'virtual_delivery_note') return 'delivery_note';
+    if (stageKey === 'subcontract_measurement') return 'work_situation';
+    return stageKey;
   }
 
   function formatDate(value) {
@@ -700,45 +730,21 @@ document.addEventListener('DOMContentLoaded', () => {
     if (state.correspondenceReference) {
       els.correspondenceReference.textContent = `Correspondência n.º ${state.correspondenceReference} · ${state.correspondenceYear}`;
     } else {
-      els.correspondenceReference.textContent = 'Correspondência por atribuir';
+      els.correspondenceReference.textContent = 'Correspondência por criar';
     }
   }
 
   async function loadCorrespondenceReference() {
-    const documentData = state.documentData;
-    const customer = documentData?.customer || {};
-    const token = ++state.correspondenceLookupToken;
-    state.correspondenceReference = null;
-    state.correspondenceYear = new Date().getFullYear();
-    renderDocumentCard();
+    const integration = state.integrationResult || {};
+    state.correspondenceReference = Number(integration.reference || 0) || null;
+    state.correspondenceYear = Number(integration.year || new Date().getFullYear());
+    if (state.documentData) {
+      state.documentData.correspondence_reference = state.correspondenceReference;
+      state.documentData.correspondence_year = state.correspondenceYear;
+    }
     els.correspondenceSource.hidden = true;
+    renderDocumentCard();
     renderGedDestination();
-    if (!customer.feid) {
-      els.correspondenceReference.textContent = 'Correspondência por atribuir';
-      return;
-    }
-    try {
-      const payload = await fetchJson('/api/document_ai/correspondence/next-reference', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customer, year: state.correspondenceYear }),
-      });
-      if (token !== state.correspondenceLookupToken || documentData !== state.documentData) return;
-      state.correspondenceReference = Number(payload.reference || 0) || null;
-      state.correspondenceYear = Number(payload.year || state.correspondenceYear);
-      documentData.correspondence_reference = state.correspondenceReference;
-      documentData.correspondence_year = state.correspondenceYear;
-      renderDocumentCard();
-      els.correspondenceSource.textContent = `${payload.phc_database || 'PHC'} · sequência anual da entidade`;
-      els.correspondenceSource.hidden = false;
-      renderGedDestination();
-    } catch (error) {
-      if (token !== state.correspondenceLookupToken) return;
-      els.correspondenceReference.textContent = 'Correspondência por atribuir';
-      els.correspondenceSource.textContent = error.message || 'Não foi possível consultar a tabela CR.';
-      els.correspondenceSource.hidden = false;
-      renderGedDestination();
-    }
     updateSubmitPhcButton();
   }
 
@@ -831,7 +837,7 @@ document.addEventListener('DOMContentLoaded', () => {
     els.fileMeta.textContent = 'Seleciona um PDF até 50 MB.';
     els.fileMeta.removeAttribute('title');
     els.resultMeta.textContent = 'Os resultados aparecem aqui depois da leitura.';
-    els.correspondenceReference.textContent = 'Correspondência por atribuir';
+    els.correspondenceReference.textContent = 'Correspondência por criar';
     els.documentSummary.textContent = 'Os dados do documento aparecem aqui depois da leitura.';
     els.gedFileName.textContent = '--';
     els.gedPath.textContent = '--';
@@ -1161,11 +1167,30 @@ document.addEventListener('DOMContentLoaded', () => {
       unit: group.units.size === 1 ? Array.from(group.units)[0] : '',
       net_total: group.net_total,
     }));
+    const availableDeliveryNotes = new Set(state.deliveryNoteGroups.map((group) => group.number));
+    state.selectedDeliveryNoteGroups = new Set(
+      [...state.selectedDeliveryNoteGroups].filter((number) => availableDeliveryNotes.has(number)),
+    );
+    if (!state.selectedDeliveryNoteGroups.size) {
+      state.deliveryNoteGroups.forEach((group) => state.selectedDeliveryNoteGroups.add(group.number));
+    }
     state.virtualDeliveryNotesActive = state.deliveryNoteGroups.length > 0;
     Array.from(state.selectedSplitLines).forEach((line) => {
       if (!items.includes(line)) state.selectedSplitLines.delete(line);
     });
-    const proportionalGroups = state.deliveryNoteGroups.filter((group) => Number(group.base_quantity || 0) > 0);
+    const proportionalGroups = state.deliveryNoteGroups.filter((group) => (
+      Number(group.base_quantity || 0) > 0 && state.selectedDeliveryNoteGroups.has(group.number)
+    ));
+    const primaryFamily = selectedPrimaryOriginFamily() || 'bc';
+    const hasDeliveryNoteColumn = primaryFamily === 'bc' && state.virtualDeliveryNotesActive;
+    const hasWorkSituationColumn = primaryFamily === 'subcontract';
+    const primaryHead = document.getElementById('docAiExtractPrimaryOriginHead');
+    const secondaryHead = document.getElementById('docAiExtractSecondaryOriginHead');
+    if (primaryHead) primaryHead.textContent = primaryFamily === 'contract' ? 'Contrato' : (primaryFamily === 'subcontract' ? 'Contrato ST' : 'BC');
+    if (secondaryHead) {
+      secondaryHead.textContent = hasWorkSituationColumn ? 'Situação de Trabalho' : 'BL';
+      secondaryHead.hidden = !hasDeliveryNoteColumn && !hasWorkSituationColumn;
+    }
     const canDistributeDeliveryNotes = state.virtualDeliveryNotesActive && proportionalGroups.length > 0;
     els.splitLineBtn.hidden = !canDistributeDeliveryNotes;
     els.splitLineBtn.disabled = !canDistributeDeliveryNotes || state.selectedSplitLines.size === 0;
@@ -1203,16 +1228,26 @@ document.addEventListener('DOMContentLoaded', () => {
       const distributionButton = hasDistribution
         ? `<button type="button" class="docai-extract-bc-distribution-toggle" data-line-bc-toggle="${lineIndex}" aria-expanded="${state.expandedBcLines.has(lineIndex) ? 'true' : 'false'}" aria-label="${state.expandedBcLines.has(lineIndex) ? 'Ocultar distribuição por BC' : 'Mostrar distribuição por BC'}">${state.expandedBcLines.has(lineIndex) ? '−' : '+'}</button>`
         : '';
-      const bcRows = hasDistribution && state.expandedBcLines.has(lineIndex)
+      const bcRows = primaryFamily === 'bc' && hasDistribution && state.expandedBcLines.has(lineIndex)
         ? bcAllocations.map((allocation) => `<tr class="docai-extract-bc-allocation-row">
             <td></td><td></td><td></td>
             <td class="docai-extract-number">${escapeHtml(formatNumber(allocation.quantity))}</td>
             <td class="docai-extract-number">${escapeHtml(formatMoney(allocation.unit_price, currency))}</td>
             <td class="docai-extract-number">${escapeHtml(formatMoney(allocation.total, currency))}</td>
-            <td></td><td></td><td></td><td></td>
-            <td><span class="docai-extract-bc-ref">${escapeHtml(formatBcLabel(allocation))}${allocation.origin_line_order ? ` · Linha ${escapeHtml(formatNumber(allocation.origin_line_order))}` : ''}</span></td><td></td>
+            <td></td><td></td><td></td><td hidden></td>
+            <td><span class="docai-extract-bc-ref">${escapeHtml(formatBcLabel(allocation))}${allocation.origin_line_order ? ` · Linha ${escapeHtml(formatNumber(allocation.origin_line_order))}` : ''}</span></td>${hasDeliveryNoteColumn ? '<td></td>' : ''}
           </tr>`).join('')
         : '';
+      const primaryOrigin = state.selectedOrigins.find((origin) => originFamily(origin) === primaryFamily);
+      const primaryReference = primaryFamily === 'bc'
+        ? `<button type="button" class="docai-extract-cell-link" data-line-bc="${lineIndex}" title="Associar BC à linha">${escapeHtml(bcSummary)}</button>${distributionButton}`
+        : `<span class="docai-extract-bc-ref">${escapeHtml(primaryOrigin ? `${primaryFamily === 'subcontract' ? 'Contrato ST' : 'Contrato'} N.º ${primaryOrigin.number || '--'}${primaryOrigin.year ? ` / ${primaryOrigin.year}` : ''}` : '--')}</span>`;
+      const workSituation = state.selectedOrigins.find((origin) => originFamily(origin) === 'work_situation');
+      const secondaryCell = hasDeliveryNoteColumn
+        ? `<td class="docai-extract-line-picker-cell"><input type="checkbox" class="docai-extract-bl-selector" data-line-select="${lineIndex}" role="checkbox" aria-label="Selecionar para distribuir por BL" aria-checked="${selectedForSplit ? 'true' : 'false'}" ${selectedForSplit ? 'checked' : ''} ${line._virtual_split_allocation ? 'disabled' : ''}></td>`
+        : hasWorkSituationColumn
+          ? `<td><span class="docai-extract-bc-ref">${escapeHtml(workSituation ? `N.º ${workSituation.number || '--'}${workSituation.year ? ` / ${workSituation.year}` : ''}` : '--')}</span></td>`
+          : '';
       return `<tr class="${line._virtual_split_allocation ? 'is-split-allocation' : ''}">
         <td><input class="sz_input docai-extract-line-group-input" data-line-group="${lineIndex}" value="${escapeHtml(groupCode)}" title="P = Principal · A = Associado" aria-label="Grupo de artigo"></td>
         <td><button type="button" class="docai-extract-cell-link" data-line-article="${lineIndex}" title="Escolher artigo PHC">${escapeHtml(line.ref || 'Escolher')}</button></td>
@@ -1223,9 +1258,9 @@ document.addEventListener('DOMContentLoaded', () => {
         <td><button type="button" class="docai-extract-cell-link" data-line-project="${lineIndex}" title="Escolher uma obra">${escapeHtml(project || 'Escolher')}</button></td>
         <td class="docai-extract-vehicle-cell">${vehicleCell}</td>
         <td><input type="date" class="sz_input docai-extract-line-date-input" data-line-date="${lineIndex}" value="${escapeHtml(lineDate)}" aria-label="Data da linha"></td>
-        <td class="docai-extract-line-distribution">${distributionButton}</td>
-        <td class="docai-extract-bc-ref-cell"><button type="button" class="docai-extract-cell-link" data-line-bc="${lineIndex}" title="Associar BC à linha">${escapeHtml(bcSummary)}</button></td>
-        <td class="docai-extract-line-picker-cell"><input type="checkbox" class="docai-extract-bl-selector" data-line-select="${lineIndex}" role="checkbox" aria-label="Selecionar para distribuir por BL" aria-checked="${selectedForSplit ? 'true' : 'false'}" ${selectedForSplit ? 'checked' : ''} ${line._virtual_split_allocation ? 'disabled' : ''}></td>
+        <td class="docai-extract-line-distribution" hidden></td>
+        <td class="docai-extract-bc-ref-cell">${primaryReference}</td>
+        ${secondaryCell}
       </tr>${bcRows}`;
     }).join('');
   }
@@ -1236,7 +1271,7 @@ document.addEventListener('DOMContentLoaded', () => {
       els.taxesBody.innerHTML = '<tr><td colspan="4" class="sz_text_muted">Sem discriminação de IVA visível.</td></tr>';
       return;
     }
-    els.taxesBody.innerHTML = items.map((tax) => `
+    const rows = items.map((tax) => `
       <tr>
         <td>${escapeHtml(`${formatNumber(tax.tax_rate, 2)}%`)}</td>
         <td class="docai-extract-number">${escapeHtml(formatMoney(tax.taxable_base, currency))}</td>
@@ -1244,6 +1279,18 @@ document.addEventListener('DOMContentLoaded', () => {
         <td class="docai-extract-number">${escapeHtml(formatMoney(tax.gross_total, currency))}</td>
       </tr>
     `).join('');
+    const totals = items.reduce((result, tax) => ({
+      taxable_base: result.taxable_base + Number(tax.taxable_base || 0),
+      tax_amount: result.tax_amount + Number(tax.tax_amount || 0),
+      gross_total: result.gross_total + Number(tax.gross_total || 0),
+    }), { taxable_base: 0, tax_amount: 0, gross_total: 0 });
+    const totalRow = items.length > 1 ? `<tr class="docai-tax-total-row">
+      <th>Total</th>
+      <th class="docai-extract-number">${escapeHtml(formatMoney(totals.taxable_base, currency))}</th>
+      <th class="docai-extract-number">${escapeHtml(formatMoney(totals.tax_amount, currency))}</th>
+      <th class="docai-extract-number">${escapeHtml(formatMoney(totals.gross_total, currency))}</th>
+    </tr>` : '';
+    els.taxesBody.innerHTML = `${rows}${totalRow}`;
   }
 
   function openTotalsModal() {
@@ -1470,7 +1517,9 @@ document.addEventListener('DOMContentLoaded', () => {
       : '';
     if (!options.skipLineMapping) applyOriginLineReferences(payload);
 
-    const virtualStageHtml = renderVirtualDeliveryNoteStage();
+    const primaryFamily = selectedPrimaryOriginFamily();
+    const hasExplicitDeliveryNotes = state.virtualDeliveryNotesActive && state.deliveryNoteGroups.length > 0;
+    const virtualStageHtml = primaryFamily === 'bc' && hasExplicitDeliveryNotes ? renderVirtualDeliveryNoteStage() : '';
 
     if (!payload.available) {
       els.originMeta.hidden = false;
@@ -1485,7 +1534,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const stages = (Array.isArray(payload.stages) ? payload.stages : [])
-      .filter((stage) => Array.isArray(stage.candidates) && stage.candidates.length);
+      .filter((stage) => Array.isArray(stage.candidates) && stage.candidates.length)
+      .filter((stage) => {
+        const displayStage = originDisplayStage(String(stage.key || ''));
+        if (displayStage === 'bc_contracts') return true;
+        if (displayStage === 'delivery_note') return primaryFamily === 'bc' && hasExplicitDeliveryNotes;
+        if (displayStage === 'work_situation') return primaryFamily === 'subcontract';
+        return false;
+      });
     els.originMeta.textContent = '';
     els.originMeta.hidden = true;
 
@@ -1497,6 +1553,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const cards = candidates.map((candidate) => {
         const candidateIndex = state.originCandidates.push(candidate) - 1;
         const associated = state.selectedOrigins.some((origin) => origin.stamp === candidate.stamp);
+        const candidateFamily = originFamily(candidate);
+        const contractLocked = ['contract', 'subcontract'].includes(candidateFamily)
+          && state.selectedOrigins.some((origin) => ['contract', 'subcontract'].includes(originFamily(origin)) && origin.stamp !== candidate.stamp);
         const consulted = state.consultedOriginStamp === candidate.stamp;
         const score = Number(candidate.score || 0);
         const scoreLabel = score > 0 ? ` · ${Math.round(score * 100)}%` : '';
@@ -1504,7 +1563,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <article class="docai-extract-origin-candidate${consulted ? ' is-selected' : ''}${associated ? ' is-associated' : ''}" data-origin-index="${candidateIndex}" role="button" tabindex="0" aria-label="Consultar ${escapeHtml(stage.label || 'origem')} ${escapeHtml(candidate.number || '')}">
             <span class="docai-extract-origin-candidate-top">
               <strong>N.º ${escapeHtml(candidate.number || '--')}${candidate.year ? ` / ${escapeHtml(candidate.year)}` : ''}${scoreLabel}</strong>
-              <button type="button" class="docai-origin-link-button${associated ? ' is-associated' : ''}" data-origin-link="${candidateIndex}" aria-label="${associated ? 'Desassociar do processo' : 'Associar ao processo'}" title="${associated ? 'Desassociar do processo' : 'Associar ao processo'}"><i class="fa-solid ${associated ? 'fa-link-slash' : 'fa-link'}"></i></button>
+              <button type="button" class="docai-origin-link-button${associated ? ' is-associated' : ''}" data-origin-link="${candidateIndex}" aria-label="${associated ? 'Desassociar do processo' : (contractLocked ? 'Contrato associado.' : 'Associar ao processo')}" title="${associated ? 'Desassociar do processo' : (contractLocked ? 'Contrato associado.' : 'Associar ao processo')}" ${contractLocked && !associated ? 'disabled' : ''}><i class="fa-solid ${associated ? 'fa-link-slash' : 'fa-link'}"></i></button>
             </span>
             <span>${escapeHtml(formatDate(candidate.date))}</span>
             <strong class="docai-origin-card-total">${escapeHtml(formatMoney(candidate.total, state.documentData?.currency))}</strong>
@@ -1513,9 +1572,14 @@ document.addEventListener('DOMContentLoaded', () => {
       const count = candidates.length;
       const singular = stage.key === 'delivery_note' ? 'Guia de remessa' : (stage.key === 'purchase_order' ? 'Nota de encomenda' : (stage.label || 'Origem'));
       const plural = stage.key === 'delivery_note' ? 'Guias de remessa' : (stage.key === 'purchase_order' ? 'Notas de encomenda' : `${singular}s`);
+      const stageTitle = stage.key === 'delivery_note'
+        ? 'BL no PHC'
+        : stage.key === 'subcontract_measurement'
+          ? 'Situações de Trabalho no PHC'
+          : `${count} ${count === 1 ? singular : plural}`;
       const realStageHtml = `
-        <article class="docai-extract-origin-stage" data-origin-stage="${escapeHtml(stage.key)}">
-          <div class="docai-extract-origin-stage-title"><strong>${count} ${escapeHtml(count === 1 ? singular : plural)}</strong></div>
+        <article class="docai-extract-origin-stage" data-origin-stage="${escapeHtml(originDisplayStage(String(stage.key || '')))}">
+          <div class="docai-extract-origin-stage-title"><strong>${escapeHtml(stageTitle)}</strong></div>
           <div class="docai-extract-origin-options">${cards}</div>
         </article>`;
       return `${insertVirtualBefore ? virtualStageHtml : ''}${realStageHtml}`;
@@ -1524,14 +1588,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     els.originFlow.innerHTML = stageHtml || '<div class="docai-extract-origin-unavailable"><i class="fa-solid fa-magnifying-glass"></i><span>Sem documentos anteriores disponíveis para ligar.</span></div>';
     const tabStages = stages.map((stage) => ({
-      key: String(stage.key || ''),
+      key: originDisplayStage(String(stage.key || '')),
       label: String(stage.label || stage.key || ''),
     }));
     if (virtualStageHtml) {
       const virtualIndex = Math.max(0, tabStages.findIndex((stage) => ['delivery_note', 'purchase_order'].includes(stage.key)));
-      tabStages.splice(virtualIndex, 0, { key: 'virtual_delivery_note', label: 'BL a criar', count: state.deliveryNoteGroups.length });
+      tabStages.splice(virtualIndex, 0, { key: 'delivery_note', label: 'BL', count: state.deliveryNoteGroups.length });
     }
-    renderOriginTabs(tabStages);
+    renderOriginTabs(tabStages.filter((stage, index, items) => items.findIndex((item) => item.key === stage.key) === index));
   }
 
   function renderOriginTabs(stages = []) {
@@ -1546,12 +1610,14 @@ document.addEventListener('DOMContentLoaded', () => {
     els.originTabs.innerHTML = stages.map((stage) => {
       const active = stage.key === state.activeOriginStage;
       const officialLabels = {
-        purchase_order: 'BC',
+        bc_contracts: 'BC / Contratos',
+        purchase_order: 'BC / Contratos',
         delivery_note: 'BL',
         proforma_invoice: 'Pré-fatura',
         contract: 'Contrato',
         subcontract_contract: 'Contrato ST',
-        subcontract_measurement: 'Situação de trabalhos ST',
+        work_situation: 'Situação de Trabalho',
+        subcontract_measurement: 'Situação de Trabalho',
       };
       const label = officialLabels[stage.key] || stage.label;
       return `<button type="button" class="docai-extract-origin-tab${active ? ' is-active' : ''}" role="tab" data-origin-tab="${escapeHtml(stage.key)}" aria-selected="${active ? 'true' : 'false'}">${escapeHtml(label)}</button>`;
@@ -1595,28 +1661,20 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderVirtualDeliveryNoteStage() {
     if (!state.virtualDeliveryNotesActive || !state.deliveryNoteGroups.length) return '';
     const cards = state.deliveryNoteGroups.map((group) => {
-      const quantityLabel = group.quantity
-        ? `${formatNumber(group.quantity)}${group.unit ? ` ${escapeHtml(group.unit)}` : ''}`
-        : 'Quantidade por confirmar';
-      const description = group.lines.find((line) => String(line.description || '').trim())?.description || '';
+      const checked = state.selectedDeliveryNoteGroups.has(group.number);
       return `
-        <article class="docai-extract-origin-candidate is-selected is-virtual" aria-label="BL virtual ${escapeHtml(group.number)} sugerido para criação">
-          <span class="docai-extract-origin-candidate-top">
-            <strong>BL ${escapeHtml(group.number)}</strong>
-            <span>Sugestão · a criar</span>
-          </span>
-          <span>${escapeHtml(group.line_count)} linha(s) · ${quantityLabel}${group.net_total ? ` · ${escapeHtml(formatMoney(group.net_total, state.documentData?.currency))}` : ''}</span>
-          <small>${escapeHtml(description || 'Linhas agrupadas pelo número de BL identificado na fatura')}</small>
-          <em><i class="fa-solid fa-flag"></i> Virtual — ainda não existe no PHC</em>
-        </article>`;
+        <label class="docai-extract-origin-proposal">
+          <input type="checkbox" data-virtual-bl="${escapeHtml(group.number)}" ${checked ? 'checked' : ''}>
+          <strong>BL ${escapeHtml(group.number)}</strong>
+          <span>${escapeHtml(group.line_count)} linha(s)</span>
+        </label>`;
     }).join('');
     return `
-      <article class="docai-extract-origin-stage is-virtual-stage" data-origin-stage="virtual_delivery_note">
+      <article class="docai-extract-origin-stage is-virtual-stage" data-origin-stage="delivery_note">
         <div class="docai-extract-origin-stage-title">
-          <strong>${state.deliveryNoteGroups.length} guia(s) de fornecedor a criar</strong>
-          <span class="docai-extract-virtual-flag"><i class="fa-solid fa-wand-magic-sparkles"></i> Sugestão</span>
+          <strong>${state.deliveryNoteGroups.length} ${state.deliveryNoteGroups.length === 1 ? 'BL a criar' : 'BLs a criar'}</strong>
         </div>
-        <div class="docai-extract-origin-options">${cards}</div>
+        <div class="docai-extract-origin-proposals">${cards}</div>
       </article>`;
   }
 
@@ -1637,7 +1695,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const lines = state.documentData?.lines;
     const selectedLines = Array.from(state.selectedSplitLines).filter((line) => Array.isArray(lines) && lines.includes(line));
     if (!selectedLines.length || !Array.isArray(lines)) return;
-    const targetGroups = state.deliveryNoteGroups.filter((group) => Number(group.base_quantity || 0) > 0);
+    const targetGroups = state.deliveryNoteGroups.filter((group) => (
+      Number(group.base_quantity || 0) > 0 && state.selectedDeliveryNoteGroups.has(group.number)
+    ));
     const totalWeight = targetGroups.reduce((total, group) => total + Number(group.base_quantity || 0), 0);
     if (!targetGroups.length || totalWeight <= 0) {
       showMessage('É necessário pelo menos um BL com quantidade identificada.', 'error');
@@ -1821,9 +1881,8 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const payload = await fetchJson(`/api/document_ai/documents/${encodeURIComponent(state.currentDocumentId)}/origins/${encodeURIComponent(candidate.stamp)}?view=${encodeURIComponent(state.view)}`);
       const rows = Array.isArray(payload.lines) ? payload.lines : [];
-      const showRegistration = Boolean(payload.show_registration);
-      els.originDetailHead.innerHTML = `<th>Artigo</th><th>Designação</th><th>Quantidade</th><th title="Preço unitário">PU</th><th title="Preço total">PT</th><th>IVA</th><th>Obra</th>${showRegistration ? '<th>Matrícula</th>' : ''}<th>Data</th>`;
-      els.originDetailBody.innerHTML = rows.map((line) => `<tr><td>${escapeHtml(line.article || '—')}</td><td>${escapeHtml(line.description || '—')}</td><td>${escapeHtml(formatNumber(line.quantity))}</td><td>${escapeHtml(formatMoney(line.unit_price, state.documentData?.currency))}</td><td>${escapeHtml(formatMoney(line.line_total, state.documentData?.currency))}</td><td>${escapeHtml(formatNumber(line.tax_rate, 2))}%</td><td>${escapeHtml(line.project || '—')}</td>${showRegistration ? `<td>${escapeHtml(line.registration || '—')}</td>` : ''}<td>${escapeHtml(formatDate(line.date))}</td></tr>`).join('');
+      els.originDetailHead.innerHTML = '<th>Artigo</th><th>Designação</th><th>Quantidade</th><th title="Preço unitário">PU</th><th title="Preço total">PT</th><th>IVA</th><th>Obra</th><th>Matrícula</th><th>Data</th>';
+      els.originDetailBody.innerHTML = rows.map((line) => `<tr><td>${escapeHtml(line.article || '—')}</td><td>${escapeHtml(line.description || '—')}</td><td>${escapeHtml(formatNumber(line.quantity))}</td><td>${escapeHtml(formatMoney(line.unit_price, state.documentData?.currency))}</td><td>${escapeHtml(formatMoney(line.line_total, state.documentData?.currency))}</td><td>${escapeHtml(formatNumber(line.tax_rate, 2))}%</td><td>${escapeHtml(line.project || '—')}</td><td>${escapeHtml(line.registration || '—')}</td><td>${escapeHtml(formatDate(line.date))}</td></tr>`).join('');
       els.originDetailLoading.hidden = true;
       els.originDetailTable.hidden = !rows.length;
       els.originDetailEmpty.hidden = Boolean(rows.length);
@@ -2552,7 +2611,8 @@ document.addEventListener('DOMContentLoaded', () => {
     state.documentData = documentData;
     state.workflow = payload.workflow || {};
     state.controlOk = Boolean(payload.workflow?.control_ok);
-    state.integratedPhc = payload.processing_status === 'provisional_invoice' || Boolean(payload.phc_integration?.fostamp);
+    state.integratedPhc = payload.processing_status === 'provisional_invoice'
+      || Boolean(payload.phc_integration?.fostamp || payload.phc_integration?.crstamp);
     state.integrationResult = state.integratedPhc ? (payload.phc_integration || {}) : null;
     state.gedFolderManuallySelected = Boolean(documentData.customer?.ged_folder_manually_selected);
     state.submittingPhc = false;
@@ -2604,12 +2664,8 @@ document.addEventListener('DOMContentLoaded', () => {
     els.notes.innerHTML = notes.map((note) => `<li>${escapeHtml(note)}</li>`).join('');
 
     const confidence = Math.max(0, Math.min(1, Number(documentData.confidence || 0)));
-    const batch = documentData.document_batch || {};
-    const batchSuffix = batch.contains_multiple_documents
-      ? ` · ${Number(batch.document_count || 0)} documentos em ${Number(batch.page_count || 0)} páginas`
-      : '';
     const language = String(documentData.visible_language || 'idioma não identificado').toUpperCase();
-    els.resultMeta.textContent = `Leitura guardada · ${language}${batchSuffix}`;
+    els.resultMeta.textContent = `Leitura guardada · ${language}`;
     els.empty.hidden = true;
     els.loading.hidden = true;
     els.results.hidden = false;
@@ -2734,8 +2790,8 @@ document.addEventListener('DOMContentLoaded', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ view: state.view }),
       });
-      resetScreen();
       showMessage('Documento eliminado.', 'success');
+      window.location.href = inboxUrl();
     } catch (error) {
       setStatus(error.message || 'Não foi possível eliminar o documento.', true);
       showMessage(error.message || 'Não foi possível eliminar o documento.', 'error');
@@ -3223,6 +3279,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     const option = event.target.closest('[data-origin-index]');
     if (option) openOriginDetail(option.dataset.originIndex);
+  });
+  els.originFlow?.addEventListener('change', (event) => {
+    const input = event.target.closest('[data-virtual-bl]');
+    if (!input) return;
+    if (input.checked) state.selectedDeliveryNoteGroups.add(input.dataset.virtualBl);
+    else state.selectedDeliveryNoteGroups.delete(input.dataset.virtualBl);
+    renderLines(state.documentData?.lines || [], state.documentData?.currency || '');
   });
   els.originFlow?.addEventListener('keydown', (event) => {
     if (!['Enter', ' '].includes(event.key) || event.target.closest('[data-origin-link]')) return;

@@ -86,6 +86,26 @@ class RequiredInfoTests(unittest.TestCase):
         self.assertFalse(result['ok'])
         self.assertIn('grupos de artigos', result['messages'][0])
 
+    @patch('services.document_ai_required_info_service.required_fields_for', return_value=['delivery_note'])
+    def test_bl_rule_is_not_applicable_without_explicit_bl_reference(self, _required):
+        document = _document(invoice_type='concrete')
+
+        result = evaluate_required_info(document, 'management')
+
+        self.assertTrue(result['ok'])
+
+    @patch('services.document_ai_required_info_service.required_fields_for', return_value=['delivery_note'])
+    def test_explicit_bl_references_must_be_distributed_on_all_lines(self, _required):
+        document = _document(lines=[
+            {'article_ref': 'A', 'description': 'A', 'qty': 1, 'unit_price': 50, 'net_amount': 50, 'origin_delivery_note_number': 'BL-1'},
+            {'article_ref': 'B', 'description': 'B', 'qty': 1, 'unit_price': 50, 'net_amount': 50},
+        ])
+
+        result = evaluate_required_info(document, 'management')
+
+        self.assertFalse(result['ok'])
+        self.assertIn('Falta distribuir os BLs.', result['messages'])
+
 
 if __name__ == '__main__':
     unittest.main()

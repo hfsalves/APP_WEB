@@ -48,7 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
     els.groups.innerHTML = ordered.map(([docClass, rules]) => `
       <section class="docai-distribution-group">
         <h4>${escapeHtml(label(config.classifications, docClass))}</h4>
-        <table class="docai-distribution-table">
+        <table class="docai-distribution-table is-required">
           <thead><tr><th>Origem</th><th>Informação Obrigatória</th><th>Ação</th></tr></thead>
           <tbody>${rules.sort((a, b) => `${label(config.views, a.view)}:${label(config.fields, a.field)}`.localeCompare(`${label(config.views, b.view)}:${label(config.fields, b.field)}`, 'pt')).map((rule) => `
             <tr>
@@ -120,6 +120,10 @@ document.addEventListener('DOMContentLoaded', () => {
   els.closeTop.addEventListener('click', closeModal);
   els.cancel.addEventListener('click', closeModal);
   els.save.addEventListener('click', save);
+  els.modal.addEventListener('click', (event) => { if (event.target === els.modal) closeModal(); });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !els.modal.hidden) closeModal();
+  });
   els.view.addEventListener('change', compatibleFields);
   els.docClass.addEventListener('change', compatibleFields);
   els.groups.addEventListener('click', (event) => {

@@ -177,6 +177,7 @@
   grid-template-columns: minmax(0, 1fr);
   height: 100%;
   align-items: stretch;
+  width: 100%;
 }
 
 .docai-filter-grid {
@@ -187,6 +188,8 @@
 
 .docai-inbox-table-panel {
   min-width: 0;
+  width: 100%;
+  margin-inline: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -255,11 +258,21 @@
   width: 100%;
   align-items: stretch;
   justify-content: flex-start;
+  flex-wrap: nowrap;
+}
+
+.docai-counts-scroll {
+  min-width: 0;
+  display: flex;
+  flex: 1 1 auto;
+  gap: var(--sz-space-2);
+  overflow-x: auto;
+  scrollbar-width: thin;
 }
 
 .docai-filtered-total {
   flex: 0 0 7.5rem;
-  min-height: 100%;
+  min-height: 4.4rem;
   margin-left: auto;
 }
 
@@ -270,7 +283,7 @@
 
 .docai-business-count-group {
   min-width: 14rem;
-  flex: 1 1 18rem;
+  flex: 0 0 auto;
   display: grid;
   align-content: start;
   gap: 0.35rem;
@@ -289,7 +302,7 @@
 
 .docai-business-count-options {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 0.35rem;
 }
 
@@ -298,6 +311,8 @@
   align-items: center;
   gap: 0.4rem;
   min-height: 1.9rem;
+  min-width: 6.5rem;
+  justify-content: center;
   padding: 0.25rem 0.5rem;
   border: 1px solid var(--sz-color-border);
   border-radius: 999px;
@@ -310,6 +325,45 @@
 
 .docai-business-count-chip strong {
   color: var(--sz-color-text);
+}
+
+.docai-business-count-chip[data-state="ok"] strong,
+.docai-business-count-chip[data-state="validado"] strong {
+  color: var(--sz-color-success);
+}
+
+.docai-business-count-chip[data-state="ação"] strong,
+.docai-business-count-chip[data-state="pendente"] strong {
+  color: var(--sz-color-warning);
+}
+
+.docai-business-count-chip[data-state="bloqueio"] strong,
+.docai-business-count-chip[data-state="eliminado"] strong {
+  color: var(--sz-color-danger);
+}
+
+.docai-empty-filter-state {
+  min-height: 8rem;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--sz-space-2);
+}
+
+.docai-row-delete {
+  color: var(--sz-color-danger);
+  border-color: color-mix(in srgb, var(--sz-color-danger) 65%, var(--sz-color-border));
+}
+
+.docai-row-delete:hover,
+.docai-row-delete:focus-visible {
+  color: var(--sz-color-danger);
+  background: color-mix(in srgb, var(--sz-color-danger) 12%, var(--sz-color-surface));
+  border-color: var(--sz-color-danger);
+}
+
+.docai-row-recover {
+  color: var(--sz-color-primary);
 }
 
 .docai-business-count-chip:hover,
@@ -338,6 +392,11 @@
   width: 100%;
   min-width: 78rem;
   table-layout: fixed;
+}
+
+.docai-inbox-table-panel .sz_table {
+  border-collapse: separate;
+  border-spacing: 0;
 }
 
 .docai-inbox-table-panel .sz_table th,
@@ -654,11 +713,18 @@
 .docai-row-actions {
   display: inline-flex;
   gap: 0.35rem;
+  align-items: center;
+  justify-content: center;
 }
 
 .docai-row-actions .sz_button {
+  width: 2.25rem;
+  height: 2.25rem;
   min-width: 0;
-  padding-inline: 0.55rem;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .docai-row-actions .docai-row-delete {
@@ -766,6 +832,22 @@
   border-collapse: collapse;
 }
 
+.docai-distribution-table.is-required th:nth-child(1),
+.docai-distribution-table.is-required td:nth-child(1) { width: 30%; }
+.docai-distribution-table.is-required th:nth-child(2),
+.docai-distribution-table.is-required td:nth-child(2) { width: 55%; }
+.docai-distribution-table.is-required th:nth-child(3),
+.docai-distribution-table.is-required td:nth-child(3) { width: 15%; }
+
+.docai-distribution-table.is-distribution th:nth-child(1),
+.docai-distribution-table.is-distribution td:nth-child(1) { width: 27%; }
+.docai-distribution-table.is-distribution th:nth-child(2),
+.docai-distribution-table.is-distribution td:nth-child(2) { width: 32%; }
+.docai-distribution-table.is-distribution th:nth-child(3),
+.docai-distribution-table.is-distribution td:nth-child(3) { width: 26%; }
+.docai-distribution-table.is-distribution th:nth-child(4),
+.docai-distribution-table.is-distribution td:nth-child(4) { width: 15%; }
+
 .docai-distribution-table th,
 .docai-distribution-table td {
   padding: 0.65rem 0.75rem;
@@ -803,6 +885,23 @@
 
 .sz_modal > .docai-distribution-panel {
   width: min(44rem, calc(100vw - 2rem));
+}
+
+.docai-access-entity-modal,
+.docai-distribution-modal {
+  z-index: 1200;
+  background: rgba(8, 15, 26, 0.78);
+  backdrop-filter: blur(2px);
+}
+
+.docai-access-entity-panel,
+.docai-distribution-panel {
+  overflow: hidden;
+  border: 1px solid var(--sz-color-border);
+  border-radius: var(--sz-radius-lg);
+  background: var(--sz-color-surface);
+  color: var(--sz-color-text);
+  box-shadow: var(--sz-shadow-3);
 }
 
 .docai-distribution-form {
@@ -1628,6 +1727,36 @@
 
 .docai-origin-detail-modal {
   width: min(84rem, calc(100vw - 2rem));
+  max-height: calc(100vh - 2rem);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+  border: 1px solid var(--sz-color-border);
+  border-radius: var(--sz-radius-lg);
+  background: var(--sz-color-surface);
+  color: var(--sz-color-text);
+  box-shadow: var(--sz-shadow-3);
+}
+
+.docai-origin-detail-modal .sz_modal_header,
+.docai-origin-detail-modal .sz_modal_body,
+.docai-origin-detail-modal .sz_modal_footer {
+  padding: var(--sz-space-4);
+}
+
+.docai-origin-detail-modal .sz_modal_body {
+  min-height: 0;
+  overflow: auto;
+}
+
+.docai-origin-detail-modal .sz_table_wrap {
+  overflow-x: auto;
+}
+
+.docai-tax-total-row th {
+  border-top: 2px solid var(--sz-color-border);
+  background: var(--sz-color-surface-alt);
+  font-weight: var(--sz-font-weight-bold);
 }
 
 .docai-extract-origin-candidate.is-virtual {
@@ -1654,6 +1783,37 @@
 .docai-extract-origin-stage.is-virtual-stage {
   border-style: dashed;
   border-color: color-mix(in srgb, var(--sz-color-success) 48%, var(--sz-color-border));
+}
+
+.docai-extract-origin-proposals {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.docai-extract-origin-proposal {
+  display: grid;
+  grid-template-columns: 1.25rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.65rem;
+  min-height: 2.65rem;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid var(--sz-color-border);
+  border-radius: var(--sz-radius-sm);
+  background: var(--sz-color-surface-alt);
+  cursor: pointer;
+}
+
+.docai-extract-origin-proposal input {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  border-radius: 50%;
+  accent-color: var(--sz-color-primary);
+}
+
+.docai-extract-origin-proposal span {
+  color: var(--sz-color-text-muted);
+  font-size: var(--sz-font-size-sm);
 }
 
 .docai-extract-virtual-flag {
@@ -2006,6 +2166,7 @@
 
 #docAiExtractLinesSection table {
   width: 100%;
+  min-width: 72rem;
   table-layout: fixed;
 }
 
@@ -2028,7 +2189,8 @@
 #docAiExtractLinesSection .sz_table_wrap {
   width: 100%;
   max-width: 100%;
-  overflow: visible;
+  overflow-x: auto;
+  overflow-y: visible;
 }
 
 .docai-extract-line-description-input,

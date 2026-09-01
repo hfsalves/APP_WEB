@@ -50,6 +50,11 @@ document.addEventListener('DOMContentLoaded', () => {
     fieldItems: [],
   };
 
+  function docTypeLabel(value) {
+    const normalized = String(value || 'unknown');
+    return (state.templatesDocTypes || []).find((item) => item.value === normalized)?.label || normalized;
+  }
+
   function showMessage(message, type = 'info') {
     if (typeof window.showToast === 'function') {
       window.showToast(message, type);
@@ -113,7 +118,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <span class="docai-state-badge ${item.active ? 'status-parsed_ok' : 'status-parse_error'}">${item.active ? 'Ativo' : 'Inativo'}</span>
         </div>
         <div class="sz_text_muted">${escapeHtml(item.supplier_name || (item.supplier_no ? `Fornecedor #${item.supplier_no}` : 'Template genérico'))}${item.feid ? ` · FE ${escapeHtml(item.feid)}` : ''}</div>
-        <div class="sz_text_muted">${escapeHtml(item.doc_type || 'unknown')} · ${escapeHtml(item.parser?.name || '')}</div>
+        <div class="sz_text_muted">${escapeHtml(item.doc_type_label || docTypeLabel(item.doc_type))} · ${escapeHtml(item.parser?.name || '')}</div>
       </button>
     `).join('');
   }

@@ -37,6 +37,7 @@ from services.document_ai_service import (
     preflight_document_inbox_stage,
     reprocess_document,
     reconcile_extracted_document,
+    recover_document_to_inbox,
     reset_llm_extraction,
     require_document_control_ok,
     resolve_fe_entity,
@@ -209,7 +210,7 @@ def document_ai_extract_page():
         document_ai_current_view=requested_view,
         can_validate_document=bool(profile['permissions'].get('validate')),
         can_analyze_document=bool(profile['permissions'].get('analyze')),
-        can_delete_document=bool(profile['permissions'].get('delete') and requested_view in {'home', 'management'}),
+        can_delete_document=bool(profile['permissions'].get('delete')),
         can_use_document_ai=bool(profile['permissions'].get('ai')),
         can_associate_document=bool(profile['permissions'].get('associate')),
         can_submit_correspondence=_document_ai_has_integration_access('correspondence'),
@@ -1035,7 +1036,7 @@ def api_document_ai_document_delete(docinstamp: str):
         return jsonify({'error': 'Sem permissão para eliminar documentos.'}), 403
     body = request.get_json(silent=True) or {}
     requested_view = str(body.get('view') or '').strip().lower()
-    if requested_view not in {'home', 'management'} or not _current_inbox_view_is_allowed(requested_view):
+    if requested_view not in {'home', 'management', 'accounting'} or not _current_inbox_view_is_allowed(requested_view):
         return jsonify({'error': 'Sem permissão para eliminar documentos nesta vista.'}), 403
     if not _current_document_ai_permission(requested_view, 'delete'):
         return jsonify({'error': 'Sem permissão para eliminar documentos nesta vista.'}), 403
@@ -1044,9 +1045,37 @@ def api_document_ai_document_delete(docinstamp: str):
     if not document_belongs_to_inbox_view(docinstamp, requested_view):
         return jsonify({'error': 'O documento não pertence a esta vista do Inbox.'}), 403
     try:
-        return jsonify(delete_document_from_inbox(docinstamp, _current_login()))
+        return jsonify(delete_document_from_inbox(docinstamp, requested_view, _current_login()))
     except Exception as exc:
         current_app.logger.exception('Erro ao eliminar documento do inbox')
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        return jsonify({'error': str(exc)}), 500
+
+
+@bp.route('/api/document_ai/documents/<docinstamp>/recover', methods=['POST'])
+@login_required
+def api_document_ai_document_recover(docinstamp: str):
+    if not _document_ai_has_access('eliminar'):
+        return jsonify({'error': 'Sem permissão para recuperar documentos.'}), 403
+    body = request.get_json(silent=True) or {}
+    requested_view = str(body.get('view') or '').strip().lower()
+    if requested_view not in {'home', 'management', 'accounting'} or not _current_inbox_view_is_allowed(requested_view):
+        return jsonify({'error': 'Sem permissão para recuperar documentos nesta vista.'}), 403
+    if not _current_document_ai_permission(requested_view, 'delete'):
+        return jsonify({'error': 'Sem permissão para recuperar documentos nesta vista.'}), 403
+    if not _current_document_access(docinstamp, requested_view, 'delete'):
+        return jsonify({'error': 'Sem acesso a este documento.'}), 403
+    if not document_belongs_to_inbox_view(docinstamp, requested_view, archived=True):
+        return jsonify({'error': 'O documento não pertence a este Arquivo.'}), 403
+    try:
+        return jsonify(recover_document_to_inbox(docinstamp, requested_view, _current_login()))
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception as exc:
+        current_app.logger.exception('Erro ao recuperar documento do arquivo')
         try:
             db.session.rollback()
         except Exception:
@@ -1186,9 +1215,19 @@ def api_document_ai_document_workflow_validate(docinstamp: str):
             view,
             _current_login(),
             body.get('document') or None,
+            integration_permissions={
+                'correspondence': _document_ai_has_integration_access('correspondence'),
+                'provisional_invoice': _document_ai_has_integration_access('provisional_invoice'),
+            },
         ))
+    except FileNotFoundError as exc:
+        return jsonify({'error': str(exc)}), 409
+    except PermissionError as exc:
+        return jsonify({'error': str(exc)}), 403
     except ValueError as exc:
         return jsonify({'error': str(exc)}), 400
+    except RuntimeError as exc:
+        return jsonify({'error': str(exc)}), 503
     except Exception as exc:
         current_app.logger.exception('Erro ao validar etapa documental')
         try:

@@ -58,7 +58,7 @@ document.addEventListener('DOMContentLoaded', () => {
     els.groups.innerHTML = ordered.map(([docClass, rules]) => `
       <section class="docai-distribution-group">
         <h4>${escapeHtml(label(config.classifications, docClass))}</h4>
-        <table class="docai-distribution-table">
+        <table class="docai-distribution-table is-distribution">
           <thead><tr><th>Origem</th><th>Destino</th><th>Estado</th><th>Ação</th></tr></thead>
           <tbody>${rules.sort((a, b) => `${a.source}:${a.destination}`.localeCompare(`${b.source}:${b.destination}`)).map((rule) => `
             <tr>
@@ -169,6 +169,10 @@ document.addEventListener('DOMContentLoaded', () => {
   els.closeTop.addEventListener('click', closeRuleModal);
   els.cancel.addEventListener('click', closeRuleModal);
   els.save.addEventListener('click', saveRule);
+  els.modal.addEventListener('click', (event) => { if (event.target === els.modal) closeRuleModal(); });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !els.modal.hidden) closeRuleModal();
+  });
   els.destination.addEventListener('change', constrainState);
   els.docClass.addEventListener('change', constrainState);
   els.groups.addEventListener('click', (event) => {

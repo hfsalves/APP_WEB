@@ -14,6 +14,12 @@ class DocumentAiReceptionFrontendTests(unittest.TestCase):
         self.assertIn('/workflow/preflight', workflow)
         self.assertIn('/workflow/validate', workflow)
 
+    def test_correspondence_number_is_only_loaded_from_confirmed_integration(self):
+        source = (Path(__file__).resolve().parents[1] / 'static/js/document_ai_extract.js').read_text(encoding='utf-8')
+        self.assertNotIn('/api/document_ai/correspondence/next-reference', source)
+        self.assertIn('const integration = state.integrationResult || {};', source)
+        self.assertIn('Correspondência por criar', source)
+
 
 if __name__ == '__main__':
     unittest.main()

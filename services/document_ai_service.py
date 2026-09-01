@@ -47,6 +47,8 @@ DOC_AI_DOC_TYPES = [
     {'value': 'invoice', 'label': 'Fatura'},
     {'value': 'provisional_invoice', 'label': 'Fatura provisória'},
     {'value': 'credit_note', 'label': 'Nota de crédito'},
+    {'value': 'contract', 'label': 'Contrato'},
+    {'value': 'subcontract', 'label': 'Contrato Sout-Traitant'},
     {'value': 'purchase_order', 'label': 'Nota de encomenda'},
     {'value': 'delivery_note', 'label': 'Guia de remessa'},
     {'value': 'bank_statement', 'label': 'Extrato bancário'},
@@ -54,6 +56,34 @@ DOC_AI_DOC_TYPES = [
     {'value': 'advertising', 'label': 'Publicidade'},
     {'value': 'unknown', 'label': 'Desconhecido'},
 ]
+
+DOC_AI_DOC_TYPE_ALIASES = {
+    'contrat': 'contract',
+    'contract': 'contract',
+    'contrato': 'contract',
+    'contrat_sous_traitant': 'subcontract',
+    'contrat_sout_traitant': 'subcontract',
+    'contract_subcontractor': 'subcontract',
+    'sub_contract': 'subcontract',
+    'subcontract': 'subcontract',
+    'subcontract_contract': 'subcontract',
+    'bon_de_livraison': 'delivery_note',
+    'delivery': 'delivery_note',
+    'delivery_note': 'delivery_note',
+    'guia': 'delivery_note',
+    'bon_de_commande': 'purchase_order',
+    'purchase_order': 'purchase_order',
+    'nota_de_encomenda': 'purchase_order',
+    'avoir': 'credit_note',
+    'credit_note': 'credit_note',
+    'nota_de_credito': 'credit_note',
+}
+
+
+def normalize_document_type(value: Any) -> str:
+    """Return the public canonical type without leaking source-system aliases."""
+    normalized = _normalize_text(value or 'unknown').replace(' ', '_').replace('-', '_')
+    return DOC_AI_DOC_TYPE_ALIASES.get(normalized, normalized or 'unknown')
 
 DOC_AI_PURCHASE_INVOICE_CORRESPONDENCE_TYPE = 'FAC'
 DOC_AI_PURCHASE_CREDIT_NOTE_CORRESPONDENCE_TYPE = 'NC'
@@ -1597,6 +1627,7 @@ def _phc_contract_flow_stages(cursor) -> list[dict[str, Any]]:
         SELECT CAST(ISNULL(NDOS, 0) AS int), LTRIM(RTRIM(ISNULL(NMDOS, '')))
         FROM dbo.TS WITH (NOLOCK)
         WHERE LOWER(LTRIM(RTRIM(ISNULL(NMDOS, '')))) LIKE '%contrat%'
+           OR LOWER(LTRIM(RTRIM(ISNULL(NMDOS, '')))) LIKE '%situation%trav%st%'
         ORDER BY ISNULL(NDOS, 0)
     """).fetchall()
     stages = []
@@ -1607,14 +1638,57 @@ def _phc_contract_flow_stages(cursor) -> list[dict[str, Any]]:
         if not ndos or ndos in seen or not label:
             continue
         seen.add(ndos)
+        normalized_label = _normalize_text(label)
+        is_work_situation = 'situation' in normalized_label and 'trav' in normalized_label and 'st' in normalized_label.split()
+        is_subcontract = 'sous traitant' in normalized_label or 'sout traitant' in normalized_label
         stages.append({
-            'key': f'contract_{ndos}',
-            'document_type': 'contract',
+            'key': 'subcontract_measurement' if is_work_situation else ('subcontract_contract' if is_subcontract else 'contract'),
+            'document_type': 'work_situation' if is_work_situation else ('subcontract' if is_subcontract else 'contract'),
+            'origin_family': 'work_situation' if is_work_situation else ('subcontract' if is_subcontract else 'contract'),
             'label': label,
             'ndos': ndos,
-            'order': 0,
+            'order': 3 if is_work_situation else (2 if is_subcontract else 1),
         })
     return stages
+
+
+def _phc_origin_family(origin: dict[str, Any] | None) -> str:
+    candidate = dict(origin or {})
+    document_type = str(candidate.get('document_type') or '').strip().lower()
+    key = str(candidate.get('key') or candidate.get('stage_key') or '').strip().lower()
+    ndos = _safe_int(candidate.get('ndos'), 0)
+    if document_type == 'purchase_order' or key == 'purchase_order' or ndos == 102:
+        return 'bc'
+    if document_type == 'delivery_note' or key == 'delivery_note' or ndos == 130:
+        return 'delivery_note'
+    if document_type == 'work_situation' or key == 'subcontract_measurement' or ndos == 129:
+        return 'work_situation'
+    if document_type == 'subcontract' or key == 'subcontract_contract' or ndos == 128:
+        return 'subcontract'
+    if document_type == 'contract' or key == 'contract' or ndos == 119:
+        return 'contract'
+    return ''
+
+
+def _validate_phc_origin_combination(origins: list[dict[str, Any]], candidate: dict[str, Any]) -> None:
+    family = _phc_origin_family(candidate)
+    primary_families = {'bc', 'contract', 'subcontract'}
+    existing_primary = [item for item in origins if _phc_origin_family(item) in primary_families]
+    existing_family = _phc_origin_family(existing_primary[0]) if existing_primary else ''
+
+    if family in primary_families:
+        if existing_family and existing_family != family:
+            raise ValueError('Retira a origem associada antes de mudar de família.')
+        if family in {'contract', 'subcontract'} and existing_primary:
+            raise ValueError('Contrato associado.')
+        return
+    if family == 'delivery_note' and existing_family != 'bc':
+        raise ValueError('Associa primeiro um BC.')
+    if family == 'work_situation':
+        if existing_family != 'subcontract':
+            raise ValueError('Associa primeiro um Contrato Sout-Traitant.')
+        if any(_phc_origin_family(item) == 'work_situation' for item in origins):
+            raise ValueError('Situação de Trabalho associada.')
 
 
 def _document_date_value(value: Any) -> datetime:
@@ -2771,12 +2845,22 @@ def submit_provisional_invoice_to_phc(
             ORDER BY F.DATA DESC
         """, doc_config['doccode'], supplier['no'], f'{unique_root}:FO', document_number).fetchone()
         if duplicate:
+            correspondence = cursor.execute("""
+                SELECT TOP 1 C.CRSTAMP, C.REF, C.ANO
+                FROM dbo.ANEXOS A WITH (UPDLOCK, HOLDLOCK)
+                INNER JOIN dbo.CR C ON C.CRSTAMP = A.RECSTAMP
+                WHERE A.ORITABLE = 'CR' AND A.UNIQUEID = ?
+                ORDER BY C.ANO DESC, C.REF DESC
+            """, f'{unique_root}:CR').fetchone()
             connection.rollback()
             return {
                 'ok': True,
                 'duplicate': True,
                 'message': f'O documento {document_number} deste fornecedor já existe no PHC como {doc_config["docname"]}.',
                 'fostamp': str(duplicate[0] or '').strip(),
+                'crstamp': str(correspondence[0] or '').strip() if correspondence else '',
+                'reference': _safe_int(correspondence[1], 0) if correspondence else 0,
+                'year': _safe_int(correspondence[2], datetime.now().year) if correspondence else datetime.now().year,
                 'document_number': str(duplicate[1] or '').strip(),
                 'phc_database': database_name,
                 'ged_path': str(duplicate[2] or '').strip(),
@@ -3767,12 +3851,14 @@ def save_document_phc_origin(
     meta = _json_loads(document.processing_meta_json, {})
     selected_origin = {
         **selected,
+        'origin_family': _phc_origin_family(selected),
         'phc_database': search_payload.get('phc_database') or '',
         'linked_at': _now().isoformat(),
         'linked_by': requested_by or '',
     }
     origins = get_phc_origins_from_meta(meta)
     origins = [item for item in origins if str(item.get('stamp') or '').strip() != str(selected_origin.get('stamp') or '').strip()]
+    _validate_phc_origin_combination(origins, selected_origin)
     origins.append(selected_origin)
     meta['phc_origins'] = origins
     meta.pop('phc_origin', None)
@@ -3977,8 +4063,9 @@ def mark_document_control_ok(
         raise ValueError('Confirma o número do documento antes do Contrôle OK.')
     if not [line for line in (document_data.get('lines') or []) if isinstance(line, dict)]:
         raise ValueError('Confirma pelo menos uma linha antes do Contrôle OK.')
-    if not get_phc_origins_from_meta(meta):
-        raise ValueError('Associa e valida a origem do documento antes do Contrôle OK.')
+    origins = get_phc_origins_from_meta(meta)
+    if not any(_phc_origin_family(origin) in {'', 'bc', 'contract', 'subcontract'} for origin in origins):
+        raise ValueError('Falta associar um BC ou Contrato.')
     now = _now()
     workflow = dict(meta.get('workflow') or {})
     workflow.update({
@@ -4143,34 +4230,126 @@ def preflight_document_inbox_stage(
     return {'ok': True, 'view': stage, 'required_info': required_info}
 
 
+def _integrate_reception_document(
+    document: DocInbox,
+    document_data: dict[str, Any],
+    requested_by: str,
+    integration_permissions: dict[str, bool] | None = None,
+) -> dict[str, Any]:
+    """Run the historical PHC reception action once and persist its identity."""
+    meta = _json_loads(document.processing_meta_json, {})
+    existing = dict(meta.get('phc_integration') or {})
+    if existing.get('status') == 'confirmed' and (existing.get('crstamp') or existing.get('fostamp')):
+        return existing
+
+    document_type = str(document_data.get('document_type') or '').strip().lower()
+    is_correspondence = document_type in {'mail', 'bank_statement'}
+    is_provisional_purchase = _is_provisional_purchase_source_type(document_type)
+    if not is_correspondence and not is_provisional_purchase:
+        return existing
+
+    permission_key = 'correspondence' if is_correspondence else 'provisional_invoice'
+    if integration_permissions is not None and not bool(integration_permissions.get(permission_key)):
+        raise PermissionError('Sem permissão para executar a integração PHC desta validação.')
+
+    absolute_path = _document_absolute_path(document)
+    if not absolute_path or not os.path.isfile(absolute_path):
+        raise FileNotFoundError('O PDF original não está disponível para concluir a validação.')
+    with open(absolute_path, 'rb') as handle:
+        file_bytes = handle.read()
+    if not file_bytes:
+        raise ValueError('O PDF original está vazio.')
+
+    if is_correspondence:
+        result = submit_correspondence_to_phc(
+            document_data,
+            file_bytes,
+            document.file_name or os.path.basename(absolute_path),
+            requested_by,
+        )
+        integration_type = 'correspondence'
+    else:
+        result = submit_provisional_invoice_to_phc(
+            document_data,
+            file_bytes,
+            document.file_name or os.path.basename(absolute_path),
+            requested_by,
+        )
+        integration_type = 'provisional_invoice'
+
+    integration = {
+        'type': integration_type,
+        'status': 'confirmed',
+        'integrated_at': _now().isoformat(),
+        'integrated_by': requested_by or '',
+        **{
+            key: result.get(key)
+            for key in (
+                'crstamp', 'fostamp', 'reference', 'year', 'document_number',
+                'phc_database', 'file_name', 'ged_path', 'ged_paths', 'duplicate',
+            )
+            if result.get(key) not in (None, '')
+        },
+    }
+    meta['phc_integration'] = integration
+    document.processing_meta_json = _json_dumps(meta)
+    if is_provisional_purchase:
+        document.processing_status = 'provisional_invoice'
+    document.last_processing_error = ''
+    document.dtalt = _now()
+    document.useralteracao = requested_by or document.useralteracao or ''
+    return integration
+
+
 def validate_document_inbox_stage(
     document_stamp: str,
     view: str,
     requested_by: str,
     reviewed_document: dict[str, Any] | None = None,
+    integration_permissions: dict[str, bool] | None = None,
 ) -> dict[str, Any]:
     """Persist a business workflow transition after server-side validation."""
+    stage = _normalize_document_inbox_view(view)
     document = db.session.get(DocInbox, str(document_stamp or '').strip())
     if not document:
         raise ValueError('Documento do inbox não encontrado.')
-    stage = _normalize_document_inbox_view(view)
-    now = _now()
-    already_validated = {
-        'home': bool(document.reception_validated),
-        'management': bool(document.management_validated),
-        'accounting': bool(document.accounting_validated),
-    }[stage]
-    if already_validated:
+
+    def completed_payload() -> dict[str, Any] | None:
+        completed = {
+            'home': bool(getattr(document, 'reception_validated', False)),
+            'management': bool(getattr(document, 'management_validated', False)),
+            'accounting': bool(getattr(document, 'accounting_validated', False)),
+        }[stage]
+        if not completed:
+            return None
+        existing_integration = dict(
+            _json_loads(getattr(document, 'processing_meta_json', ''), {}).get('phc_integration') or {}
+        )
         return {
             'ok': True,
             'already_validated': True,
             'document_id': document.docinstamp,
             'view': stage,
-            'reception_validated': bool(document.reception_validated),
-            'management_validated': bool(document.management_validated),
-            'accounting_validated': bool(document.accounting_validated),
+            'reception_validated': bool(getattr(document, 'reception_validated', False)),
+            'management_validated': bool(getattr(document, 'management_validated', False)),
+            'accounting_validated': bool(getattr(document, 'accounting_validated', False)),
             'distribution': {'ok': True, 'unchanged': True},
+            'phc_integration': existing_integration,
         }
+
+    already_completed = completed_payload()
+    if already_completed:
+        return already_completed
+    db.session.execute(text("""
+        SELECT DOCINSTAMP
+        FROM dbo.DOC_INBOX WITH (UPDLOCK, HOLDLOCK)
+        WHERE DOCINSTAMP=:document_id
+    """), {'document_id': document.docinstamp}).scalar_one()
+    db.session.refresh(document)
+    now = _now()
+    already_completed = completed_payload()
+    if already_completed:
+        return already_completed
     result = dict(reviewed_document or {}) or _json_loads(document.json_resultado, {})
     if reviewed_document:
         customer = dict(result.get('customer') or {})
@@ -4196,6 +4375,12 @@ def validate_document_inbox_stage(
         raise ValueError(str(preflight.get('message') or 'Não foi possível validar a etapa documental.'))
 
     if stage == 'home':
+        integration = _integrate_reception_document(
+            document,
+            result,
+            requested_by,
+            integration_permissions=integration_permissions,
+        )
         document.reception_validated = True
         document.reception_validated_at = now
         document.reception_validated_by = requested_by or ''
@@ -4228,6 +4413,9 @@ def validate_document_inbox_stage(
         'management_validated': bool(document.management_validated),
         'accounting_validated': bool(document.accounting_validated),
         'distribution': distribution,
+        'phc_integration': integration if stage == 'home' else dict(
+            _json_loads(document.processing_meta_json, {}).get('phc_integration') or {}
+        ),
     }
 
 
@@ -4635,7 +4823,8 @@ def _serialize_template(template: DocTemplate, include_definition: bool = False)
         'feid': template.feid,
         'supplier_no': template.fornecedor_no,
         'supplier_name': supplier_name,
-        'doc_type': template.doc_type or 'unknown',
+        'doc_type': normalize_document_type(template.doc_type),
+        'doc_type_label': _document_ai_doc_type_label(template.doc_type),
         'language': template.idioma or '',
         'fingerprint': template.fingerprint or '',
         'score_min_match': float(template.score_minimo_match or 0),
@@ -5723,6 +5912,14 @@ def _normalize_document_inbox_view(value: Any) -> str:
 
 def _document_inbox_scope_sql(view: str = 'home', archived: bool = False) -> str:
     normalized = _normalize_document_inbox_view(view)
+    latest_event = f"""
+        ISNULL((
+            SELECT TOP (1) VE.EVENT_CODE
+            FROM dbo.DOC_AI_VIEW_EVENT VE
+            WHERE VE.DOCINSTAMP=D.DOCINSTAMP AND VE.VIEW_CODE='{normalized}'
+            ORDER BY VE.DTCRI DESC, VE.DOCVIEWEVENTSTAMP DESC
+        ), '')
+    """.strip()
     if archived:
         workflow_scope = {
             'home': 'ISNULL(D.RECEPTION_VALIDATED, 0) = 1',
@@ -5749,6 +5946,7 @@ def _document_inbox_scope_sql(view: str = 'home', archived: bool = False) -> str
                 )
             """,
         }[normalized]
+        workflow_scope = f"({latest_event} = 'deleted') OR ({latest_event} <> 'deleted' AND ({workflow_scope}))"
     else:
         workflow_scope = {
             'home': 'ISNULL(D.RECEPTION_VALIDATED, 0) = 0',
@@ -5781,6 +5979,7 @@ def _document_inbox_scope_sql(view: str = 'home', archived: bool = False) -> str
                 )
             """,
         }[normalized].strip()
+        workflow_scope = f"({latest_event} <> 'deleted') AND ({workflow_scope})"
     return f'({DOC_AI_INBOX_UNSPLIT_SOURCE_SQL.strip()}) AND ({workflow_scope})'
 
 
@@ -6168,6 +6367,8 @@ def list_documents(filters: dict[str, Any] | None = None) -> dict[str, Any]:
             D.MANAGEMENT_VALIDATED,
             D.ACCOUNTING_VALIDATED,
             WA.STATE_CODE AS WORKFLOW_STATE,
+            VE.EVENT_CODE AS VIEW_EVENT_CODE,
+            VE.PREVIOUS_STATE AS VIEW_PREVIOUS_STATE,
             D.DTCRI,
             D.DTPROC
         FROM dbo.DOC_INBOX D
@@ -6188,6 +6389,12 @@ def list_documents(filters: dict[str, Any] | None = None) -> dict[str, Any]:
             WHERE A.DOCINSTAMP=D.DOCINSTAMP AND A.VIEW_CODE=:workflow_view
             ORDER BY A.DTALT DESC, A.DTCRI DESC
         ) WA
+        OUTER APPLY (
+            SELECT TOP (1) E.EVENT_CODE, E.PREVIOUS_STATE
+            FROM dbo.DOC_AI_VIEW_EVENT E
+            WHERE E.DOCINSTAMP=D.DOCINSTAMP AND E.VIEW_CODE=:workflow_view
+            ORDER BY E.DTCRI DESC, E.DOCVIEWEVENTSTAMP DESC
+        ) VE
         {where_sql}
         ORDER BY
             TRY_CONVERT(date, JSON_VALUE(CASE WHEN ISJSON(D.JSON_RESULTADO) = 1 THEN D.JSON_RESULTADO ELSE '{{}}' END, '$.document_date')) ASC,
@@ -6254,7 +6461,9 @@ def list_documents(filters: dict[str, Any] | None = None) -> dict[str, Any]:
                     break
         document_number = str(result_data.get('document_number') or '').strip()
         document_date = str(result_data.get('document_date') or '').strip()
-        document_type = str(result_data.get('document_type') or row.get('DOC_TYPE_DETECTED') or 'unknown').strip() or 'unknown'
+        document_type = normalize_document_type(
+            result_data.get('document_type') or row.get('DOC_TYPE_DETECTED') or 'unknown'
+        )
         invoice_type = _normalize_invoice_type(result_data.get('invoice_type') or row.get('INVOICE_TYPE'))
         if invoice_type == 'unknown':
             invoice_type = _infer_invoice_type(result_data)
@@ -6306,6 +6515,8 @@ def list_documents(filters: dict[str, Any] | None = None) -> dict[str, Any]:
             business_state = reception_assessment['state']
             if duplicate_matches:
                 business_state = 'Bloqueio'
+        if archived:
+            business_state = 'Eliminado' if str(row.get('VIEW_EVENT_CODE') or '') == 'deleted' else 'Validado'
         display_type = document_type
         if inbox_view == 'management':
             display_type = invoice_type
@@ -6331,6 +6542,7 @@ def list_documents(filters: dict[str, Any] | None = None) -> dict[str, Any]:
             'invoice_type': invoice_type,
             'invoice_type_label': _invoice_type_label(invoice_type),
             'business_state': business_state,
+            'previous_business_state': str(row.get('VIEW_PREVIOUS_STATE') or '').strip(),
             'business_reasons': (
                 list(reception_assessment['reasons']) + (['Documento duplicado'] if duplicate_matches else [])
             ) if inbox_view == 'home' else (
@@ -7188,62 +7400,196 @@ def _safe_document_file_path(path_value: str | None) -> str:
     return ''
 
 
-def delete_document_from_inbox(document_stamp: str, deleted_by: str = '') -> dict[str, Any]:
+def _append_document_view_event(
+    document_stamp: str,
+    view: str,
+    event_code: str,
+    requested_by: str = '',
+    previous_state: str = '',
+) -> dict[str, Any]:
     _ensure_document_ai_schema()
     stamp = str(document_stamp or '').strip()
+    normalized_view = _normalize_document_inbox_view(view)
     document = db.session.get(DocInbox, stamp)
     if not document:
         raise ValueError('Documento não encontrado.')
-
-    paths_to_delete = [
-        _safe_document_file_path(document.file_path),
-        _safe_document_file_path(document.preprocessed_image_path),
-    ]
-    original_name = document.file_name or ''
-    anexo_stamp = str(document.anexosstamp or '').strip()
-
+    normalized_event = str(event_code or '').strip().lower()
+    if normalized_event not in {'deleted', 'recovered', 'validated'}:
+        raise ValueError('Evento documental inválido.')
     db.session.execute(text("""
-        DELETE FROM dbo.DOC_DUPLICATE_INDEX
-        WHERE DOCINSTAMP = :docinstamp
-    """), {'docinstamp': document.docinstamp})
-    DocProcessLog.query.filter_by(docinstamp=document.docinstamp).delete(synchronize_session=False)
-    if anexo_stamp:
-        db.session.execute(text("""
-            DELETE FROM dbo.ANEXOS
-            WHERE ANEXOSSTAMP = :anexo_stamp
-               OR (TABELA = 'DOC_INBOX' AND RECSTAMP = :docinstamp)
-        """), {
-            'anexo_stamp': anexo_stamp,
-            'docinstamp': document.docinstamp,
-        })
-    else:
-        db.session.execute(text("""
-            DELETE FROM dbo.ANEXOS
-            WHERE TABELA = 'DOC_INBOX' AND RECSTAMP = :docinstamp
-        """), {'docinstamp': document.docinstamp})
-    db.session.delete(document)
+        INSERT INTO dbo.DOC_AI_VIEW_EVENT (
+            DOCVIEWEVENTSTAMP, DOCINSTAMP, VIEW_CODE, EVENT_CODE,
+            PREVIOUS_STATE, USUARIO, DTCRI
+        ) VALUES (
+            :event_stamp, :document_stamp, :view_code, :event_code,
+            :previous_state, :requested_by, GETDATE()
+        )
+    """), {
+        'event_stamp': _new_stamp(),
+        'document_stamp': stamp,
+        'view_code': normalized_view,
+        'event_code': normalized_event,
+        'previous_state': str(previous_state or '').strip()[:30],
+        'requested_by': str(requested_by or '').strip()[:50],
+    })
+    _document_log(
+        stamp,
+        f'view_{normalized_event}',
+        'ok',
+        {
+            'deleted': 'Documento eliminado logicamente.',
+            'recovered': 'Documento recuperado.',
+            'validated': 'Arquivo documental regularizado como validado.',
+        }[normalized_event],
+        {'view': normalized_view, 'previous_state': str(previous_state or '').strip()},
+    )
     db.session.commit()
-
-    removed_files = []
-    for file_path in {path for path in paths_to_delete if path}:
-        try:
-            if os.path.isfile(file_path):
-                os.remove(file_path)
-                removed_files.append(file_path)
-        except Exception:
-            current_app.logger.warning(
-                'Nao foi possivel remover ficheiro documental %s por %s',
-                file_path,
-                deleted_by or 'unknown',
-                exc_info=True,
-            )
-
     return {
         'ok': True,
         'id': stamp,
-        'file_name': original_name,
-        'removed_files': len(removed_files),
+        'view': normalized_view,
+        'event': normalized_event,
+        'file_name': document.file_name or '',
     }
+
+
+def regularize_document_archives(requested_by: str = '', dry_run: bool = True) -> dict[str, Any]:
+    """Backfill explicit archive events without changing workflow or PHC data."""
+    _ensure_document_ai_schema()
+    evidence_sql = {
+        'home': 'ISNULL(D.RECEPTION_VALIDATED, 0) = 1',
+        'management': """
+            EXISTS (
+                SELECT 1 FROM dbo.DOC_AI_WORKFLOW_ASSIGNMENT WA
+                WHERE WA.DOCINSTAMP=D.DOCINSTAMP AND WA.VIEW_CODE='management' AND WA.VALIDADO=1
+            ) OR (
+                NOT EXISTS (SELECT 1 FROM dbo.DOC_AI_WORKFLOW_ASSIGNMENT WX WHERE WX.DOCINSTAMP=D.DOCINSTAMP)
+                AND ISNULL(D.MANAGEMENT_VALIDATED, 0) = 1
+            )
+        """,
+        'accounting': """
+            EXISTS (
+                SELECT 1 FROM dbo.DOC_AI_WORKFLOW_ASSIGNMENT WA
+                WHERE WA.DOCINSTAMP=D.DOCINSTAMP AND WA.VIEW_CODE='accounting' AND WA.VALIDADO=1
+            ) OR (
+                NOT EXISTS (SELECT 1 FROM dbo.DOC_AI_WORKFLOW_ASSIGNMENT WX WHERE WX.DOCINSTAMP=D.DOCINSTAMP)
+                AND ISNULL(D.ACCOUNTING_VALIDATED, 0) = 1
+            )
+        """,
+    }
+    examined = corrected = unchanged = 0
+    per_view: dict[str, dict[str, int]] = {}
+    candidates: list[tuple[str, str]] = []
+    for view, evidence in evidence_sql.items():
+        rows = db.session.execute(text(f"""
+            SELECT D.DOCINSTAMP,
+                   ISNULL((
+                       SELECT TOP (1) E.EVENT_CODE
+                       FROM dbo.DOC_AI_VIEW_EVENT E
+                       WHERE E.DOCINSTAMP=D.DOCINSTAMP AND E.VIEW_CODE=:view_code
+                       ORDER BY E.DTCRI DESC, E.DOCVIEWEVENTSTAMP DESC
+                   ), '') AS LATEST_EVENT
+            FROM dbo.DOC_INBOX D
+            WHERE ({evidence})
+        """), {'view_code': view}).mappings().all()
+        view_corrected = sum(1 for row in rows if not str(row.get('LATEST_EVENT') or '').strip())
+        view_unchanged = len(rows) - view_corrected
+        examined += len(rows)
+        corrected += view_corrected
+        unchanged += view_unchanged
+        per_view[view] = {
+            'examined': len(rows),
+            'corrected': view_corrected,
+            'unchanged': view_unchanged,
+        }
+        candidates.extend(
+            (str(row.get('DOCINSTAMP') or '').strip(), view)
+            for row in rows if not str(row.get('LATEST_EVENT') or '').strip()
+        )
+
+    ambiguous = 0
+    try:
+        ambiguous = int(db.session.execute(text("""
+            SELECT COUNT_BIG(1)
+            FROM dbo.DOC_DUPLICATE_INDEX DI
+            INNER JOIN dbo.DOC_INBOX D ON D.DOCINSTAMP=DI.DOCINSTAMP
+            WHERE ISNULL(DI.ARQUIVADO, 0)=1
+              AND ISNULL(D.ACCOUNTING_VALIDATED, 0)=0
+              AND NOT EXISTS (
+                  SELECT 1 FROM dbo.DOC_AI_WORKFLOW_ASSIGNMENT WA
+                  WHERE WA.DOCINSTAMP=D.DOCINSTAMP AND WA.VIEW_CODE='accounting' AND WA.VALIDADO=1
+              )
+        """)).scalar() or 0)
+    except Exception:
+        current_app.logger.exception('Não foi possível contar arquivos Document AI ambíguos')
+
+    if not dry_run:
+        for document_stamp, view in candidates:
+            db.session.execute(text("""
+                INSERT INTO dbo.DOC_AI_VIEW_EVENT (
+                    DOCVIEWEVENTSTAMP, DOCINSTAMP, VIEW_CODE, EVENT_CODE,
+                    PREVIOUS_STATE, USUARIO, DTCRI
+                ) VALUES (
+                    :event_stamp, :document_stamp, :view_code, 'validated',
+                    '', :requested_by, GETDATE()
+                )
+            """), {
+                'event_stamp': _new_stamp(),
+                'document_stamp': document_stamp,
+                'view_code': view,
+                'requested_by': str(requested_by or '').strip()[:50],
+            })
+        db.session.commit()
+    return {
+        'dry_run': bool(dry_run),
+        'examined': examined,
+        'corrected': corrected,
+        'unchanged': unchanged,
+        'ambiguous_unchanged': ambiguous,
+        'per_view': per_view,
+    }
+
+
+def delete_document_from_inbox(document_stamp: str, view: str, deleted_by: str = '') -> dict[str, Any]:
+    """Archive a document only in the requested view; never destroy business data."""
+    normalized_view = _normalize_document_inbox_view(view)
+    previous_state = ''
+    for item in list_documents({'view': normalized_view}).get('items', []):
+        if str(item.get('id') or '') == str(document_stamp or '').strip():
+            previous_state = str(item.get('business_state') or '').strip()
+            break
+    return _append_document_view_event(
+        document_stamp,
+        normalized_view,
+        'deleted',
+        deleted_by,
+        previous_state,
+    )
+
+
+def recover_document_to_inbox(document_stamp: str, view: str, recovered_by: str = '') -> dict[str, Any]:
+    """Recover a logically deleted document in one view without rerunning processing."""
+    normalized_view = _normalize_document_inbox_view(view)
+    if not document_belongs_to_inbox_view(document_stamp, normalized_view, archived=True):
+        raise ValueError('Documento eliminado não encontrado neste arquivo.')
+    latest_event = db.session.execute(text("""
+        SELECT TOP (1) EVENT_CODE, PREVIOUS_STATE
+        FROM dbo.DOC_AI_VIEW_EVENT
+        WHERE DOCINSTAMP=:document_stamp AND VIEW_CODE=:view_code
+        ORDER BY DTCRI DESC, DOCVIEWEVENTSTAMP DESC
+    """), {
+        'document_stamp': str(document_stamp or '').strip(),
+        'view_code': normalized_view,
+    }).mappings().first()
+    if str((latest_event or {}).get('EVENT_CODE') or '') != 'deleted':
+        raise ValueError('Este documento não está eliminado nesta vista.')
+    return _append_document_view_event(
+        document_stamp,
+        normalized_view,
+        'recovered',
+        recovered_by,
+        str((latest_event or {}).get('PREVIOUS_STATE') or ''),
+    )
 
 
 def _store_file(uploaded_file, folder_name: str = 'document_ai') -> dict[str, Any]:
@@ -8272,7 +8618,7 @@ def _document_ai_entity_name(feid: int | None) -> str:
 
 
 def _document_ai_doc_type_label(doc_type: str) -> str:
-    value = str(doc_type or '').strip() or 'unknown'
+    value = normalize_document_type(doc_type)
     for item in DOC_AI_DOC_TYPES:
         if item.get('value') == value:
             return str(item.get('label') or value).strip()

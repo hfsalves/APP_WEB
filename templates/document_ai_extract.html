@@ -82,7 +82,7 @@
         <section class="sz_panel docai-extract-result-panel">
           <div class="docai-panel-head">
             <div class="docai-analysis-heading">
-              <div id="docAiExtractCorrespondenceReference" class="sz_h4">Correspondência por atribuir</div>
+              <div id="docAiExtractCorrespondenceReference" class="sz_h4">Correspondência por criar</div>
               <div id="docAiExtractDocumentSummary" class="sz_text_muted">Os dados do documento aparecem aqui depois da leitura.</div>
               <span id="docAiExtractCorrespondenceSource" class="sz_text_muted" hidden></span>
             </div>
@@ -243,9 +243,9 @@
                         <th>Obra</th>
                         <th>Matrícula</th>
                         <th>Data</th>
-                        <th aria-label="Distribuição por BC"></th>
-                        <th>BC</th>
-                        <th>BL</th>
+                        <th id="docAiExtractDistributionHead" aria-label="Distribuição" hidden></th>
+                        <th id="docAiExtractPrimaryOriginHead">BC</th>
+                        <th id="docAiExtractSecondaryOriginHead">BL</th>
                       </tr>
                     </thead>
                     <tbody id="docAiExtractLinesBody"></tbody>
@@ -278,7 +278,7 @@
   <div id="docAiTotalsModal" class="sz_modal" aria-hidden="true">
     <div class="sz_panel docai-totals-modal" role="dialog" aria-modal="true" aria-labelledby="docAiTotalsModalTitle">
       <div class="sz_modal_header">
-        <h3 id="docAiTotalsModalTitle" class="sz_h4 sz_modal_title">Detalhe dos totais</h3>
+        <h3 id="docAiTotalsModalTitle" class="sz_h4 sz_modal_title">Detalhe IVA</h3>
         <button id="docAiTotalsCloseTop" type="button" class="sz_icon_button" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div class="sz_modal_body">

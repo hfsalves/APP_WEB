@@ -289,10 +289,7 @@ def evaluate_required_info(
         'delivery_note': True,
         'vehicle': True,
     }
-    delivery_required = invoice_type == 'concrete' or (
-        invoice_type == 'material'
-        and any(str(item.get('origin_delivery_note_number') or '').strip() for item in lines)
-    )
+    delivery_required = any(str(item.get('origin_delivery_note_number') or '').strip() for item in lines)
     if delivery_required:
         checks['delivery_note'] = bool(financial_lines and all(str(item.get('origin_delivery_note_number') or '').strip() for item in financial_lines))
     vehicle_lines = [item for item in financial_lines if bool(item.get('vehicle_required'))]
@@ -343,7 +340,7 @@ def evaluate_required_info(
         'quantity': 'Falta a quantidade.', 'unit_price': 'Falta o PU.',
         'line_total': 'Falta o PT.', 'date': 'Falta a data.',
         'gross_total': 'Falta o total.', 'tax_total': 'Falta o IVA.',
-        'net_total': 'Falta o total s/IVA.', 'delivery_note': 'Falta associar o BL.',
+        'net_total': 'Falta o total s/IVA.', 'delivery_note': 'Falta distribuir os BLs.',
         'vehicle': 'Falta a matrícula.',
     }
     targets = {

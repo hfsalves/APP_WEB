@@ -155,6 +155,10 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   const closeEntities = () => { entityModal.classList.remove('sz_is_open'); entityModal.hidden = true; editingAssignment = null; entityDraft = null; };
   els.entityClose.addEventListener('click', closeEntities); els.entityCancel.addEventListener('click', closeEntities);
+  entityModal.addEventListener('click', (event) => { if (event.target === entityModal) closeEntities(); });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !entityModal.hidden) closeEntities();
+  });
   els.entityApply.addEventListener('click', () => {
     if (!entityDraft.all_entities && !entityDraft.entity_ids.length) { showMessage('Seleciona pelo menos uma entidade.', 'error'); return; }
     editingAssignment.all_entities = entityDraft.all_entities; editingAssignment.entity_ids = entityDraft.all_entities ? [] : [...entityDraft.entity_ids]; closeEntities(); render();

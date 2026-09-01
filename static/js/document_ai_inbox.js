@@ -3,7 +3,6 @@ document.addEventListener('DOMContentLoaded', () => {
     counts: document.getElementById('docAiCounts'),
     inboxBody: document.getElementById('docAiInboxBody'),
     uploadBtn: document.getElementById('docAiUploadBtn'),
-    uploadInput: document.getElementById('docAiUploadInput'),
     refreshBtn: document.getElementById('docAiRefreshBtn'),
     archiveBtn: document.getElementById('docAiArchiveBtn'),
     contextDomain: document.getElementById('docAiContextDomain'),
@@ -189,8 +188,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!els.inboxBody) return;
     state.filteredItems = state.allItems.filter((item) => matchesFilters(item));
     if (!state.filteredItems.length) {
-      const message = state.allItems.length ? 'Nenhum resultado.' : 'Sem documentos.';
-      els.inboxBody.innerHTML = `<tr><td colspan="9" class="sz_text_muted">${message}</td></tr>`;
+      const message = state.allItems.length ? 'Sem documentos para os filtros selecionados.' : 'Sem documentos.';
+      const clearAction = state.allItems.length
+        ? '<button type="button" class="sz_button sz_button_ghost docai-empty-clear" data-action="reset-filters"><i class="fa-solid fa-filter-circle-xmark"></i><span>Limpar filtros</span></button>'
+        : '';
+      els.inboxBody.innerHTML = `<tr><td colspan="9"><div class="docai-empty-filter-state"><span class="sz_text_muted">${message}</span>${clearAction}</div></td></tr>`;
       renderCounts();
       return;
     }
@@ -209,9 +211,14 @@ document.addEventListener('DOMContentLoaded', () => {
             ${state.permissions.analyze ? `<button type="button" class="sz_button sz_button_ghost docai-row-ai" data-action="extract" data-id="${escapeHtml(item.id)}" title="Analisar" aria-label="Analisar ${escapeHtml(item.file_name)}">
               <i class="fa-solid fa-wand-magic-sparkles"></i>
             </button>` : ''}
-            ${(state.view === 'home' || state.view === 'management') && state.permissions.delete ? `
+            ${!state.archived && state.permissions.delete ? `
               <button type="button" class="sz_button sz_button_ghost docai-row-delete" data-action="delete" data-id="${escapeHtml(item.id)}" data-file="${escapeHtml(item.file_name)}" title="Eliminar">
                 <i class="fa-solid fa-trash"></i>
+              </button>
+            ` : ''}
+            ${state.archived && item.business_state === 'Eliminado' && state.permissions.delete ? `
+              <button type="button" class="sz_button sz_button_ghost docai-row-recover" data-action="recover" data-id="${escapeHtml(item.id)}" title="Recuperar" aria-label="Recuperar ${escapeHtml(item.file_name)}">
+                <i class="fa-solid fa-rotate-left"></i>
               </button>
             ` : ''}
           </div>
@@ -228,7 +235,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const statePopulation = state.allItems.filter((item) => matchesFilters(item, 'state'));
     const typePopulation = state.allItems.filter((item) => matchesFilters(item, 'type'));
     const total = state.total;
-    const requiredStates = state.view === 'accounting'
+    const requiredStates = state.archived
+      ? ['Validado', 'Eliminado']
+      : state.view === 'accounting'
       ? ['Pendente', 'Validado']
       : ['OK', 'Ação', 'Bloqueio'];
 
@@ -237,7 +246,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const businessState = String(item.business_state || '-');
       stateCounts.set(businessState, (stateCounts.get(businessState) || 0) + 1);
     });
-    state.docTypes.forEach((item) => {
+    const hasUnknownType = state.allItems.some((item) => String(item.doc_type || 'unknown') === 'unknown');
+    state.docTypes.filter((item) => item.value !== 'unknown' || hasUnknownType || state.typeFilters.has('unknown')).forEach((item) => {
       const value = String(item.value || 'unknown');
       typeCounts.set(value, { count: 0, label: item.label || docTypeLabel(value) });
     });
@@ -252,13 +262,14 @@ document.addEventListener('DOMContentLoaded', () => {
       String(left[1].label || '').localeCompare(String(right[1].label || ''), 'pt', { sensitivity: 'base' })
     );
     els.counts.innerHTML = `
+      <div class="docai-counts-scroll">
       <div class="docai-business-count-group" aria-label="Filtros de estado">
         <span class="docai-business-count-title">Estado</span>
         <div class="docai-business-count-options">
           ${[...stateCounts.entries()].map(([value, count]) => `
             <button type="button" class="docai-business-count-chip ${state.stateFilters.has(value) ? 'is-active' : ''}"
-                    data-count-filter="state" data-value="${escapeHtml(value)}">
-              <span>${escapeHtml(value)}</span><strong>${count}</strong>
+                    data-state="${escapeHtml(String(value).toLowerCase())}" data-count-filter="state" data-value="${escapeHtml(value)}">
+              <strong>${count}</strong><span>${escapeHtml(value)}</span>
             </button>
           `).join('') || '<span class="sz_text_muted">Sem estados</span>'}
         </div>
@@ -269,10 +280,11 @@ document.addEventListener('DOMContentLoaded', () => {
           ${orderedTypes.map(([value, data]) => `
             <button type="button" class="docai-business-count-chip ${state.typeFilters.has(value) ? 'is-active' : ''}"
                     data-count-filter="type" data-value="${escapeHtml(value)}">
-              <span>${escapeHtml(data.label)}</span><strong>${data.count}</strong>
+              <strong>${data.count}</strong><span>${escapeHtml(data.label)}</span>
             </button>
           `).join('') || '<span class="sz_text_muted">Sem tipos</span>'}
         </div>
+      </div>
       </div>
       <button type="button" class="docai-count-card docai-count-card-action docai-filtered-total" data-action="reset-filters" title="Limpar filtros" aria-label="Mostrar todos os documentos e limpar filtros">
         <span class="count">${total}</span>
@@ -351,25 +363,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadInbox();
   }
 
-  async function uploadDocument(file) {
-    if (!file) return;
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('view', state.view);
-    try {
-      const payload = await fetchJson('/api/document_ai/documents/upload', { method: 'POST', body: formData });
-      showMessage('Documento importado e processado.', 'success');
-      window.location.href = analysisUrl(payload.id);
-    } catch (error) {
-      showMessage(error.message || 'Falha ao importar documento.', 'error');
-    } finally {
-      if (els.uploadInput) els.uploadInput.value = '';
-    }
-  }
-
   async function deleteDocument(id, fileName = '') {
-    const label = fileName ? ` "${fileName}"` : '';
-    if (!window.confirm(`Eliminar o documento${label} do inbox?`)) return;
     try {
       await fetchJson(`/api/document_ai/documents/${encodeURIComponent(id)}`, {
         method: 'DELETE',
@@ -380,6 +374,20 @@ document.addEventListener('DOMContentLoaded', () => {
       await loadInbox();
     } catch (error) {
       showMessage(error.message || 'Falha ao eliminar.', 'error');
+    }
+  }
+
+  async function recoverDocument(id) {
+    try {
+      await fetchJson(`/api/document_ai/documents/${encodeURIComponent(id)}/recover`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ view: state.view }),
+      });
+      showMessage('Documento recuperado.', 'success');
+      await loadInbox();
+    } catch (error) {
+      showMessage(error.message || 'Falha ao recuperar.', 'error');
     }
   }
 
@@ -436,18 +444,25 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   els.refreshBtn?.addEventListener('click', loadInbox);
   els.archiveBtn?.addEventListener('click', toggleArchive);
-  els.uploadBtn?.addEventListener('click', () => els.uploadInput?.click());
-  els.uploadInput?.addEventListener('change', (event) => uploadDocument(event.target.files?.[0]));
+  els.uploadBtn?.addEventListener('click', () => {
+    window.location.href = analysisUrl('');
+  });
   els.viewTabs?.addEventListener('click', (event) => {
     if (availableViewButtons.length < 2) return;
     const view = event.target.closest('[data-view]')?.dataset.view;
     if (view) selectView(view);
   });
   els.inboxBody?.addEventListener('click', (event) => {
+    if (event.target.closest('[data-action="reset-filters"]')) {
+      resetFilters();
+      applyFilters();
+      return;
+    }
     const button = event.target.closest('button[data-action]');
     if (!button?.dataset.id) return;
     if (button.dataset.action === 'extract') window.location.href = analysisUrl(button.dataset.id);
     if (button.dataset.action === 'delete') deleteDocument(button.dataset.id, button.dataset.file || '');
+    if (button.dataset.action === 'recover') recoverDocument(button.dataset.id);
   });
   window.addEventListener('popstate', () => {
     const requested = new URLSearchParams(window.location.search).get('view');
