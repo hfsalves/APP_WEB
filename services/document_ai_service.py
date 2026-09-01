@@ -4595,13 +4595,65 @@ def mark_document_as_provisional_invoice(
     document.processing_meta_json = _json_dumps(meta)
     document.processing_stage = 'phc_integrated'
     document.processing_status = 'provisional_invoice'
+    document.reception_validated = True
+    document.reception_validated_at = getattr(document, 'reception_validated_at', None) or now
+    document.reception_validated_by = getattr(document, 'reception_validated_by', '') or requested_by or ''
+    document_type = str(getattr(document, 'doc_type_detected', '') or '').strip().lower()
+    if document_type != 'credit_note':
+        document.management_validated = True
+        document.management_validated_at = getattr(document, 'management_validated_at', None) or now
+        document.management_validated_by = getattr(document, 'management_validated_by', '') or requested_by or ''
     document.dtalt = now
     document.useralteracao = requested_by or document.useralteracao or ''
+    # Persist the confirmed PHC identity before distribution. If distribution
+    # fails, a retry must reuse this FO instead of creating another one.
     db.session.commit()
+
+    distribution: dict[str, Any] = {'ok': True, 'outcomes': []}
+    try:
+        from services.document_ai_distribution_service import apply_document_distribution
+
+        distribution['outcomes'].append(apply_document_distribution(document, 'home', requested_by))
+        if document_type != 'credit_note':
+            distribution['outcomes'].append(apply_document_distribution(document, 'management', requested_by))
+        meta = _json_loads(document.processing_meta_json, {})
+        workflow = dict(meta.get('workflow') or {})
+        workflow.update({
+            'distribution_status': 'completed',
+            'distribution_error': '',
+            'distributed_at': _now().isoformat(),
+        })
+        meta['workflow'] = workflow
+        document.processing_meta_json = _json_dumps(meta)
+        db.session.commit()
+    except Exception as exc:
+        db.session.rollback()
+        if has_app_context():
+            current_app.logger.exception(
+                'Fatura Provisória criada no PHC, mas a distribuição documental falhou.'
+            )
+        persisted = db.session.get(DocInbox, str(document_stamp or '').strip())
+        if persisted:
+            persisted_meta = _json_loads(persisted.processing_meta_json, {})
+            persisted_workflow = dict(persisted_meta.get('workflow') or {})
+            persisted_workflow.update({
+                'distribution_status': 'error',
+                'distribution_error': str(exc)[:1000],
+            })
+            persisted_meta['workflow'] = persisted_workflow
+            persisted.processing_meta_json = _json_dumps(persisted_meta)
+            persisted.dtalt = _now()
+            persisted.useralteracao = requested_by or persisted.useralteracao or ''
+            db.session.commit()
+        distribution = {'ok': False, 'error': str(exc)}
     return {
         'ok': True,
         'document_id': document.docinstamp,
         'status': document.processing_status,
+        'reception_validated': bool(getattr(document, 'reception_validated', False)),
+        'management_validated': bool(getattr(document, 'management_validated', False)),
+        'accounting_validated': bool(getattr(document, 'accounting_validated', False)),
+        'distribution': distribution,
     }
 
 

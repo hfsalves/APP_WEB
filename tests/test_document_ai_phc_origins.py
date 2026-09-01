@@ -149,13 +149,19 @@ class DocumentAiPhcOriginTests(unittest.TestCase):
         document = SimpleNamespace(
             docinstamp='DOC-1', file_hash='abc123', processing_meta_json='{}',
             processing_stage='parsed', processing_status='parsed_ok', dtalt=None,
-            useralteracao='',
+            useralteracao='', doc_type_detected='invoice',
+            reception_validated=False, reception_validated_at=None, reception_validated_by='',
+            management_validated=False, management_validated_at=None, management_validated_by='',
+            accounting_validated=False,
         )
         with patch.object(document_ai_service.db.session, 'get', return_value=document), patch.object(
             document_ai_service, 'get_phc_origins_from_meta', return_value=[{'stamp': 'FO-1'}]
         ), patch.object(
             document_ai_service.db.session, 'commit'
-        ) as commit:
+        ) as commit, patch(
+            'services.document_ai_distribution_service.apply_document_distribution',
+            return_value={'ok': True},
+        ) as distribute:
             result = mark_document_as_provisional_invoice(
                 'DOC-1',
                 {'fostamp': 'FO-1', 'document_number': '159432', 'phc_database': 'HSOLS_FR'},
@@ -170,7 +176,11 @@ class DocumentAiPhcOriginTests(unittest.TestCase):
         self.assertEqual(meta['phc_integration']['type'], 'provisional_invoice')
         self.assertEqual(meta['phc_integration']['fostamp'], 'FO-1')
         self.assertEqual(meta['workflow']['validation_status'], 'accounting')
-        commit.assert_called_once()
+        self.assertEqual(meta['workflow']['distribution_status'], 'completed')
+        self.assertTrue(document.reception_validated)
+        self.assertTrue(document.management_validated)
+        self.assertEqual([call.args[1] for call in distribute.call_args_list], ['home', 'management'])
+        self.assertEqual(commit.call_count, 2)
 
     def test_control_ok_persists_reviewed_document_and_unlocks_validation(self):
         cached = {'version': 4, 'document': {}}
@@ -225,10 +235,17 @@ class DocumentAiPhcOriginTests(unittest.TestCase):
         document = SimpleNamespace(
             docinstamp='DOC-1', file_hash='abc123', processing_meta_json=json.dumps({'workflow': {'control_ok': True}}),
             processing_stage='controlled', processing_status='parsed_ok', dtalt=None, useralteracao='',
+            doc_type_detected='invoice',
+            reception_validated=False, reception_validated_at=None, reception_validated_by='',
+            management_validated=True, management_validated_at=None, management_validated_by='tester',
+            accounting_validated=False,
         )
         result_data = {'fostamp': 'FO-1', 'document_number': '159432', 'phc_database': 'HSOLS_FR', 'duplicate': True}
         with patch.object(document_ai_service.db.session, 'get', return_value=document), patch.object(
             document_ai_service.db.session, 'commit'
+        ), patch(
+            'services.document_ai_distribution_service.apply_document_distribution',
+            return_value={'ok': True},
         ):
             mark_document_as_provisional_invoice('DOC-1', result_data, 'tester', 'abc123')
             mark_document_as_provisional_invoice('DOC-1', result_data, 'tester', 'abc123')

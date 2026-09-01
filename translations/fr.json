@@ -57,6 +57,7 @@
   "colab_expenses.lines": "Lignes de dépense",
   "colab_expenses.loading_error": "Erreur lors de l'enregistrement de la dépense.",
   "colab_expenses.locked": "Clôturée",
+  "colab_expenses.missing_fields": "Informations manquantes",
   "colab_expenses.missing_photo": "Photo manquante",
   "colab_expenses.notes": "Observations",
   "colab_expenses.notes_placeholder": "Observations de la dépense",

@@ -302,6 +302,7 @@
   }
 
   .expense-line-validate,
+  .expense-line-incomplete,
   .expense-line-delete {
     position: absolute;
     z-index: 0;
@@ -328,6 +329,19 @@
     background: var(--sz-color-success, #22c55e);
   }
 
+  .expense-line-incomplete {
+    right: 0;
+    border-radius: 0 var(--sz-radius-md) var(--sz-radius-md) 0;
+    background: var(--sz-color-warning, #d97706);
+  }
+
+  .expense-line-incomplete span {
+    max-width: 5rem;
+    line-height: 1.1;
+    text-align: center;
+    white-space: normal;
+  }
+
   .expense-line-delete {
     right: 5.75rem;
     border-radius: var(--sz-radius-md) 0 0 var(--sz-radius-md);
@@ -335,6 +349,7 @@
   }
 
   .expense-line-validate i,
+  .expense-line-incomplete i,
   .expense-line-delete i {
     font-size: 1.05rem;
   }
@@ -348,14 +363,16 @@
   }
 
   .expense-line-card.is-closed .expense-line-validate,
+  .expense-line-card.is-closed .expense-line-incomplete,
   .expense-line-card.is-closed .expense-line-delete {
     display: none;
   }
 
   .expense-line-card:not(.is-collapsed) .expense-line-validate,
+  .expense-line-card:not(.is-collapsed) .expense-line-incomplete,
   .expense-line-card:not(.is-collapsed) .expense-line-delete,
   .expense-line-card:not(.is-action-ready) .expense-line-validate,
-  .expense-line-card:not(.is-action-ready) .expense-line-delete {
+  .expense-line-card.is-action-ready .expense-line-incomplete {
     display: none;
   }
 
@@ -401,6 +418,7 @@
         }
 
     .expense-line-validate,
+    .expense-line-incomplete,
     .expense-line-delete {
       z-index: 2;
       inset-block: auto;
@@ -420,6 +438,12 @@
       border-color: color-mix(in srgb, var(--sz-color-success, #22c55e) 52%, var(--sz-color-border));
     }
 
+    .expense-line-incomplete {
+      right: var(--sz-space-3);
+      color: var(--sz-color-warning, #d97706);
+      border-color: color-mix(in srgb, var(--sz-color-warning, #d97706) 52%, var(--sz-color-border));
+    }
+
     .expense-line-delete {
       right: calc(var(--sz-space-3) + 2.85rem);
       color: var(--sz-color-danger, #ef4444);
@@ -430,11 +454,16 @@
       background: color-mix(in srgb, var(--sz-color-success, #22c55e) 12%, var(--sz-color-surface));
     }
 
+    .expense-line-incomplete:hover {
+      background: color-mix(in srgb, var(--sz-color-warning, #d97706) 12%, var(--sz-color-surface));
+    }
+
     .expense-line-delete:hover {
       background: color-mix(in srgb, var(--sz-color-danger, #ef4444) 12%, var(--sz-color-surface));
     }
 
     .expense-line-validate span,
+    .expense-line-incomplete span,
     .expense-line-delete span {
       display: none;
     }
@@ -775,6 +804,7 @@
     'colab_expenses.kms',
     'colab_expenses.loading_error',
     'colab_expenses.locked',
+    'colab_expenses.missing_fields',
     'colab_expenses.missing_photo',
     'colab_expenses.notes',
     'colab_expenses.notes_placeholder',
@@ -812,6 +842,8 @@
     const autoCollapseTimers = new WeakMap();
     const autoSaveTimers = new WeakMap();
     const pendingFiles = new WeakMap();
+    const saveRequests = new WeakMap();
+    const queuedSaves = new WeakSet();
 
     function translateExpense(key) {
       return expenseI18n[key] || key;
@@ -986,48 +1018,68 @@
 
     async function saveCardNow(card) {
       if (!card || card.classList.contains('is-deleting') || isClosedCard(card)) return null;
+      const activeRequest = saveRequests.get(card);
+      if (activeRequest) {
+        queuedSaves.add(card);
+        return activeRequest;
+      }
       clearAutoSave(card);
-      const form = new FormData();
-      const payload = linePayloadFromCard(card);
-      Object.entries(payload).forEach(([key, value]) => form.append(key, value));
-      if (draftState.header_stamp) form.append('header_stamp', draftState.header_stamp);
-      const file = pendingFiles.get(card);
-      if (file) form.append('file', file);
-      card.classList.add('is-saving');
-      card.classList.remove('is-saved', 'is-save-error');
-      try {
-        const response = await fetch('/api/colaborador/despesas/line', {
-          method: 'POST',
-          body: form,
-          credentials: 'same-origin',
-        });
-        const result = await response.json().catch(() => ({}));
-        if (!response.ok || !result.ok) throw new Error(result.error || translateExpense('colab_expenses.loading_error'));
-        const line = result.line || {};
-        card.dataset.lineStamp = line.stamp || card.dataset.lineStamp || '';
-        draftState.header_stamp = result.header_stamp || draftState.header_stamp || '';
-        if (line.file_original || line.file_name) {
-          card.dataset.fileName = line.file_original || line.file_name || '';
-          card.dataset.fileType = line.mime_type || '';
-          card.dataset.filePath = line.file_path || '';
-          pendingFiles.delete(card);
+      const request = (async () => {
+        const form = new FormData();
+        const payload = linePayloadFromCard(card);
+        Object.entries(payload).forEach(([key, value]) => form.append(key, value));
+        if (draftState.header_stamp) form.append('header_stamp', draftState.header_stamp);
+        const file = pendingFiles.get(card);
+        if (file) form.append('file', file);
+        card.classList.add('is-saving');
+        card.classList.remove('is-saved', 'is-save-error');
+        try {
+          const response = await fetch('/api/colaborador/despesas/line', {
+            method: 'POST',
+            body: form,
+            credentials: 'same-origin',
+          });
+          const result = await response.json().catch(() => ({}));
+          if (!response.ok || !result.ok) throw new Error(result.error || translateExpense('colab_expenses.loading_error'));
+          const line = result.line || {};
+          card.dataset.lineStamp = line.stamp || card.dataset.lineStamp || '';
+          draftState.header_stamp = result.header_stamp || draftState.header_stamp || '';
+          if (line.file_original || line.file_name) {
+            card.dataset.fileName = line.file_original || line.file_name || '';
+            card.dataset.fileType = line.mime_type || '';
+            card.dataset.filePath = line.file_path || '';
+            pendingFiles.delete(card);
+          }
+          card.classList.remove('is-saving');
+          card.classList.add('is-saved');
+          window.setTimeout(() => card.classList.remove('is-saved'), 900);
+          refreshSummary(card);
+          scheduleAutoCollapse(card);
+          return result;
+        } catch (error) {
+          card.classList.remove('is-saving');
+          card.classList.add('is-save-error');
+          console.error(error);
+          return null;
         }
-        card.classList.remove('is-saving');
-        card.classList.add('is-saved');
-        window.setTimeout(() => card.classList.remove('is-saved'), 900);
-        refreshSummary(card);
-        scheduleAutoCollapse(card);
-        return result;
-      } catch (error) {
-        card.classList.remove('is-saving');
-        card.classList.add('is-save-error');
-        console.error(error);
-        return null;
+      })();
+      saveRequests.set(card, request);
+      try {
+        return await request;
+      } finally {
+        saveRequests.delete(card);
+        if (queuedSaves.delete(card) && card.isConnected && !isClosedCard(card)) {
+          scheduleAutoSave(card, 0);
+        }
       }
     }
 
     function scheduleAutoSave(card, delay = 700) {
       if (!card || card.classList.contains('is-deleting') || isClosedCard(card)) return;
+      if (saveRequests.has(card)) {
+        queuedSaves.add(card);
+        return;
+      }
       clearAutoSave(card);
       autoSaveTimers.set(card, window.setTimeout(() => saveCardNow(card), delay));
     }
@@ -1202,18 +1254,38 @@
     }
 
     function isCardComplete(card) {
-      if (!card) return false;
+      return missingExpenseFields(card).length === 0;
+    }
+
+    function missingExpenseFields(card) {
+      if (!card) return [];
       const typeSelect = card.querySelector('[data-expense-type]');
       const selectedType = String(typeSelect?.value || '').trim().toUpperCase();
       const dateValue = String(card.querySelector('[data-expense-date]')?.value || '').trim();
       const amount = parseExpenseAmount(card.querySelector('[data-expense-value]')?.value);
-      const hasBaseFields = !!dateValue && !!selectedType && Number.isFinite(amount) && amount > 0;
       const hasPhoto = !!String(card.dataset.fileName || '').trim();
-      if (!hasBaseFields || !hasPhoto) return false;
-      if (!vehicleExpenseTypes.has(selectedType)) return true;
-      const kmsRaw = String(card.querySelector('[data-expense-kms]')?.value || '').trim();
-      const vehicleValue = String(card.querySelector('[data-expense-vehicle]')?.value || '').trim();
-      return !!kmsRaw && !!vehicleValue;
+      const missing = [];
+      if (!dateValue) missing.push(translateExpense('colab_expenses.date'));
+      if (!selectedType) missing.push(translateExpense('colab_expenses.type'));
+      if (!Number.isFinite(amount) || amount <= 0) missing.push(translateExpense('colab_expenses.value'));
+      if (!hasPhoto) missing.push(translateExpense('colab_expenses.missing_photo'));
+      if (vehicleExpenseTypes.has(selectedType)) {
+        const kmsRaw = String(card.querySelector('[data-expense-kms]')?.value || '').trim();
+        const vehicleValue = String(card.querySelector('[data-expense-vehicle]')?.value || '').trim();
+        if (!kmsRaw) missing.push(translateExpense('colab_expenses.kms'));
+        if (!vehicleValue) missing.push(translateExpense('colab_expenses.vehicle'));
+      }
+      return missing;
+    }
+
+    function showMissingExpenseFields(card) {
+      const fields = missingExpenseFields(card);
+      const message = `${translateExpense('colab_expenses.missing_fields')}: ${fields.join(', ')}.`;
+      if (typeof window.showToast === 'function') {
+        window.showToast(message, 'warning', { delay: 5000 });
+      } else {
+        window.alert(message);
+      }
     }
 
     function collapseCardWithEffect(card) {
@@ -1303,7 +1375,9 @@
       const content = card?.querySelector('[data-expense-card-content]');
       const deleteBtn = card?.querySelector('[data-expense-delete]');
       const validateBtn = card?.querySelector('[data-expense-validate]');
-      if (!card || !content || !deleteBtn || !validateBtn) return;
+      const incompleteBtn = card?.querySelector('[data-expense-incomplete]');
+      const actionBtn = validateBtn || incompleteBtn;
+      if (!card || !content || !deleteBtn || !actionBtn) return;
       if (isClosedCard(card)) return;
       let startX = 0;
       let startY = 0;
@@ -1311,7 +1385,7 @@
       let pointerId = null;
       let dragging = false;
       let horizontalIntent = false;
-      const revealWidth = (deleteBtn.offsetWidth || 92) + (validateBtn.offsetWidth || 92);
+      const revealWidth = (deleteBtn.offsetWidth || 92) + (actionBtn.offsetWidth || 92);
 
       deleteBtn.addEventListener('click', (event) => {
         event.preventDefault();
@@ -1323,7 +1397,7 @@
         deleteCard(card);
       });
 
-      validateBtn.addEventListener('click', (event) => {
+      validateBtn?.addEventListener('click', (event) => {
         event.preventDefault();
         event.stopPropagation();
         if (!window.confirm(translateExpense('colab_expenses.confirm_close'))) {
@@ -1331,6 +1405,12 @@
           return;
         }
         closeCard(card);
+      });
+
+      incompleteBtn?.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        showMissingExpenseFields(card);
       });
 
       content.addEventListener('pointerdown', (event) => {
@@ -1374,6 +1454,7 @@
         const finalX = currentX + dx;
         const shouldDeleteOpen = finalX < -(revealWidth * 0.42);
         card.classList.toggle('is-delete-open', shouldDeleteOpen);
+        if (shouldDeleteOpen && !isCardComplete(card)) showMissingExpenseFields(card);
         if (!shouldDeleteOpen) scheduleAutoCollapse(card);
       }
 
@@ -1407,6 +1488,10 @@
         <button type="button" class="expense-line-validate" data-expense-validate aria-label="${escapeHtml(translateExpense('colab_expenses.validate'))}" title="${escapeHtml(translateExpense('colab_expenses.validate'))}">
           <i class="fa-solid fa-check"></i>
           <span>${escapeHtml(translateExpense('colab_expenses.validate'))}</span>
+        </button>
+        <button type="button" class="expense-line-incomplete" data-expense-incomplete aria-label="${escapeHtml(translateExpense('colab_expenses.missing_fields'))}" title="${escapeHtml(translateExpense('colab_expenses.missing_fields'))}">
+          <i class="fa-solid fa-circle-exclamation"></i>
+          <span>${escapeHtml(translateExpense('colab_expenses.missing_fields'))}</span>
         </button>
         <button type="button" class="expense-line-delete" data-expense-delete aria-label="${escapeHtml(translateExpense('colab_expenses.delete'))}" title="${escapeHtml(translateExpense('colab_expenses.delete'))}">
           <i class="fa-solid fa-trash"></i>
@@ -1525,7 +1610,7 @@
       addDraftLine('line');
     });
     linesHost?.addEventListener('click', (event) => {
-      if (event.target.closest('[data-expense-delete], [data-expense-validate]')) return;
+      if (event.target.closest('[data-expense-delete], [data-expense-validate], [data-expense-incomplete]')) return;
       const openDeleteCard = event.target.closest('.expense-line-card.is-delete-open');
       if (openDeleteCard && !event.target.closest('input, select, textarea, button, a')) {
         closeDeleteActions();

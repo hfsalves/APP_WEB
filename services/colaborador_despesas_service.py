@@ -874,6 +874,7 @@ def list_draft_lines(header_stamp: str) -> list[dict[str, Any]]:
         WHERE DESPCABSTAMP = :header_stamp
           AND ISNULL(ANULADA, 0) = 0
           AND ESTADO IN ('RASCUNHO', 'FECHADO')
+          AND LTRIM(RTRIM(ISNULL(PHC_BOSTAMP, ''))) = ''
         ORDER BY ORDEM, DTCRI
     """), {'header_stamp': str(header_stamp or '').strip()}).mappings().all()
     return [serialize_line(row) for row in rows]
@@ -1091,26 +1092,31 @@ def upsert_expense_line(user, payload: dict[str, Any], file_storage=None) -> dic
             raise ValueError('Despesa fechada.')
 
     file_payload = None
-    if file_storage:
-        file_payload = _store_line_file(file_storage, header_stamp, line_stamp)
-        acquire_duplicate_lock(db.session, file_payload.get('hash'))
-        duplicate = find_exact_file_duplicate(
-            db.session,
-            file_payload.get('hash'),
-            exclude_expense_id=line_stamp,
-        )
-        if duplicate:
-            try:
-                absolute_path = os.path.join(current_app.root_path, file_payload['path'].lstrip('/'))
-                if os.path.isfile(absolute_path):
-                    os.remove(absolute_path)
-            except OSError:
-                current_app.logger.warning('Não foi possível remover comprovativo duplicado.', exc_info=True)
-            source_label = 'Documents AI' if duplicate.get('source_area') == 'document_ai' else 'Despesas'
-            raise ValueError(
-                f"Este comprovativo já existe em {source_label} "
-                f"({duplicate.get('file_name') or duplicate.get('record_id')})."
+    try:
+        if file_storage:
+            file_payload = _store_line_file(file_storage, header_stamp, line_stamp)
+            acquire_duplicate_lock(db.session, file_payload.get('hash'))
+            duplicate = find_exact_file_duplicate(
+                db.session,
+                file_payload.get('hash'),
+                exclude_expense_id=line_stamp,
             )
+            if duplicate:
+                try:
+                    absolute_path = os.path.join(current_app.root_path, file_payload['path'].lstrip('/'))
+                    if os.path.isfile(absolute_path):
+                        os.remove(absolute_path)
+                except OSError:
+                    current_app.logger.warning('Não foi possível remover comprovativo duplicado.', exc_info=True)
+                source_label = 'Documents AI' if duplicate.get('source_area') == 'document_ai' else 'Despesas'
+                raise ValueError(
+                    f"Este comprovativo já existe em {source_label} "
+                    f"({duplicate.get('file_name') or duplicate.get('record_id')})."
+                )
+    except Exception:
+        # A linha nova ainda não pode sobreviver a uma validação de ficheiro falhada.
+        db.session.rollback()
+        raise
 
     data_despesa = str(payload.get('data_despesa') or '').strip() or None
     tipo = str(payload.get('tipo') or '').strip().upper()[:30]

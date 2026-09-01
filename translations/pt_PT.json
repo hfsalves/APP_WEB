@@ -57,6 +57,7 @@
   "colab_expenses.lines": "Linhas da despesa",
   "colab_expenses.loading_error": "Erro ao gravar despesa.",
   "colab_expenses.locked": "Fechada",
+  "colab_expenses.missing_fields": "Dados em falta",
   "colab_expenses.missing_photo": "Foto em falta",
   "colab_expenses.notes": "Observações",
   "colab_expenses.notes_placeholder": "Observações da despesa",
