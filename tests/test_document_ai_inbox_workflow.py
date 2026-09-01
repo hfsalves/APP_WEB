@@ -3,6 +3,7 @@ import unittest
 from services.document_ai_service import (
     _document_inbox_scope_sql,
     _infer_invoice_type,
+    _missing_intersol_agency,
     _normalize_invoice_type,
 )
 from services.document_ai_required_info_service import evaluate_required_info
@@ -60,6 +61,14 @@ class DocumentAiInboxWorkflowTests(unittest.TestCase):
             _infer_invoice_type({'lines': [{'description': 'Treillis soudé'}]}),
             'material',
         )
+
+    def test_intersol_agency_is_required_and_must_be_known(self):
+        self.assertTrue(_missing_intersol_agency({'phc_database': 'INTERSOL', 'ged_folder': ''}))
+        self.assertTrue(_missing_intersol_agency({'phc_database': 'INTERSOL', 'ged_folder': 'OTHER'}))
+        self.assertFalse(_missing_intersol_agency({
+            'phc_database': 'INTERSOL', 'ged_folder': 'HSOLS_INTERSOL_LOR',
+        }))
+        self.assertFalse(_missing_intersol_agency({'phc_database': 'HSOLS_FR', 'ged_folder': 'HSOLS_FR'}))
 
 
 if __name__ == '__main__':

@@ -1331,7 +1331,7 @@ def _phc_tax_rates(cursor) -> list[dict[str, Any]]:
     ]
 
 
-def _resolve_phc_supplier(cursor, peno: int) -> dict[str, Any]:
+def _employee_taxpayer(cursor, peno: int) -> dict[str, str]:
     if not peno:
         raise ValueError('O utilizador não tem número de colaborador.')
     cursor.execute("""
@@ -1347,6 +1347,16 @@ def _resolve_phc_supplier(cursor, peno: int) -> dict[str, Any]:
     ncont = str(pe.NCONT or '').strip()
     if not ncont:
         raise ValueError(f'Colaborador PE.NO={peno} não tem contribuinte preenchido.')
+    return {
+        'ncont': ncont,
+        'nome': str(pe.NOME or '').strip(),
+    }
+
+
+def _resolve_phc_supplier(cursor, ncont: str, employee_name: str = '') -> dict[str, Any]:
+    ncont = str(ncont or '').strip()
+    if not ncont:
+        raise ValueError('O colaborador não tem contribuinte preenchido.')
     cursor.execute("""
         SELECT TOP 1
             ISNULL(NO, 0) AS NO,
@@ -1365,7 +1375,8 @@ def _resolve_phc_supplier(cursor, peno: int) -> dict[str, Any]:
     """, ncont)
     fl = cursor.fetchone()
     if not fl:
-        raise ValueError(f'Não existe fornecedor FL ativo com contribuinte {ncont} para o colaborador {pe.NOME or peno}.')
+        employee_label = str(employee_name or '').strip() or 'selecionado'
+        raise ValueError(f'Não existe fornecedor FL ativo com contribuinte {ncont} para o colaborador {employee_label}.')
     return {
         'no': int(fl.NO or 0),
         'nome': str(fl.NOME or '').strip(),
@@ -1844,6 +1855,8 @@ def _load_processing_lines_for_launch(stamps: list[str]) -> list[dict[str, Any]]
             H.PENO,
             H.PENOME,
             H.PEFEID,
+            H.PHC_DB,
+            H.PHC_SERVER,
             ISNULL(NULLIF(L.FEID, 0), H.FEID) AS LINHA_FEID,
             COALESCE(NULLIF(L.EMPRESA, ''), H.EMPRESA, '') AS LINHA_EMPRESA
         FROM dbo.COLAB_DESPESA_LINHA L
@@ -1884,6 +1897,15 @@ def launch_expenses_to_phc(stamps: list[str], user) -> dict[str, Any]:
     if not phc_db:
         raise ValueError('A empresa selecionada não tem base de dados PHC configurada.')
 
+    # The employee record belongs to the company in the user's profile. The
+    # destination company may be different, so resolve the employee's NIF in
+    # the source PE first and only then look up FL.NCONT in the destination.
+    source_company = _expense_company_by_feid(_safe_int(lines[0].get('PEFEID')))
+    employee_phc_db = str(lines[0].get('PHC_DB') or source_company.get('phc_db') or '').strip()
+    employee_phc_server = str(lines[0].get('PHC_SERVER') or source_company.get('phc_server') or '').strip()
+    if not employee_phc_db:
+        raise ValueError('A empresa do colaborador não tem base de dados PHC configurada.')
+
     login = str(getattr(user, 'LOGIN', '') or getattr(user, 'login', '') or '').strip() or 'APP'
     user_inis = login[:3].upper() or 'APP'
     today_value = date.today()
@@ -1894,7 +1916,12 @@ def launch_expenses_to_phc(stamps: list[str], user) -> dict[str, Any]:
         conn.autocommit = False
         cursor = conn.cursor()
         try:
-            supplier = _resolve_phc_supplier(cursor, peno)
+            if employee_phc_db.upper() == phc_db.upper():
+                employee = _employee_taxpayer(cursor, peno)
+            else:
+                with pyodbc.connect(_phc_conn_str(employee_phc_db, employee_phc_server), timeout=30) as employee_conn:
+                    employee = _employee_taxpayer(employee_conn.cursor(), peno)
+            supplier = _resolve_phc_supplier(cursor, employee['ncont'], employee['nome'])
             company_info = _phc_company_info(cursor)
             logo_path = _local_or_remote_file_path(str(company.get('logo_path') or ''))
             prepared_lines = []
@@ -1903,6 +1930,12 @@ def launch_expenses_to_phc(stamps: list[str], user) -> dict[str, Any]:
                 gross = _safe_decimal(row.get('VALOR'))
                 taxaiva = _safe_decimal(row.get('TAXAIVA'))
                 net, vat = _vat_amounts_from_gross(gross, taxaiva)
+                is_dkv = str(row.get('TIPO') or '').strip().upper() == 'DKV'
+                # DKV is paid directly by the company. Keep the expense line
+                # for traceability, but it must not create a reimbursable
+                # Notes de Frais value in PHC.
+                phc_net = Decimal('0.00') if is_dkv else net
+                phc_vat = Decimal('0.00') if is_dkv else vat
                 tabiva = _safe_int(row.get('TABIVA'))
                 ccusto = str(row.get('CCUSTO') or supplier.get('ccusto') or '').strip()
                 prepared_lines.append({
@@ -1911,6 +1944,8 @@ def launch_expenses_to_phc(stamps: list[str], user) -> dict[str, Any]:
                     'gross': gross,
                     'net': net,
                     'vat': vat,
+                    'phc_net': phc_net,
+                    'phc_vat': phc_vat,
                     'tabiva': tabiva,
                     'taxaiva': taxaiva,
                     'ccusto': ccusto,
@@ -1928,8 +1963,8 @@ def launch_expenses_to_phc(stamps: list[str], user) -> dict[str, Any]:
             bostamp = _new_stamp()
             now_sql = datetime.now()
             hour = now_sql.strftime('%H:%M:%S')
-            total_net = sum((line['net'] for line in prepared_lines), Decimal('0.00')).quantize(Decimal('0.01'))
-            total_vat = sum((line['vat'] for line in prepared_lines), Decimal('0.00')).quantize(Decimal('0.01'))
+            total_net = sum((line['phc_net'] for line in prepared_lines), Decimal('0.00')).quantize(Decimal('0.01'))
+            total_vat = sum((line['phc_vat'] for line in prepared_lines), Decimal('0.00')).quantize(Decimal('0.01'))
             total_deb = total_net
             header_ccusto = str(prepared_lines[0].get('ccusto') or supplier.get('ccusto') or '').strip()
             cursor.execute("""
@@ -1944,8 +1979,8 @@ def launch_expenses_to_phc(stamps: list[str], user) -> dict[str, Any]:
             tax_by_code: dict[int, dict[str, Decimal]] = {}
             for line in prepared_lines:
                 bucket = tax_by_code.setdefault(line['tabiva'], {'taxa': line['taxaiva'], 'base': Decimal('0.00'), 'iva': Decimal('0.00')})
-                bucket['base'] += line['net']
-                bucket['iva'] += line['vat']
+                bucket['base'] += line['phc_net']
+                bucket['iva'] += line['phc_vat']
 
             bo_values = {
                 'bostamp': bostamp,
@@ -2053,8 +2088,8 @@ def launch_expenses_to_phc(stamps: list[str], user) -> dict[str, Any]:
             for line in prepared_lines:
                 row = line['row']
                 article = line['article']
-                net = line['net'].quantize(Decimal('0.01'))
-                local_net = _phc_value(net)
+                phc_net = line['phc_net'].quantize(Decimal('0.01'))
+                local_net = _phc_value(phc_net)
                 bi_values = {
                     'bistamp': line['bistamp'],
                     'bostamp': bostamp,
@@ -2066,14 +2101,16 @@ def launch_expenses_to_phc(stamps: list[str], user) -> dict[str, Any]:
                     'ref': article['ref'],
                     'design': (str(row.get('DESIGN') or '').strip() or article['design'])[:60],
                     'qtt': Decimal('1.0000'),
-                    'qtt2': Decimal('1.0000'),
+                    # QTT2 is the quantity satisfied by downstream documents.
+                    # A new internal dossier line must always start unsatisfied.
+                    'qtt2': Decimal('0.0000'),
                     'pu': local_net,
                     'debito': local_net,
-                    'edebito': net,
+                    'edebito': phc_net,
                     'ttdeb': local_net,
-                    'ettdeb': net,
+                    'ettdeb': phc_net,
                     'pcusto': local_net,
-                    'epcusto': net,
+                    'epcusto': phc_net,
                     'prorc': local_net,
                     'iva': line['taxaiva'],
                     'tabiva': line['tabiva'],

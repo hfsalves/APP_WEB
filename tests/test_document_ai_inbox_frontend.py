@@ -18,6 +18,28 @@ class DocumentAiInboxFrontendTests(unittest.TestCase):
         self.assertIn('function applyFilters({ resetScroll = false } = {})', self.source)
         self.assertIn('if (resetScroll && els.tableScroller)', self.source)
 
+    def test_document_and_invoice_type_are_independent_counter_filters(self):
+        self.assertIn("counterGroup('Tipo de documento', 'document_type'", self.source)
+        self.assertIn("counterGroup('Tipo de fatura', 'invoice_type'", self.source)
+        self.assertIn("excludedField !== 'document_type'", self.source)
+        self.assertIn("excludedField !== 'invoice_type'", self.source)
+        self.assertIn("options.map((option) => [String(option.value), { count: 0", self.source)
+
+    def test_each_view_has_the_expected_counter_groups(self):
+        self.assertIn("if (state.view !== 'management')", self.source)
+        self.assertIn("if (state.view !== 'home')", self.source)
+
+    def test_rows_open_analysis_and_restore_list_position(self):
+        self.assertNotIn('data-action="extract"', self.source)
+        self.assertIn('tabindex="0" role="button" aria-label="Analisar"', self.source)
+        self.assertIn("if (!['Enter', ' '].includes(event.key)", self.source)
+        self.assertIn('scrollTop: els.tableScroller?.scrollTop || 0', self.source)
+        self.assertIn('scrollLeft: els.tableScroller?.scrollLeft || 0', self.source)
+
+    def test_archive_rows_open_the_read_only_analysis_route(self):
+        self.assertIn("if (state.archived) params.set('archive', '1')", self.source)
+        self.assertIn("state.archived ? state.permissions.consult : state.permissions.analyze", self.source)
+
 
 if __name__ == '__main__':
     unittest.main()

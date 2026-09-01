@@ -340,7 +340,9 @@ def insert_line(cursor, *, header_stamp: str, ndos: int, name: str, number: int,
         "bistamp": stamp, "bostamp": header_stamp, "nmdos": name, "ndos": ndos,
         "obrano": number, "boano": doc_date.year, "dataobra": doc_date,
         "ref": text(source.get("REF")), "design": (external_design or text(source.get("DESIGN")))[:60],
-        "qtt": line_qty, "qtt2": line_qty, "unidade": text(source.get("UNIDADE")),
+        # QTT2 represents quantities already satisfied. The imported BI line
+        # must start at zero so the BC -> BL -> PF chain is not pre-satisfied.
+        "qtt": line_qty, "qtt2": ZERO, "unidade": text(source.get("UNIDADE")),
         "pu": _phc_value(unit_price), "debito": _phc_value(unit_price), "edebito": unit_price,
         "ttdeb": _phc_value(total), "ettdeb": total, "pcusto": _phc_value(unit_price),
         "epcusto": unit_price, "prorc": _phc_value(unit_price), "iva": Decimal("20"),

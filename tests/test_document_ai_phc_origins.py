@@ -28,6 +28,8 @@ from services.document_ai_service import (
     require_document_control_ok,
     save_document_phc_origin,
     save_document_adjusted_lines,
+    save_document_draft,
+    DocumentDraftConflictError,
     _score_phc_origin_candidate,
     _match_document_lines_to_origin,
     _phc_contract_flow_stages,
@@ -56,6 +58,61 @@ from services import document_ai_service
 
 
 class DocumentAiPhcOriginTests(unittest.TestCase):
+    def test_document_draft_updates_persistent_result_and_cached_extraction(self):
+        moment = datetime(2026, 9, 1, 10, 30, 0)
+        cached = {'version': 4, 'document': {'document_number': 'OLD'}}
+        document = SimpleNamespace(
+            docinstamp='DOC-1', dtalt=moment, dtcri=moment,
+            processing_meta_json=json.dumps({'llm_full_extraction': cached}),
+            json_resultado='{}', feid=None, fornecedor_no=None,
+            fornecedor_nome_detetado='', fornecedor_nif_detetado='',
+            doc_type_detected='unknown', invoice_type='unknown', useralteracao='',
+        )
+        locked = MagicMock()
+        locked.mappings.return_value.first.return_value = {'DTALT': moment, 'DTCRI': moment}
+        draft = {
+            'document_type': 'invoice', 'invoice_type': 'standard',
+            'document_number': 'FAC-22', 'customer': {'feid': 8},
+            'supplier': {'supplier_no': 42, 'name': 'Fornecedor', 'tax_id': '123'},
+        }
+        with patch.object(document_ai_service, '_ensure_document_ai_schema'), patch.object(
+            document_ai_service.db.session, 'execute', return_value=locked
+        ), patch.object(
+            document_ai_service.db.session, 'get', return_value=document
+        ), patch.object(
+            document_ai_service.db.session, 'commit'
+        ) as commit, patch.object(document_ai_service, '_now', return_value=moment):
+            result = save_document_draft(
+                'DOC-1',
+                {'expected_version': moment.isoformat(timespec='microseconds'), 'document': draft},
+                'tester',
+            )
+
+        persisted = json.loads(document.json_resultado)
+        meta = json.loads(document.processing_meta_json)
+        self.assertEqual(persisted['document_number'], 'FAC-22')
+        self.assertEqual(meta['llm_full_extraction']['document']['document_number'], 'FAC-22')
+        self.assertEqual(document.feid, 8)
+        self.assertEqual(document.fornecedor_no, 42)
+        self.assertEqual(result['version'], moment.isoformat(timespec='microseconds'))
+        commit.assert_called_once()
+
+    def test_document_draft_detects_an_optimistic_lock_conflict(self):
+        current = datetime(2026, 9, 1, 10, 31, 0)
+        locked = MagicMock()
+        locked.mappings.return_value.first.return_value = {'DTALT': current, 'DTCRI': current}
+        with patch.object(document_ai_service, '_ensure_document_ai_schema'), patch.object(
+            document_ai_service.db.session, 'execute', return_value=locked
+        ), patch.object(document_ai_service.db.session, 'rollback') as rollback:
+            with self.assertRaises(DocumentDraftConflictError):
+                save_document_draft(
+                    'DOC-1',
+                    {'expected_version': '2026-09-01T10:00:00.000000', 'document': {}},
+                    'tester',
+                )
+
+        rollback.assert_called_once()
+
     def test_inbox_query_filters_by_group_entity(self):
         where_sql, params = _doc_queryset_sql({'feid': '8'})
 

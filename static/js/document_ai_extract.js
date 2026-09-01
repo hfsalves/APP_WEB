@@ -1,4 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
+  const pageRoot = document.querySelector('.docai-extract-page');
   const els = {
     backBtn: document.getElementById('docAiExtractBackBtn'),
     resetBtn: document.getElementById('docAiExtractResetBtn'),
@@ -16,6 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loading: document.getElementById('docAiExtractLoading'),
     results: document.getElementById('docAiExtractResults'),
     status: document.getElementById('docAiExtractStatus'),
+    saveRetryBtn: document.getElementById('docAiExtractSaveRetryBtn'),
     customerName: document.getElementById('docAiExtractCustomerName'),
     customerTax: document.getElementById('docAiExtractCustomerTax'),
     customerCard: document.getElementById('docAiExtractCustomerCard'),
@@ -34,12 +36,11 @@ document.addEventListener('DOMContentLoaded', () => {
     gedDestination: document.getElementById('docAiExtractGedDestination'),
     gedStatus: document.getElementById('docAiExtractGedStatus'),
     gedFileName: document.getElementById('docAiExtractGedFileName'),
+    gedFileRow: document.getElementById('docAiExtractGedFileRow'),
     gedPath: document.getElementById('docAiExtractGedPath'),
     gedFolderControl: document.getElementById('docAiExtractGedFolderControl'),
     gedFolderSelect: document.getElementById('docAiExtractGedFolderSelect'),
     gedFolderHint: document.getElementById('docAiExtractGedFolderHint'),
-    classificationValue: document.getElementById('docAiExtractClassificationValue'),
-    classificationMeta: document.getElementById('docAiExtractClassificationMeta'),
     projectCard: document.getElementById('docAiExtractProjectCard'),
     projectName: document.getElementById('docAiExtractProjectName'),
     projectMeta: document.getElementById('docAiExtractProjectMeta'),
@@ -144,6 +145,9 @@ document.addEventListener('DOMContentLoaded', () => {
     duplicateCloseTop: document.getElementById('docAiDuplicateCloseTop'),
     duplicateCancel: document.getElementById('docAiDuplicateCancel'),
     duplicateConfirm: document.getElementById('docAiDuplicateConfirm'),
+    conflictModal: document.getElementById('docAiConflictModal'),
+    conflictReload: document.getElementById('docAiConflictReload'),
+    conflictKeep: document.getElementById('docAiConflictKeep'),
     viewTabs: document.getElementById('docAiExtractViewTabs'),
     modeLabel: document.getElementById('docAiExtractModeLabel'),
     modeValue: document.getElementById('docAiExtractModeValue'),
@@ -153,6 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const allowedViews = new Set([...(els.viewTabs?.querySelectorAll('[data-view]') || [])].map((button) => button.dataset.view));
   const initialParams = new URLSearchParams(window.location.search);
   const initialView = initialParams.get('view');
+  const readOnly = pageRoot?.dataset.readOnly === '1';
   const state = {
     file: null,
     previewUrl: '',
@@ -210,6 +215,16 @@ document.addEventListener('DOMContentLoaded', () => {
     duplicateMatches: [],
     duplicateModalShownFor: '',
     deletingDocument: false,
+    draftVersion: '',
+    draftTimer: null,
+    draftRequest: null,
+    draftRevision: 0,
+    draftSavedRevision: 0,
+    draftLastFingerprint: '',
+    draftError: false,
+    draftConflict: false,
+    pendingManualOverrides: null,
+    readOnly,
     view: allowedViews.has(initialView) ? initialView : ([...allowedViews][0] || ''),
   };
 
@@ -264,12 +279,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const params = new URLSearchParams();
     if (documentId) params.set('document_id', documentId);
     if (state.view !== 'home') params.set('view', state.view);
+    if (state.readOnly) params.set('archive', '1');
     const query = params.toString();
     return `/document_ai/extract${query ? `?${query}` : ''}`;
   }
 
   function inboxUrl() {
-    return state.view === 'home' ? '/document_ai/inbox' : `/document_ai/inbox?view=${encodeURIComponent(state.view)}`;
+    const params = new URLSearchParams();
+    if (state.view !== 'home') params.set('view', state.view);
+    if (state.readOnly) params.set('archived', '1');
+    const query = params.toString();
+    return `/document_ai/inbox${query ? `?${query}` : ''}`;
   }
 
   function renderViewTabs() {
@@ -283,6 +303,15 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
     els.viewTabs?.classList.toggle('is-single-view', tabs.length === 1);
+    updateSubmitPhcButton();
+  }
+
+  function workflowViewLabel(view = state.view) {
+    return ({
+      home: 'Receção',
+      management: 'Controlo',
+      accounting: 'Contabilidade',
+    })[view] || 'Receção';
   }
 
   function renderModeCard() {
@@ -340,13 +369,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function renderClassificationCard() {
-    const documentData = state.documentData || {};
-    const documentType = String(documentData.document_type || '').trim();
-    const invoiceType = invoiceTypeLabels[String(documentData.invoice_type || '').trim().toLowerCase()] || '';
-    els.classificationValue.textContent = documentType
-      ? (typeLabels[documentType] || documentType)
-      : '--';
-    els.classificationMeta.textContent = invoiceType || '--';
+    renderGedDestination();
   }
 
   function formatEditableAmount(value) {
@@ -502,7 +525,14 @@ document.addEventListener('DOMContentLoaded', () => {
       supplier.address,
       supplier.postal_code,
       supplier.city,
+      state.selectedProject?.ccusto,
+      state.selectedProject?.description,
+      documentData.origin_project?.ccusto,
+      documentData.origin_project?.description,
+      documentData.document_number,
+      documentData.reference,
       documentData.mail_title,
+      ...(documentData.lines || []).map((line) => `${line.description || ''} ${line.project || ''}`),
       ...(documentData.notes || []),
     ].filter(Boolean).join(' '));
     if (/\b(CHAMPAGNE|REIMS|TROYES|EPERNAY|CHALONS EN CHAMPAGNE|CHARLEVILLE MEZIERES|CHAUMONT)\b|\b(08|10|51|52)\d{3}\b/.test(text)) {
@@ -529,17 +559,21 @@ document.addEventListener('DOMContentLoaded', () => {
       customer.ged_folder = suggestion.value;
       customer.ged_folder_suggested_by = suggestion.reason;
     }
-    const selectedFolder = customer.ged_folder || 'HSOLS_INTERSOL_AL';
-    els.gedFolderSelect.replaceChildren(...intersolGedFolders.map((option) => {
+    const selectedFolder = customer.ged_folder || '';
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = 'Escolher';
+    els.gedFolderSelect.replaceChildren(placeholder, ...intersolGedFolders.map((option) => {
       const element = document.createElement('option');
       element.value = option.value;
-      element.textContent = option.label;
+      element.textContent = option.label.replace('INTERSOL ', '');
       element.selected = option.value === selectedFolder;
       return element;
     }));
+    placeholder.selected = !selectedFolder;
     els.gedFolderHint.textContent = state.gedFolderManuallySelected
       ? 'Destino escolhido manualmente'
-      : (customer.ged_folder_suggested_by || 'Alsace por defeito; confirma antes de submeter');
+      : (customer.ged_folder_suggested_by || (selectedFolder ? 'Agência definida pela entidade' : 'Falta a agência.'));
   }
 
   function gedPeriodFolders() {
@@ -622,6 +656,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     els.gedFileName.textContent = fileName;
     els.gedFileName.title = fileName;
+    const originalName = String(state.file?.name || '').trim().toLocaleLowerCase('pt');
+    const usefulGedName = Boolean(fileName && fileName.toLocaleLowerCase('pt') !== originalName);
+    if (els.gedFileRow) els.gedFileRow.hidden = !usefulGedName;
     els.gedPath.replaceChildren(...paths.map((destination) => {
       const button = document.createElement('button');
       button.type = 'button';
@@ -631,10 +668,15 @@ document.addEventListener('DOMContentLoaded', () => {
       button.dataset.copyValue = destination.path;
       return button;
     }));
-    els.gedDestination.classList.toggle('is-incomplete', incomplete);
+    const missingAgency = (customer.phc_database === 'INTERSOL'
+      || String(customer.ged_folder || '').startsWith('HSOLS_INTERSOL_'))
+      && !String(customer.ged_folder || '').trim();
+    els.gedDestination.classList.toggle('is-incomplete', incomplete || missingAgency);
     els.gedStatus.textContent = incomplete
       ? 'Destino provisório: falta obter a correspondência, identificar o número do remetente/fornecedor ou configurar a pasta GED da entidade.'
-      : `${paths.length} ${paths.length === 1 ? 'ficheiro previsto' : 'ficheiros previstos'} com os dados identificados.`;
+      : (missingAgency
+        ? 'Falta a agência.'
+        : `${paths.length} ${paths.length === 1 ? 'destino previsto' : 'destinos previstos'}. Seleciona para copiar o caminho.`);
     if (state.integrationResult?.ged_path) {
       els.gedFileName.textContent = state.integrationResult.file_name || fileName;
       const integratedPath = els.gedPath.querySelector('[data-copy-value]');
@@ -656,6 +698,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const canSubmitCorrespondence = isCorrespondence && els.submitPhcBtn?.dataset.canCorrespondence === '1';
     const canSubmitProvisionalInvoice = isProvisionalInvoice && els.submitPhcBtn?.dataset.canProvisionalInvoice === '1';
     if (els.workflowValidateBtn) {
+      const viewLabel = workflowViewLabel();
       const currentAssignment = (state.workflow.assignments || []).find((assignment) => (
         assignment.view === state.view && assignment.active
       ));
@@ -664,14 +707,18 @@ document.addEventListener('DOMContentLoaded', () => {
         || !state.documentData
         || state.workflowSubmitting
         || state.submittingPhc
+        || Boolean(state.draftTimer)
+        || Boolean(state.draftRequest)
+        || state.draftError
         || isAccountingPending;
       els.workflowValidateBtn.dataset.view = state.view;
       els.workflowValidateBtn.title = isAccountingPending
         ? 'Pendente: aguarda validação do Controlo de Gestão.'
-        : '';
+        : `Validar ${viewLabel}`;
+      els.workflowValidateBtn.setAttribute('aria-label', `Validar ${viewLabel}`);
       els.workflowValidateBtn.innerHTML = state.workflowSubmitting
-        ? '<i class="fa-solid fa-circle-notch fa-spin"></i><span>A validar...</span>'
-        : '<i class="fa-solid fa-check"></i><span>Validar</span>';
+        ? `<i class="fa-solid fa-circle-notch fa-spin"></i><span>A validar ${viewLabel}...</span>`
+        : `<i class="fa-solid fa-check"></i><span>Validar ${viewLabel}</span>`;
     }
     if (!els.submitPhcBtn) return;
     const allowed = canSubmitCorrespondence || canSubmitProvisionalInvoice;
@@ -786,6 +833,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function resetScreen() {
+    resetDraftState();
     cleanupPreview();
     state.file = null;
     state.loading = false;
@@ -861,8 +909,172 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       payload = await response.json();
     } catch (_) {}
-    if (!response.ok) throw new Error(payload.error || `HTTP ${response.status}`);
+    if (!response.ok) {
+      const error = new Error(payload.error || `HTTP ${response.status}`);
+      error.status = response.status;
+      error.payload = payload;
+      throw error;
+    }
     return payload;
+  }
+
+  function draftFingerprint(documentData = state.documentData) {
+    return JSON.stringify(documentData || {});
+  }
+
+  function markLineManualFields(line, ...fields) {
+    if (!line) return;
+    const current = new Set(Array.isArray(line._manual_fields) ? line._manual_fields : []);
+    fields.filter(Boolean).forEach((field) => current.add(field));
+    line._manual_fields = [...current];
+  }
+
+  function captureManualOverrides(documentData = state.documentData) {
+    if (!documentData) return null;
+    const snapshot = { lines: [] };
+    if (documentData.customer?.manually_selected || documentData.customer?.ged_folder_manually_selected) {
+      snapshot.customer = structuredClone(documentData.customer);
+    }
+    if (documentData.supplier?.manually_selected || documentData.supplier_explicitly_absent) {
+      snapshot.supplier = structuredClone(documentData.supplier || {});
+      snapshot.supplier_explicitly_absent = Boolean(documentData.supplier_explicitly_absent);
+      snapshot.external_party_role = documentData.external_party_role;
+    }
+    if (documentData.origin_project_manually_selected || documentData.origin_project_manually_cleared) {
+      snapshot.origin_project = documentData.origin_project ? structuredClone(documentData.origin_project) : null;
+      snapshot.origin_project_manually_selected = Boolean(documentData.origin_project_manually_selected);
+      snapshot.origin_project_manually_cleared = Boolean(documentData.origin_project_manually_cleared);
+    }
+    (documentData.lines || []).forEach((line, index) => {
+      const fields = Array.isArray(line?._manual_fields) ? line._manual_fields : [];
+      if (!fields.length) return;
+      snapshot.lines.push({
+        index,
+        fields: [...fields],
+        values: Object.fromEntries(fields.map((field) => [field, structuredClone(line[field])])),
+      });
+    });
+    return snapshot.customer || snapshot.supplier || snapshot.origin_project_manually_selected
+      || snapshot.origin_project_manually_cleared || snapshot.lines.length ? snapshot : null;
+  }
+
+  function applyManualOverrides(documentData, snapshot) {
+    if (!snapshot) return documentData;
+    const merged = structuredClone(documentData || {});
+    if (snapshot.customer) merged.customer = structuredClone(snapshot.customer);
+    if (snapshot.supplier) {
+      merged.supplier = structuredClone(snapshot.supplier);
+      merged.supplier_explicitly_absent = snapshot.supplier_explicitly_absent;
+      if (snapshot.external_party_role) merged.external_party_role = snapshot.external_party_role;
+    }
+    if (snapshot.origin_project_manually_selected || snapshot.origin_project_manually_cleared) {
+      if (snapshot.origin_project) merged.origin_project = structuredClone(snapshot.origin_project);
+      else delete merged.origin_project;
+      merged.origin_project_manually_selected = snapshot.origin_project_manually_selected;
+      merged.origin_project_manually_cleared = snapshot.origin_project_manually_cleared;
+    }
+    snapshot.lines.forEach(({ index, fields, values }) => {
+      const line = merged.lines?.[index];
+      if (!line) return;
+      fields.forEach((field) => { line[field] = structuredClone(values[field]); });
+      line._manual_fields = [...new Set([...(line._manual_fields || []), ...fields])];
+    });
+    return merged;
+  }
+
+  function resetDraftState() {
+    window.clearTimeout(state.draftTimer);
+    state.draftTimer = null;
+    state.draftRequest = null;
+    state.draftVersion = '';
+    state.draftRevision = 0;
+    state.draftSavedRevision = 0;
+    state.draftLastFingerprint = '';
+    state.draftError = false;
+    state.draftConflict = false;
+    if (els.saveRetryBtn) els.saveRetryBtn.hidden = true;
+    els.conflictModal?.classList.remove('sz_is_open');
+    els.conflictModal?.setAttribute('aria-hidden', 'true');
+  }
+
+  function setDraftStatus(status) {
+    if (status === 'error' || status === 'conflict') state.draftError = true;
+    if (status === 'saved') state.draftError = false;
+    if (status === 'conflict') state.draftConflict = true;
+    if (els.saveRetryBtn) els.saveRetryBtn.hidden = !state.draftError || state.draftConflict;
+    if (status === 'saving') setStatus('A guardar...');
+    else if (status === 'saved') setStatus('Guardado');
+    else if (status === 'error') setStatus('Não foi possível guardar as alterações.', true);
+    else if (status === 'conflict') setStatus('Documento alterado por outro utilizador.', true);
+    updateSubmitPhcButton();
+  }
+
+  function openDraftConflict() {
+    setDraftStatus('conflict');
+    els.conflictModal?.classList.add('sz_is_open');
+    els.conflictModal?.setAttribute('aria-hidden', 'false');
+    window.setTimeout(() => els.conflictReload?.focus(), 0);
+  }
+
+  function scheduleAnalysisSave({ immediate = false } = {}) {
+    if (state.readOnly) return Promise.resolve(true);
+    if (!state.currentDocumentId || !state.documentData || state.draftConflict) return Promise.resolve(false);
+    state.draftRevision += 1;
+    window.clearTimeout(state.draftTimer);
+    setDraftStatus('saving');
+    if (immediate) return flushAnalysisSave();
+    state.draftTimer = window.setTimeout(() => flushAnalysisSave(), 450);
+    return Promise.resolve(true);
+  }
+
+  async function flushAnalysisSave() {
+    if (state.readOnly) return true;
+    window.clearTimeout(state.draftTimer);
+    state.draftTimer = null;
+    if (!state.currentDocumentId || !state.documentData || state.draftConflict) return !state.draftError;
+    if (state.draftRequest) {
+      try {
+        await state.draftRequest;
+      } catch (_) {
+        return false;
+      }
+      if (state.draftConflict) return false;
+    }
+    const revision = state.draftRevision;
+    const fingerprint = draftFingerprint();
+    if (fingerprint === state.draftLastFingerprint && !state.draftError) {
+      state.draftSavedRevision = Math.max(state.draftSavedRevision, revision);
+      setDraftStatus('saved');
+      return true;
+    }
+    const snapshot = JSON.parse(fingerprint);
+    setDraftStatus('saving');
+    state.draftRequest = fetchJson(`/api/document_ai/documents/${encodeURIComponent(state.currentDocumentId)}/draft`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ expected_version: state.draftVersion, document: snapshot }),
+    });
+    try {
+      const payload = await state.draftRequest;
+      state.draftVersion = String(payload.version || state.draftVersion || '');
+      state.draftLastFingerprint = fingerprint;
+      state.draftSavedRevision = revision;
+      state.draftError = false;
+    } catch (error) {
+      if (error.status === 409 || error.payload?.code === 'document_version_conflict') {
+        openDraftConflict();
+      } else {
+        setDraftStatus('error');
+      }
+      return false;
+    } finally {
+      state.draftRequest = null;
+    }
+    if (state.draftRevision > revision || draftFingerprint() !== fingerprint) {
+      return flushAnalysisSave();
+    }
+    setDraftStatus('saved');
+    return true;
   }
 
   function closeDuplicateModal() {
@@ -1016,6 +1228,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function clearCurrentAnalysis() {
+    resetDraftState();
     state.originSearchToken += 1;
     state.originPayload = null;
     state.originCandidates = [];
@@ -1091,7 +1304,8 @@ document.addEventListener('DOMContentLoaded', () => {
     els.fileMeta.textContent = 'A carregar PDF original...';
     setStatus('A carregar documento do inbox...');
     try {
-      const response = await fetch(`/api/document_ai/documents/${encodeURIComponent(documentId)}/original?view=${encodeURIComponent(state.view)}`);
+      const archiveParam = state.readOnly ? '&archive=1' : '';
+      const response = await fetch(`/api/document_ai/documents/${encodeURIComponent(documentId)}/original?view=${encodeURIComponent(state.view)}${archiveParam}`);
       if (!response.ok) {
         let message = `HTTP ${response.status}`;
         try {
@@ -1103,15 +1317,30 @@ document.addEventListener('DOMContentLoaded', () => {
       const blob = await response.blob();
       const fileName = fileNameFromDisposition(response.headers.get('Content-Disposition')) || `documento-${documentId}.pdf`;
       const file = new File([blob], fileName, { type: blob.type || 'application/pdf' });
-      setFile(file);
+      setFile(file, { autoExtract: !state.readOnly });
       els.loading.hidden = true;
       els.empty.hidden = false;
       els.empty.querySelector('strong').textContent = 'A carregar leitura do documento';
       els.empty.querySelector('span').textContent = 'Será usado o resultado guardado no inbox quando estiver disponível.';
       els.resultMeta.textContent = 'PDF carregado a partir do inbox; a verificar leitura guardada.';
-      setStatus('A verificar se o documento já tem uma leitura guardada...');
+      setStatus(state.readOnly ? 'Consulta do Arquivo.' : 'A verificar se o documento já tem uma leitura guardada...');
       window.history.replaceState({}, '', extractUrl(documentId));
-      if (!options.skipGroup) await loadDocumentGroup(documentId);
+      if (state.readOnly) {
+        const detail = await fetchJson(`/api/document_ai/documents/${encodeURIComponent(documentId)}?archive=1`);
+        const cached = detail.processing_meta?.llm_full_extraction || {};
+        renderResult({
+          ...cached,
+          document_id: documentId,
+          document: detail.result || cached.document || {},
+          matching: cached.matching || {},
+          workflow: detail.workflow || cached.workflow || {},
+          version: detail.version || '',
+          processing_status: detail.status || '',
+          phc_integration: detail.processing_meta?.phc_integration || cached.phc_integration || {},
+        });
+      } else if (!options.skipGroup) {
+        await loadDocumentGroup(documentId);
+      }
       renderGroupNavigator();
     } catch (error) {
       console.error(error);
@@ -1263,6 +1492,25 @@ document.addEventListener('DOMContentLoaded', () => {
         ${secondaryCell}
       </tr>${bcRows}`;
     }).join('');
+  }
+
+  function applyReadOnlyState() {
+    if (!state.readOnly || !pageRoot) return;
+    pageRoot.querySelectorAll('input, select, textarea').forEach((control) => {
+      control.disabled = true;
+      control.setAttribute('aria-readonly', 'true');
+    });
+    [els.customerCard, els.supplierCard, els.projectCard].forEach((card) => {
+      if (!card) return;
+      card.removeAttribute('tabindex');
+      card.removeAttribute('role');
+      card.setAttribute('aria-disabled', 'true');
+    });
+    if (els.splitLineBtn) els.splitLineBtn.hidden = true;
+    if (els.status) {
+      els.status.textContent = 'Consulta do Arquivo';
+      els.status.hidden = false;
+    }
   }
 
   function renderTaxes(taxes, currency) {
@@ -1497,6 +1745,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderCustomerCard(state.documentData.customer, state.matching);
     closeEntityModal();
     await Promise.all([rematchExternalParty(), loadCorrespondenceReference()]);
+    await scheduleAnalysisSave({ immediate: true });
     if (!isCorrespondence) loadOriginCandidates(state.documentData);
   }
 
@@ -1746,11 +1995,13 @@ document.addEventListener('DOMContentLoaded', () => {
     setStatus(`A guardar ${selectedLines.length} linha(s) distribuída(s) por ${targetGroups.length} BL(s)...`);
     if (state.currentDocumentId) {
       try {
-        await fetchJson(`/api/document_ai/documents/${encodeURIComponent(state.currentDocumentId)}/lines`, {
+        const payload = await fetchJson(`/api/document_ai/documents/${encodeURIComponent(state.currentDocumentId)}/lines`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ lines: state.documentData.lines }),
         });
+        state.draftVersion = String(payload.version || state.draftVersion || '');
+        state.draftLastFingerprint = draftFingerprint();
       } catch (error) {
         state.documentData.lines = originalLines;
         state.selectedSplitLines = new Set(selectedLines);
@@ -1839,6 +2090,7 @@ document.addEventListener('DOMContentLoaded', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ origin: selected, document: state.documentData || {} }),
       });
+      state.draftVersion = String(payload.version || state.draftVersion || '');
       state.selectedOrigins = Array.isArray(payload.origins) ? payload.origins : (alreadySelected ? previousOrigins.filter((origin) => origin.stamp !== selected.stamp) : [...previousOrigins, payload.origin || selected]);
       renderOriginCandidates({ ...(state.originPayload || {}), selected_origins: state.selectedOrigins });
       await pruneLineBcAllocations();
@@ -2011,9 +2263,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!hasDifferentOrigin) return true;
     if (state.currentDocumentId) {
       try {
-        await fetchJson(`/api/document_ai/documents/${encodeURIComponent(state.currentDocumentId)}/origin`, {
+        const payload = await fetchJson(`/api/document_ai/documents/${encodeURIComponent(state.currentDocumentId)}/origin`, {
           method: 'DELETE',
         });
+        state.draftVersion = String(payload.version || state.draftVersion || '');
       } catch (error) {
         setStatus(error.message || 'Não foi possível desmarcar a origem anterior.', true);
         showMessage(error.message || 'Não foi possível desmarcar a origem anterior.', 'error');
@@ -2037,11 +2290,8 @@ document.addEventListener('DOMContentLoaded', () => {
       return true;
     }
     try {
-      await fetchJson(`/api/document_ai/documents/${encodeURIComponent(state.currentDocumentId)}/lines`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lines: state.documentData.lines || [] }),
-      });
+      const saved = await scheduleAnalysisSave({ immediate: true });
+      if (!saved) return false;
       setStatus(successMessage);
       return true;
     } catch (error) {
@@ -2130,6 +2380,7 @@ document.addEventListener('DOMContentLoaded', () => {
       line.project_ccusto = selected.ccusto || '';
       line.project_machine = selected.machine || '';
       line.project_location = selected.location || '';
+      markLineManualFields(line, 'ccusto', 'project_ccusto', 'project_machine', 'project_location');
       state.projectTargetLineIndex = null;
       closeProjectModal();
       renderLines(state.documentData.lines || [], state.documentData.currency || '');
@@ -2141,9 +2392,12 @@ document.addEventListener('DOMContentLoaded', () => {
     state.projectSuggestionDismissed = true;
     state.selectedProject = { ...selected };
     state.documentData.origin_project = { ...selected };
+    state.documentData.origin_project_manually_selected = true;
+    state.documentData.origin_project_manually_cleared = false;
     renderProjectCard();
     closeProjectModal();
     setStatus(`Filtro de obra ${selected.ccusto} aplicado às origens.`);
+    await scheduleAnalysisSave({ immediate: true });
     loadOriginCandidates(state.documentData);
   }
 
@@ -2226,6 +2480,7 @@ document.addEventListener('DOMContentLoaded', () => {
       candidate.article_ref = article.ref || '';
       candidate.article_family = article.family || candidate.article_family || '';
       if (article.unit) candidate.unit = article.unit;
+      markLineManualFields(candidate, 'ref', 'article_ref', 'article_family', 'unit');
     });
     state.articleTargetLineIndex = null;
     closeArticleModal();
@@ -2307,6 +2562,7 @@ document.addEventListener('DOMContentLoaded', () => {
     line.matricula = vehicle.registration || '';
     line.vehicle_stamp = vehicle.vehicle_stamp || '';
     line.vehicle_source = 'V_ALL_VA';
+    markLineManualFields(line, 'registration', 'matricula', 'vehicle_stamp', 'vehicle_source');
     closeVehicleModal();
     renderLines(state.documentData.lines || [], state.documentData.currency || '');
     await saveAdjustedLines(`Viatura ${vehicle.registration} guardada na linha.`);
@@ -2319,6 +2575,7 @@ document.addEventListener('DOMContentLoaded', () => {
     line.matricula = '';
     line.vehicle_stamp = '';
     line.vehicle_source = '';
+    markLineManualFields(line, 'registration', 'matricula', 'vehicle_stamp', 'vehicle_source');
     closeVehicleModal();
     renderLines(state.documentData.lines || [], state.documentData.currency || '');
     await saveAdjustedLines('Associação à viatura removida.');
@@ -2415,6 +2672,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }));
     });
     line.bc_allocations = allocations;
+    markLineManualFields(line, 'bc_allocations');
     if (allocations.length < 2) state.expandedBcLines.delete(lineIndex);
     closeBcModal();
     renderLines(state.documentData.lines || [], state.documentData.currency || '');
@@ -2440,8 +2698,13 @@ document.addEventListener('DOMContentLoaded', () => {
     state.projectSuggestionDismissed = true;
     state.selectedProject = null;
     if (state.documentData) delete state.documentData.origin_project;
+    if (state.documentData) {
+      state.documentData.origin_project_manually_selected = false;
+      state.documentData.origin_project_manually_cleared = true;
+    }
     renderProjectCard();
     setStatus('Filtro de obra removido.');
+    await scheduleAnalysisSave({ immediate: true });
     if (state.documentData) loadOriginCandidates(state.documentData);
   }
 
@@ -2535,6 +2798,7 @@ document.addEventListener('DOMContentLoaded', () => {
       setStatus('Ausência de fornecedor confirmada para Publicidade.');
       showMessage('Publicidade definida sem fornecedor.', 'success');
       updateSubmitPhcButton();
+      scheduleAnalysisSave({ immediate: true });
       return;
     }
     const name = els.supplierModalSearch.value.trim();
@@ -2561,6 +2825,7 @@ document.addEventListener('DOMContentLoaded', () => {
     closeSupplierModal();
     setStatus(`Remetente “${name}” introduzido manualmente.`);
     showMessage('Nome do remetente guardado neste ecrã.', 'success');
+    scheduleAnalysisSave({ immediate: true });
   }
 
   function selectSupplier(index) {
@@ -2595,11 +2860,15 @@ document.addEventListener('DOMContentLoaded', () => {
     closeSupplierModal();
     setStatus(`${isCustomer ? 'Cliente' : 'Fornecedor'} ${selected.name} (#${phcPartyNumber(selected.no, selected.estab)}) selecionado.`);
     showMessage(`${isCustomer ? 'Cliente' : 'Fornecedor'} selecionado.`, 'success');
+    scheduleAnalysisSave({ immediate: true });
     if (!['mail', 'bank_statement'].includes(state.documentData.document_type)) loadOriginCandidates(state.documentData);
   }
 
   function renderResult(payload) {
-    const documentData = payload.document || {};
+    const documentData = applyManualOverrides(payload.document || {}, state.pendingManualOverrides);
+    payload.document = documentData;
+    state.pendingManualOverrides = null;
+    const serverFingerprint = draftFingerprint(documentData);
     const customer = documentData.customer || {};
     const supplier = documentData.supplier || {};
     const totals = documentData.totals || {};
@@ -2609,6 +2878,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const isReception = state.view === 'home';
 
     state.documentData = documentData;
+    state.draftVersion = String(payload.version || payload.updated_at || '');
+    state.draftRevision = 0;
+    state.draftSavedRevision = 0;
+    state.draftLastFingerprint = serverFingerprint;
+    state.draftError = false;
+    state.draftConflict = false;
+    if (els.saveRetryBtn) els.saveRetryBtn.hidden = true;
     state.workflow = payload.workflow || {};
     state.controlOk = Boolean(payload.workflow?.control_ok);
     state.integratedPhc = payload.processing_status === 'provisional_invoice'
@@ -2638,7 +2914,6 @@ document.addEventListener('DOMContentLoaded', () => {
     els.originSection.hidden = isCorrespondence || isReception;
     els.linesSection.hidden = isCorrespondence || isReception;
     els.notesSection.hidden = true;
-    els.gedDestination.hidden = true;
     els.persistenceNote.textContent = isMail
       ? 'O correio foi analisado apenas neste ecrã e não foi adicionado ao inbox.'
       : (documentData.document_type === 'bank_statement'
@@ -2663,9 +2938,8 @@ document.addEventListener('DOMContentLoaded', () => {
     els.notesSection.hidden = true;
     els.notes.innerHTML = notes.map((note) => `<li>${escapeHtml(note)}</li>`).join('');
 
-    const confidence = Math.max(0, Math.min(1, Number(documentData.confidence || 0)));
-    const language = String(documentData.visible_language || 'idioma não identificado').toUpperCase();
-    els.resultMeta.textContent = `Leitura guardada · ${language}`;
+    els.resultMeta.textContent = '';
+    els.resultMeta.hidden = true;
     els.empty.hidden = true;
     els.loading.hidden = true;
     els.results.hidden = false;
@@ -2674,9 +2948,11 @@ document.addEventListener('DOMContentLoaded', () => {
       state.originPayload = null;
       state.originCandidates = [];
       state.selectedOrigins = [];
-    } else {
+    } else if (!state.readOnly) {
       loadOriginCandidates(documentData);
     }
+    if (state.currentDocumentId && draftFingerprint() !== serverFingerprint) scheduleAnalysisSave();
+    applyReadOnlyState();
   }
 
   function clearSuggestionsForForcedRead() {
@@ -2714,6 +2990,7 @@ document.addEventListener('DOMContentLoaded', () => {
   async function extractDocument(options = {}) {
     if (!state.file || state.loading) return;
     const hadPreviousResult = Boolean(state.documentData && !els.results.hidden);
+    if (options.force) state.pendingManualOverrides = captureManualOverrides();
     state.loading = true;
     els.runBtn.disabled = true;
     if (els.deleteBtn) els.deleteBtn.disabled = true;
@@ -2810,6 +3087,7 @@ document.addEventListener('DOMContentLoaded', () => {
       showMessage('Carrega e valida primeiro um documento compatível.', 'error');
       return null;
     }
+    if (!await flushAnalysisSave()) return null;
     state.submittingPhc = true;
     updateSubmitPhcButton();
     const isProvisionalInvoice = ['invoice', 'provisional_invoice', 'credit_note'].includes(documentType);
@@ -2861,6 +3139,7 @@ document.addEventListener('DOMContentLoaded', () => {
   async function confirmDocumentControl({ announceSuccess = true } = {}) {
     if (state.controlOk) return true;
     if (!els.controlOkBtn || !state.currentDocumentId || state.submittingControl) return false;
+    if (!await flushAnalysisSave()) return false;
     state.submittingControl = true;
     updateSubmitPhcButton();
     setStatus('A confirmar o Controlo OK...');
@@ -2884,26 +3163,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  async function saveWorkflowCorrections() {
-    const documentData = state.documentData || {};
-    const supplier = documentData.supplier || {};
-    await fetchJson(`/api/document_ai/documents/${encodeURIComponent(state.currentDocumentId)}/validate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        doc_type: documentData.document_type || 'unknown',
-        feid: Number(documentData.customer?.feid || 0) || null,
-        supplier_no: Number(supplier.supplier_no || supplier.no || 0) || null,
-        template_id: '',
-        confidence: Number(documentData.confidence || 0) || 0,
-        status: 'review_required',
-        result: documentData,
-        warnings: documentData.warnings || [],
-        errors: [],
-      }),
-    });
-  }
-
   function clearRequiredInfoHighlights() {
     document.querySelectorAll('.docai-required-missing').forEach((element) => {
       element.classList.remove('docai-required-missing');
@@ -2921,10 +3180,15 @@ document.addEventListener('DOMContentLoaded', () => {
       firstTarget ||= target;
     });
     firstTarget?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const focusTarget = firstTarget?.matches('input, select, textarea, button, [tabindex]')
+      ? firstTarget
+      : firstTarget?.querySelector('input, select, textarea, button, [tabindex]');
+    window.setTimeout(() => focusTarget?.focus({ preventScroll: true }), 250);
   }
 
   async function validateWorkflowStage({ confirmDuplicate = false } = {}) {
     if (!els.workflowValidateBtn || !state.currentDocumentId || !state.documentData || state.workflowSubmitting) return;
+    if (!await flushAnalysisSave()) return;
     state.workflowSubmitting = true;
     clearRequiredInfoHighlights();
     updateSubmitPhcButton();
@@ -2969,7 +3233,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  els.backBtn?.addEventListener('click', () => { window.location.href = inboxUrl(); });
+  els.backBtn?.addEventListener('click', async () => {
+    if (await flushAnalysisSave()) window.location.href = inboxUrl();
+  });
   els.viewTabs?.addEventListener('click', (event) => {
     const view = event.target.closest('[data-view]')?.dataset.view;
     if (view) selectView(view);
@@ -2990,14 +3256,22 @@ document.addEventListener('DOMContentLoaded', () => {
     renderViewTabs();
     renderModeCard();
   });
-  els.gedFolderSelect?.addEventListener('change', () => {
+  els.gedFolderSelect?.addEventListener('change', async () => {
     if (!state.documentData?.customer) return;
     state.gedFolderManuallySelected = true;
     state.documentData.customer.ged_folder = els.gedFolderSelect.value;
     state.documentData.customer.ged_folder_manually_selected = true;
     state.documentData.customer.ged_folder_suggested_by = '';
     renderGedDestination();
-    setStatus(`Destino GED alterado para ${els.gedFolderSelect.selectedOptions[0]?.textContent || els.gedFolderSelect.value}.`);
+    const agency = els.gedFolderSelect.selectedOptions[0]?.textContent || 'Escolher';
+    setStatus(els.gedFolderSelect.value ? `Agência INTERSOL alterada para ${agency}.` : 'Falta a agência.', !els.gedFolderSelect.value);
+    if (!state.currentDocumentId) return;
+    try {
+      await scheduleAnalysisSave({ immediate: true });
+      setStatus(`Agência INTERSOL ${agency} guardada.`);
+    } catch (error) {
+      setStatus('Não foi possível guardar a agência INTERSOL.', true);
+    }
   });
   els.accessCloseTop?.addEventListener('click', closeAccessModal);
   els.accessClose?.addEventListener('click', closeAccessModal);
@@ -3016,6 +3290,13 @@ document.addEventListener('DOMContentLoaded', () => {
   els.submitPhcBtn?.addEventListener('click', submitDocumentToPhc);
   els.controlOkBtn?.addEventListener('click', confirmDocumentControl);
   els.workflowValidateBtn?.addEventListener('click', validateWorkflowStage);
+  els.saveRetryBtn?.addEventListener('click', () => flushAnalysisSave());
+  els.conflictReload?.addEventListener('click', () => window.location.reload());
+  els.conflictKeep?.addEventListener('click', () => {
+    els.conflictModal?.classList.remove('sz_is_open');
+    els.conflictModal?.setAttribute('aria-hidden', 'true');
+    setStatus('Documento alterado por outro utilizador.', true);
+  });
   els.duplicateCloseTop?.addEventListener('click', closeDuplicateModal);
   els.duplicateCancel?.addEventListener('click', closeDuplicateModal);
   els.duplicateConfirm?.addEventListener('click', () => {
@@ -3077,7 +3358,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   els.openPdfBtn?.addEventListener('click', () => {
     const pdfUrl = state.currentDocumentId
-      ? `/api/document_ai/documents/${encodeURIComponent(state.currentDocumentId)}/original?view=${encodeURIComponent(state.view)}`
+      ? `/api/document_ai/documents/${encodeURIComponent(state.currentDocumentId)}/original?view=${encodeURIComponent(state.view)}${state.readOnly ? '&archive=1' : ''}`
       : state.previewUrl;
     if (pdfUrl) window.open(pdfUrl, '_blank', 'noopener,noreferrer');
   });
@@ -3133,24 +3414,29 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
       line.article_group_code = validation.code;
+      markLineManualFields(line, 'article_group_code');
       message = validation.code ? `Grupo ${validation.code} guardado.` : 'Grupo removido.';
     } else if (input.matches('[data-line-description]')) {
       line.description = input.value.trim();
+      markLineManualFields(line, 'description');
       message = 'Designação guardada.';
     } else if (input.matches('[data-line-date]')) {
       line.date = input.value || '';
+      markLineManualFields(line, 'date');
       message = 'Data guardada.';
     } else if (input.matches('[data-line-total]')) {
       line.net_amount = parseEditableNumber(input.value);
+      markLineManualFields(line, 'net_amount');
       message = 'Preço total guardado.';
     } else {
       if (input.matches('[data-line-qty]')) line.qty = parseEditableNumber(input.value);
       if (input.matches('[data-line-unit-price]')) line.unit_price = parseEditableNumber(input.value);
       line.net_amount = Math.round((Number(line.qty || 0) * Number(line.unit_price || 0) + Number.EPSILON) * 100) / 100;
+      markLineManualFields(line, input.matches('[data-line-qty]') ? 'qty' : 'unit_price', 'net_amount');
       message = 'Quantidade e valores guardados.';
     }
     renderLines(state.documentData.lines || [], state.documentData.currency || '');
-    await saveAdjustedLines(message);
+    scheduleAnalysisSave();
   });
   els.groupPrevious?.addEventListener('click', () => {
     if (!state.loading && !state.splitting) openGroupDocument(state.groupIndex - 1);

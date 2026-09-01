@@ -8,7 +8,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="sz_page docai-page docai-extract-page">
+<div class="sz_page docai-page docai-extract-page{% if document_ai_read_only %} is-read-only{% endif %}" data-read-only="{{ '1' if document_ai_read_only else '0' }}">
   <div class="sz_page_container sz_page_container_wide">
     <header class="sz_contextbar sz_page_contextbar docai-contextbar">
       <div class="sz_contextbar_left">
@@ -29,13 +29,6 @@
           <i class="fa-solid fa-arrow-left"></i>
           <span>Voltar ao inbox</span>
         </button>
-        {% if can_validate_document %}
-        <button id="docAiExtractWorkflowValidateBtn" type="button" class="sz_button sz_button_primary" disabled
-                data-view="{{ document_ai_current_view }}">
-          <i class="fa-solid fa-check"></i>
-          <span>Validar</span>
-        </button>
-        {% endif %}
       </div>
     </header>
 
@@ -87,8 +80,19 @@
               <span id="docAiExtractCorrespondenceSource" class="sz_text_muted" hidden></span>
             </div>
             <div class="docai-analysis-state-group">
-              <div id="docAiExtractResultMeta" class="docai-analysis-reading-state sz_text_muted">A aguardar leitura</div>
+              <div id="docAiExtractResultMeta" class="docai-analysis-reading-state sz_text_muted" hidden></div>
               <div id="docAiExtractStatus" class="sz_text_muted" aria-live="polite">Pronto.</div>
+              <button id="docAiExtractSaveRetryBtn" type="button" class="sz_button sz_button_secondary docai-save-retry" hidden>
+                <i class="fa-solid fa-rotate-right"></i>
+                <span>Tentar novamente</span>
+              </button>
+              {% if can_validate_document %}
+              <button id="docAiExtractWorkflowValidateBtn" type="button" class="sz_button sz_button_primary docai-analysis-validate" disabled
+                      data-view="{{ document_ai_current_view }}">
+                <i class="fa-solid fa-check"></i>
+                <span>Validar Receção</span>
+              </button>
+              {% endif %}
             </div>
           </div>
 
@@ -154,8 +158,22 @@
               </article>
               <article id="docAiExtractModeCard" class="docai-info-card docai-classification-card">
                 <h4>Classificação</h4>
-                <strong id="docAiExtractClassificationValue">--</strong>
-                <span id="docAiExtractClassificationMeta" class="sz_text_muted">--</span>
+                <div id="docAiExtractGedDestination" class="docai-classification-ged">
+                  <div id="docAiExtractGedFolderControl" class="docai-classification-agency" hidden>
+                    <label for="docAiExtractGedFolderSelect">Agência INTERSOL</label>
+                    <select id="docAiExtractGedFolderSelect" class="sz_input">
+                      <option value="">Escolher</option>
+                    </select>
+                    <span id="docAiExtractGedFolderHint" class="sz_text_muted"></span>
+                  </div>
+                  <span id="docAiExtractGedStatus" class="sz_text_muted"></span>
+                  <span id="docAiExtractLegalBadge" class="docai-extract-legal-badge" hidden></span>
+                  <div id="docAiExtractGedFileRow" class="docai-classification-file" hidden>
+                    <span>Nome GED</span>
+                    <strong id="docAiExtractGedFileName"></strong>
+                  </div>
+                  <div id="docAiExtractGedPath" class="docai-classification-destinations"></div>
+                </div>
               </article>
               <article id="docAiExtractProjectCard" class="docai-info-card docai-extract-project-card" tabindex="0" role="button" aria-label="Escolher obra">
                 <h4>Obra</h4>
@@ -172,20 +190,6 @@
                 <div><span>IVA</span><strong id="docAiExtractTaxTotal">--</strong></div>
                 <div><span>Total s/IVA</span><strong id="docAiExtractNetTotal">--</strong></div>
               </article>
-            </div>
-
-            <div id="docAiExtractGedDestination" hidden>
-              <span id="docAiExtractGedStatus"></span>
-              <span id="docAiExtractLegalBadge" hidden></span>
-              <strong id="docAiExtractGedFileName"></strong>
-              <div id="docAiExtractGedPath"></div>
-              <div hidden>
-                <div id="docAiExtractGedFolderControl" class="docai-extract-ged-folder-control" hidden>
-                  <label for="docAiExtractGedFolderSelect">Agência INTERSOL</label>
-                  <select id="docAiExtractGedFolderSelect" class="sz_input"></select>
-                  <span id="docAiExtractGedFolderHint" class="sz_text_muted"></span>
-                </div>
-              </div>
             </div>
 
             <section id="docAiExtractOriginSection" class="docai-extract-section docai-extract-origin">
@@ -458,6 +462,24 @@
         <span>Validar mesmo assim</span>
       </button>
       {% endif %}
+    </div>
+  </div>
+</div>
+
+<div id="docAiConflictModal" class="sz_modal docai-conflict-modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="docAiConflictTitle">
+  <div class="sz_panel docai-conflict-panel">
+    <div class="sz_modal_header">
+      <div>
+        <h3 id="docAiConflictTitle" class="sz_h4 sz_modal_title">Documento alterado por outro utilizador.</h3>
+        <p class="sz_text_muted">A versão no servidor é mais recente. As alterações desta página não foram sobrepostas.</p>
+      </div>
+    </div>
+    <div class="sz_modal_footer">
+      <button id="docAiConflictKeep" type="button" class="sz_button sz_button_secondary">Manter esta página aberta</button>
+      <button id="docAiConflictReload" type="button" class="sz_button sz_button_primary">
+        <i class="fa-solid fa-rotate"></i>
+        <span>Atualizar</span>
+      </button>
     </div>
   </div>
 </div>

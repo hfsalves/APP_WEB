@@ -43,6 +43,7 @@ from services.document_ai_service import (
     resolve_fe_entity,
     save_document_source,
     save_document_integration_access,
+    save_document_draft,
     save_document_review,
     save_document_phc_origin,
     save_document_adjusted_lines,
@@ -64,6 +65,7 @@ from services.document_ai_service import (
     test_template,
     toggle_template_active,
     validate_document_inbox_stage,
+    DocumentDraftConflictError,
 )
 from services.document_ai_inbox_access_service import (
     INBOX_VIEW_DEFINITIONS,
@@ -197,10 +199,14 @@ def document_ai_extract_page():
     if not inbox_views:
         return render_template('error.html', message='Sem acesso ao Inbox.'), 403
     requested_view = str(request.args.get('view') or inbox_views[0]['value']).strip().lower()
-    if not _current_document_ai_permission(requested_view, 'analyze'):
-        return render_template('error.html', message='Sem acesso a esta etapa documental.'), 403
     requested_document_id = str(request.args.get('document_id') or '').strip()
-    if requested_document_id and not _current_document_access(requested_document_id, requested_view, 'analyze'):
+    read_only = str(request.args.get('archive') or '').strip().lower() in {'1', 'true', 'yes'}
+    required_permission = 'consult' if read_only else 'analyze'
+    if not _current_document_ai_permission(requested_view, required_permission):
+        return render_template('error.html', message='Sem acesso a esta etapa documental.'), 403
+    if read_only and (not requested_document_id or not document_belongs_to_inbox_view(requested_document_id, requested_view, archived=True)):
+        return render_template('error.html', message='O documento não pertence a este Arquivo.'), 403
+    if requested_document_id and not _current_document_access(requested_document_id, requested_view, required_permission):
         return render_template('error.html', message='Sem acesso a este documento.'), 403
     profile = document_ai_permission_profile(_current_login(), requested_view)
     return render_template(
@@ -208,13 +214,14 @@ def document_ai_extract_page():
         page_title='Análise de Documentos',
         document_ai_inbox_views=inbox_views,
         document_ai_current_view=requested_view,
-        can_validate_document=bool(profile['permissions'].get('validate')),
-        can_analyze_document=bool(profile['permissions'].get('analyze')),
-        can_delete_document=bool(profile['permissions'].get('delete')),
-        can_use_document_ai=bool(profile['permissions'].get('ai')),
-        can_associate_document=bool(profile['permissions'].get('associate')),
-        can_submit_correspondence=_document_ai_has_integration_access('correspondence'),
-        can_submit_provisional_invoice=_document_ai_has_integration_access('provisional_invoice'),
+        document_ai_read_only=read_only,
+        can_validate_document=not read_only and bool(profile['permissions'].get('validate')),
+        can_analyze_document=not read_only and bool(profile['permissions'].get('analyze')),
+        can_delete_document=not read_only and bool(profile['permissions'].get('delete')),
+        can_use_document_ai=not read_only and bool(profile['permissions'].get('ai')),
+        can_associate_document=not read_only and bool(profile['permissions'].get('associate')),
+        can_submit_correspondence=not read_only and _document_ai_has_integration_access('correspondence'),
+        can_submit_provisional_invoice=not read_only and _document_ai_has_integration_access('provisional_invoice'),
         document_ai_access_admin=_document_ai_is_admin(),
     )
 
@@ -512,8 +519,9 @@ def api_document_ai_extract():
                 return jsonify({'error': 'Sem permissão para adicionar o documento ao inbox.'}), 403
             inbox = ensure_llm_inbox_document(file_name, file_bytes, _current_login())
             document_id = str(inbox.get('id') or '').strip()
-        save_llm_extraction(document_id, payload, _current_login())
+        saved_extraction = save_llm_extraction(document_id, payload, _current_login())
         payload['document_id'] = document_id
+        payload['version'] = str(saved_extraction.get('version') or '')
         payload['cached'] = False
         payload['inbox_created'] = bool(inbox.get('created'))
         payload['duplicate'] = bool(inbox.get('duplicate'))
@@ -924,9 +932,13 @@ def api_document_ai_document_detail(docinstamp: str):
     if not _document_ai_has_access('consultar'):
         return jsonify({'error': 'Sem permissão.'}), 403
     requested_view = str(request.args.get('view') or '').strip().lower()
+    archived = str(request.args.get('archive') or '').strip().lower() in {'1', 'true', 'yes'}
+    permission = 'consult' if archived else 'analyze'
     if not requested_view:
-        requested_view = _first_document_permission_view(docinstamp, 'analyze')
-    if not _current_document_access(docinstamp, requested_view, 'analyze'):
+        requested_view = _first_document_permission_view(docinstamp, permission)
+    if archived and not document_belongs_to_inbox_view(docinstamp, requested_view, archived=True):
+        return jsonify({'error': 'O documento não pertence a este Arquivo.'}), 403
+    if not _current_document_access(docinstamp, requested_view, permission):
         return jsonify({'error': 'Sem acesso a este documento.'}), 403
     try:
         return jsonify(get_document_detail(docinstamp))
@@ -1115,7 +1127,11 @@ def api_document_ai_document_original(docinstamp: str):
     if not _document_ai_has_access('consultar'):
         return jsonify({'error': 'Sem permissão.'}), 403
     requested_view = _requested_document_ai_view()
-    if not _current_document_access(docinstamp, requested_view, 'analyze'):
+    archived = str(request.args.get('archive') or '').strip().lower() in {'1', 'true', 'yes'}
+    permission = 'consult' if archived else 'analyze'
+    if archived and not document_belongs_to_inbox_view(docinstamp, requested_view, archived=True):
+        return jsonify({'error': 'O documento não pertence a este Arquivo.'}), 403
+    if not _current_document_access(docinstamp, requested_view, permission):
         return jsonify({'error': 'Sem acesso a este documento.'}), 403
     try:
         original = get_document_original_file(docinstamp)
@@ -1190,6 +1206,37 @@ def api_document_ai_document_validate(docinstamp: str):
         return jsonify(save_document_review(docinstamp, body, _current_login()))
     except Exception as exc:
         current_app.logger.exception('Erro ao gravar validação documental')
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        return jsonify({'error': str(exc)}), 500
+
+
+@bp.route('/api/document_ai/documents/<docinstamp>/draft', methods=['PUT'])
+@login_required
+def api_document_ai_document_draft(docinstamp: str):
+    if not _document_ai_has_access('editar'):
+        return jsonify({'error': 'Sem permissão para guardar alterações.'}), 403
+    requested_view = _requested_document_ai_view()
+    if not _current_document_access(docinstamp, requested_view, 'analyze'):
+        return jsonify({'error': 'Sem permissão para alterar este documento.'}), 403
+    try:
+        return jsonify(save_document_draft(
+            docinstamp,
+            request.get_json(silent=True) or {},
+            _current_login(),
+        ))
+    except DocumentDraftConflictError as exc:
+        return jsonify({
+            'error': str(exc),
+            'code': 'document_version_conflict',
+            'current_version': exc.current_version,
+        }), 409
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception as exc:
+        current_app.logger.exception('Erro ao guardar rascunho documental')
         try:
             db.session.rollback()
         except Exception:

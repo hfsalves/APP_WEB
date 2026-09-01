@@ -16,19 +16,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const availableViewButtons = [...(els.viewTabs?.querySelectorAll('[data-view]') || [])];
   const allowedViews = new Set(availableViewButtons.map((button) => button.dataset.view).filter(Boolean));
-  const initialView = new URLSearchParams(window.location.search).get('view');
+  const initialParams = new URLSearchParams(window.location.search);
+  const initialView = initialParams.get('view');
+  const initialArchived = ['1', 'true', 'yes'].includes(String(initialParams.get('archived') || '').toLowerCase());
   const filterFields = ['entity', 'supplier', 'cost_center', 'document_number'];
   const state = {
     allItems: [],
     filteredItems: [],
     docTypes: [],
+    invoiceTypes: [],
     loading: false,
     view: allowedViews.has(initialView) ? initialView : (availableViewButtons[0]?.dataset.view || ''),
     total: 0,
-    archived: false,
+    archived: initialArchived,
     permissions: {},
     stateFilters: new Set(),
     typeFilters: new Set(),
+    invoiceTypeFilters: new Set(),
+    activeDocumentId: '',
+    restorePending: true,
     filters: Object.fromEntries(filterFields.map((field) => [field, new Set()])),
   };
 
@@ -80,7 +86,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function matchesFilters(item, excludedField = '') {
     if (excludedField !== 'state' && state.stateFilters.size && !state.stateFilters.has(String(item.business_state || ''))) return false;
-    if (excludedField !== 'type' && state.typeFilters.size && !state.typeFilters.has(String(item.doc_type || ''))) return false;
+    if (excludedField !== 'document_type' && state.typeFilters.size && !state.typeFilters.has(String(item.document_type || 'unknown'))) return false;
+    if (excludedField !== 'invoice_type' && state.invoiceTypeFilters.size && !state.invoiceTypeFilters.has(String(item.invoice_type || 'unknown'))) return false;
     for (const field of filterFields) {
       if (field === excludedField) continue;
       const selected = state.filters[field];
@@ -145,6 +152,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function resetFilters() {
     state.stateFilters.clear();
     state.typeFilters.clear();
+    state.invoiceTypeFilters.clear();
     filterFields.forEach((field) => state.filters[field].clear());
     [els.dateFrom, els.dateTo, els.valueMin, els.valueMax].forEach((input) => {
       if (input) input.value = '';
@@ -181,7 +189,58 @@ document.addEventListener('DOMContentLoaded', () => {
     const params = new URLSearchParams();
     if (documentId) params.set('document_id', documentId);
     if (state.view) params.set('view', state.view);
+    if (state.archived) params.set('archive', '1');
     return `/document_ai/extract?${params.toString()}`;
+  }
+
+  function navigationStorageKey() {
+    return `document-ai-list:${state.view}:${state.archived ? 'archive' : 'inbox'}`;
+  }
+
+  function saveNavigationState(activeDocumentId = '') {
+    const payload = {
+      view: state.view,
+      archived: state.archived,
+      activeDocumentId,
+      stateFilters: [...state.stateFilters],
+      typeFilters: [...state.typeFilters],
+      invoiceTypeFilters: [...state.invoiceTypeFilters],
+      filters: Object.fromEntries(filterFields.map((field) => [field, [...state.filters[field]]])),
+      dateFrom: els.dateFrom?.value || '', dateTo: els.dateTo?.value || '',
+      valueMin: els.valueMin?.value || '', valueMax: els.valueMax?.value || '',
+      scrollTop: els.tableScroller?.scrollTop || 0,
+      scrollLeft: els.tableScroller?.scrollLeft || 0,
+    };
+    sessionStorage.setItem(navigationStorageKey(), JSON.stringify(payload));
+  }
+
+  function restoreNavigationState() {
+    if (!state.restorePending) return;
+    state.restorePending = false;
+    let payload = null;
+    try { payload = JSON.parse(sessionStorage.getItem(navigationStorageKey()) || 'null'); } catch (_) {}
+    if (!payload) return;
+    state.activeDocumentId = String(payload.activeDocumentId || '');
+    state.stateFilters = new Set(payload.stateFilters || []);
+    state.typeFilters = new Set(payload.typeFilters || []);
+    state.invoiceTypeFilters = new Set(payload.invoiceTypeFilters || []);
+    filterFields.forEach((field) => { state.filters[field] = new Set(payload.filters?.[field] || []); });
+    if (els.dateFrom) els.dateFrom.value = payload.dateFrom || '';
+    if (els.dateTo) els.dateTo.value = payload.dateTo || '';
+    if (els.valueMin) els.valueMin.value = payload.valueMin || '';
+    if (els.valueMax) els.valueMax.value = payload.valueMax || '';
+    window.requestAnimationFrame(() => {
+      if (!els.tableScroller) return;
+      els.tableScroller.scrollTop = Number(payload.scrollTop || 0);
+      els.tableScroller.scrollLeft = Number(payload.scrollLeft || 0);
+      document.querySelector(`[data-document-id="${CSS.escape(state.activeDocumentId)}"]`)?.focus({ preventScroll: true });
+    });
+  }
+
+  function openDocument(documentId) {
+    if (!documentId) return;
+    saveNavigationState(documentId);
+    window.location.href = analysisUrl(documentId);
   }
 
   function renderTable() {
@@ -196,8 +255,10 @@ document.addEventListener('DOMContentLoaded', () => {
       renderCounts();
       return;
     }
+    const canOpen = Boolean(state.archived ? state.permissions.consult : state.permissions.analyze);
     els.inboxBody.innerHTML = state.filteredItems.map((item) => `
-      <tr>
+      <tr class="${canOpen ? 'docai-inbox-row is-interactive' : 'docai-inbox-row'}${state.activeDocumentId === item.id ? ' is-returned' : ''}"
+          data-document-id="${escapeHtml(item.id)}" ${canOpen ? 'tabindex="0" role="button" aria-label="Analisar"' : ''}>
         <td><span class="docai-business-state ${stateClass(item.business_state)}"><i></i>${escapeHtml(item.business_state || '-')}</span></td>
         <td>${escapeHtml(item.doc_type_label || docTypeLabel(item.doc_type))}</td>
         <td>${escapeHtml(item.entity_name || '-')}</td>
@@ -208,9 +269,6 @@ document.addEventListener('DOMContentLoaded', () => {
         <td class="docai-value-cell">${escapeHtml(formatValue(item.document_value, item.currency))}</td>
         <td>
           <div class="docai-row-actions">
-            ${state.permissions.analyze ? `<button type="button" class="sz_button sz_button_ghost docai-row-ai" data-action="extract" data-id="${escapeHtml(item.id)}" title="Analisar" aria-label="Analisar ${escapeHtml(item.file_name)}">
-              <i class="fa-solid fa-wand-magic-sparkles"></i>
-            </button>` : ''}
             ${!state.archived && state.permissions.delete ? `
               <button type="button" class="sz_button sz_button_ghost docai-row-delete" data-action="delete" data-id="${escapeHtml(item.id)}" data-file="${escapeHtml(item.file_name)}" title="Eliminar">
                 <i class="fa-solid fa-trash"></i>
@@ -231,9 +289,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderCounts() {
     if (!els.counts) return;
     const stateCounts = new Map();
-    const typeCounts = new Map();
     const statePopulation = state.allItems.filter((item) => matchesFilters(item, 'state'));
-    const typePopulation = state.allItems.filter((item) => matchesFilters(item, 'type'));
     const total = state.total;
     const requiredStates = state.archived
       ? ['Validado', 'Eliminado']
@@ -246,21 +302,26 @@ document.addEventListener('DOMContentLoaded', () => {
       const businessState = String(item.business_state || '-');
       stateCounts.set(businessState, (stateCounts.get(businessState) || 0) + 1);
     });
-    const hasUnknownType = state.allItems.some((item) => String(item.doc_type || 'unknown') === 'unknown');
-    state.docTypes.filter((item) => item.value !== 'unknown' || hasUnknownType || state.typeFilters.has('unknown')).forEach((item) => {
-      const value = String(item.value || 'unknown');
-      typeCounts.set(value, { count: 0, label: item.label || docTypeLabel(value) });
-    });
-    typePopulation.forEach((item) => {
-      const documentType = String(item.doc_type || 'unknown');
-      typeCounts.set(documentType, {
-        count: (typeCounts.get(documentType)?.count || 0) + 1,
-        label: item.doc_type_label || docTypeLabel(documentType),
+    const counterGroup = (title, filterName, property, options, selected) => {
+      const population = state.allItems.filter((item) => matchesFilters(item, filterName));
+      const counts = new Map(options.map((option) => [String(option.value), { count: 0, label: option.label }]));
+      population.forEach((item) => {
+        const value = String(item[property] || 'unknown');
+        const current = counts.get(value) || { count: 0, label: value || '-' };
+        counts.set(value, { ...current, count: current.count + 1 });
       });
-    });
-    const orderedTypes = [...typeCounts.entries()].sort((left, right) =>
-      String(left[1].label || '').localeCompare(String(right[1].label || ''), 'pt', { sensitivity: 'base' })
-    );
+      const ordered = [...counts.entries()].sort((left, right) => String(left[1].label).localeCompare(String(right[1].label), 'pt', { sensitivity: 'base' }));
+      return `<div class="docai-business-count-group" aria-label="Filtros de ${escapeHtml(title.toLowerCase())}">
+        <span class="docai-business-count-title">${escapeHtml(title)}</span>
+        <div class="docai-business-count-options">${ordered.map(([value, data]) => `
+          <button type="button" class="docai-business-count-chip ${selected.has(value) ? 'is-active' : ''}"
+                  data-count-filter="${filterName}" data-value="${escapeHtml(value)}">
+            <strong>${data.count}</strong><span>${escapeHtml(data.label || '-')}</span>
+          </button>`).join('')}</div></div>`;
+    };
+    const typeGroups = [];
+    if (state.view !== 'management') typeGroups.push(counterGroup('Tipo de documento', 'document_type', 'document_type', state.docTypes, state.typeFilters));
+    if (state.view !== 'home') typeGroups.push(counterGroup('Tipo de fatura', 'invoice_type', 'invoice_type', state.invoiceTypes, state.invoiceTypeFilters));
     els.counts.innerHTML = `
       <div class="docai-counts-scroll">
       <div class="docai-business-count-group" aria-label="Filtros de estado">
@@ -274,17 +335,7 @@ document.addEventListener('DOMContentLoaded', () => {
           `).join('') || '<span class="sz_text_muted">Sem estados</span>'}
         </div>
       </div>
-      <div class="docai-business-count-group" aria-label="Filtros de tipo">
-        <span class="docai-business-count-title">Tipo</span>
-        <div class="docai-business-count-options">
-          ${orderedTypes.map(([value, data]) => `
-            <button type="button" class="docai-business-count-chip ${state.typeFilters.has(value) ? 'is-active' : ''}"
-                    data-count-filter="type" data-value="${escapeHtml(value)}">
-              <strong>${data.count}</strong><span>${escapeHtml(data.label)}</span>
-            </button>
-          `).join('') || '<span class="sz_text_muted">Sem tipos</span>'}
-        </div>
-      </div>
+      ${typeGroups.join('')}
       </div>
       <button type="button" class="docai-count-card docai-count-card-action docai-filtered-total" data-action="reset-filters" title="Limpar filtros" aria-label="Mostrar todos os documentos e limpar filtros">
         <span class="count">${total}</span>
@@ -328,11 +379,13 @@ document.addEventListener('DOMContentLoaded', () => {
       const payload = await fetchJson(`/api/document_ai/inbox?view=${encodeURIComponent(state.view)}${archivedParam}`);
       state.allItems = Array.isArray(payload.items) ? payload.items : [];
       state.docTypes = Array.isArray(payload.doc_types) ? payload.doc_types : [];
+      state.invoiceTypes = Array.isArray(payload.invoice_types) ? payload.invoice_types : [];
       state.permissions = payload.permissions || {};
       state.total = Number(payload.total || 0);
       if (allowedViews.has(payload.view)) state.view = payload.view;
       renderViewTabs();
-      applyFilters({ resetScroll: true });
+      restoreNavigationState();
+      applyFilters({ resetScroll: !state.activeDocumentId });
     } catch (error) {
       console.error(error);
       if (els.inboxBody) els.inboxBody.innerHTML = `<tr><td colspan="9" class="docai-load-error">${escapeHtml(error.message || 'Erro ao carregar a Inbox.')}</td></tr>`;
@@ -346,12 +399,15 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!allowedViews.has(view) || view === state.view) return;
     state.view = view;
     resetFilters();
+    state.activeDocumentId = '';
+    state.restorePending = true;
     renderViewTabs();
     if (updateHistory) {
       const url = new URL(window.location.href);
       url.search = '';
       url.searchParams.set('view', view);
-      window.history.pushState({ documentAiView: view }, '', url);
+      if (state.archived) url.searchParams.set('archived', '1');
+      window.history.pushState({ documentAiView: view, archived: state.archived }, '', url);
     }
     loadInbox();
   }
@@ -359,6 +415,11 @@ document.addEventListener('DOMContentLoaded', () => {
   function toggleArchive() {
     state.archived = !state.archived;
     resetFilters();
+    state.activeDocumentId = '';
+    state.restorePending = true;
+    const url = new URL(window.location.href);
+    state.archived ? url.searchParams.set('archived', '1') : url.searchParams.delete('archived');
+    window.history.pushState({ documentAiView: state.view, archived: state.archived }, '', url);
     renderViewTabs();
     loadInbox();
   }
@@ -437,7 +498,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     const filterButton = event.target.closest('[data-count-filter]');
     if (!filterButton) return;
-    const target = filterButton.dataset.countFilter === 'state' ? state.stateFilters : state.typeFilters;
+    const target = filterButton.dataset.countFilter === 'state'
+      ? state.stateFilters
+      : (filterButton.dataset.countFilter === 'invoice_type' ? state.invoiceTypeFilters : state.typeFilters);
     const value = filterButton.dataset.value || '';
     target.has(value) ? target.delete(value) : target.add(value);
     applyFilters();
@@ -459,15 +522,37 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     const button = event.target.closest('button[data-action]');
-    if (!button?.dataset.id) return;
-    if (button.dataset.action === 'extract') window.location.href = analysisUrl(button.dataset.id);
-    if (button.dataset.action === 'delete') deleteDocument(button.dataset.id, button.dataset.file || '');
-    if (button.dataset.action === 'recover') recoverDocument(button.dataset.id);
+    if (button?.dataset.id) {
+      event.stopPropagation();
+      if (button.dataset.action === 'delete') deleteDocument(button.dataset.id, button.dataset.file || '');
+      if (button.dataset.action === 'recover') recoverDocument(button.dataset.id);
+      return;
+    }
+    const row = event.target.closest('.docai-inbox-row.is-interactive');
+    if (row?.dataset.documentId) openDocument(row.dataset.documentId);
+  });
+  els.inboxBody?.addEventListener('keydown', (event) => {
+    if (!['Enter', ' '].includes(event.key) || event.target.closest('button')) return;
+    const row = event.target.closest('.docai-inbox-row.is-interactive');
+    if (!row?.dataset.documentId) return;
+    event.preventDefault();
+    openDocument(row.dataset.documentId);
   });
   window.addEventListener('popstate', () => {
-    const requested = new URLSearchParams(window.location.search).get('view');
+    const params = new URLSearchParams(window.location.search);
+    const requested = params.get('view');
     const view = allowedViews.has(requested) ? requested : (availableViewButtons[0]?.dataset.view || '');
-    if (view && view !== state.view) selectView(view, { updateHistory: false });
+    const archived = ['1', 'true', 'yes'].includes(String(params.get('archived') || '').toLowerCase());
+    const viewChanged = view && view !== state.view;
+    const archiveChanged = archived !== state.archived;
+    if (!viewChanged && !archiveChanged) return;
+    state.view = view;
+    state.archived = archived;
+    state.activeDocumentId = '';
+    state.restorePending = true;
+    resetFilters();
+    renderViewTabs();
+    loadInbox();
   });
 
   refreshColumnFilters();

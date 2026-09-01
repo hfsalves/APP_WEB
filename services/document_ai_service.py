@@ -100,6 +100,17 @@ DOC_AI_GED_FOLDER_BY_PHC_DATABASE = {
     'HSOLS_CH': 'HSOLS_CH',
     'INTERSOL': 'HSOLS_INTERSOL_AL',
 }
+DOC_AI_INTERSOL_GED_FOLDERS = {
+    'HSOLS_INTERSOL_AL', 'HSOLS_INTERSOL_LOR', 'HSOLS_INTERSOL_CH',
+}
+
+
+def _missing_intersol_agency(customer: dict[str, Any] | None) -> bool:
+    customer = dict(customer or {})
+    database_name = str(customer.get('phc_database') or '').strip().upper()
+    ged_folder = str(customer.get('ged_folder') or '').strip().upper()
+    is_intersol = database_name == 'INTERSOL' or ged_folder.startswith('HSOLS_INTERSOL_')
+    return is_intersol and ged_folder not in DOC_AI_INTERSOL_GED_FOLDERS
 
 
 def _ged_folder_from_phc_database(value: Any) -> str:
@@ -3871,6 +3882,7 @@ def save_document_phc_origin(
         'message': 'Origem PHC adicionada ao documento.',
         'origin': selected_origin,
         'origins': origins,
+        'version': _document_draft_version(document),
     }
 
 
@@ -3922,6 +3934,7 @@ def clear_document_phc_origin(document_stamp: str, requested_by: str, origin_sta
         'removed': bool(removed_count),
         'message': 'Origem PHC desmarcada.' if clean_stamp else 'Origens PHC desmarcadas.',
         'origins': remaining,
+        'version': _document_draft_version(document),
     }
 
 
@@ -3954,6 +3967,7 @@ def save_document_adjusted_lines(
         'ok': True,
         'message': 'Repartição das linhas guardada no inbox.',
         'line_count': len(lines),
+        'version': _document_draft_version(document),
     }
 
 
@@ -4025,6 +4039,7 @@ def get_cached_llm_extraction(document_stamp: str) -> dict[str, Any] | None:
         'available': True,
         'cached': True,
         'document_id': document.docinstamp,
+        'version': _document_draft_version(document),
         'model': str(cached.get('model') or 'LLM'),
         'document': cached_document,
         'matching': cached_matching,
@@ -4160,6 +4175,18 @@ def preflight_document_inbox_stage(
             stored_supplier_no=document.fornecedor_no,
             processing_meta=_json_loads(document.processing_meta_json, {}),
         )
+        if _missing_intersol_agency(result.get('customer')):
+            required_info = dict(required_info)
+            required_info['ok'] = False
+            required_info['missing'] = list(dict.fromkeys([
+                *(required_info.get('missing') or []), 'intersol_agency',
+            ]))
+            required_info['messages'] = list(dict.fromkeys([
+                *(required_info.get('messages') or []), 'Falta a agência.',
+            ]))
+            required_info['targets'] = list(dict.fromkeys([
+                *(required_info.get('targets') or []), 'docAiExtractModeCard',
+            ]))
         reception_messages = {
             'entity': 'Falta a entidade.',
             'supplier': 'Falta o fornecedor.',
@@ -6539,6 +6566,10 @@ def list_documents(filters: dict[str, Any] | None = None) -> dict[str, Any]:
             'doc_type': display_type,
             'doc_type_label': display_type_label,
             'document_type': document_type,
+            'document_type_label': next(
+                (item['label'] for item in DOC_AI_DOC_TYPES if item['value'] == document_type),
+                document_type or '-',
+            ),
             'invoice_type': invoice_type,
             'invoice_type_label': _invoice_type_label(invoice_type),
             'business_state': business_state,
@@ -6576,17 +6607,6 @@ def list_documents(filters: dict[str, Any] | None = None) -> dict[str, Any]:
             'processed_at': row.get('DTPROC').isoformat() if row.get('DTPROC') else None,
         })
 
-    inbox_doc_types = list(DOC_AI_DOC_TYPES)
-    if inbox_view in {'management', 'accounting'}:
-        inbox_doc_types = [
-            {'value': 'concrete', 'label': 'Betão'},
-            {'value': 'material', 'label': 'Material'},
-            {'value': 'services', 'label': 'Serviços'},
-            {'value': 'unknown', 'label': '-'},
-        ]
-        if inbox_view == 'accounting':
-            inbox_doc_types.append({'value': 'credit_note', 'label': 'Nota de crédito'})
-
     return {
         'items': items,
         'total': len(items),
@@ -6595,7 +6615,7 @@ def list_documents(filters: dict[str, Any] | None = None) -> dict[str, Any]:
         'views': DOC_AI_INBOX_VIEWS,
         'counts': counts,
         'statuses': DOC_AI_STATUSES,
-        'doc_types': inbox_doc_types,
+        'doc_types': list(DOC_AI_DOC_TYPES),
         'invoice_types': [
             {'value': 'concrete', 'label': 'Betão'},
             {'value': 'material', 'label': 'Material'},
@@ -6991,6 +7011,7 @@ def _serialize_document(document: DocInbox, include_logs: bool = False) -> dict[
         'processing_meta': _json_loads(document.processing_meta_json, {}),
         'created_at': document.dtcri.isoformat() if document.dtcri else None,
         'updated_at': document.dtalt.isoformat() if document.dtalt else None,
+        'version': _document_draft_version(document),
         'processed_at': document.dtproc.isoformat() if document.dtproc else None,
         'created_by': document.usercriacao or '',
         'updated_by': document.useralteracao or '',
@@ -7118,6 +7139,85 @@ def get_document_detail(document_stamp: str) -> dict[str, Any]:
         **_document_workflow_payload(document),
     }
     return payload
+
+
+class DocumentDraftConflictError(RuntimeError):
+    def __init__(self, current_version: str):
+        super().__init__('Documento alterado por outro utilizador.')
+        self.current_version = current_version
+
+
+def _document_draft_version(document: DocInbox) -> str:
+    value = getattr(document, 'dtalt', None) or getattr(document, 'dtcri', None)
+    return value.isoformat(timespec='microseconds') if value else ''
+
+
+def save_document_draft(
+    document_stamp: str,
+    payload: dict[str, Any],
+    requested_by: str,
+) -> dict[str, Any]:
+    """Persist editable analysis data without advancing its business workflow."""
+    _ensure_document_ai_schema()
+    stamp = str(document_stamp or '').strip()
+    locked = db.session.execute(text("""
+        SELECT DOCINSTAMP, DTALT, DTCRI
+        FROM dbo.DOC_INBOX WITH (UPDLOCK, ROWLOCK)
+        WHERE DOCINSTAMP=:document_id
+    """), {'document_id': stamp}).mappings().first()
+    if not locked:
+        raise ValueError('Documento não encontrado.')
+
+    current_value = locked.get('DTALT') or locked.get('DTCRI')
+    current_version = current_value.isoformat(timespec='microseconds') if current_value else ''
+    expected_version = str(payload.get('expected_version') or '').strip()
+    if expected_version and expected_version != current_version:
+        db.session.rollback()
+        raise DocumentDraftConflictError(current_version)
+
+    document = db.session.get(DocInbox, stamp)
+    if not document:
+        raise ValueError('Documento não encontrado.')
+    result = payload.get('document')
+    if not isinstance(result, dict):
+        raise ValueError('Rascunho documental inválido.')
+
+    customer = dict(result.get('customer') or {})
+    supplier = dict(result.get('supplier') or {})
+    document_type = normalize_document_type(
+        result.get('document_type') or document.doc_type_detected or 'unknown'
+    )
+    invoice_type = _normalize_invoice_type(result.get('invoice_type'))
+    if document_type not in {'invoice', 'provisional_invoice', 'credit_note', 'debit_note'}:
+        invoice_type = 'unknown'
+
+    document.feid = _safe_int(customer.get('feid'), 0) or None
+    if bool(result.get('supplier_explicitly_absent') or supplier.get('explicitly_absent')):
+        document.fornecedor_no = None
+    else:
+        document.fornecedor_no = _safe_int(supplier.get('supplier_no') or supplier.get('no'), 0) or None
+    document.fornecedor_nome_detetado = str(supplier.get('name') or supplier.get('llm_name') or '')[:120]
+    document.fornecedor_nif_detetado = str(supplier.get('tax_id') or '')[:40]
+    document.doc_type_detected = document_type
+    document.invoice_type = invoice_type
+    document.json_resultado = _json_dumps(result)
+    meta = _json_loads(document.processing_meta_json, {})
+    cached = meta.get('llm_full_extraction')
+    if isinstance(cached, dict):
+        cached = dict(cached)
+        cached['document'] = result
+        cached['draft_saved_at'] = _now().isoformat()
+        cached['draft_saved_by'] = str(requested_by or '')[:50]
+        meta['llm_full_extraction'] = cached
+        document.processing_meta_json = _json_dumps(meta)
+    document.dtalt = _now()
+    document.useralteracao = str(requested_by or '')[:50]
+    db.session.commit()
+    return {
+        'ok': True,
+        'document_id': document.docinstamp,
+        'version': _document_draft_version(document),
+    }
 
 
 def get_document_preview_page(document_stamp: str, page_number: int = 1) -> dict[str, Any]:

@@ -388,6 +388,52 @@
   overflow: auto;
 }
 
+.docai-inbox-row.is-interactive {
+  cursor: pointer;
+}
+
+.docai-inbox-row.is-interactive:hover > td,
+.docai-inbox-row.is-interactive:focus-visible > td {
+  background: color-mix(in srgb, var(--sz-color-primary) 8%, var(--sz-color-surface));
+}
+
+.docai-inbox-row.is-interactive:focus-visible {
+  outline: 2px solid var(--sz-color-primary);
+  outline-offset: -2px;
+}
+
+.docai-inbox-row.is-returned > td {
+  background: color-mix(in srgb, var(--sz-color-primary) 5%, var(--sz-color-surface));
+}
+
+.docai-extract-page.is-read-only .docai-extract-dropzone,
+.docai-extract-page.is-read-only #docAiExtractResetBtn,
+.docai-extract-page.is-read-only #docAiExtractDeleteBtn,
+.docai-extract-page.is-read-only #docAiExtractRunBtn,
+.docai-extract-page.is-read-only #docAiExtractSplitBtn,
+.docai-extract-page.is-read-only #docAiExtractSaveRetryBtn,
+.docai-extract-page.is-read-only #docAiExtractWorkflowValidateBtn,
+.docai-extract-page.is-read-only #docAiExtractProjectClear,
+.docai-extract-page.is-read-only .docai-extract-legacy-actions,
+.docai-extract-page.is-read-only [data-origin-link],
+.docai-extract-page.is-read-only [data-line-project],
+.docai-extract-page.is-read-only [data-line-article],
+.docai-extract-page.is-read-only [data-line-vehicle],
+.docai-extract-page.is-read-only [data-line-bc] {
+  display: none !important;
+}
+
+.docai-extract-page.is-read-only .docai-info-card[aria-disabled="true"] {
+  cursor: default;
+  pointer-events: none;
+}
+
+.docai-extract-page.is-read-only :is(input, select, textarea):disabled {
+  color: var(--sz-color-text);
+  opacity: 1;
+  -webkit-text-fill-color: var(--sz-color-text);
+}
+
 .docai-inbox-table-panel .sz_table {
   width: 100%;
   min-width: 78rem;
@@ -1358,24 +1404,80 @@
   text-align: right;
 }
 
-.docai-classification-card strong {
-  cursor: default;
+.docai-classification-card {
+  gap: 0.55rem !important;
 }
 
 .docai-classification-destinations {
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
+  gap: 0.4rem;
+}
+
+.docai-classification-ged {
+  display: grid;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.docai-classification-agency {
+  display: grid;
+  grid-template-columns: auto minmax(6.5rem, 1fr);
+  align-items: center;
+  gap: 0.35rem 0.55rem;
+}
+
+.docai-classification-agency label {
+  color: var(--sz-color-text-secondary);
+  font-size: var(--sz-font-size-sm);
+  font-weight: var(--sz-font-weight-semibold);
+}
+
+.docai-classification-agency select {
+  min-width: 0;
+  min-height: 2.1rem;
+  padding-block: 0.25rem;
+}
+
+.docai-classification-agency span {
+  grid-column: 1 / -1;
+  font-size: 0.72rem;
+}
+
+.docai-classification-file {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.docai-classification-file > span {
+  color: var(--sz-color-text-muted);
+  font-size: 0.72rem;
+}
+
+.docai-classification-file strong {
+  overflow-wrap: anywhere;
+  font-size: var(--sz-font-size-sm);
 }
 
 .docai-classification-destination {
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--sz-color-text-secondary);
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--sz-color-border);
+  border-radius: var(--sz-radius-sm);
+  background: color-mix(in srgb, var(--sz-color-primary) 5%, var(--sz-color-surface));
+  color: var(--sz-color-primary);
   font: inherit;
   text-align: left;
   cursor: copy;
+}
+
+.docai-classification-destination:hover,
+.docai-classification-destination:focus-visible {
+  border-color: var(--sz-color-primary);
+  outline: none;
+}
+
+.docai-classification-ged.is-incomplete #docAiExtractGedStatus {
+  color: var(--sz-color-warning);
 }
 
 .docai-totals-card {
@@ -3880,13 +3982,43 @@
   }
 }
 .docai-analysis-state-group {
-  display: grid;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
   justify-items: end;
-  gap: 0.2rem;
+  gap: var(--sz-space-2);
   text-align: right;
 }
 
 .docai-analysis-state-group #docAiExtractStatus {
   max-width: 32rem;
   font-size: 0.78rem;
+}
+
+.docai-analysis-validate {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+@media (max-width: 700px) {
+  .docai-extract-result-panel .docai-panel-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .docai-analysis-state-group {
+    align-items: stretch;
+    justify-content: stretch;
+    text-align: left;
+  }
+
+  .docai-analysis-state-group #docAiExtractStatus {
+    flex: 1 1 100%;
+    max-width: none;
+  }
+
+  .docai-analysis-validate {
+    width: 100%;
+  }
 }

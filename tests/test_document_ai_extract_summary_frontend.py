@@ -13,13 +13,15 @@ class DocumentAiExtractSummaryFrontendTests(unittest.TestCase):
     def test_summary_has_five_business_cards(self):
         for label in ('Entidade', 'Fornecedor', 'Classificação', 'Obra', 'Totais'):
             self.assertIn(f'>{label}<', self.template)
-        self.assertIn('docAiExtractClassificationValue', self.template)
-        self.assertIn('docAiExtractClassificationMeta', self.template)
+        self.assertNotIn('docAiExtractClassificationValue', self.template)
+        self.assertNotIn('docAiExtractClassificationMeta', self.template)
 
-    def test_ged_technical_destination_is_not_the_classification_card(self):
-        hidden_section = self.template.split('id="docAiExtractGedDestination" hidden', 1)[1]
-        self.assertIn('id="docAiExtractGedFileName"', hidden_section)
-        self.assertIn('id="docAiExtractGedPath"', hidden_section)
+    def test_ged_destination_is_inside_the_classification_card(self):
+        card = self.template.split('id="docAiExtractModeCard"', 1)[1].split('</article>', 1)[0]
+        self.assertIn('id="docAiExtractGedDestination"', card)
+        self.assertIn('id="docAiExtractGedFileName"', card)
+        self.assertIn('id="docAiExtractGedPath"', card)
+        self.assertIn('id="docAiExtractGedFolderSelect"', card)
         self.assertIn('function renderClassificationCard()', self.script)
 
     def test_missing_project_and_totals_are_not_rendered_as_false_values(self):
@@ -44,11 +46,35 @@ class DocumentAiExtractSummaryFrontendTests(unittest.TestCase):
         header = self.template.split('<header', 1)[1].split('</header>', 1)[0]
         self.assertNotIn('docAiIntegrationAccessBtn', header)
         self.assertIn('Voltar ao inbox', header)
-        self.assertIn('Validar', header)
+        self.assertNotIn('docAiExtractWorkflowValidateBtn', header)
+        analysis_header = self.template.split('<section class="sz_panel docai-extract-result-panel">', 1)[1].split('<nav', 1)[0]
+        self.assertIn('docAiExtractWorkflowValidateBtn', analysis_header)
 
     def test_validation_error_uses_a_single_message_channel(self):
         validation = self.script.split('async function validateWorkflowStage', 1)[1].split("els.backBtn?.addEventListener", 1)[0]
         self.assertNotIn("showMessage(message, 'error')", validation)
+
+    def test_analysis_changes_are_debounced_and_saved_as_a_draft(self):
+        self.assertIn('window.setTimeout(() => flushAnalysisSave(), 450)', self.script)
+        self.assertIn("/draft`, {\n      method: 'PUT'", self.script)
+        self.assertIn('fingerprint === state.draftLastFingerprint', self.script)
+        self.assertIn('await flushAnalysisSave()', self.script)
+
+    def test_autosave_failure_has_retry_and_conflict_recovery(self):
+        self.assertIn('id="docAiExtractSaveRetryBtn"', self.template)
+        self.assertIn('id="docAiConflictModal"', self.template)
+        self.assertIn('Documento alterado por outro utilizador.', self.template)
+        self.assertIn("error.payload?.code === 'document_version_conflict'", self.script)
+
+    def test_forced_ai_read_preserves_manual_user_changes(self):
+        self.assertIn('function captureManualOverrides(', self.script)
+        self.assertIn('function applyManualOverrides(', self.script)
+        self.assertIn('state.pendingManualOverrides = captureManualOverrides()', self.script)
+        self.assertIn('markLineManualFields(line', self.script)
+
+    def test_validation_focuses_the_first_missing_editable_control(self):
+        self.assertIn("firstTarget?.querySelector('input, select, textarea, button, [tabindex]')", self.script)
+        self.assertIn("focusTarget?.focus({ preventScroll: true })", self.script)
 
 
 if __name__ == '__main__':

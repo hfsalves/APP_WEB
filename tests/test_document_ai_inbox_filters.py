@@ -24,12 +24,12 @@ class DocumentAiInboxFiltersTests(unittest.TestCase):
         source = (ROOT / 'static/js/document_ai_inbox.js').read_text(encoding='utf-8')
         self.assertIn('const total = state.total;', source)
         self.assertIn('<strong>${count}</strong><span>${escapeHtml(value)}</span>', source)
-        self.assertIn('<strong>${data.count}</strong><span>${escapeHtml(data.label)}</span>', source)
+        self.assertIn("<strong>${data.count}</strong><span>${escapeHtml(data.label || '-')}</span>", source)
 
-    def test_unknown_counter_only_appears_when_relevant(self):
+    def test_counter_options_remain_visible_with_zero_counts(self):
         source = (ROOT / 'static/js/document_ai_inbox.js').read_text(encoding='utf-8')
-        self.assertIn('const hasUnknownType = state.allItems.some', source)
-        self.assertIn("item.value !== 'unknown' || hasUnknownType", source)
+        self.assertIn('options.map((option) => [String(option.value), { count: 0', source)
+        self.assertNotIn('const hasUnknownType = state.allItems.some', source)
 
 
 if __name__ == '__main__':

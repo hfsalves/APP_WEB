@@ -1381,7 +1381,9 @@ def create_measurement_auto(payload: dict[str, Any], user) -> dict[str, Any]:
                             source_description, bi_text_limits.get("design")
                         ),
                         "qtt": line["qty"],
-                        "qtt2": line["qty"],
+                        # QTT2 is reserved for the quantity satisfied by a
+                        # downstream document, never for the auto itself.
+                        "qtt2": Decimal("0"),
                         "unidade": _text_value(source.get("UNIDADE")),
                         "pu": source.get("PU") if source.get("PU") is not None else _phc_value(line["unit_price"]),
                         "debito": source.get("DEBITO") if source.get("DEBITO") is not None else _phc_value(line["unit_price"]),

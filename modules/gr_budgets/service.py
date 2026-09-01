@@ -2483,6 +2483,7 @@ def convert_budget_to_execution(feid: Any, bostamp: str, target: Any, existing_o
                     "nmdos": execution_name,
                     "obrano": execution_number,
                     "armazem": int(_number_value(execution_series.get("warehouse"))) or 1,
+                    "qtt2": 0,
                     "usrinis": user_inis,
                     "usrdata": audit_date,
                     "usrhora": audit_time,
