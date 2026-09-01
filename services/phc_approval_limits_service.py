@@ -8,6 +8,7 @@ from typing import Any
 import pyodbc
 from flask import current_app
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 
 from models import db
 from services.obra_360_service import is_gr360_hub_context
@@ -87,24 +88,46 @@ def _parse_limit(value: Any) -> Decimal:
     return amount
 
 
-def _user_row(cursor, usercode: Any) -> dict[str, str]:
+def _app_users() -> list[dict[str, Any]]:
+    rows = db.session.execute(
+        text("""
+            SELECT
+                LTRIM(RTRIM(ISNULL(LOGIN, ''))) AS USERCODE,
+                LTRIM(RTRIM(ISNULL(NOME, ''))) AS USERNAME,
+                ISNULL(INATIVO, 0) AS INATIVO
+            FROM dbo.US
+            WHERE LTRIM(RTRIM(ISNULL(LOGIN, ''))) <> ''
+            ORDER BY ISNULL(INATIVO, 0), NOME, LOGIN
+        """)
+    ).mappings().all()
+    return [
+        {
+            "usercode": _clean(row.get("USERCODE"), 20),
+            "username": _clean(row.get("USERNAME"), 30),
+            "inactive": bool(row.get("INATIVO")),
+        }
+        for row in rows
+    ]
+
+
+def _user_row(_cursor, usercode: Any) -> dict[str, str]:
     clean_code = _clean(usercode, 20)
     if not clean_code:
-        raise PhcApprovalLimitsError("Selecione um utilizador PHC.")
-    row = cursor.execute(
-        """
-        SELECT TOP 1
-            LTRIM(RTRIM(ISNULL(USERCODE, ''))) AS USERCODE,
-            LTRIM(RTRIM(ISNULL(USERNAME, ''))) AS USERNAME
-        FROM dbo.US WITH (NOLOCK)
-        WHERE UPPER(LTRIM(RTRIM(ISNULL(USERCODE, '')))) = UPPER(?)
-        ORDER BY ISNULL(INACTIVO, 0), USERNO
-        """,
-        clean_code,
-    ).fetchone()
-    if not row:
-        raise PhcApprovalLimitsError("O utilizador selecionado não existe no PHC.")
-    return {"usercode": _clean(row[0], 20), "username": _clean(row[1], 30)}
+        raise PhcApprovalLimitsError("Selecione um utilizador da aplicação.")
+    selected = next(
+        (
+            user
+            for user in _app_users()
+            if _clean(user.get("usercode"), 20).casefold() == clean_code.casefold()
+        ),
+        None,
+    )
+    if not selected:
+        raise PhcApprovalLimitsError("O utilizador selecionado não existe na aplicação.")
+    return {
+        "usercode": _clean(selected.get("usercode"), 20),
+        "username": _clean(selected.get("username"), 30),
+    }
 
 
 def _item(row) -> dict[str, Any]:
@@ -154,29 +177,18 @@ def list_approval_limits() -> list[dict[str, Any]]:
 def list_phc_users() -> list[dict[str, Any]]:
     _ensure_context()
     try:
-        with _connection() as connection:
-            rows = connection.cursor().execute(
-                """
-                SELECT
-                    LTRIM(RTRIM(ISNULL(USERCODE, ''))) AS USERCODE,
-                    LTRIM(RTRIM(ISNULL(USERNAME, ''))) AS USERNAME,
-                    ISNULL(INACTIVO, 0) AS INACTIVO
-                FROM dbo.US WITH (NOLOCK)
-                WHERE LTRIM(RTRIM(ISNULL(USERCODE, ''))) <> ''
-                ORDER BY ISNULL(INACTIVO, 0), USERNAME, USERCODE
-                """
-            ).fetchall()
-    except pyodbc.Error as exc:
+        users = _app_users()
+    except SQLAlchemyError as exc:
         raise PhcApprovalLimitsError(
-            f"Não foi possível ler os utilizadores do PHC: {str(exc)}"
+            f"Não foi possível ler os utilizadores da aplicação: {str(exc)}"
         ) from exc
     return [
         {
-            "usercode": _clean(row[0], 20),
-            "username": _clean(row[1], 30),
-            "inactive": bool(row[2]),
+            "usercode": _clean(user.get("usercode"), 20),
+            "username": _clean(user.get("username"), 30),
+            "inactive": bool(user.get("inactive")),
         }
-        for row in rows
+        for user in users
     ]
 
 
@@ -406,4 +418,3 @@ def ensure_phc_approval_limits_menu() -> None:
                 },
             )
     db.session.commit()
-

@@ -17,6 +17,14 @@
     status.className = `phc-close-date-status ${state}`;
   };
 
+  const closeDateRows = (feid) => {
+    const selector = `[data-feid="${String(feid)}"]`;
+    return [
+      ...rows.querySelectorAll(selector),
+      ...(mobileList ? mobileList.querySelectorAll(selector) : [])
+    ];
+  };
+
   const render = (items) => {
     if (!items.length) {
       rows.innerHTML = '<tr><td colspan="5" class="sz_text_muted">Não existem bases PHC configuradas.</td></tr>';
@@ -86,8 +94,11 @@
       });
       const payload = await response.json();
       if (!response.ok || !payload.ok) throw new Error(payload.error || 'Não foi possível gravar a data.');
-      document.querySelectorAll(`[data-feid="${row.dataset.feid}"] input[type="date"]`).forEach((field) => { field.value = payload.item.value; });
-      document.querySelectorAll(`[data-feid="${row.dataset.feid}"]`).forEach((item) => setRowStatus(item, 'Gravado', 'is-ok'));
+      closeDateRows(row.dataset.feid).forEach((item) => {
+        const field = item.querySelector('input[type="date"]');
+        if (field) field.value = payload.item.value;
+        setRowStatus(item, 'Gravado', 'is-ok');
+      });
     } catch (error) {
       setRowStatus(row, error.message, 'is-error');
     } finally {
@@ -122,9 +133,10 @@
       const payload = await response.json();
       if (!response.ok && !payload.results) throw new Error(payload.error || 'Não foi possível aplicar a data.');
       (payload.results || []).forEach((result) => {
-        document.querySelectorAll(`[data-feid="${result.feid}"]`).forEach((row) => {
+        closeDateRows(result.feid).forEach((row) => {
           if (result.ok) {
-            row.querySelector('input[type="date"]').value = result.item.value;
+            const field = row.querySelector('input[type="date"]');
+            if (field) field.value = result.item.value;
             setRowStatus(row, 'Gravado', 'is-ok');
           } else setRowStatus(row, result.error || 'Não foi possível gravar.', 'is-error');
         });

@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 from services.phc_approval_limits_service import (
     PhcApprovalLimitsError,
     _parse_limit,
+    _user_row,
     create_approval_limit,
     delete_approval_limit,
 )
@@ -18,6 +19,24 @@ class PhcApprovalLimitsServiceTests(unittest.TestCase):
     def test_limit_rejects_negative_values(self):
         with self.assertRaisesRegex(PhcApprovalLimitsError, "não pode ser negativo"):
             _parse_limit("-0.01")
+
+    def test_user_is_selected_from_gr360_core(self):
+        with patch(
+            "services.phc_approval_limits_service._app_users",
+            return_value=[
+                {
+                    "usercode": "doussama",
+                    "username": "Diraa Oussama",
+                    "inactive": False,
+                }
+            ],
+        ):
+            result = _user_row(MagicMock(), "DOUSSAMA")
+
+        self.assertEqual(
+            result,
+            {"usercode": "doussama", "username": "Diraa Oussama"},
+        )
 
     def test_create_uses_phc_user_and_writes_audit_fields(self):
         connection = MagicMock()
