@@ -690,8 +690,15 @@
 
   function openAddressModal() {
     if (!elements.addressModal) return;
+    if (!state.detail || state.loadingCount) return;
+    if (!isEditing() && budgetCanBeEdited() && selectedBudgetStamp()) {
+      startEditBudget();
+    }
+    elements.addressInput.readOnly = !isEditing();
+    elements.addressInput.setAttribute('aria-readonly', isEditing() ? 'false' : 'true');
     elements.addressModal.classList.add('sz_is_open');
     elements.addressModal.setAttribute('aria-hidden', 'false');
+    if (isEditing()) elements.addressInput.focus();
   }
 
   function closeAddressModal() {

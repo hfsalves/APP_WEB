@@ -824,7 +824,7 @@ document.addEventListener('DOMContentLoaded', () => {
     els.openPdfBtn.disabled = false;
     if (els.deleteBtn) els.deleteBtn.disabled = false;
     if (els.resetBtn) els.resetBtn.disabled = false;
-    els.fileMeta.textContent = `${file.name} · ${formatFileSize(file.size)}`;
+    els.fileMeta.innerHTML = `<span class="docai-file-meta-name" title="${escapeHtml(file.name)}">${escapeHtml(file.name)}</span><span class="docai-file-meta-separator"> · </span><span class="docai-file-meta-size">${escapeHtml(formatFileSize(file.size))}</span>`;
     els.fileMeta.title = file.name;
     setStatus(options.autoExtract === false ? 'PDF pronto para leitura.' : 'PDF pronto; a iniciar leitura automática...');
     if (options.autoExtract !== false) {

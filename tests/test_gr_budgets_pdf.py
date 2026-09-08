@@ -631,6 +631,20 @@ class BudgetPdfTests(unittest.TestCase):
         self.assertLess(sync_header, start_loading)
         self.assertIn("syncEditableHeaderToState();\n    closeClientLookup();", script)
 
+    def test_address_modal_enters_edit_mode_and_writes_bo_morada(self):
+        root = Path(__file__).resolve().parents[1]
+        script = (root / "modules/gr_budgets/static/gr_budgets.js").read_text(encoding="utf-8")
+        service = (root / "modules/gr_budgets/service.py").read_text(encoding="utf-8")
+
+        open_modal = script.index("function openAddressModal()")
+        close_modal = script.index("function closeAddressModal()", open_modal)
+        modal_source = script[open_modal:close_modal]
+        self.assertIn("!isEditing() && budgetCanBeEdited() && selectedBudgetStamp()", modal_source)
+        self.assertIn("startEditBudget();", modal_source)
+        self.assertIn("elements.addressInput.readOnly = !isEditing();", modal_source)
+        self.assertIn("address: elements.addressInput.value.trim(),", script)
+        self.assertIn('"morada": _limited(work_address, bo_lengths, "morada")', service)
+
     def test_budget_line_money_is_presented_with_two_decimals(self):
         root = Path(__file__).resolve().parents[1]
         template = (root / "modules/gr_budgets/templates/gr_budgets/budgets.html").read_text(encoding="utf-8")

@@ -2361,6 +2361,27 @@ def _expand_phc_invoice_lines(lines: list[dict[str, Any]]) -> list[dict[str, Any
     return expanded
 
 
+def _effective_portal_lines(lines: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Flatten distributed Portal lines; never send a summary with its children."""
+    effective: list[dict[str, Any]] = []
+    for line in lines or []:
+        if not isinstance(line, dict):
+            continue
+        children = line.get('sublines')
+        if not isinstance(children, list):
+            children = line.get('sub_lines')
+        if not isinstance(children, list) or not children:
+            effective.append(dict(line))
+            continue
+        inherited = {key: value for key, value in line.items()
+                     if key not in {'sublines', 'sub_lines', 'qty', 'quantity', 'net_amount', 'total', 'pt'}}
+        for child in children:
+            if isinstance(child, dict):
+                effective.append({**inherited, **child,
+                                  'parent_line_id': child.get('parent_line_id') or line.get('id') or line.get('line_id')})
+    return effective
+
+
 def _phc_provisional_supplier(cursor, supplier_data: dict[str, Any]) -> dict[str, Any]:
     matched = _phc_origin_supplier(cursor, supplier_data)
     supplier_no = _safe_int(matched.get('no'), 0)
@@ -2892,7 +2913,7 @@ def submit_provisional_invoice_to_phc(
         normalized_lines = []
         fn_unit_width = _phc_text_column_limit(cursor, 'FN', 'UNIDADE', 4)
         tax_groups: dict[int, dict[str, Decimal]] = {}
-        for index, line in enumerate(lines, start=1):
+        for index, line in enumerate(_effective_portal_lines(lines), start=1):
             qty = _phc_money(line.get('qty'))
             if qty == 0:
                 qty = Decimal('1.00')

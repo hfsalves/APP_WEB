@@ -1404,6 +1404,26 @@
   text-align: right;
 }
 
+.docai-file-meta {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.docai-file-meta-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.docai-file-meta-separator,
+.docai-file-meta-size {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
 .docai-classification-card {
   gap: 0.55rem !important;
 }

@@ -50,6 +50,16 @@ class DocumentAiExtractSummaryFrontendTests(unittest.TestCase):
         analysis_header = self.template.split('<section class="sz_panel docai-extract-result-panel">', 1)[1].split('<nav', 1)[0]
         self.assertIn('docAiExtractWorkflowValidateBtn', analysis_header)
 
+    def test_file_name_keeps_size_visible_when_name_is_long(self):
+        self.assertIn('class="sz_text_muted docai-file-meta"', self.template)
+        self.assertIn('docai-file-meta-name', self.script)
+        self.assertIn('docai-file-meta-size', self.script)
+        self.assertIn('text-overflow: ellipsis;', self.css)
+
+    def test_project_card_uses_centro_de_custo_label(self):
+        self.assertIn('<h4>Centro de Custo</h4>', self.template)
+        self.assertIn('aria-label="Associar Centro de Custo"', self.template)
+
     def test_validation_error_uses_a_single_message_channel(self):
         validation = self.script.split('async function validateWorkflowStage', 1)[1].split("els.backBtn?.addEventListener", 1)[0]
         self.assertNotIn("showMessage(message, 'error')", validation)
