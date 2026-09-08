@@ -21220,6 +21220,8 @@ def create_app():
         rs_noites_expr = "ISNULL(RS.NOITES,0)" if 'NOITES' in rs_cols else "DATEDIFF(day, CAST(RS.DATAIN AS date), CAST(RS.DATAOUT AS date))"
         rs_estadia_expr = "ISNULL(RS.ESTADIA,0)" if 'ESTADIA' in rs_cols else "0"
         rs_limpeza_expr = "ISNULL(RS.LIMPEZA,0)" if 'LIMPEZA' in rs_cols else "0"
+        rs_cancelada_expr = "ISNULL(RS.CANCELADA,0)" if 'CANCELADA' in rs_cols else "0"
+        rs_pcancel_expr = "ISNULL(RS.PCANCEL,0)" if 'PCANCEL' in rs_cols else "0"
         rs_ftmorada_expr = "LTRIM(RTRIM(ISNULL(RS.FTMORADA,'')))" if 'FTMORADA' in rs_cols else "''"
         rs_ftlocal_expr = "LTRIM(RTRIM(ISNULL(RS.FTLOCAL,'')))" if 'FTLOCAL' in rs_cols else "''"
         rs_ftcodpost_expr = "LTRIM(RTRIM(ISNULL(RS.FTCODPOST,'')))" if 'FTCODPOST' in rs_cols else "''"
@@ -21355,7 +21357,12 @@ def create_app():
               {rs_noites_expr} AS NOITES,
               {rs_estadia_expr} AS ESTADIA,
               {rs_limpeza_expr} AS LIMPEZA,
-              ({rs_estadia_expr} + {rs_limpeza_expr}) AS VALOR_TOTAL,
+              {rs_cancelada_expr} AS CANCELADA,
+              {rs_pcancel_expr} AS PCANCEL,
+              CASE WHEN {rs_cancelada_expr} = 1
+                THEN {rs_pcancel_expr}
+                ELSE ({rs_estadia_expr} + {rs_limpeza_expr})
+              END AS VALOR_TOTAL,
               {faturado_expr} AS FATURADO,
               {rs_ftstamp_expr} AS RS_FTSTAMP,
               {rs_validado_faturar_expr} AS VALIDADO_FATURAR,
@@ -21374,7 +21381,6 @@ def create_app():
     def _faturacao_reservas_global_where(filters: dict):
         where = [
             "RS.DATAOUT IS NOT NULL",
-            "ISNULL(RS.CANCELADA,0) = 0",
             "UPPER(LTRIM(RTRIM(ISNULL(AL.TIPO,'')))) IN ('EXPLORACAO','GESTAO')",
         ]
         params = {}
@@ -21385,6 +21391,9 @@ def create_app():
         tipo = str(filters.get('tipo') or '').strip().upper()
         faturado = str(filters.get('faturado') or 'por_faturar').strip().lower()
         elegibilidade = str(filters.get('elegibilidade') or 'todos').strip().lower()
+        mostrar_canceladas = str(filters.get('mostrar_canceladas') or '').strip().lower() in ('1', 'true', 'yes', 'sim', 'on')
+        if not mostrar_canceladas:
+            where.append("ISNULL(RS.CANCELADA,0) = 0")
         if data_ini:
             where.append("CAST(RS.DATAOUT AS date) >= :data_ini")
             params['data_ini'] = data_ini
@@ -21465,15 +21474,24 @@ def create_app():
         bdphc = str(row.get('CLIENTE_BDPHC') or '').strip()
         estadia = round(_num(row.get('ESTADIA'), 0), 2)
         limpeza = round(_num(row.get('LIMPEZA'), 0), 2)
+        cancelada = int(row.get('CANCELADA') or 0) == 1
+        pcancel = round(_num(row.get('PCANCEL'), 0), 2)
         linhas = []
-        if estadia > 0:
+        if cancelada and pcancel > 0:
+            linhas.append({
+                'ref': 'ESTADIA',
+                'design': f"Reserva cancelada de {_format_reserva_line_date(datain)} a {_format_reserva_line_date(dataout)} -({reserva})"[:120],
+                'qtt': 1,
+                'epv': pcancel,
+            })
+        elif estadia > 0:
             linhas.append({
                 'ref': 'ESTADIA',
                 'design': f"Estadia de {_format_reserva_line_date(datain)} a {_format_reserva_line_date(dataout)} -({reserva})"[:120],
                 'qtt': 1,
                 'epv': estadia,
             })
-        if limpeza > 0:
+        if not cancelada and limpeza > 0:
             linhas.append({
                 'ref': 'LIMPEZA',
                 'design': 'Taxa de Limpeza',
@@ -21493,6 +21511,7 @@ def create_app():
             'rsstamp': str(row.get('RSSTAMP') or '').strip(),
             'tipo': tipo,
             'alojamento': str(row.get('ALOJAMENTO') or '').strip(),
+            'cancelada': cancelada,
             'linhas': linhas,
         }
         if tipo == 'GESTAO':
@@ -21742,6 +21761,7 @@ def create_app():
                 'tipo': request.args.get('tipo'),
                 'faturado': request.args.get('faturado') or 'por_faturar',
                 'elegibilidade': request.args.get('elegibilidade') or 'todos',
+                'mostrar_canceladas': request.args.get('mostrar_canceladas'),
             }
             where, params = _faturacao_reservas_global_where(filters)
             sql = _faturacao_reservas_global_select_sql("WHERE " + " AND ".join(where)) + """
@@ -21770,7 +21790,7 @@ def create_app():
                     warnings.append('Fatura apenas no dia seguinte ao checkout')
                 valor_total = round(_num(row.get('VALOR_TOTAL'), 0), 2)
                 if valor_total <= 0:
-                    warnings.append('Reserva sem valor faturável')
+                    warnings.append('Reserva cancelada sem valor faturável' if int(row.get('CANCELADA') or 0) == 1 else 'Reserva sem valor faturável')
                 out.append({
                     'RSSTAMP': str(row.get('RSSTAMP') or '').strip(),
                     'RESERVA': str(row.get('RESERVA') or '').strip(),
@@ -21792,6 +21812,8 @@ def create_app():
                     'NOITES': int(row.get('NOITES') or 0),
                     'ESTADIA': round(_num(row.get('ESTADIA'), 0), 2),
                     'LIMPEZA': round(_num(row.get('LIMPEZA'), 0), 2),
+                    'CANCELADA': int(row.get('CANCELADA') or 0),
+                    'PCANCEL': round(_num(row.get('PCANCEL'), 0), 2),
                     'VALOR_TOTAL': valor_total,
                     'FATURADO': int(row.get('FATURADO') or 0),
                     'RS_FTSTAMP': str(row.get('RS_FTSTAMP') or '').strip(),
@@ -21826,7 +21848,6 @@ def create_app():
         sql = _faturacao_reservas_global_select_sql(
             "WHERE RS.RSSTAMP IN (" + ",".join(placeholders) + ")"
             " AND RS.DATAOUT IS NOT NULL"
-            " AND ISNULL(RS.CANCELADA,0) = 0"
             " AND UPPER(LTRIM(RTRIM(ISNULL(AL.TIPO,'')))) IN ('EXPLORACAO','GESTAO')"
         ) + " ORDER BY CAST(RS.DATAOUT AS date), TIPO, CLIENTE, ALOJAMENTO, RESERVA"
         return [dict(r) for r in db.session.execute(text(sql), params).mappings().all()]
@@ -21961,6 +21982,7 @@ def create_app():
                 'tipo': body.get('tipo'),
                 'faturado': 'por_faturar',
                 'elegibilidade': 'elegivel',
+                'mostrar_canceladas': False,
             }
             max_docs = max(1, min(_to_int(body.get('max_docs'), 50), 100))
             _ensure_faturacao_reservas_global_schema()

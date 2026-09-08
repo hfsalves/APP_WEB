@@ -12,6 +12,7 @@
     tipo: document.getElementById("fatglobTipo"),
     alojamento: document.getElementById("fatglobAlojamento"),
     cliente: document.getElementById("fatglobCliente"),
+    mostrarCanceladas: document.getElementById("fatglobMostrarCanceladas"),
     refresh: document.getElementById("fatglobRefresh"),
     emitir: document.getElementById("fatglobEmitir"),
     checkAll: document.getElementById("fatglobCheckAll"),
@@ -105,6 +106,9 @@
       const label = missingBd ? "BDPHC em falta" : warnings[0];
       return '<span class="fatglob-badge warn" title="' + escapeHtml(warnings.join("; ")) + '"><i class="fa-solid fa-triangle-exclamation"></i><span>' + escapeHtml(label) + "</span></span>";
     }
+    if (Number(row.CANCELADA || 0) === 1) {
+      return '<span class="fatglob-badge cancelled" title="Valor de cancelamento com IVA a 6% incluído"><i class="fa-solid fa-ban"></i><span>Cancelada - por faturar</span></span>';
+    }
     return '<span class="fatglob-badge"><i class="fa-regular fa-clock"></i><span>Por faturar</span></span>';
   }
 
@@ -152,6 +156,7 @@
       const id = String(row.RSSTAMP || "");
       const checked = state.selected.has(id);
       const selectable = rowSelectable(row);
+      const cancelled = Number(row.CANCELADA || 0) === 1;
       const warnings = rowWarnings(row);
       const warningTitle = warnings.join("; ");
       const warningIcon = warnings.length
@@ -167,20 +172,20 @@
         ? '<a class="fatglob-pdf-link" href="' + escapeHtml(pdfUrl) + '" target="_blank" rel="noopener" title="Abrir PDF"><i class="fa-solid fa-file-pdf"></i></a>'
         : '<span class="fatglob-pdf-empty" title="PDF indisponivel"><i class="fa-regular fa-file-pdf"></i></span>';
       return (
-        '<tr class="sz_table_row' + (checked ? " fatglob-row-selected" : "") + (!selectable ? " fatglob-row-blocked" : "") + '" data-id="' + escapeHtml(id) + '">' +
+        '<tr class="sz_table_row' + (checked ? " fatglob-row-selected" : "") + (!selectable ? " fatglob-row-blocked" : "") + (cancelled ? " fatglob-row-cancelled" : "") + '" data-id="' + escapeHtml(id) + '">' +
         '<td class="sz_table_cell fatglob-check-cell"><input type="checkbox" class="fatglob-check" ' + (checked ? "checked" : "") + (!selectable ? ' disabled title="' + escapeHtml(warningTitle || "Reserva bloqueada") + '"' : "") + "></td>" +
         '<td class="sz_table_cell">' + statusBadge(row) + "</td>" +
         '<td class="sz_table_cell">' + validationCell(row) + "</td>" +
         '<td class="sz_table_cell fatglob-pdf-cell">' + pdfCell + "</td>" +
         '<td class="sz_table_cell">' + escapeHtml(tipoLabel(row.TIPO)) + "</td>" +
-        '<td class="sz_table_cell">' + escapeHtml(row.RESERVA || id) + "</td>" +
+        '<td class="sz_table_cell"><span class="fatglob-reserva-cell"><span>' + escapeHtml(row.RESERVA || id) + '</span>' + (cancelled ? '<span class="fatglob-cancelled-label">Cancelada</span>' : '') + "</span></td>" +
         '<td class="sz_table_cell">' + escapeHtml(toDMY(row.DATAOUT)) + "</td>" +
         '<td class="sz_table_cell">' + escapeHtml(toDMY(row.FDATA)) + "</td>" +
         '<td class="sz_table_cell">' + escapeHtml(row.ALOJAMENTO) + "</td>" +
         '<td class="sz_table_cell">' + ownerCell + "</td>" +
         '<td class="sz_table_cell">' + escapeHtml(row.HOSPEDE) + "</td>" +
-        '<td class="sz_table_cell fatglob-money">' + fmtMoney(row.ESTADIA) + "</td>" +
-        '<td class="sz_table_cell fatglob-money">' + fmtMoney(row.LIMPEZA) + "</td>" +
+        '<td class="sz_table_cell fatglob-money"' + (cancelled ? ' title="Valor de cancelamento com IVA a 6% incluído"' : '') + '>' + fmtMoney(cancelled ? row.PCANCEL : row.ESTADIA) + "</td>" +
+        '<td class="sz_table_cell fatglob-money">' + fmtMoney(cancelled ? 0 : row.LIMPEZA) + "</td>" +
         '<td class="sz_table_cell fatglob-money"><strong>' + fmtMoney(row.VALOR_TOTAL) + "</strong></td>" +
         "</tr>"
       );
@@ -252,6 +257,7 @@
     if (els.tipo && els.tipo.value) qs.set("tipo", els.tipo.value);
     if (els.alojamento && els.alojamento.value) qs.set("alojamento", els.alojamento.value);
     if (els.cliente && els.cliente.value) qs.set("cliente", els.cliente.value);
+    if (els.mostrarCanceladas && els.mostrarCanceladas.checked) qs.set("mostrar_canceladas", "1");
 
     const response = await fetch("/api/faturacao/reservas-global?" + qs.toString());
     const data = await readPayload(response);
@@ -361,7 +367,7 @@
 
   els.refresh && els.refresh.addEventListener("click", loadRows);
   els.emitir && els.emitir.addEventListener("click", emitir);
-  [els.dataIni, els.dataFim, els.faturado, els.tipo, els.alojamento, els.cliente].forEach((el) => {
+  [els.dataIni, els.dataFim, els.faturado, els.tipo, els.alojamento, els.cliente, els.mostrarCanceladas].forEach((el) => {
     el && el.addEventListener("change", loadRows);
   });
   els.checkAll && els.checkAll.addEventListener("change", () => {

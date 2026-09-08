@@ -39,6 +39,10 @@
       <select class="sz_select fatglob-select" id="fatglobCliente">
         <option value="">Todos os proprietarios</option>
       </select>
+      <label class="fatglob-canceladas-toggle" for="fatglobMostrarCanceladas">
+        <input id="fatglobMostrarCanceladas" type="checkbox">
+        <span>Mostrar canceladas</span>
+      </label>
       <button class="sz_button sz_button_ghost fatglob-icon-btn" id="fatglobRefresh" type="button" title="Atualizar" aria-label="Atualizar">
         <i class="fa-solid fa-rotate"></i>
       </button>
@@ -84,7 +88,7 @@
             <th>Alojamento</th>
             <th>Proprietario</th>
             <th>Hospede</th>
-            <th class="sz_text_right">Estadia</th>
+            <th class="sz_text_right">Estadia / Cancel.</th>
             <th class="sz_text_right">Limpeza</th>
             <th class="sz_text_right">Total</th>
           </tr>
@@ -194,6 +198,59 @@
     width: var(--sz-button-height);
     min-width: var(--sz-button-height);
     padding: 0;
+  }
+
+  .fatglob-canceladas-toggle {
+    display: inline-flex;
+    min-height: var(--sz-button-height);
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0 0.7rem;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-sm);
+    background: var(--sz-color-surface-alt);
+    color: var(--sz-color-text-secondary);
+    font-size: var(--sz-font-size-sm);
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .fatglob-canceladas-toggle input {
+    width: 1rem;
+    height: 1rem;
+    margin: 0;
+    accent-color: var(--sz-color-primary);
+  }
+
+  .fatglob-canceladas-toggle:has(input:checked) {
+    border-color: color-mix(in srgb, var(--sz-color-warning, #f59e0b) 52%, var(--sz-color-border));
+    background: color-mix(in srgb, var(--sz-color-warning, #f59e0b) 12%, var(--sz-color-surface));
+    color: var(--sz-color-warning, #f59e0b);
+  }
+
+  .fatglob-row-cancelled td {
+    background: color-mix(in srgb, var(--sz-color-warning, #f59e0b) 5%, transparent);
+  }
+
+  .fatglob-reserva-cell {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  .fatglob-cancelled-label {
+    padding: 0.08rem 0.35rem;
+    border: 1px solid color-mix(in srgb, var(--sz-color-warning, #f59e0b) 42%, var(--sz-color-border));
+    border-radius: var(--sz-radius-sm);
+    color: var(--sz-color-warning, #f59e0b);
+    font-size: 0.68rem;
+    line-height: 1.2;
+  }
+
+  .fatglob-badge.cancelled {
+    border-color: color-mix(in srgb, var(--sz-color-warning, #f59e0b) 45%, var(--sz-color-border));
+    background: color-mix(in srgb, var(--sz-color-warning, #f59e0b) 12%, var(--sz-color-surface));
+    color: var(--sz-color-warning, #f59e0b);
   }
 
   .fatglob-summary {
@@ -484,5 +541,5 @@
   window.FATGLOB_DATA_INI = "{{ data_ini }}";
   window.FATGLOB_DATA_FIM = "{{ data_fim }}";
 </script>
-<script src="{{ url_for('static', filename='js/faturacao_reservas_global.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/faturacao_reservas_global.js') }}?v={{ static_version }}&fgv=20260907_canceladas"></script>
 {% endblock %}
