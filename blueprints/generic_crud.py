@@ -72,6 +72,46 @@ def _generic_audit_snapshot(table, table_name: str, record_stamp: str, mode: str
 def _generic_audit_record_key(table_name: str, record_stamp: str) -> dict:
     return {f"{str(table_name or '').strip().upper()}STAMP": str(record_stamp or '').strip()}
 
+
+def _can_manage_opc_external_planning() -> bool:
+    """Only OPC administrators may expose a work to external planning."""
+    return bool(
+        getattr(current_user, 'ADMIN', False)
+        or getattr(current_user, 'ADMINOPC', False)
+    )
+
+
+def _ensure_opc_external_planning_write_access(table_name: str, values: dict) -> None:
+    if str(table_name or '').strip().upper() != 'OPC':
+        return
+    if any(str(field or '').strip().upper() == 'U_PLANEXT' for field in values):
+        if not _can_manage_opc_external_planning():
+            abort(403, 'Sem permissão para alterar o planeamento externo da obra')
+
+
+def _sync_opc_external_planning_to_master(record_stamp: str, enabled: bool) -> None:
+    """Keep the planning source in HSOLS_MASTER aligned with the app mirror."""
+    from modules.gr_planning.service import get_legacy_environment
+
+    stamp = str(record_stamp or '').strip()
+    if not stamp:
+        raise ValueError('Obra em falta para atualizar o planeamento externo.')
+
+    env = get_legacy_environment()
+    with env.database.connect() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            UPDATE dbo.OPC
+               SET U_PLANEXT = ?
+             WHERE LTRIM(RTRIM(OPCSTAMP)) = ?
+            """,
+            (1 if enabled else 0, stamp),
+        )
+        if cursor.rowcount != 1:
+            raise ValueError('Obra não encontrada na fonte de planeamento.')
+        conn.commit()
+
 # --------------------------------------------------
 # FO: pagamento (V_FC) helper
 # --------------------------------------------------
@@ -4609,6 +4649,10 @@ def get_record(table_name, record_stamp):
     # Base: dados reais
     rec = dict(row._mapping)
 
+    # Do not expose the value through the generic endpoint to non-OPC admins.
+    if str(table_name or '').strip().upper() == 'OPC' and not _can_manage_opc_external_planning():
+        rec.pop('U_PLANEXT', None)
+
     # ðŸ” Adiciona campos virtuais
     virtual_fields = (
         Campo.query
@@ -4654,6 +4698,7 @@ def create_record(table_name):
         lk = k.lower()
         if lk in col_map:
             clean[col_map[lk]] = v
+    _ensure_opc_external_planning_write_access(table_name, clean)
     # â€” end filtra â€”
 
     try:
@@ -4805,6 +4850,7 @@ def update_record(table_name, record_stamp):
         lk = k.lower()
         if lk in col_map:
             clean[col_map[lk]] = v
+    _ensure_opc_external_planning_write_access(table_name, clean)
     try:
         data = _normalise_write_values(table, table_name, clean)
     except ValueError as exc:
@@ -4812,6 +4858,8 @@ def update_record(table_name, record_stamp):
 
     if _is_partner_table(tn) and 'NO' in data:
         data.pop('NO', None)
+
+    external_planning_changed = tn == 'OPC' and 'U_PLANEXT' in data
 
     pk = getattr(table.c, f"{table_name.upper()}STAMP")
 
@@ -4834,6 +4882,8 @@ def update_record(table_name, record_stamp):
     try:
         audit_enabled = _generic_audit_enabled(tn)
         audit_before = _generic_audit_snapshot(table, tn, record_stamp, mode='write') if audit_enabled else None
+        if external_planning_changed:
+            _sync_opc_external_planning_to_master(record_stamp, bool(data['U_PLANEXT']))
         upd = table.update().where(pk == record_stamp)
         upd = _apply_feid_scope_stmt(upd, table, table_name, mode='write')
         upd = upd.values(**data)

@@ -55,6 +55,7 @@ document.addEventListener('DOMContentLoaded', () => {
     totalsClose: document.getElementById('docAiTotalsClose'),
     originDetailModal: document.getElementById('docAiOriginDetailModal'),
     originDetailTitle: document.getElementById('docAiOriginDetailTitle'),
+    originDetailSubtitle: document.getElementById('docAiOriginDetailSubtitle'),
     originDetailLoading: document.getElementById('docAiOriginDetailLoading'),
     originDetailTable: document.getElementById('docAiOriginDetailTable'),
     originDetailHead: document.getElementById('docAiOriginDetailHead'),
@@ -269,7 +270,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function setStatus(message, isError = false) {
-    const visibleMessage = /^(Leitura guardada carregada do inbox\.|Leitura concluída\.|Filtro de obra .* aplicado às origens\.)$/i.test(String(message || '').trim())
+    const visibleMessage = /^(Leitura guardada carregada do inbox\.|Leitura concluída\.|Centro de Custo .* aplicado às origens\.)$/i.test(String(message || '').trim())
       ? ''
       : String(message || '');
     els.status.textContent = visibleMessage;
@@ -439,13 +440,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const number = String(origin?.origin_number || origin?.number || '').trim();
     const year = String(origin?.origin_year || origin?.year || '').trim();
     if (!number) return 'NdE';
-    return `NdE N.º ${number}${year ? ` / ${year}` : ''}`;
+    return `NdE N.º ${number}${year ? ` · ${year}` : ''}`;
   }
 
   function associatedBcOrigins() {
     return state.selectedOrigins.map((selected) => (
       state.originCandidates.find((candidate) => candidate.stamp === selected.stamp) || selected
-    )).filter((origin) => origin?.document_type === 'purchase_order' || Number(origin?.ndos || 0) === 102);
+    )).filter((origin) => origin?.document_type === 'purchase_order' || [102, 119, 129, 130].includes(Number(origin?.ndos || 0)));
   }
 
   function originFamily(origin) {
@@ -464,8 +465,12 @@ document.addEventListener('DOMContentLoaded', () => {
     return state.selectedOrigins.map(originFamily).find((family) => ['bc', 'contract', 'subcontract'].includes(family)) || '';
   }
 
+  function selectedPrimaryOriginFamilies() {
+    return new Set(state.selectedOrigins.map(originFamily).filter((family) => ['bc', 'contract', 'subcontract'].includes(family)));
+  }
+
   function originDisplayStage(stageKey) {
-    if (['purchase_order', 'contract', 'subcontract_contract'].includes(stageKey)) return 'bc_contracts';
+    if (['purchase_order', 'contract', 'subcontract_contract'].includes(stageKey)) return stageKey;
     if (stageKey === 'delivery_note' || stageKey === 'virtual_delivery_note') return 'delivery_note';
     if (stageKey === 'subcontract_measurement') return 'work_situation';
     return stageKey;
@@ -573,7 +578,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const selectedFolder = customer.ged_folder || '';
     const placeholder = document.createElement('option');
     placeholder.value = '';
-    placeholder.textContent = 'Escolher';
+    placeholder.textContent = 'Associar';
     els.gedFolderSelect.replaceChildren(placeholder, ...intersolGedFolders.map((option) => {
       const element = document.createElement('option');
       element.value = option.value;
@@ -1545,14 +1550,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const proportionalGroups = state.deliveryNoteGroups.filter((group) => (
       Number(group.base_quantity || 0) > 0 && state.selectedDeliveryNoteGroups.has(group.number)
     ));
+    const primaryFamilies = selectedPrimaryOriginFamilies();
     const primaryFamily = selectedPrimaryOriginFamily() || 'bc';
-    const hasDeliveryNoteColumn = primaryFamily === 'bc' && state.virtualDeliveryNotesActive;
-    const hasWorkSituationColumn = primaryFamily === 'subcontract';
+    const hasMixedPrimaryFamilies = primaryFamilies.size > 1;
+    const hasDeliveryNoteColumn = Boolean(primaryFamilies.has('bc') || primaryFamilies.has('contract')) && state.virtualDeliveryNotesActive;
+    const hasWorkSituationColumn = primaryFamilies.has('subcontract');
     const primaryHead = document.getElementById('docAiExtractPrimaryOriginHead');
     const secondaryHead = document.getElementById('docAiExtractSecondaryOriginHead');
-    if (primaryHead) primaryHead.textContent = primaryFamily === 'contract' ? 'Contrato' : (primaryFamily === 'subcontract' ? 'C Sub.Emp.' : 'NdE');
+    if (primaryHead) primaryHead.textContent = hasMixedPrimaryFamilies ? 'Origem' : (primaryFamily === 'contract' ? 'Contrato' : (primaryFamily === 'subcontract' ? 'C Sub.Emp.' : 'NdE'));
     if (secondaryHead) {
-      secondaryHead.textContent = hasWorkSituationColumn ? 'SdT Sub.Emp.' : 'GdR';
+      secondaryHead.textContent = hasDeliveryNoteColumn && hasWorkSituationColumn ? 'GdR / SdT' : (hasWorkSituationColumn ? 'SdT Sub.Emp.' : 'GdR');
       secondaryHead.hidden = !hasDeliveryNoteColumn && !hasWorkSituationColumn;
     }
     const canDistributeDeliveryNotes = state.virtualDeliveryNotesActive && proportionalGroups.length > 0;
@@ -1619,7 +1626,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ? `${uniqueBc.size} NdE`
         : uniqueBc.size === 1
           ? formatBcLabel(Array.from(uniqueBc.values())[0])
-          : 'Escolher';
+          : 'Associar';
       const hasDistribution = bcAllocations.length > 1;
       const distributionButton = hasDistribution
         ? `<button type="button" class="docai-extract-bc-distribution-toggle" data-line-bc-toggle="${lineIndex}" aria-expanded="${state.expandedBcLines.has(lineIndex) ? 'true' : 'false'}" aria-label="${state.expandedBcLines.has(lineIndex) ? 'Ocultar distribuição por Nota de Encomenda' : 'Mostrar distribuição por Nota de Encomenda'}">${state.expandedBcLines.has(lineIndex) ? '−' : '+'}</button>`
@@ -1646,15 +1653,15 @@ document.addEventListener('DOMContentLoaded', () => {
           : '';
       return `<tr data-line-index="${lineIndex}" class="${line._virtual_split_allocation ? 'is-split-allocation ' : ''}${groupStart ? 'docai-extract-line-group-start ' : ''}${lineError ? `docai-validation-line-error ${validationTone}` : ''}"${validationTitle(lineError || line.informative || line.is_informative, lineError ? (validation.value || validation.total ? 'Valor não Conforme' : validation.article ? 'Artigo não Conforme' : validation.vehicle ? 'Falta Matrícula' : validation.project ? 'Falta Centro de Custo' : validation.distribution ? 'Falta Distribuição' : 'Valor não Conforme') : 'Linha Ignorada')}>
         <td><input class="sz_input docai-extract-line-group-input" data-line-group="${lineIndex}" value="${escapeHtml(groupCode)}" title="P = Principal · A = Associado" aria-label="Grupo de artigo"></td>
-        <td><button type="button" class="docai-extract-cell-link${validationClass(validation.article)}" data-line-article="${lineIndex}" title="${validation.article ? 'Artigo não Conforme' : 'Escolher artigo PHC'}">${escapeHtml(line.article_ref || line.article || 'Escolher')}</button></td>
+        <td><button type="button" class="docai-extract-cell-link${validationClass(validation.article)}" data-line-article="${lineIndex}" title="${validation.article ? 'Artigo não Conforme' : 'Associar Artigo'}">${escapeHtml(line.article_ref || line.article || 'Associar')}</button></td>
         <td><input class="sz_input docai-extract-line-description-input${validationClass(validation.description)}" data-line-description="${lineIndex}" value="${escapeHtml(line.description || '')}" aria-label="Designação da linha"${validationTitle(validation.description, 'Valor não Conforme')}></td>
         <td><input class="sz_input docai-extract-line-number-input${validationClass(validation.quantity)}" inputmode="decimal" data-line-qty="${lineIndex}" value="${escapeHtml(formatEditableAmount(line.qty))}" aria-label="Quantidade"${validationTitle(validation.quantity, 'Valor não Conforme')}></td>
         <td><span class="docai-extract-line-money-input"><input class="sz_input docai-extract-line-number-input${validationClass(validation.unitPrice)}" inputmode="decimal" data-line-unit-price="${lineIndex}" value="${escapeHtml(formatEditableAmount(line.unit_price))}" aria-label="Preço unitário"${validationTitle(validation.unitPrice, 'Valor não Conforme')}>${currencySuffix}</span></td>
         <td><span class="docai-extract-line-money-input"><input class="sz_input docai-extract-line-number-input${validationClass(validation.total || validation.value)}" inputmode="decimal" data-line-total="${lineIndex}" value="${escapeHtml(formatEditableAmount(line.net_amount))}" aria-label="Preço total"${validationTitle(validation.total || validation.value, 'Valor não Conforme')}>${currencySuffix}</span></td>
         <td><input class="sz_input docai-extract-line-number-input" inputmode="decimal" data-line-tax-rate="${lineIndex}" value="${escapeHtml(formatEditableAmount(line.tax_rate))}" aria-label="Taxa de IVA"></td>
-        <td><button type="button" class="docai-extract-cell-link${validationClass(validation.project)}" data-line-project="${lineIndex}" title="${validation.project ? 'Falta Centro de Custo' : 'Escolher uma obra'}">${escapeHtml(project || 'Escolher')}</button></td>
-        <td class="docai-extract-vehicle-cell${validationClass(validation.vehicle)}"${validationTitle(validation.vehicle, 'Falta Matrícula')}>${vehicleCell}</td>
+        <td><button type="button" class="docai-extract-cell-link${validationClass(validation.project)}" data-line-project="${lineIndex}" title="${validation.project ? 'Falta Centro de Custo' : 'Associar Centro de Custo'}">${escapeHtml(project || 'Associar')}</button></td>
         <td><input type="date" class="sz_input docai-extract-line-date-input${validationClass(validation.date)}" data-line-date="${lineIndex}" value="${escapeHtml(lineDate)}" aria-label="Data da linha"${validationTitle(validation.date, 'Valor não Conforme')}></td>
+        <td class="docai-extract-vehicle-cell${validationClass(validation.vehicle)}"${validationTitle(validation.vehicle, 'Falta Matrícula')}>${vehicleCell}</td>
         <td class="docai-extract-line-distribution" hidden></td>
         <td class="docai-extract-bc-ref-cell">${primaryReference}</td>
         ${secondaryCell}
@@ -1784,7 +1791,7 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         els.supplierHint.innerHTML = '<i class="fa-solid fa-hand-pointer"></i> Procurar ou escrever o remetente';
       }
-      els.supplierCard.setAttribute('aria-label', 'Escolher ou escrever remetente');
+      els.supplierCard.setAttribute('aria-label', 'Associar ou escrever remetente');
       els.supplierHint.hidden = true;
       return;
     }
@@ -1794,8 +1801,8 @@ document.addEventListener('DOMContentLoaded', () => {
     els.supplierCard.classList.toggle('is-matched', matched);
     els.supplierHint.innerHTML = matched
       ? '<i class="fa-solid fa-pen"></i> Alterar fornecedor'
-      : '<i class="fa-solid fa-hand-pointer"></i> Escolher fornecedor semelhante';
-    els.supplierCard.setAttribute('aria-label', matched ? 'Alterar fornecedor' : 'Escolher fornecedor semelhante');
+      : '<i class="fa-solid fa-hand-pointer"></i> Associar Fornecedor';
+    els.supplierCard.setAttribute('aria-label', matched ? 'Alterar Fornecedor' : 'Associar Fornecedor');
     if (!matching?.supplier_query?.feid) {
       els.supplierHint.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> ${['mail', 'bank_statement'].includes(state.documentData?.document_type) ? 'Entidade' : 'Empresa cliente'} não identificada na FE`;
     } else if (matching?.supplier_lookup_error) {
@@ -1812,10 +1819,10 @@ document.addEventListener('DOMContentLoaded', () => {
     els.customerTax.textContent = matched && customer.tax_id ? `NIF: ${customer.tax_id}` : (matched ? 'NIF não identificado' : '');
     els.customerHint.hidden = true;
     els.customerCard.tabIndex = 0;
-    els.customerCard.setAttribute('aria-label', matched ? 'Alterar entidade' : 'Escolher entidade');
+    els.customerCard.setAttribute('aria-label', matched ? 'Alterar Entidade' : 'Associar Entidade');
     els.customerHint.innerHTML = matched
       ? '<i class="fa-solid fa-pen"></i> Alterar entidade'
-      : '<i class="fa-solid fa-hand-pointer"></i> Escolher empresa do grupo';
+      : '<i class="fa-solid fa-hand-pointer"></i> Associar Entidade';
     els.customerCard.classList.toggle('is-unmatched', !matched);
     els.customerCard.classList.toggle('is-matched', matched);
   }
@@ -1962,9 +1969,9 @@ document.addEventListener('DOMContentLoaded', () => {
       : '';
     if (!options.skipLineMapping) applyOriginLineReferences(payload);
 
-    const primaryFamily = selectedPrimaryOriginFamily();
+    const primaryFamilies = selectedPrimaryOriginFamilies();
     const hasExplicitDeliveryNotes = state.virtualDeliveryNotesActive && state.deliveryNoteGroups.length > 0;
-    const virtualStageHtml = primaryFamily === 'bc' && hasExplicitDeliveryNotes ? renderVirtualDeliveryNoteStage() : '';
+    const virtualStageHtml = (primaryFamilies.has('bc') || primaryFamilies.has('contract')) && hasExplicitDeliveryNotes ? renderVirtualDeliveryNoteStage() : '';
 
     if (!payload.available) {
       els.originMeta.hidden = false;
@@ -1978,13 +1985,31 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    const stages = (Array.isArray(payload.stages) ? payload.stages : [])
+    const sourceStages = (Array.isArray(payload.stages) ? payload.stages : []).map((stage) => ({
+      ...stage,
+      candidates: Array.isArray(stage.candidates) ? [...stage.candidates] : [],
+    }));
+    const selectedProformas = state.selectedOrigins.filter((origin) => (
+      String(origin.document_type || '').toLowerCase() === 'proforma_invoice' || Number(origin.ndos || 0) === 218
+    ));
+    if (selectedProformas.length) {
+      let proformaStage = sourceStages.find((stage) => originDisplayStage(String(stage.key || '')) === 'proforma_invoice');
+      if (!proformaStage) {
+        proformaStage = { key: 'proforma_invoice', label: 'Pré-Fatura', candidates: [] };
+        sourceStages.push(proformaStage);
+      }
+      proformaStage.candidates = selectedProformas.map((selected) => (
+        proformaStage.candidates.find((candidate) => candidate.stamp === selected.stamp) || selected
+      ));
+    }
+    const stages = sourceStages
       .filter((stage) => Array.isArray(stage.candidates) && stage.candidates.length)
       .filter((stage) => {
         const displayStage = originDisplayStage(String(stage.key || ''));
-        if (displayStage === 'bc_contracts') return true;
-        if (displayStage === 'delivery_note') return primaryFamily === 'bc' && hasExplicitDeliveryNotes;
-        if (displayStage === 'work_situation') return primaryFamily === 'subcontract';
+        if (['purchase_order', 'contract', 'subcontract_contract'].includes(displayStage)) return true;
+        if (displayStage === 'proforma_invoice') return selectedProformas.length > 0;
+        if (displayStage === 'delivery_note') return (primaryFamilies.has('bc') || primaryFamilies.has('contract')) && hasExplicitDeliveryNotes;
+        if (displayStage === 'work_situation') return primaryFamilies.has('subcontract');
         return false;
       });
     els.originMeta.textContent = '';
@@ -1998,20 +2023,22 @@ document.addEventListener('DOMContentLoaded', () => {
       const cards = candidates.map((candidate) => {
         const candidateIndex = state.originCandidates.push(candidate) - 1;
         const associated = state.selectedOrigins.some((origin) => origin.stamp === candidate.stamp);
-        const candidateFamily = originFamily(candidate);
-        const contractLocked = ['contract', 'subcontract'].includes(candidateFamily)
-          && state.selectedOrigins.some((origin) => ['contract', 'subcontract'].includes(originFamily(origin)) && origin.stamp !== candidate.stamp);
         const consulted = state.consultedOriginStamp === candidate.stamp;
         const score = Number(candidate.score || 0);
-        const scoreLabel = score > 0 ? ` · ${Math.round(score * 100)}%` : '';
+        const scoreLabel = score > 0 ? `${Math.round(score * 100)}%` : '';
+        const dateLabel = candidate.date ? formatDate(candidate.date) : '';
+        const hasTotal = candidate.total !== null && candidate.total !== undefined && candidate.total !== '';
+        const totalLabel = hasTotal ? formatMoney(candidate.total, state.documentData?.currency) : '';
+        const canAssociate = originDisplayStage(String(stage.key || '')) !== 'proforma_invoice';
         return `
           <article class="docai-extract-origin-candidate${consulted ? ' is-selected' : ''}${associated ? ' is-associated' : ''}" data-origin-index="${candidateIndex}" role="button" tabindex="0" aria-label="Consultar ${escapeHtml(stage.label || 'origem')} ${escapeHtml(candidate.number || '')}">
             <span class="docai-extract-origin-candidate-top">
-              <strong>N.º ${escapeHtml(candidate.number || '--')}${candidate.year ? ` · ${escapeHtml(candidate.year)}` : ''}${scoreLabel}</strong>
-              <button type="button" class="docai-origin-link-button${associated ? ' is-associated' : ''}" data-origin-link="${candidateIndex}" aria-label="${associated ? 'Desassociar do processo' : (contractLocked ? 'Contrato associado.' : 'Associar ao processo')}" title="${associated ? 'Desassociar do processo' : (contractLocked ? 'Contrato associado.' : 'Associar ao processo')}" ${contractLocked && !associated ? 'disabled' : ''}><i class="fa-solid ${associated ? 'fa-link-slash' : 'fa-link'}"></i></button>
+              <strong>${candidate.number ? `N.º ${escapeHtml(candidate.number)}${candidate.year ? ` · ${escapeHtml(candidate.year)}` : ''}` : '&nbsp;'}</strong>
+              ${canAssociate ? `<button type="button" class="docai-origin-link-button${associated ? ' is-associated' : ''}" data-origin-link="${candidateIndex}" aria-label="${associated ? 'Desassociar do processo' : 'Associar ao processo'}" title="${associated ? 'Desassociar do processo' : 'Associar ao processo'}"><i class="fa-solid ${associated ? 'fa-link-slash' : 'fa-link'}"></i></button>` : ''}
             </span>
-            <span>${escapeHtml(formatDate(candidate.date))}</span>
-            <strong class="docai-origin-card-total">${escapeHtml(formatMoney(candidate.total, state.documentData?.currency))}</strong>
+            <strong class="docai-origin-card-score">${escapeHtml(scoreLabel) || '&nbsp;'}</strong>
+            <span>${escapeHtml(dateLabel) || '&nbsp;'}</span>
+            <strong class="docai-origin-card-total">${escapeHtml(totalLabel) || '&nbsp;'}</strong>
           </article>`;
       }).join('');
       const count = candidates.length;
@@ -2055,14 +2082,13 @@ document.addEventListener('DOMContentLoaded', () => {
     els.originTabs.innerHTML = stages.map((stage) => {
       const active = stage.key === state.activeOriginStage;
       const officialLabels = {
-        bc_contracts: 'Notas de Encomenda / Contratos',
-        purchase_order: 'Notas de Encomenda / Contratos',
-        delivery_note: 'Guia de Remessa',
+        purchase_order: 'NdE',
+        delivery_note: 'GdR',
         proforma_invoice: 'Pré-Fatura',
         contract: 'Contrato',
-        subcontract_contract: 'Contrato de SubEmpreitada',
-        work_situation: 'Situação de Trabalhos de SubEmpreitada',
-        subcontract_measurement: 'Situação de Trabalhos de SubEmpreitada',
+        subcontract_contract: 'Contrato Sub.Emp.',
+        work_situation: 'SdTSub.Emp.',
+        subcontract_measurement: 'SdTSub.Emp.',
       };
       const label = officialLabels[stage.key] || stage.label;
       return `<button type="button" class="docai-extract-origin-tab${active ? ' is-active' : ''}" role="tab" data-origin-tab="${escapeHtml(stage.key)}" aria-selected="${active ? 'true' : 'false'}">${escapeHtml(label)}</button>`;
@@ -2321,6 +2347,12 @@ document.addEventListener('DOMContentLoaded', () => {
     renderOriginCandidates({ ...(state.originPayload || {}), selected_origins: state.selectedOrigins }, { skipLineMapping: true });
     const number = `n.º ${candidate.number || '--'}${candidate.year ? ` · ${candidate.year}` : ''}`;
     els.originDetailTitle.textContent = `${candidate.stage_label || 'Origem'} ${number}`;
+    els.originDetailTitle.title = els.originDetailTitle.textContent;
+    if (els.originDetailSubtitle) {
+      els.originDetailSubtitle.hidden = true;
+      els.originDetailSubtitle.textContent = '';
+      els.originDetailSubtitle.title = '';
+    }
     els.originDetailLoading.hidden = false;
     els.originDetailTable.hidden = true;
     els.originDetailEmpty.hidden = true;
@@ -2329,8 +2361,25 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const payload = await fetchJson(`/api/document_ai/documents/${encodeURIComponent(state.currentDocumentId)}/origins/${encodeURIComponent(candidate.stamp)}?view=${encodeURIComponent(state.view)}`);
       const rows = Array.isArray(payload.lines) ? payload.lines : [];
-      els.originDetailHead.innerHTML = '<th>Artigo</th><th>Designação</th><th>Quantidade</th><th title="Preço unitário">PU</th><th title="Preço total">PT</th><th>IVA</th><th>Obra</th><th>Matrícula</th><th>Data</th>';
-      els.originDetailBody.innerHTML = rows.map((line) => `<tr><td>${escapeHtml(line.article || '—')}</td><td>${escapeHtml(line.description || '—')}</td><td>${escapeHtml(formatNumber(line.quantity))}</td><td>${escapeHtml(formatMoney(line.unit_price, state.documentData?.currency))}</td><td>${escapeHtml(formatMoney(line.line_total, state.documentData?.currency))}</td><td>${escapeHtml(formatNumber(line.tax_rate, 2))}%</td><td>${escapeHtml(line.project || '—')}</td><td>${escapeHtml(line.registration || '—')}</td><td>${escapeHtml(formatDate(line.date))}</td></tr>`).join('');
+      const origin = payload.origin || candidate;
+      const totals = payload.totals || {};
+      const detailNumber = String(origin.number || '').trim();
+      const detailYear = String(origin.year || '').trim();
+      els.originDetailTitle.textContent = `${origin.stage_label || candidate.stage_label || 'Origem'}${detailNumber ? ` n.º ${detailNumber}` : ''}${detailYear ? ` · ${detailYear}` : ''}`;
+      els.originDetailTitle.title = els.originDetailTitle.textContent;
+      if (els.originDetailSubtitle) {
+        const subtitleParts = [
+          origin.date ? formatDate(origin.date) : '',
+          totals.net_total !== null && totals.net_total !== undefined ? `Total s/IVA ${formatMoney(totals.net_total, state.documentData?.currency)}` : '',
+          totals.tax_total !== null && totals.tax_total !== undefined ? `IVA ${formatMoney(totals.tax_total, state.documentData?.currency)}` : '',
+          totals.gross_total !== null && totals.gross_total !== undefined ? `Total c/IVA ${formatMoney(totals.gross_total, state.documentData?.currency)}` : '',
+        ].filter(Boolean);
+        els.originDetailSubtitle.textContent = subtitleParts.join(' · ');
+        els.originDetailSubtitle.title = els.originDetailSubtitle.textContent;
+        els.originDetailSubtitle.hidden = !subtitleParts.length;
+      }
+      els.originDetailHead.innerHTML = '<th>Artigo</th><th>Designação</th><th>Quantidade</th><th title="Preço unitário">PU</th><th title="Preço total">PT</th><th>IVA</th><th title="Centro de Custo">CdC</th><th>Data</th><th>Matrícula</th>';
+      els.originDetailBody.innerHTML = rows.map((line) => `<tr><td>${escapeHtml(line.article || '')}</td><td title="${escapeHtml(line.description || '')}">${escapeHtml(line.description || '')}</td><td>${escapeHtml(formatNumber(line.quantity))}</td><td>${escapeHtml(formatMoney(line.unit_price, state.documentData?.currency))}</td><td>${escapeHtml(formatMoney(line.line_total, state.documentData?.currency))}</td><td>${line.tax_rate === null || line.tax_rate === undefined || line.tax_rate === '' ? '' : `${escapeHtml(formatNumber(line.tax_rate, 2))}%`}</td><td>${escapeHtml(line.project || '')}</td><td>${line.date ? escapeHtml(formatDate(line.date)) : ''}</td><td>${escapeHtml(line.registration || '')}</td></tr>`).join('');
       els.originDetailLoading.hidden = true;
       els.originDetailTable.hidden = !rows.length;
       els.originDetailEmpty.hidden = Boolean(rows.length);
@@ -2417,17 +2466,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const selectedOriginWorks = [...new Set(state.selectedOrigins.map((origin) => String(origin.ccusto || '').trim()).filter(Boolean))];
     const hasWorkConflict = selectedOriginWorks.length > 1;
     els.projectName.textContent = selected ? project.ccusto : '-';
-    const projectDetails = [project.machine, project.location].filter(Boolean).join(' · ');
+    const projectDetails = [project.name || project.machine, project.client, project.city || project.location].filter(Boolean).join(' · ');
     els.projectMeta.textContent = hasWorkConflict
-      ? `Atenção: os BCs selecionados pertencem a ${selectedOriginWorks.length} obras (${selectedOriginWorks.join(', ')})`
+      ? `Atenção: as origens selecionadas pertencem a ${selectedOriginWorks.length} Centros de Custo (${selectedOriginWorks.join(', ')})`
       : selected
-        ? [project.suggested_by_document ? `Sugerida por ${project.suggested_by_document}` : '', projectDetails].filter(Boolean).join(' · ') || 'Filtro de obra ativo'
+        ? [project.suggested_by_document ? `Sugerido por ${project.suggested_by_document}` : '', projectDetails].filter(Boolean).join(' · ') || 'Centro de Custo associado'
         : '-';
     els.projectHint.innerHTML = hasWorkConflict
-      ? '<i class="fa-solid fa-triangle-exclamation"></i> BCs de obras diferentes'
+      ? '<i class="fa-solid fa-triangle-exclamation"></i> Origens com Centros de Custo diferentes'
       : selected
-      ? '<i class="fa-solid fa-pen"></i> Alterar obra'
-      : '<i class="fa-solid fa-magnifying-glass"></i> Pesquisar obra';
+      ? '<i class="fa-solid fa-pen"></i> Alterar Centro de Custo'
+      : '<i class="fa-solid fa-magnifying-glass"></i> Associar Centro de Custo';
     els.projectHint.hidden = true;
     els.projectClear.hidden = !selected;
     els.projectCard.classList.toggle('is-selected', selected);
@@ -2500,16 +2549,15 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderProjectCandidates(items) {
     state.projectCandidates = Array.isArray(items) ? items : [];
     if (!state.projectCandidates.length) {
-      els.projectList.innerHTML = '<div class="docai-empty-state">Não foram encontradas obras com esta pesquisa.</div>';
+      els.projectList.innerHTML = '<div class="docai-empty-state">Não foram encontrados Centros de Custo com esta pesquisa.</div>';
       return;
     }
     els.projectList.innerHTML = state.projectCandidates.map((project, index) => `
       <button type="button" class="docai-supplier-match-option" data-project-index="${index}">
         <span class="docai-supplier-match-main">
           <strong>${escapeHtml(project.ccusto || '--')}</strong>
-          <span>${escapeHtml([project.machine, project.location].filter(Boolean).join(' · ') || 'Sem descrição adicional')}</span>
+          <span>${escapeHtml([project.name, project.client, [project.address, project.city].filter(Boolean).join(' · ')].filter(Boolean).join(' · '))}</span>
         </span>
-        <span class="docai-supplier-match-score">${escapeHtml(project.document_count || 0)} documento(s)</span>
       </button>
     `).join('');
   }
@@ -2517,7 +2565,7 @@ document.addEventListener('DOMContentLoaded', () => {
   async function searchProjectCandidates() {
     if (!state.documentData?.customer) return;
     els.projectSearchBtn.disabled = true;
-    els.projectList.innerHTML = '<div class="docai-empty-state">A procurar obras no PHC...</div>';
+    els.projectList.innerHTML = '<div class="docai-empty-state">A procurar Centros de Custo no PHC...</div>';
     try {
       const payload = await fetchJson('/api/document_ai/projects/search', {
         method: 'POST',
@@ -2529,7 +2577,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }),
       });
       renderProjectCandidates(payload.items || []);
-      els.projectContext.textContent = `Obras de ${state.documentData.customer?.name || 'empresa cliente'} · ${payload.phc_database || 'PHC'}`;
+      els.projectContext.textContent = `Centros de Custo de ${state.documentData.customer?.name || 'Entidade'} · ${payload.phc_database || 'PHC'}`;
     } catch (error) {
       els.projectList.innerHTML = `<div class="docai-empty-state">${escapeHtml(error.message || 'Erro ao pesquisar obras.')}</div>`;
     } finally {
@@ -2543,7 +2591,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     els.projectSearch.value = state.selectedProject?.ccusto || '';
-    els.projectContext.textContent = `Obras de ${state.documentData.customer?.name || 'empresa cliente'}`;
+    els.projectContext.textContent = `Centros de Custo de ${state.documentData.customer?.name || 'Entidade'}`;
     els.projectModal.classList.add('sz_is_open');
     els.projectModal.setAttribute('aria-hidden', 'false');
     window.setTimeout(() => {
@@ -2557,7 +2605,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!line) return;
     state.projectTargetLineIndex = Number(lineIndex);
     els.projectSearch.value = String(line.ccusto || line.project_ccusto || '').trim();
-    els.projectContext.textContent = `Obras de ${state.documentData.customer?.name || 'entidade cliente'}`;
+    els.projectContext.textContent = `Centros de Custo de ${state.documentData.customer?.name || 'Entidade'}`;
     els.projectModal.classList.add('sz_is_open');
     els.projectModal.setAttribute('aria-hidden', 'false');
     window.setTimeout(() => {
@@ -2580,7 +2628,7 @@ document.addEventListener('DOMContentLoaded', () => {
       state.projectTargetLineIndex = null;
       closeProjectModal();
       renderLines(state.documentData.lines || [], state.documentData.currency || '');
-      await saveAdjustedLines(`Obra ${selected.ccusto} guardada na linha.`);
+      await saveAdjustedLines(`Centro de Custo ${selected.ccusto} guardado na linha.`);
       return;
     }
     const changed = String(state.selectedProject?.ccusto || '').trim() !== String(selected.ccusto || '').trim();
@@ -2592,7 +2640,7 @@ document.addEventListener('DOMContentLoaded', () => {
     state.documentData.origin_project_manually_cleared = false;
     renderProjectCard();
     closeProjectModal();
-    setStatus(`Filtro de obra ${selected.ccusto} aplicado às origens.`);
+    setStatus(`Centro de Custo ${selected.ccusto} aplicado às origens.`);
     await scheduleAnalysisSave({ immediate: true });
     loadOriginCandidates(state.documentData);
   }
@@ -2812,22 +2860,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderBcAssignments() {
     const origins = associatedBcOrigins();
+    const line = state.documentData?.lines?.[state.bcTargetLineIndex];
     if (!origins.length) {
-      els.bcList.innerHTML = '<div class="docai-empty-state">Associa primeiro uma Nota de Encomenda no bloco Origem.</div>';
+      els.bcList.innerHTML = '<div class="docai-empty-state">Sem origens associadas.</div>';
       els.bcSave.disabled = true;
       return;
     }
     els.bcSave.disabled = false;
     els.bcList.innerHTML = origins.map((origin) => {
       const stamp = String(origin.stamp || '');
-      const checked = state.bcSelectedStamps.has(stamp);
-      return `<label class="docai-bc-assignment-option">
-        <input type="checkbox" data-bc-origin-stamp="${escapeHtml(stamp)}" ${checked ? 'checked' : ''}>
-        <span>
-          <strong>${escapeHtml(formatBcLabel(origin))}</strong>
-          <small>${escapeHtml([formatDate(origin.date), origin.ccusto].filter(Boolean).join(' · '))}</small>
-        </span>
-      </label>`;
+      const label = `${origin.stage_label || origin.document_name || origin.document_type || 'Origem'} ${origin.number || ''}`;
+      return relevantBcLines(origin, line, state.bcTargetLineIndex).map((sourceLine) => {
+        const lineStamp = String(sourceLine.line_stamp || '');
+        if (!lineStamp) return '';
+        const saved = (line.bc_allocations || []).find((part) => part.origin_line_stamp === lineStamp && part.origin_stamp === stamp);
+        const available = Number(sourceLine.pending_qty ?? sourceLine.qty ?? 0);
+        return `<label class="docai-bc-assignment-option">
+          <span><strong>${escapeHtml(label)}</strong>
+            <small>${escapeHtml(sourceLine.ref || '')} · ${escapeHtml(sourceLine.description || '')}</small>
+            <small>${escapeHtml(origin.ccusto || '')} · ${escapeHtml(available)} ${escapeHtml(sourceLine.unit || '')}</small>
+          </span>
+          <input type="number" min="0" max="${escapeHtml(available)}" step="0.0001"
+            class="sz_input docai-origin-quantity" aria-label="Quantidade ${escapeHtml(label)}"
+            data-bc-origin-stamp="${escapeHtml(stamp)}" data-bc-line-stamp="${escapeHtml(lineStamp)}"
+            value="${escapeHtml(saved?.quantity ?? 0)}">
+        </label>`;
+      }).join('');
     }).join('');
   }
 
@@ -2846,7 +2904,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const matches = (Array.isArray(origin.line_matches) ? origin.line_matches : [])
       .filter((match) => Number(match.document_line_index) === Number(documentLineIndex));
     const matchedIndexes = new Set(matches.map((match) => Number(match.origin_line_index)));
-    const exactRef = String(documentLine.ref || '').trim().toUpperCase();
+    const exactRef = String(documentLine.article_ref || documentLine.article || documentLine.ref || '').trim().toUpperCase();
     let selected = officialLines.filter((originLine, index) => matchedIndexes.has(index));
     if (exactRef) {
       const sameArticleLines = officialLines.filter((originLine) => String(originLine.ref || '').trim().toUpperCase() === exactRef);
@@ -2870,35 +2928,42 @@ document.addEventListener('DOMContentLoaded', () => {
     const lineIndex = state.bcTargetLineIndex;
     const line = state.documentData?.lines?.[lineIndex];
     if (!line) return;
-    const origins = associatedBcOrigins().filter((origin) => state.bcSelectedStamps.has(String(origin.stamp || '')));
+    const origins = associatedBcOrigins();
     const allocations = [];
-    origins.forEach((origin) => {
-      const relevantLines = relevantBcLines(origin, line, lineIndex);
-      if (!relevantLines.length) {
-        allocations.push({
-          origin_stamp: origin.stamp || '', origin_number: origin.number || '', origin_year: origin.year || null,
-          origin_line_stamp: '', origin_line_order: 0, quantity: 0, unit_price: 0, total: 0,
-        });
-        return;
-      }
-      relevantLines.forEach((originLine, originLineIndex) => allocations.push({
+    const inputs = [...els.bcList.querySelectorAll('[data-bc-line-stamp]')];
+    if (inputs.some((input) => !input.checkValidity() || !Number.isFinite(Number(input.value)))) {
+      showMessage('Confirma as quantidades distribuídas.', 'error');
+      return;
+    }
+    inputs.forEach((input) => {
+      const quantity = Number(input.value);
+      if (quantity <= 0) return;
+      const origin = origins.find((item) => String(item.stamp) === input.dataset.bcOriginStamp);
+      const originLine = relevantBcLines(origin, line, lineIndex).find((item) => String(item.line_stamp) === input.dataset.bcLineStamp);
+      if (!originLine) return;
+      allocations.push({
         origin_stamp: origin.stamp || '',
         origin_number: origin.number || '',
         origin_year: origin.year || null,
         origin_line_stamp: originLine.line_stamp || '',
-        origin_line_order: Number(originLine.line_order || originLineIndex + 1),
+        origin_line_order: Number(originLine.line_order || 0),
         article_ref: originLine.ref || '',
-        quantity: Number(originLine.pending_qty ?? originLine.qty ?? 0),
+        quantity,
         unit_price: Number(originLine.unit_price || 0),
-        total: Number(originLine.line_total || 0),
-      }));
+        total: quantity * Number(originLine.unit_price || 0),
+      });
     });
+    const assigned = allocations.reduce((sum, item) => sum + item.quantity, 0);
+    if (allocations.length && Math.abs(assigned - Number(line.quantity ?? line.qty ?? 0)) > 0.00001) {
+      showMessage('A quantidade distribuída deve coincidir com a quantidade da linha.', 'error');
+      return;
+    }
     line.bc_allocations = allocations;
     markLineManualFields(line, 'bc_allocations');
     if (allocations.length < 2) state.expandedBcLines.delete(lineIndex);
     closeBcModal();
     renderLines(state.documentData.lines || [], state.documentData.currency || '');
-    await saveAdjustedLines(allocations.length ? 'Distribuição por Nota de Encomenda guardada.' : 'Associação à Nota de Encomenda removida.');
+    await saveAdjustedLines(allocations.length ? 'Distribuição por origem guardada.' : 'Associação à origem removida.');
   }
 
   async function pruneLineBcAllocations() {
@@ -2925,7 +2990,7 @@ document.addEventListener('DOMContentLoaded', () => {
       state.documentData.origin_project_manually_cleared = true;
     }
     renderProjectCard();
-    setStatus('Filtro de obra removido.');
+    setStatus('Centro de Custo removido.');
     await scheduleAnalysisSave({ immediate: true });
     if (state.documentData) loadOriginCandidates(state.documentData);
   }
@@ -2966,7 +3031,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     const customerName = state.documentData?.customer?.name || `FE ${feid}`;
     const supplier = state.documentData?.supplier || {};
-    els.supplierModalTitle.textContent = isCorrespondence ? 'Escolher cliente ou fornecedor' : 'Escolher fornecedor';
+    els.supplierModalTitle.textContent = isCorrespondence ? 'Associar Cliente ou Fornecedor' : 'Associar Fornecedor';
     els.supplierModalContext.textContent = `${isCorrespondence ? 'Clientes e fornecedores' : 'Fornecedores'} de ${customerName} · FEID ${feid}`;
     els.supplierModalSearch.value = supplier.llm_name || supplier.name || supplier.llm_tax_id || supplier.tax_id || '';
     els.supplierManualBtn.hidden = !isCorrespondence && !isAdvertising;
@@ -3582,7 +3647,7 @@ document.addEventListener('DOMContentLoaded', () => {
     state.documentData.customer.ged_folder_suggested_by = '';
     renderGedDestination();
     els.gedFolderSelect.hidden = true;
-    const agency = els.gedFolderSelect.selectedOptions[0]?.textContent || 'Escolher';
+    const agency = els.gedFolderSelect.selectedOptions[0]?.textContent || 'Associar';
     setStatus(els.gedFolderSelect.value ? `Agência INTERSOL alterada para ${agency}.` : 'Falta a agência.', !els.gedFolderSelect.value);
     if (!state.currentDocumentId) return;
     try {
@@ -3900,12 +3965,6 @@ document.addEventListener('DOMContentLoaded', () => {
   els.bcSave?.addEventListener('click', saveBcAssignments);
   els.bcModal?.addEventListener('click', (event) => {
     if (event.target === els.bcModal) closeBcModal();
-  });
-  els.bcList?.addEventListener('change', (event) => {
-    const input = event.target.closest('[data-bc-origin-stamp]');
-    if (!input) return;
-    if (input.checked) state.bcSelectedStamps.add(input.dataset.bcOriginStamp);
-    else state.bcSelectedStamps.delete(input.dataset.bcOriginStamp);
   });
   els.originFlow?.addEventListener('click', (event) => {
     const linkButton = event.target.closest('[data-origin-link]');

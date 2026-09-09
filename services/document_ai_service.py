@@ -1726,8 +1726,8 @@ def _validate_phc_origin_combination(origins: list[dict[str, Any]], candidate: d
         # Contrato Sub.Emp. The line-level PHC assignment decides the actual
         # downstream filiation; this guard only protects dependent documents.
         return
-    if family == 'delivery_note' and 'bc' not in existing_families:
-        raise ValueError('Associa primeiro uma Nota de Encomenda.')
+    if family == 'delivery_note' and not ({'bc', 'contract'} & existing_families):
+        raise ValueError('Associa primeiro uma Nota de Encomenda ou um Contrato.')
     if family == 'work_situation':
         if 'subcontract' not in existing_families:
             raise ValueError('Associa primeiro um Contrato Sout-Traitant.')
@@ -2007,6 +2007,25 @@ def _phc_insert_values(cursor, table_name: str, values: dict[str, Any]) -> None:
     cursor.execute(
         f"INSERT INTO dbo.{table_name} ({', '.join(filtered)}) VALUES ({', '.join('?' for _ in filtered)})",
         list(filtered.values()),
+    )
+
+
+def _phc_update_values(
+    cursor,
+    table_name: str,
+    values: dict[str, Any],
+    where_sql: str,
+    where_params: list[Any] | tuple[Any, ...],
+) -> None:
+    columns = _phc_table_columns(cursor, table_name)
+    filtered = {key: value for key, value in values.items() if key.lower() in columns}
+    if not filtered:
+        raise RuntimeError(f'Não existem colunas válidas para atualizar em {table_name}.')
+    assignments = ', '.join(f'[{key}] = ?' for key in filtered)
+    cursor.execute(
+        f'UPDATE dbo.{table_name} SET {assignments} WHERE {where_sql}',
+        *list(filtered.values()),
+        *list(where_params),
     )
 
 
@@ -3198,6 +3217,285 @@ def submit_provisional_invoice_to_phc(
         connection.close()
 
 
+def finalize_purchase_on_existing_fo(
+    document_data: dict[str, Any] | None,
+    reception_integration: dict[str, Any] | None,
+    origins: list[dict[str, Any]] | None,
+    requested_by: str,
+) -> dict[str, Any]:
+    """Replace only the Document AI provisional lines on the existing purchase FO.
+
+    PHC remains the source of truth: the final FN lines are copied from the
+    selected Pré-Fatura BI rows and keep their BISTAMP. No second FO is created.
+    """
+    import pyodbc
+    from services.phc_user_import_service import _phc_conn_str
+
+    document = dict(document_data or {})
+    integration = dict(reception_integration or {})
+    customer = dict(document.get('customer') or {})
+    source = _phc_origin_source(customer)
+    database_name = str(integration.get('phc_database') or '').strip()
+    fostamp = str(integration.get('fostamp') or '').strip()
+    if not fostamp or not database_name:
+        raise ValueError('A Compra criada pela Receção não tem uma identidade PHC completa.')
+    if source.get('kind') != 'phc' or str(source.get('phc_db') or '').strip().upper() != database_name.upper():
+        raise ValueError('A base PHC da Compra não coincide com a Entidade atualmente selecionada.')
+    proforma_stamps = list(dict.fromkeys(
+        str(item.get('stamp') or '').strip()
+        for item in (origins or [])
+        if _safe_int(item.get('ndos'), 0) == 218 and str(item.get('stamp') or '').strip()
+    ))
+    if not proforma_stamps:
+        raise ValueError('Associa a Pré-Fatura PHC antes de validar a Compra em Contabilidade.')
+    if len(proforma_stamps) != 1:
+        raise ValueError('A Compra só pode ser finalizada com uma Pré-Fatura PHC por validação.')
+
+    connection = pyodbc.connect(
+        _phc_conn_str(database_name, str(source.get('phc_server') or '').strip()),
+        timeout=15,
+        autocommit=False,
+    )
+    try:
+        cursor = connection.cursor()
+        cursor.execute('SET TRANSACTION ISOLATION LEVEL SERIALIZABLE')
+        lock = cursor.execute("""
+            DECLARE @result int;
+            EXEC @result = sp_getapplock @Resource=?, @LockMode='Exclusive',
+                @LockOwner='Transaction', @LockTimeout=15000;
+            SELECT @result;
+        """, f'DOC_AI_FINALIZE_PURCHASE_{database_name}_{fostamp}').fetchone()
+        if not lock or _safe_int(lock[0], -999) < 0:
+            raise RuntimeError('Não foi possível reservar a finalização desta Compra. Tenta novamente.')
+
+        fo = cursor.execute("""
+            SELECT TOP 1 FOSTAMP, CAST(ISNULL(DOCCODE, 0) AS int),
+                LTRIM(RTRIM(ISNULL(DOCNOME, ''))), LTRIM(RTRIM(ISNULL(ADOC, ''))),
+                CAST(ISNULL(NO, 0) AS int), CAST(ISNULL(ESTAB, 0) AS int),
+                DATA, LTRIM(RTRIM(ISNULL(MOEDA, ''))), LTRIM(RTRIM(ISNULL(OBS, ''))
+            FROM dbo.FO WITH (UPDLOCK, HOLDLOCK)
+            WHERE FOSTAMP = ?
+        """, fostamp).fetchone()
+        if not fo:
+            raise ValueError('A Compra criada pela Receção já não existe no PHC.')
+        if _safe_int(fo[1], 0) != DOC_AI_PURCHASE_INVOICE_DOCCODE:
+            raise ValueError('O documento PHC da Receção não é uma Compra compatível.')
+
+        placeholders = ','.join('?' for _ in proforma_stamps)
+        header_rows = cursor.execute(f"""
+            SELECT BO.BOSTAMP, CAST(ISNULL(BO.NDOS, 0) AS int),
+                CAST(ISNULL(BO.NO, 0) AS int), CAST(ISNULL(BO.FECHADA, 0) AS bit),
+                CAST(ISNULL(BO2.ANULADO, 0) AS bit)
+            FROM dbo.BO BO WITH (UPDLOCK, HOLDLOCK)
+            LEFT JOIN dbo.BO2 BO2 WITH (UPDLOCK, HOLDLOCK) ON BO2.BO2STAMP = BO.BOSTAMP
+            WHERE BO.BOSTAMP IN ({placeholders})
+        """, *proforma_stamps).fetchall()
+        if len(header_rows) != len(proforma_stamps) or any(_safe_int(row[1], 0) != 218 for row in header_rows):
+            raise ValueError('A Pré-Fatura selecionada já não existe ou não pertence à série PHC esperada.')
+        if any(bool(row[4]) for row in header_rows):
+            raise ValueError('A Pré-Fatura selecionada está anulada no PHC.')
+        if any(_safe_int(row[2], 0) != _safe_int(fo[4], 0) for row in header_rows):
+            raise ValueError('A Pré-Fatura e a Compra não pertencem ao mesmo fornecedor.')
+
+        line_rows = cursor.execute(f"""
+            SELECT BI.BISTAMP, BI.BOSTAMP,
+                LTRIM(RTRIM(ISNULL(BI.REF, ''))), LTRIM(RTRIM(ISNULL(BI.DESIGN, ''))),
+                ISNULL(BI.QTT, 0), ISNULL(BI.QTT2, 0),
+                ISNULL(BI.DEBITO, 0), ISNULL(BI.EDEBITO, 0),
+                ISNULL(BI.TTDEB, 0), ISNULL(BI.ETTDEB, 0),
+                ISNULL(BI.IVA, 0), CAST(ISNULL(BI.TABIVA, 0) AS int),
+                CAST(ISNULL(BI.ARMAZEM, 1) AS int), ISNULL(BI.LORDEM, 0),
+                LTRIM(RTRIM(ISNULL(BI.UNIDADE, ''))), LTRIM(RTRIM(ISNULL(BI.CCUSTO, ''))),
+                ISNULL(BI.DESCONTO, 0), ISNULL(BI.DESC2, 0), ISNULL(BI.DESC3, 0),
+                ISNULL(BI.DESC4, 0), ISNULL(BI.DESC5, 0), ISNULL(BI.DESC6, 0),
+                CAST(ISNULL(BI.FECHADA, 0) AS bit), BI.DATAOBRA
+            FROM dbo.BI BI WITH (UPDLOCK, HOLDLOCK)
+            WHERE BI.BOSTAMP IN ({placeholders})
+            ORDER BY BI.BOSTAMP, BI.LORDEM, BI.BISTAMP
+        """, *proforma_stamps).fetchall()
+        if not line_rows:
+            raise ValueError('A Pré-Fatura selecionada não contém linhas PHC.')
+        target_line_stamps = [str(row[0] or '').strip() for row in line_rows]
+        target_set = set(target_line_stamps)
+
+        current_fn = cursor.execute("""
+            SELECT FNSTAMP, LTRIM(RTRIM(ISNULL(BISTAMP, ''))),
+                LTRIM(RTRIM(ISNULL(REF, ''))), LTRIM(RTRIM(ISNULL(DESIGN, ''))),
+                ISNULL(QTT, 0), ISNULL(EPV, 0), ISNULL(ETILIQUIDO, 0),
+                ISNULL(IVA, 0), CAST(ISNULL(TABIVA, 0) AS int), ISNULL(LORDEM, 0)
+            FROM dbo.FN WITH (UPDLOCK, HOLDLOCK)
+            WHERE FOSTAMP = ?
+            ORDER BY LORDEM, FNSTAMP
+        """, fostamp).fetchall()
+        current_linked = [str(row[1] or '').strip() for row in current_fn if str(row[1] or '').strip()]
+        current_unlinked = [row for row in current_fn if not str(row[1] or '').strip()]
+        if current_linked and not current_unlinked and set(current_linked) == target_set:
+            connection.rollback()
+            return {
+                'ok': True,
+                'duplicate': True,
+                'fostamp': fostamp,
+                'phc_database': database_name,
+                'proforma_stamps': proforma_stamps,
+                'final_line_count': len(current_fn),
+                'message': 'A Compra já estava finalizada com esta Pré-Fatura.',
+            }
+        if current_linked:
+            raise ValueError('A Compra já contém linhas PHC finais diferentes da Pré-Fatura selecionada.')
+        if not current_fn:
+            raise ValueError('A Compra da Receção não contém as linhas provisórias esperadas.')
+        portal_attachment = cursor.execute("""
+            SELECT TOP 1 ANEXOSSTAMP
+            FROM dbo.ANEXOS WITH (UPDLOCK, HOLDLOCK)
+            WHERE RECSTAMP = ? AND ORITABLE = 'FO' AND UNIQUEID LIKE 'DOC_AI:%:FO'
+        """, fostamp).fetchone()
+        created_by_portal = bool(portal_attachment) or 'leitura inteligente' in _normalize_text(fo[8])
+        provisional_rows_are_intact = all(
+            str(row[2] or '').strip() in {'', DOC_AI_PROVISIONAL_ARTICLE_REF}
+            for row in current_fn
+        )
+        if not created_by_portal or not provisional_rows_are_intact:
+            raise ValueError('As linhas provisórias da Compra foram alteradas no PHC; nenhuma linha foi substituída.')
+
+        consumed: dict[str, Decimal] = {}
+        for offset in range(0, len(target_line_stamps), 80):
+            chunk = target_line_stamps[offset:offset + 80]
+            chunk_placeholders = ','.join('?' for _ in chunk)
+            rows = cursor.execute(f"""
+                SELECT LTRIM(RTRIM(BISTAMP)), SUM(ABS(ISNULL(QTT, 0)))
+                FROM dbo.FN WITH (UPDLOCK, HOLDLOCK)
+                WHERE BISTAMP IN ({chunk_placeholders}) AND FOSTAMP <> ?
+                GROUP BY LTRIM(RTRIM(BISTAMP))
+            """, *chunk, fostamp).fetchall()
+            consumed.update({str(row[0] or '').strip(): Decimal(str(row[1] or 0)) for row in rows})
+        for row in line_rows:
+            line_stamp = str(row[0] or '').strip()
+            quantity = abs(Decimal(str(row[4] or 0)))
+            already_consumed = consumed.get(line_stamp, Decimal('0'))
+            if quantity and already_consumed:
+                raise ValueError('Uma linha da Pré-Fatura já foi retomada noutra Compra.')
+            if quantity and (bool(row[22]) or abs(Decimal(str(row[5] or 0))) > Decimal('0.0001')):
+                raise ValueError('Uma linha da Pré-Fatura já está satisfeita ou fechada no PHC.')
+
+        now = datetime.now()
+        user = _phc_correspondence_user(cursor, requested_by)
+        initials = str(user.get('initials') or requested_by or 'DOC')[:3]
+        time_text = now.strftime('%H:%M:%S')
+        tax_groups: dict[int, dict[str, Decimal]] = {}
+        local_net = Decimal('0')
+        foreign_net = Decimal('0')
+        local_tax = Decimal('0')
+        foreign_tax = Decimal('0')
+        for row in line_rows:
+            local_value = Decimal(str(row[8] or 0))
+            foreign_value = Decimal(str(row[9] or 0))
+            rate = Decimal(str(row[10] or 0))
+            code = _safe_int(row[11], 0)
+            line_local_tax = (local_value * rate / Decimal('100')).quantize(Decimal('0.01'))
+            line_foreign_tax = (foreign_value * rate / Decimal('100')).quantize(Decimal('0.01'))
+            local_net += local_value
+            foreign_net += foreign_value
+            local_tax += line_local_tax
+            foreign_tax += line_foreign_tax
+            group = tax_groups.setdefault(code, {
+                'rate': rate, 'local_base': Decimal('0'), 'foreign_base': Decimal('0'),
+                'local_tax': Decimal('0'), 'foreign_tax': Decimal('0'),
+            })
+            group['local_base'] += local_value
+            group['foreign_base'] += foreign_value
+            group['local_tax'] += line_local_tax
+            group['foreign_tax'] += line_foreign_tax
+
+        cursor.execute('DELETE FROM dbo.FN WHERE FOSTAMP = ?', fostamp)
+        for row in line_rows:
+            _phc_insert_values(cursor, 'FN', {
+                'fnstamp': _new_stamp(), 'fostamp': fostamp, 'bistamp': str(row[0] or '').strip(),
+                'ref': str(row[2] or '').strip(), 'design': str(row[3] or '').strip(),
+                'docnome': str(fo[2] or '').strip(), 'adoc': str(fo[3] or '').strip(),
+                'unidade': str(row[14] or '').strip(), 'taxaiva': 0,
+                'qtt': row[4] or 0, 'pv': row[6] or 0, 'epv': row[7] or 0,
+                'tiliquido': row[8] or 0, 'etiliquido': row[9] or 0,
+                'iva': row[10] or 0, 'tabiva': _safe_int(row[11], 0),
+                'armazem': _safe_int(row[12], 1), 'lordem': row[13] or 0,
+                'data': fo[6], 'ivaincl': 0,
+                'fnccusto': str(row[15] or '').strip(),
+                'desconto': row[16] or 0, 'desc2': row[17] or 0, 'desc3': row[18] or 0,
+                'desc4': row[19] or 0, 'desc5': row[20] or 0, 'desc6': row[21] or 0,
+                'stns': 1 if str(row[2] or '').strip() else 0,
+                'ousrinis': initials, 'ousrdata': now, 'ousrhora': time_text,
+                'usrinis': initials, 'usrdata': now, 'usrhora': time_text,
+            })
+            _phc_update_values(cursor, 'BI', {
+                'qtt2': row[4] or 0, 'fechada': 1, 'datafecho': now,
+                'usrinis': initials, 'usrdata': now, 'usrhora': time_text,
+            }, 'BISTAMP = ?', [str(row[0] or '').strip()])
+
+        cursor.execute('DELETE FROM dbo.FOT WHERE FOSTAMP = ?', fostamp)
+        for code, values in tax_groups.items():
+            _phc_insert_values(cursor, 'FOT', {
+                'fotstamp': _new_stamp(), 'fostamp': fostamp, 'codigo': code,
+                'taxa': values['rate'],
+                'baseinc': values['local_base'].quantize(Decimal('1')),
+                'ebaseinc': values['foreign_base'],
+                'valor': values['local_tax'].quantize(Decimal('1')),
+                'evalor': values['foreign_tax'],
+                'ousrinis': initials, 'ousrdata': now, 'ousrhora': time_text,
+                'usrinis': initials, 'usrdata': now, 'usrhora': time_text,
+            })
+
+        tax_header_values: dict[str, Any] = {}
+        for code in range(1, 10):
+            values = tax_groups.get(code) or {}
+            tax_header_values.update({
+                f'ivav{code}': Decimal(values.get('local_tax') or 0).quantize(Decimal('1')),
+                f'eivav{code}': Decimal(values.get('foreign_tax') or 0),
+                f'paivav{code}': Decimal(values.get('local_tax') or 0).quantize(Decimal('1')),
+                f'epaivav{code}': Decimal(values.get('foreign_tax') or 0),
+            })
+        _phc_update_values(cursor, 'FO', {
+            'total': local_net + local_tax, 'etotal': foreign_net + foreign_tax,
+            'ivain': local_net, 'ttiva': local_tax, 'ttiliq': local_net,
+            'eivain': foreign_net, 'ettiva': foreign_tax, 'ettiliq': foreign_net,
+            'paivain': local_net.quantize(Decimal('1')), 'epaivain': foreign_net,
+            'patotal': (local_net + local_tax).quantize(Decimal('1')),
+            'epatotal': foreign_net + foreign_tax,
+            'aprovado': 0,
+            'obs': 'Finalizada pela Leitura Inteligente a partir da Pré-Fatura PHC.',
+            'usrinis': initials, 'usrdata': now, 'usrhora': time_text,
+            **tax_header_values,
+        }, 'FOSTAMP = ?', [fostamp])
+        for proforma_stamp in proforma_stamps:
+            cursor.execute("""
+                UPDATE dbo.BO
+                   SET FECHADA = CASE WHEN EXISTS (
+                        SELECT 1 FROM dbo.BI
+                        WHERE BOSTAMP = ? AND ISNULL(FECHADA, 0) = 0
+                   ) THEN 0 ELSE 1 END,
+                       DATAFECHO = CASE WHEN EXISTS (
+                        SELECT 1 FROM dbo.BI
+                        WHERE BOSTAMP = ? AND ISNULL(FECHADA, 0) = 0
+                   ) THEN DATAFECHO ELSE ? END,
+                       USRINIS = ?, USRDATA = ?, USRHORA = ?
+                 WHERE BOSTAMP = ?
+            """, proforma_stamp, proforma_stamp, now, initials, now, time_text, proforma_stamp)
+
+        connection.commit()
+        return {
+            'ok': True,
+            'duplicate': False,
+            'fostamp': fostamp,
+            'phc_database': database_name,
+            'proforma_stamps': proforma_stamps,
+            'final_line_count': len(line_rows),
+            'message': f'Compra finalizada na FO da Receção com {len(line_rows)} linha(s) da Pré-Fatura.',
+        }
+    except Exception:
+        connection.rollback()
+        raise
+    finally:
+        connection.close()
+
+
 def _phc_origin_supplier(cursor, supplier: dict[str, Any]) -> dict[str, Any]:
     supplier_no = _safe_int(supplier.get('supplier_no') or supplier.get('no'), 0)
     supplier_estab = _safe_int(supplier.get('estab'), 0)
@@ -3270,29 +3568,33 @@ def search_phc_projects(customer_data: dict[str, Any] | None, query: str = '', l
         rows = cursor.execute("""
             SELECT TOP (?)
                 LTRIM(RTRIM(ISNULL(BO.CCUSTO, ''))) CCUSTO,
-                MAX(LTRIM(RTRIM(ISNULL(BO.MAQUINA, '')))) MAQUINA,
-                MAX(LTRIM(RTRIM(ISNULL(BO.LOCAL, '')))) LOCAL,
-                MAX(BO.DATAOBRA) ULTIMA_DATA,
-                COUNT(DISTINCT BO.BOSTAMP) DOCUMENTOS
+                MAX(LTRIM(RTRIM(ISNULL(BO.OBRANOME, '')))) OBRANOME,
+                MAX(LTRIM(RTRIM(ISNULL(BO.NOME, '')))) CLIENTE,
+                MAX(LTRIM(RTRIM(ISNULL(BO.MORADA, '')))) MORADA,
+                MAX(LTRIM(RTRIM(ISNULL(BO.LOCAL, '')))) LOCALIDADE
             FROM dbo.BO BO WITH (NOLOCK)
             WHERE LTRIM(RTRIM(ISNULL(BO.CCUSTO, ''))) <> ''
               AND (
                     ? = ''
                     OR BO.CCUSTO LIKE ?
-                    OR BO.MAQUINA LIKE ?
-                    OR BO.LOCAL LIKE ?
                     OR BO.OBRANOME LIKE ?
+                    OR BO.NOME LIKE ?
+                    OR BO.MORADA LIKE ?
+                    OR BO.LOCAL LIKE ?
               )
             GROUP BY LTRIM(RTRIM(ISNULL(BO.CCUSTO, '')))
             ORDER BY MAX(BO.DATAOBRA) DESC, LTRIM(RTRIM(ISNULL(BO.CCUSTO, '')))
-        """, safe_limit, clean_query, like_query, like_query, like_query, like_query).fetchall()
+        """, safe_limit, clean_query, like_query, like_query, like_query, like_query, like_query).fetchall()
     return {
         'items': [{
             'ccusto': str(row[0] or '').strip(),
+            'name': str(row[1] or '').strip(),
+            'client': str(row[2] or '').strip(),
+            'address': str(row[3] or '').strip(),
+            'city': str(row[4] or '').strip(),
+            # Keep legacy keys while saved analyses migrate to the CdC naming.
             'machine': str(row[1] or '').strip(),
-            'location': str(row[2] or '').strip(),
-            'last_date': row[3].date().isoformat() if isinstance(row[3], datetime) else str(row[3] or '')[:10],
-            'document_count': _safe_int(row[4], 0),
+            'location': str(row[4] or '').strip(),
         } for row in rows],
         'phc_database': str(source.get('phc_db') or ''),
     }
@@ -3782,22 +4084,6 @@ def search_phc_document_origins(document_data: dict[str, Any] | None, limit_per_
     source = _phc_origin_source(customer)
     if not source.get('phc_db'):
         raise ValueError('A empresa identificada não tem uma base PHC configurada.')
-    if not project_ccusto:
-        return {
-            'available': True,
-            'phc_database': source.get('phc_db') or '',
-            'company_name': source.get('company_name') or customer.get('name') or '',
-            'supplier': {},
-            'current_document_type': str(document.get('document_type') or 'unknown').strip(),
-            'current_document_number': str(document.get('document_number') or ''),
-            'detected_origins': explicit_origins,
-            'selected_project': None,
-            'suggested_origin': None,
-            'stages': [],
-            'candidate_count': 0,
-            'message': 'Seleciona primeiro a obra para procurar origens elegíveis.',
-        }
-
     current_type = str(document.get('document_type') or 'unknown').strip()
     allowed_by_type = {
         'delivery_note': [102],
@@ -3813,6 +4099,14 @@ def search_phc_document_origins(document_data: dict[str, Any] | None, limit_per_
 
     with pyodbc.connect(_phc_conn_str(source['phc_db'], source.get('phc_server') or ''), timeout=12) as connection:
         cursor = connection.cursor()
+        purchase_flow = [dict(stage) for stage in DOC_AI_PHC_PURCHASE_FLOW]
+        order_series = cursor.execute("SELECT NDOS,NMDOS FROM dbo.TS WHERE LTRIM(RTRIM(NMDOS)) = 'Bon Commande Fournisseur'").fetchall()
+        if len(order_series) == 1:
+            order_ndos = int(order_series[0][0])
+            allowed_ndos = [order_ndos if ndos == 102 else ndos for ndos in allowed_ndos]
+            for stage in purchase_flow:
+                if stage.get('key') == 'purchase_order':
+                    stage['ndos'] = order_ndos
         phc_supplier = _phc_origin_supplier(cursor, supplier)
         if not phc_supplier.get('no'):
             raise ValueError('O fornecedor não foi encontrado na FL da empresa PHC.')
@@ -3864,6 +4158,7 @@ def search_phc_document_origins(document_data: dict[str, Any] | None, limit_per_
                         LTRIM(RTRIM(ISNULL(BI.REF, ''))) REF,
                         LTRIM(RTRIM(ISNULL(BI.DESIGN, ''))) DESIGN,
                         ISNULL(BI.QTT, 0) QTT,
+                        ISNULL(BI.QTT2, 0) QTT2,
                         ISNULL(BI.EDEBITO, 0) EDEBITO,
                         ISNULL(BI.ETTDEB, 0) ETTDEB,
                         ISNULL(BI.LORDEM, 0) LORDEM,
@@ -3888,7 +4183,8 @@ def search_phc_document_origins(document_data: dict[str, Any] | None, limit_per_
                             parent_line_stamps.add(parent_stamp)
                 for item in parsed_lines:
                     original_qty = abs(float(item.get('QTT') or 0))
-                    pending_qty = 0.0 if bool(item.get('LINE_FECHADA') or 0) else original_qty
+                    pending_qty = (0.0 if bool(item.get('LINE_FECHADA') or 0)
+                                   else max(0.0, original_qty - abs(float(item.get('QTT2') or 0))))
                     lines_by_stamp.setdefault(str(item.get('BOSTAMP') or '').strip(), []).append({
                         'line_stamp': str(item.get('BISTAMP') or '').strip(),
                         'line_order': float(item.get('LORDEM') or 0),
@@ -3916,7 +4212,7 @@ def search_phc_document_origins(document_data: dict[str, Any] | None, limit_per_
                                 if parent_header and parent_header != child_header:
                                     predecessors_by_stamp.setdefault(child_header, set()).add(parent_header)
 
-    flow_stages = [*DOC_AI_PHC_PURCHASE_FLOW, *contract_stages]
+    flow_stages = [*purchase_flow, *contract_stages]
     flow_lookup = {int(item.get('ndos') or 0): item for item in flow_stages if item.get('ndos')}
     candidates = []
     for header in headers:
@@ -4013,7 +4309,8 @@ def get_phc_document_origin_detail(
         header = cursor.execute("""
             SELECT TOP 1
                 BO.BOSTAMP, BO.NDOS, LTRIM(RTRIM(ISNULL(BO.NMDOS, ''))),
-                BO.OBRANO, BO.BOANO, BO.DATAOBRA, ISNULL(BO.ETOTAL, 0)
+                BO.OBRANO, BO.BOANO, BO.DATAOBRA,
+                ISNULL(BO.ETOTALDEB, 0), ISNULL(BO.ETOTAL, 0)
             FROM dbo.BO BO WITH (NOLOCK)
             WHERE BO.BOSTAMP = ?
         """, clean_stamp).fetchone()
@@ -4068,6 +4365,16 @@ def get_phc_document_origin_detail(
         'registration': str(row[7] or '').strip(),
         'date': row[8].date().isoformat() if isinstance(row[8], datetime) else str(row[8] or '')[:10],
     } for row in line_rows]
+    line_net_total = sum(Decimal(str(row.get('line_total') or 0)) for row in rows)
+    line_tax_total = sum(
+        Decimal(str(row.get('line_total') or 0)) * Decimal(str(row.get('tax_rate') or 0)) / Decimal('100')
+        for row in rows
+    ).quantize(Decimal('0.01'))
+    header_net_total = Decimal(str(header[6] or 0))
+    header_gross_total = Decimal(str(header[7] or 0))
+    net_total = header_net_total if header_net_total else line_net_total
+    gross_total = header_gross_total if header_gross_total else (net_total + line_tax_total)
+    tax_total = gross_total - net_total if gross_total or net_total else line_tax_total
     return {
         'ok': True,
         'origin': {
@@ -4077,7 +4384,12 @@ def get_phc_document_origin_detail(
             'number': str(_safe_int(header[3], 0) or ''),
             'year': _safe_int(header[4], 0) or None,
             'date': header[5].date().isoformat() if isinstance(header[5], datetime) else str(header[5] or '')[:10],
-            'total': float(header[6] or 0),
+            'total': float(gross_total),
+        },
+        'totals': {
+            'net_total': float(net_total),
+            'tax_total': float(tax_total),
+            'gross_total': float(gross_total),
         },
         'lines': rows,
         'show_registration': any(row['registration'] for row in rows),
@@ -4383,9 +4695,8 @@ def mark_document_control_ok(
     document.fornecedor_nif_detetado = str(supplier.get('tax_id') or '')[:40]
     document.processing_stage = 'controlled'
     document.processing_status = 'parsed_ok'
-    document.management_validated = True
-    document.management_validated_at = now
-    document.management_validated_by = requested_by or ''
+    # This legacy review action unlocks validation; only workflow/validate may
+    # complete Management after the PHC pre-invoice has been confirmed.
     document.last_processing_error = ''
     document.dtalt = now
     document.useralteracao = requested_by or document.useralteracao or ''
@@ -4579,6 +4890,8 @@ def _integrate_reception_document(
     integration_permissions: dict[str, bool] | None = None,
 ) -> dict[str, Any]:
     """Run the historical PHC reception action once and persist its identity."""
+    from services.document_ai_phc_operation_service import run_document_phc_operation
+
     meta = _json_loads(document.processing_meta_json, {})
     existing = dict(meta.get('phc_integration') or {})
     document_type = str(document_data.get('document_type') or '').strip().lower()
@@ -4602,87 +4915,165 @@ def _integrate_reception_document(
         raise ValueError('O PDF original está vazio.')
 
     integration_type = 'correspondence' if is_correspondence else 'provisional_invoice'
-    meta['phc_integration'] = {
-        **existing,
-        'type': integration_type,
-        'status': 'pending',
-        'attempted_at': _now().isoformat(),
-        'attempted_by': requested_by or '',
-    }
-    document.processing_meta_json = _json_dumps(meta)
-    document.processing_stage = 'integration_pending'
-    document.dtalt = _now()
-    document.useralteracao = requested_by or document.useralteracao or ''
-    db.session.commit()
-    try:
-        if is_correspondence:
-            result = submit_correspondence_to_phc(
-                document_data,
-                file_bytes,
-                document.file_name or os.path.basename(absolute_path),
-                requested_by,
-            )
-        else:
-            result = submit_provisional_invoice_to_phc(
-                document_data,
-                file_bytes,
-                document.file_name or os.path.basename(absolute_path),
-                requested_by,
-            )
-    except Exception as exc:
-        failed_meta = _json_loads(document.processing_meta_json, {})
-        failed_meta['phc_integration'] = {
-            **dict(failed_meta.get('phc_integration') or {}),
-            'status': 'failed_recoverable',
-            'failed_at': _now().isoformat(),
-            'error': str(exc)[:1000],
-        }
-        document.processing_meta_json = _json_dumps(failed_meta)
-        document.processing_stage = 'integration_failed_recoverable'
-        document.last_processing_error = str(exc)[:4000]
-        document.dtalt = _now()
-        db.session.commit()
-        raise
 
-    integration = {
-        'type': integration_type,
-        'status': 'confirmed',
-        'integrated_at': _now().isoformat(),
-        'integrated_by': requested_by or '',
-        **{
-            key: result.get(key)
-            for key in (
-                'crstamp', 'fostamp', 'reference', 'year', 'document_number',
-                'phc_database', 'file_name', 'ged_path', 'ged_paths', 'anexosstamp',
-                'anexosstamps', 'ged_confirmed', 'duplicate',
+    def execute():
+        if is_correspondence:
+            return submit_correspondence_to_phc(
+                document_data,
+                file_bytes,
+                document.file_name or os.path.basename(absolute_path),
+                requested_by,
             )
-            if result.get(key) not in (None, '')
+        return submit_provisional_invoice_to_phc(
+            document_data,
+            file_bytes,
+            document.file_name or os.path.basename(absolute_path),
+            requested_by,
+        )
+
+    def on_confirmed(_integration):
+        if is_provisional_purchase:
+            document.processing_status = 'provisional_invoice'
+
+    return run_document_phc_operation(
+        document,
+        operation_type=integration_type,
+        requested_by=requested_by,
+        execute=execute,
+        is_complete=lambda payload: _has_complete_reception_integration(payload, document_type),
+        result_fields=(
+            'crstamp', 'fostamp', 'reference', 'year', 'document_number',
+            'phc_database', 'file_name', 'ged_path', 'ged_paths', 'anexosstamp',
+            'anexosstamps', 'ged_confirmed', 'duplicate',
+        ),
+        operation_context={
+            'document_id': str(getattr(document, 'docinstamp', '') or ''),
+            'business_key': f'{str(getattr(document, "docinstamp", "") or "")}:{integration_type}',
+            'document_type': document_type,
+            'feid': _safe_int(dict(document_data.get('customer') or {}).get('feid'), 0),
+            'phc_database': str(dict(document_data.get('customer') or {}).get('phc_database') or ''),
+            'action': 'insert_or_recover',
+            'permission': permission_key,
         },
-    }
-    if not _has_complete_reception_integration(integration, document_type):
-        meta['phc_integration'] = {
-            **integration,
-            'status': 'failed_recoverable',
-            'failed_at': _now().isoformat(),
-            'error': 'A integração PHC/GED não devolveu todos os identificadores obrigatórios.',
-        }
+        on_confirmed=on_confirmed,
+    )
+
+
+def _has_complete_purchase_finalization(payload: dict[str, Any] | None) -> bool:
+    result = dict(payload or {})
+    return (
+        str(result.get('status') or '').strip().lower() == 'confirmed'
+        and bool(str(result.get('fostamp') or '').strip())
+        and bool(str(result.get('phc_database') or '').strip())
+        and bool(result.get('proforma_stamps'))
+        and _safe_int(result.get('final_line_count'), 0) > 0
+    )
+
+
+def _integrate_accounting_purchase(
+    document: DocInbox,
+    document_data: dict[str, Any],
+    requested_by: str,
+    integration_permissions: dict[str, bool] | None = None,
+) -> dict[str, Any]:
+    """Finalize the purchase lines on the FO created during Reception."""
+    from services.document_ai_phc_operation_service import run_document_phc_operation
+
+    document_type = str(document_data.get('document_type') or '').strip().lower()
+    if document_type not in {'invoice', 'provisional_invoice'}:
+        return {}
+    if integration_permissions is not None and not bool(integration_permissions.get('invoice')):
+        raise PermissionError('Sem permissão para finalizar a Compra no PHC.')
+    meta = _json_loads(document.processing_meta_json, {})
+    reception = dict(
+        dict(meta.get('phc_operations') or {}).get('provisional_invoice')
+        or meta.get('phc_integration')
+        or {}
+    )
+    origins = get_phc_origins_from_meta(meta)
+
+    return run_document_phc_operation(
+        document,
+        operation_type='purchase_finalization',
+        requested_by=requested_by,
+        execute=lambda: finalize_purchase_on_existing_fo(
+            document_data,
+            reception,
+            origins,
+            requested_by,
+        ),
+        is_complete=_has_complete_purchase_finalization,
+        result_fields=(
+            'fostamp', 'phc_database', 'proforma_stamps', 'final_line_count',
+            'duplicate', 'message',
+        ),
+        operation_context={
+            'document_id': str(getattr(document, 'docinstamp', '') or ''),
+            'business_key': f'{str(getattr(document, "docinstamp", "") or "")}:purchase_finalization',
+            'document_type': document_type,
+            'fostamp': str(reception.get('fostamp') or ''),
+            'phc_database': str(reception.get('phc_database') or ''),
+            'proforma_stamps': [
+                str(item.get('stamp') or '').strip()
+                for item in origins
+                if _safe_int(item.get('ndos'), 0) == 218
+            ],
+            'action': 'update_existing_fo',
+            'permission': 'invoice',
+        },
+        legacy_meta_key='phc_purchase_finalization',
+        on_confirmed=lambda _result: setattr(document, 'processing_status', 'purchase_finalized'),
+    )
+
+
+def _has_complete_preinvoice(result: dict[str, Any]) -> bool:
+    return bool(result.get('status') == 'confirmed' and result.get('bostamp')
+                and result.get('phc_database') and result.get('anexosstamp')
+                and result.get('ged_confirmed') and result.get('payload_fingerprint'))
+
+
+def _integrate_management_preinvoice(document, document_data, requested_by, integration_permissions=None):
+    from services.document_ai_phc_operation_service import run_document_phc_operation
+    from services.document_ai_preinvoice_service import create_preinvoice, payload_fingerprint
+
+    if str(document_data.get('document_type') or '').lower() not in {'invoice', 'provisional_invoice'}:
+        return {}
+    if not (integration_permissions or {}).get('proforma_invoice'):
+        raise PermissionError('Sem permissão para criar a Pré-Fatura no PHC.')
+    meta = _json_loads(document.processing_meta_json, {})
+    origins = get_phc_origins_from_meta(meta)
+    reception = dict(meta.get('phc_integration') or {})
+    existing = dict(meta.get('phc_preinvoice') or {})
+    if _has_complete_preinvoice(existing) and existing.get('payload_fingerprint') != payload_fingerprint(document_data, origins):
+        raise ValueError('A Pré-Fatura já criada tem outros dados. Verifica a origem antes de voltar a validar.')
+    path = _document_absolute_path(document)
+    if not path or not os.path.isfile(path):
+        raise ValueError('O PDF original não está disponível para criar a Pré-Fatura.')
+    with open(path, 'rb') as original:
+        file_bytes = original.read()
+    result = run_document_phc_operation(
+        document, operation_type='preinvoice', requested_by=requested_by,
+        execute=lambda: create_preinvoice(document_data, origins, reception,
+                                         document.docinstamp, file_bytes, requested_by),
+        is_complete=_has_complete_preinvoice,
+        result_fields=('bostamp', 'ndos', 'document_type', 'document_name', 'number', 'year',
+                       'phc_database', 'anexosstamp', 'ged_path', 'ged_confirmed',
+                       'payload_fingerprint', 'duplicate'),
+        operation_context={'document_id': document.docinstamp, 'permission': 'proforma_invoice'},
+        legacy_meta_key='phc_preinvoice',
+    )
+    # Recover the association too if PHC committed but the subsequent Portal save failed.
+    meta = _json_loads(document.processing_meta_json, {})
+    origins = get_phc_origins_from_meta(meta)
+    if not any(str(origin.get('stamp') or '').strip() == result['bostamp'] for origin in origins):
+        origins.append({'table': 'BO', 'stamp': result['bostamp'], 'ndos': result['ndos'],
+                        'document_type': 'proforma_invoice', 'document_name': result['document_name'],
+                        'number': result['number'], 'year': result['year'],
+                        'phc_database': result['phc_database'], 'linked_by': requested_by,
+                        'linked_at': _now().isoformat()})
+        meta['phc_origins'] = origins
         document.processing_meta_json = _json_dumps(meta)
-        document.processing_stage = 'integration_failed_recoverable'
-        document.last_processing_error = meta['phc_integration']['error']
-        document.dtalt = _now()
-        db.session.commit()
-        raise RuntimeError('A integração PHC/GED não devolveu todos os identificadores obrigatórios.')
-    meta['phc_integration'] = integration
-    document.processing_meta_json = _json_dumps(meta)
-    if is_provisional_purchase:
-        document.processing_status = 'provisional_invoice'
-    document.last_processing_error = ''
-    document.dtalt = _now()
-    document.useralteracao = requested_by or document.useralteracao or ''
-    # Preserve the PHC/GED identity before publishing any Portal workflow state.
-    # A distribution retry must reuse these exact stamps.
-    db.session.commit()
-    return integration
+    return result
 
 
 def validate_document_inbox_stage(
@@ -4714,6 +5105,10 @@ def validate_document_inbox_stage(
         existing_type = str(
             existing_result.get('document_type') or getattr(document, 'doc_type_detected', '') or ''
         ).strip().lower()
+        if stage == 'management' and existing_type in {'invoice', 'provisional_invoice'}:
+            meta = _json_loads(getattr(document, 'processing_meta_json', ''), {})
+            if not _has_complete_preinvoice(dict(meta.get('phc_preinvoice') or {})):
+                return None
         if stage == 'home' and (
             existing_type in {'mail', 'bank_statement'} or _is_provisional_purchase_source_type(existing_type)
         ) and not _has_complete_reception_integration(existing_integration, existing_type):
@@ -4784,10 +5179,17 @@ def validate_document_inbox_stage(
         document.reception_validated_at = now
         document.reception_validated_by = requested_by or ''
     elif stage == 'management':
+        _integrate_management_preinvoice(document, result, requested_by, integration_permissions)
         document.management_validated = True
         document.management_validated_at = now
         document.management_validated_by = requested_by or ''
     else:
+        accounting_integration = _integrate_accounting_purchase(
+            document,
+            result,
+            requested_by,
+            integration_permissions=integration_permissions,
+        )
         document.accounting_validated = True
         document.accounting_validated_at = now
         document.accounting_validated_by = requested_by or ''
@@ -4833,6 +5235,9 @@ def validate_document_inbox_stage(
         'distribution': distribution,
         'phc_integration': integration if stage == 'home' else dict(
             _json_loads(document.processing_meta_json, {}).get('phc_integration') or {}
+        ),
+        'phc_purchase_finalization': accounting_integration if stage == 'accounting' else dict(
+            _json_loads(document.processing_meta_json, {}).get('phc_purchase_finalization') or {}
         ),
     }
 

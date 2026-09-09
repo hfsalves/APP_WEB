@@ -17,8 +17,18 @@ class DocumentAiModalsUiTests(unittest.TestCase):
     def test_origin_detail_always_keeps_registration_column(self):
         script = (ROOT / 'static' / 'js' / 'document_ai_extract.js').read_text(encoding='utf-8')
 
-        self.assertIn('<th>Matrícula</th><th>Data</th>', script)
+        self.assertIn('<th>Data</th><th>Matrícula</th>', script)
         self.assertNotIn("showRegistration ? '<th>Matrícula</th>'", script)
+
+    def test_origin_detail_has_two_fixed_header_lines_and_selected_proforma(self):
+        template = (ROOT / 'templates' / 'document_ai_extract.html').read_text(encoding='utf-8')
+        script = (ROOT / 'static' / 'js' / 'document_ai_extract.js').read_text(encoding='utf-8')
+
+        self.assertIn('docAiOriginDetailSubtitle', template)
+        self.assertIn('const selectedProformas = state.selectedOrigins.filter', script)
+        self.assertIn("if (displayStage === 'proforma_invoice')", script)
+        self.assertIn('Total s/IVA', script)
+        self.assertIn('Total c/IVA', script)
 
     def test_secondary_settings_modals_close_with_escape(self):
         required = (ROOT / 'static' / 'js' / 'document_ai_required_info.js').read_text(encoding='utf-8')

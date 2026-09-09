@@ -1,4 +1,5 @@
 import hashlib
+import json
 import os
 import re
 import shutil
@@ -455,6 +456,92 @@ def ensure_colaborador_despesas_schema() -> None:
         END
     """))
     db.session.execute(text("""
+        IF COL_LENGTH('dbo.COLAB_DESPESA_LINHA', 'VERSION') IS NULL
+            ALTER TABLE dbo.COLAB_DESPESA_LINHA ADD VERSION int NOT NULL
+                CONSTRAINT DF_COLAB_DESPESA_LINHA_VERSION DEFAULT 1;
+        IF COL_LENGTH('dbo.COLAB_DESPESA_LINHA', 'MOEDA') IS NULL
+            ALTER TABLE dbo.COLAB_DESPESA_LINHA ADD MOEDA varchar(10) NOT NULL
+                CONSTRAINT DF_COLAB_DESPESA_LINHA_MOEDA DEFAULT 'EUR';
+        IF COL_LENGTH('dbo.COLAB_DESPESA_LINHA', 'REFERENCIA_DOCUMENTO') IS NULL
+            ALTER TABLE dbo.COLAB_DESPESA_LINHA ADD REFERENCIA_DOCUMENTO nvarchar(160) NOT NULL
+                CONSTRAINT DF_COLAB_DESPESA_LINHA_REFERENCIA_DOCUMENTO DEFAULT N'';
+        IF COL_LENGTH('dbo.COLAB_DESPESA_LINHA', 'CAMPO_ORIGEM_JSON') IS NULL
+            ALTER TABLE dbo.COLAB_DESPESA_LINHA ADD CAMPO_ORIGEM_JSON nvarchar(max) NOT NULL
+                CONSTRAINT DF_COLAB_DESPESA_LINHA_CAMPO_ORIGEM DEFAULT N'{}';
+        IF COL_LENGTH('dbo.COLAB_DESPESA_LINHA', 'ARQUIVO_ESTADO') IS NULL
+            ALTER TABLE dbo.COLAB_DESPESA_LINHA ADD ARQUIVO_ESTADO varchar(20) NOT NULL
+                CONSTRAINT DF_COLAB_DESPESA_LINHA_ARQUIVO_ESTADO DEFAULT '';
+        IF COL_LENGTH('dbo.COLAB_DESPESA_LINHA', 'ARQUIVO_DATA') IS NULL
+            ALTER TABLE dbo.COLAB_DESPESA_LINHA ADD ARQUIVO_DATA datetime NULL;
+        IF COL_LENGTH('dbo.COLAB_DESPESA_LINHA', 'ARQUIVO_POR') IS NULL
+            ALTER TABLE dbo.COLAB_DESPESA_LINHA ADD ARQUIVO_POR varchar(60) NOT NULL
+                CONSTRAINT DF_COLAB_DESPESA_LINHA_ARQUIVO_POR DEFAULT '';
+        IF COL_LENGTH('dbo.COLAB_DESPESA_LINHA', 'PHC_OBRANO') IS NULL
+            ALTER TABLE dbo.COLAB_DESPESA_LINHA ADD PHC_OBRANO int NOT NULL
+                CONSTRAINT DF_COLAB_DESPESA_LINHA_PHC_OBRANO DEFAULT 0;
+        IF COL_LENGTH('dbo.COLAB_DESPESA_LINHA', 'PHC_NMDOS') IS NULL
+            ALTER TABLE dbo.COLAB_DESPESA_LINHA ADD PHC_NMDOS varchar(80) NOT NULL
+                CONSTRAINT DF_COLAB_DESPESA_LINHA_PHC_NMDOS DEFAULT '';
+    """))
+    db.session.execute(text("""
+        IF OBJECT_ID('dbo.COLAB_DESPESA_CONTAB_LINHA', 'U') IS NULL
+        BEGIN
+            CREATE TABLE dbo.COLAB_DESPESA_CONTAB_LINHA (
+                DESPCONTABSTAMP varchar(25) NOT NULL CONSTRAINT PK_COLAB_DESPESA_CONTAB PRIMARY KEY,
+                DESPLINHASTAMP varchar(25) NOT NULL,
+                ORDEM int NOT NULL CONSTRAINT DF_COLAB_DESPESA_CONTAB_ORDEM DEFAULT 10,
+                ARTIGO_REF varchar(50) NOT NULL CONSTRAINT DF_COLAB_DESPESA_CONTAB_ARTIGO DEFAULT '',
+                DESIGN nvarchar(200) NOT NULL CONSTRAINT DF_COLAB_DESPESA_CONTAB_DESIGN DEFAULT N'',
+                REFERENCIA nvarchar(160) NOT NULL CONSTRAINT DF_COLAB_DESPESA_CONTAB_REFERENCIA DEFAULT N'',
+                CCUSTO varchar(80) NOT NULL CONSTRAINT DF_COLAB_DESPESA_CONTAB_CCUSTO DEFAULT '',
+                MATRICULA varchar(50) NOT NULL CONSTRAINT DF_COLAB_DESPESA_CONTAB_MATRICULA DEFAULT '',
+                TABIVA int NOT NULL CONSTRAINT DF_COLAB_DESPESA_CONTAB_TABIVA DEFAULT 0,
+                TAXAIVA decimal(9,4) NOT NULL CONSTRAINT DF_COLAB_DESPESA_CONTAB_TAXAIVA DEFAULT 0,
+                TOTAL_SEM_IVA decimal(18,2) NOT NULL CONSTRAINT DF_COLAB_DESPESA_CONTAB_NET DEFAULT 0,
+                VALOR_IVA decimal(18,2) NOT NULL CONSTRAINT DF_COLAB_DESPESA_CONTAB_IVA DEFAULT 0,
+                TOTAL_COM_IVA decimal(18,2) NOT NULL CONSTRAINT DF_COLAB_DESPESA_CONTAB_GROSS DEFAULT 0,
+                CAMPO_ORIGEM_JSON nvarchar(max) NOT NULL CONSTRAINT DF_COLAB_DESPESA_CONTAB_ORIGEM DEFAULT N'{}',
+                DTCRI datetime NOT NULL CONSTRAINT DF_COLAB_DESPESA_CONTAB_DTCRI DEFAULT GETDATE(),
+                DTALT datetime NULL,
+                USERCRIACAO varchar(60) NOT NULL CONSTRAINT DF_COLAB_DESPESA_CONTAB_USERCRI DEFAULT '',
+                USERALTERACAO varchar(60) NOT NULL CONSTRAINT DF_COLAB_DESPESA_CONTAB_USERALT DEFAULT '',
+                CONSTRAINT FK_COLAB_DESPESA_CONTAB_LINHA FOREIGN KEY (DESPLINHASTAMP)
+                    REFERENCES dbo.COLAB_DESPESA_LINHA (DESPLINHASTAMP)
+            );
+            CREATE INDEX IX_COLAB_DESPESA_CONTAB_DESPESA
+                ON dbo.COLAB_DESPESA_CONTAB_LINHA (DESPLINHASTAMP, ORDEM, DTCRI);
+        END
+
+        IF OBJECT_ID('dbo.COLAB_DESPESA_HIST', 'U') IS NULL
+        BEGIN
+            CREATE TABLE dbo.COLAB_DESPESA_HIST (
+                DESPHISTSTAMP varchar(25) NOT NULL CONSTRAINT PK_COLAB_DESPESA_HIST PRIMARY KEY,
+                DESPLINHASTAMP varchar(25) NOT NULL,
+                ACAO varchar(30) NOT NULL CONSTRAINT DF_COLAB_DESPESA_HIST_ACAO DEFAULT '',
+                DETALHE_JSON nvarchar(max) NOT NULL CONSTRAINT DF_COLAB_DESPESA_HIST_DETALHE DEFAULT N'{}',
+                UTILIZADOR varchar(60) NOT NULL CONSTRAINT DF_COLAB_DESPESA_HIST_USER DEFAULT '',
+                DTCRI datetime NOT NULL CONSTRAINT DF_COLAB_DESPESA_HIST_DTCRI DEFAULT GETDATE()
+            );
+            CREATE INDEX IX_COLAB_DESPESA_HIST_DESPESA
+                ON dbo.COLAB_DESPESA_HIST (DESPLINHASTAMP, DTCRI DESC);
+        END
+    """))
+    db.session.execute(text("""
+        INSERT INTO dbo.COLAB_DESPESA_CONTAB_LINHA
+            (DESPCONTABSTAMP, DESPLINHASTAMP, ORDEM, ARTIGO_REF, DESIGN, REFERENCIA,
+             CCUSTO, MATRICULA, TABIVA, TAXAIVA, TOTAL_SEM_IVA, VALOR_IVA, TOTAL_COM_IVA,
+             CAMPO_ORIGEM_JSON, USERCRIACAO, USERALTERACAO)
+        SELECT LEFT(REPLACE(CONVERT(varchar(36), NEWID()), '-', ''), 25),
+               L.DESPLINHASTAMP, 10, L.REF, L.DESIGN, L.REFERENCIA_DOCUMENTO,
+               L.CCUSTO, L.VIATURA, L.TABIVA, L.TAXAIVA, L.VALOR_SEM_IVA, L.VALOR_IVA, L.VALOR,
+               L.CAMPO_ORIGEM_JSON, L.USERCRIACAO, L.USERALTERACAO
+        FROM dbo.COLAB_DESPESA_LINHA L
+        WHERE NOT EXISTS (
+            SELECT 1 FROM dbo.COLAB_DESPESA_CONTAB_LINHA C
+            WHERE C.DESPLINHASTAMP = L.DESPLINHASTAMP
+        );
+    """))
+    db.session.execute(text("""
         UPDATE L
         SET FEID = ISNULL(NULLIF(L.FEID, 0), H.FEID),
             EMPRESA = CASE
@@ -733,7 +820,7 @@ def search_expense_articles(feid: int, term: str, limit: int = 12) -> list[dict[
     ]
 
 
-def search_expense_vehicles(term: str, limit: int = 12) -> list[dict[str, Any]]:
+def search_expense_vehicles(term: str, limit: int = 12, feid: int = 0) -> list[dict[str, Any]]:
     ensure_colaborador_despesas_schema()
     clean_term = str(term or '').strip()
     if len(clean_term) < 1:
@@ -755,6 +842,7 @@ def search_expense_vehicles(term: str, limit: int = 12) -> list[dict[str, Any]]:
     modelo_select = "LTRIM(RTRIM(ISNULL(MODELO, ''))) AS MODELO" if 'MODELO' in cols else "CAST('' AS varchar(80)) AS MODELO"
     nofrota_select = "LTRIM(RTRIM(ISNULL(NOFROTA, ''))) AS NOFROTA" if 'NOFROTA' in cols else "CAST('' AS varchar(80)) AS NOFROTA"
     inactive_filter = "AND ISNULL(INATIVO, 0) = 0" if 'INATIVO' in cols else ""
+    company_filter = "AND ISNULL(FEID, 0) = :feid" if 'FEID' in cols and _safe_int(feid) else ""
     search_parts = ["LTRIM(RTRIM(ISNULL(MATRICULA, ''))) LIKE :term"]
     if 'MARCA' in cols:
         search_parts.append("LTRIM(RTRIM(ISNULL(MARCA, ''))) LIKE :term")
@@ -772,10 +860,12 @@ def search_expense_vehicles(term: str, limit: int = 12) -> list[dict[str, Any]]:
         WHERE LTRIM(RTRIM(ISNULL(MATRICULA, ''))) <> ''
           AND UPPER(LTRIM(RTRIM(ISNULL(MATRICULA, '')))) NOT IN ({excluded_sql})
           {inactive_filter}
+          {company_filter}
           AND ({' OR '.join(search_parts)})
         ORDER BY LTRIM(RTRIM(ISNULL(MATRICULA, '')))
     """), {
         'term': f'%{clean_term}%',
+        'feid': _safe_int(feid),
     }).mappings().all()
     return [
         {
@@ -873,16 +963,29 @@ def list_draft_lines(header_stamp: str) -> list[dict[str, Any]]:
         FROM dbo.COLAB_DESPESA_LINHA
         WHERE DESPCABSTAMP = :header_stamp
           AND ISNULL(ANULADA, 0) = 0
-          AND ESTADO IN ('RASCUNHO', 'FECHADO')
+          AND ESTADO IN ('RASCUNHO', 'FECHADO', 'DEVOLVIDA')
           AND LTRIM(RTRIM(ISNULL(PHC_BOSTAMP, ''))) = ''
         ORDER BY ORDEM, DTCRI
     """), {'header_stamp': str(header_stamp or '').strip()}).mappings().all()
     return [serialize_line(row) for row in rows]
 
 
-def list_expense_processing_users() -> list[dict[str, Any]]:
+def list_expense_processing_users(filters: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     ensure_colaborador_despesas_schema()
-    rows = db.session.execute(text("""
+    filters = filters or {}
+    clauses = [
+        "ISNULL(L.ANULADA, 0) = 0",
+        "UPPER(LTRIM(RTRIM(ISNULL(L.ESTADO, '')))) = 'FECHADO'",
+        "LTRIM(RTRIM(ISNULL(L.PHC_BOSTAMP, ''))) = ''",
+    ]
+    params: dict[str, Any] = {}
+    if str(filters.get('date_from') or '').strip():
+        clauses.append("L.DATA_DESPESA >= TRY_CONVERT(date, :date_from)")
+        params['date_from'] = str(filters.get('date_from')).strip()
+    if str(filters.get('date_to') or '').strip():
+        clauses.append("L.DATA_DESPESA <= TRY_CONVERT(date, :date_to)")
+        params['date_to'] = str(filters.get('date_to')).strip()
+    rows = db.session.execute(text(f"""
         SELECT
             LTRIM(RTRIM(ISNULL(H.LOGIN, ''))) AS LOGIN,
             LTRIM(RTRIM(ISNULL(H.PENOME, ''))) AS PENOME,
@@ -891,14 +994,13 @@ def list_expense_processing_users() -> list[dict[str, Any]]:
         FROM dbo.COLAB_DESPESA_LINHA L
         INNER JOIN dbo.COLAB_DESPESA_CAB H
           ON H.DESPCABSTAMP = L.DESPCABSTAMP
-        WHERE ISNULL(L.ANULADA, 0) = 0
-          AND UPPER(LTRIM(RTRIM(ISNULL(L.ESTADO, '')))) = 'FECHADO'
+        WHERE {' AND '.join(clauses)}
         GROUP BY
             LTRIM(RTRIM(ISNULL(H.LOGIN, ''))),
             LTRIM(RTRIM(ISNULL(H.PENOME, ''))),
             ISNULL(H.PENO, 0)
         ORDER BY LTRIM(RTRIM(ISNULL(H.PENOME, ''))), LTRIM(RTRIM(ISNULL(H.LOGIN, '')))
-    """)).mappings().all()
+    """), params).mappings().all()
     return [
         {
             'login': str(row.get('LOGIN') or '').strip(),
@@ -948,7 +1050,7 @@ def list_expenses_for_processing(filters: dict[str, Any] | None = None) -> list[
         INNER JOIN dbo.COLAB_DESPESA_CAB H
           ON H.DESPCABSTAMP = L.DESPCABSTAMP
         WHERE {where_sql}
-        ORDER BY L.DATA_DESPESA DESC, H.PENOME, L.DTCRI DESC
+        ORDER BY L.DATA_DESPESA ASC, H.PENOME, L.DTCRI ASC
     """), params).mappings().all()
 
     items: list[dict[str, Any]] = []
@@ -978,7 +1080,63 @@ def list_expenses_for_processing(filters: dict[str, Any] | None = None) -> list[
             'ccusto': ccusto,
         })
         items.append(item)
+    _attach_processing_details(items)
     return items
+
+
+def _json_object(value: Any) -> dict[str, Any]:
+    try:
+        parsed = json.loads(str(value or '{}'))
+        return parsed if isinstance(parsed, dict) else {}
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return {}
+
+
+def _serialize_accounting_line(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        'stamp': str(row.get('DESPCONTABSTAMP') or '').strip(),
+        'ordem': int(row.get('ORDEM') or 0),
+        'artigo_ref': str(row.get('ARTIGO_REF') or '').strip(),
+        'design': str(row.get('DESIGN') or '').strip(),
+        'referencia': str(row.get('REFERENCIA') or '').strip(),
+        'ccusto': str(row.get('CCUSTO') or '').strip(),
+        'matricula': str(row.get('MATRICULA') or '').strip(),
+        'tabiva': str(row.get('TABIVA') or '').strip(),
+        'taxaiva': float(row.get('TAXAIVA') or 0),
+        'total_sem_iva': float(row.get('TOTAL_SEM_IVA') or 0),
+        'valor_iva': float(row.get('VALOR_IVA') or 0),
+        'total_com_iva': float(row.get('TOTAL_COM_IVA') or 0),
+        'origens': _json_object(row.get('CAMPO_ORIGEM_JSON')),
+    }
+
+
+def _attach_processing_details(items: list[dict[str, Any]]) -> None:
+    stamps = [str(item.get('stamp') or '').strip() for item in items if item.get('stamp')]
+    if not stamps:
+        return
+    params = {f's{i}': stamp for i, stamp in enumerate(stamps)}
+    in_sql = ', '.join(f':s{i}' for i in range(len(stamps)))
+    rows = db.session.execute(text(f"""
+        SELECT *
+        FROM dbo.COLAB_DESPESA_CONTAB_LINHA
+        WHERE DESPLINHASTAMP IN ({in_sql})
+        ORDER BY DESPLINHASTAMP, ORDEM, DTCRI
+    """), params).mappings().all()
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        grouped.setdefault(str(row.get('DESPLINHASTAMP') or '').strip(), []).append(_serialize_accounting_line(row))
+    for item in items:
+        accounting = grouped.get(str(item.get('stamp') or ''), [])
+        item['accounting_lines'] = accounting
+        item['version'] = int(item.get('version') or 1)
+        item['origens'] = item.get('origens') or {}
+        net = sum(Decimal(str(line.get('total_sem_iva') or 0)) for line in accounting)
+        vat = sum(Decimal(str(line.get('valor_iva') or 0)) for line in accounting)
+        gross = sum(Decimal(str(line.get('total_com_iva') or 0)) for line in accounting)
+        item['linhas_total_sem_iva'] = float(net.quantize(Decimal('0.01')))
+        item['linhas_total_iva'] = float(vat.quantize(Decimal('0.01')))
+        item['linhas_total_com_iva'] = float(gross.quantize(Decimal('0.01')))
+        item['diferenca'] = float((Decimal(str(item.get('valor') or 0)) - gross).quantize(Decimal('0.01')))
 
 
 def serialize_line(row: dict[str, Any]) -> dict[str, Any]:
@@ -1006,6 +1164,13 @@ def serialize_line(row: dict[str, Any]) -> dict[str, Any]:
         'taxaiva': float(row.get('TAXAIVA') or 0),
         'valor_sem_iva': float(row.get('VALOR_SEM_IVA') or 0),
         'valor_iva': float(row.get('VALOR_IVA') or 0),
+        'moeda': str(row.get('MOEDA') or 'EUR').strip() or 'EUR',
+        'referencia_documento': str(row.get('REFERENCIA_DOCUMENTO') or '').strip(),
+        'origens': _json_object(row.get('CAMPO_ORIGEM_JSON')),
+        'version': int(row.get('VERSION') or 1),
+        'arquivo_estado': str(row.get('ARQUIVO_ESTADO') or '').strip(),
+        'phc_obrano': int(row.get('PHC_OBRANO') or 0),
+        'phc_nmdos': str(row.get('PHC_NMDOS') or '').strip(),
         'pago_cartao_credito': bool(row.get('PAGO_CARTAO_CREDITO') or False),
         'phc_status': str(row.get('PHC_STATUS') or '').strip(),
         'phc_bostamp': str(row.get('PHC_BOSTAMP') or '').strip(),
@@ -1088,7 +1253,7 @@ def upsert_expense_line(user, payload: dict[str, Any], file_storage=None) -> dic
         }).mappings().first()
         if not existing:
             raise ValueError('Despesa não encontrada.')
-        if str(existing.get('ESTADO') or '').strip().upper() != 'RASCUNHO':
+        if str(existing.get('ESTADO') or '').strip().upper() not in {'RASCUNHO', 'DEVOLVIDA'}:
             raise ValueError('Despesa fechada.')
 
     file_payload = None
@@ -1209,7 +1374,7 @@ def upsert_expense_line(user, payload: dict[str, Any], file_storage=None) -> dic
     }
 
 
-def update_expense_processing_classification(line_stamp: str, payload: dict[str, Any], user) -> dict[str, Any]:
+def _legacy_update_expense_processing_classification(line_stamp: str, payload: dict[str, Any], user) -> dict[str, Any]:
     ensure_colaborador_despesas_schema()
     stamp = str(line_stamp or payload.get('stamp') or '').strip()
     if not stamp:
@@ -1286,6 +1451,122 @@ def update_expense_processing_classification(line_stamp: str, payload: dict[str,
         WHERE DESPLINHASTAMP = :stamp
     """), {'stamp': stamp}).mappings().first()
     return {'ok': True, 'line': serialize_line(row or {})}
+
+
+def update_expense_processing_classification(line_stamp: str, payload: dict[str, Any], user) -> dict[str, Any]:
+    """Persist an expense and all of its accounting lines with optimistic locking."""
+    ensure_colaborador_despesas_schema()
+    stamp = str(line_stamp or payload.get('stamp') or '').strip()
+    if not stamp:
+        raise ValueError('Despesa inválida.')
+    expected_version = _safe_int(payload.get('version'), 0)
+    if expected_version <= 0:
+        raise ValueError('A versão da despesa é obrigatória. Atualiza a lista e tenta novamente.')
+
+    current = db.session.execute(text("""
+        SELECT TOP 1 * FROM dbo.COLAB_DESPESA_LINHA WITH (UPDLOCK, ROWLOCK)
+        WHERE DESPLINHASTAMP = :stamp
+          AND ISNULL(ANULADA, 0) = 0
+          AND UPPER(LTRIM(RTRIM(ISNULL(ESTADO, '')))) = 'FECHADO'
+          AND LTRIM(RTRIM(ISNULL(PHC_BOSTAMP, ''))) = ''
+    """), {'stamp': stamp}).mappings().first()
+    if not current:
+        raise ValueError('Despesa não encontrada.')
+    if int(current.get('VERSION') or 1) != expected_version:
+        raise ValueError('Esta despesa foi alterada por outro utilizador. Atualiza antes de continuar.')
+
+    feid = _safe_int(payload.get('feid') or current.get('FEID'))
+    company = _expense_company_by_feid(feid) if feid else {}
+    if not company:
+        raise ValueError('Escolhe uma empresa válida.')
+    login = str(getattr(user, 'LOGIN', '') or getattr(user, 'login', '') or '').strip()
+    expense_date = str(payload.get('data_despesa') or current.get('DATA_DESPESA') or '').strip()[:10] or None
+    currency = str(payload.get('moeda') or current.get('MOEDA') or 'EUR').strip().upper()[:10] or 'EUR'
+    comment = str(payload.get('obs') if 'obs' in payload else current.get('OBS') or '').strip()[:100]
+    lines = payload.get('accounting_lines')
+    if not isinstance(lines, list) or not lines:
+        raise ValueError('A despesa tem de ter pelo menos uma linha contabilística.')
+
+    normalized: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for index, raw in enumerate(lines, start=1):
+        raw = raw if isinstance(raw, dict) else {}
+        line_id = str(raw.get('stamp') or '').strip()[:25]
+        if not line_id or line_id in seen:
+            line_id = _new_stamp()
+        seen.add(line_id)
+        gross = _safe_decimal(raw.get('total_com_iva'))
+        rate = _safe_decimal(raw.get('taxaiva'))
+        if gross < 0:
+            raise ValueError('Os valores negativos não estão autorizados neste ecrã.')
+        net, vat = _vat_amounts_from_gross(gross, rate)
+        origins = raw.get('origens') if isinstance(raw.get('origens'), dict) else {}
+        normalized.append({
+            'stamp': line_id,
+            'expense_stamp': stamp,
+            'order': index * 10,
+            'article': str(raw.get('artigo_ref') or '').strip()[:50],
+            'design': str(raw.get('design') or '').strip()[:200],
+            'reference': str(raw.get('referencia') or '').strip()[:160],
+            'ccusto': str(raw.get('ccusto') or '').strip()[:80],
+            'plate': str(raw.get('matricula') or '').strip()[:50],
+            'tabiva': _safe_int(raw.get('tabiva')),
+            'taxaiva': rate,
+            'net': net,
+            'vat': vat,
+            'gross': gross,
+            'origins': json.dumps(origins, ensure_ascii=False),
+            'login': login,
+        })
+
+    first = normalized[0]
+    total_gross = sum((line['gross'] for line in normalized), Decimal('0.00')).quantize(Decimal('0.01'))
+    db.session.execute(text("""
+        UPDATE dbo.COLAB_DESPESA_LINHA
+        SET DATA_DESPESA = TRY_CONVERT(date, :expense_date),
+            FEID = :feid, EMPRESA = :empresa, MOEDA = :currency, OBS = :comment,
+            REF = :article, DESIGN = :design, REFERENCIA_DOCUMENTO = :reference,
+            CCUSTO = :ccusto, VIATURA = :plate, TABIVA = :tabiva, TAXAIVA = :taxaiva,
+            VALOR_SEM_IVA = :net, VALOR_IVA = :vat, VALOR = :expense_value,
+            VERSION = VERSION + 1, DTALT = GETDATE(), USERALTERACAO = :login
+        WHERE DESPLINHASTAMP = :stamp AND VERSION = :expected_version
+    """), {
+        'stamp': stamp, 'expense_date': expense_date, 'feid': feid,
+        'empresa': str(company.get('nome') or '').strip()[:200], 'currency': currency,
+        'comment': comment, 'article': first['article'], 'design': first['design'],
+        'reference': first['reference'], 'ccusto': first['ccusto'], 'plate': first['plate'],
+        'tabiva': first['tabiva'], 'taxaiva': first['taxaiva'], 'net': first['net'],
+        'vat': first['vat'], 'expense_value': _safe_decimal(payload.get('valor') if 'valor' in payload else current.get('VALOR')),
+        'login': login, 'expected_version': expected_version,
+    })
+    db.session.execute(text("DELETE FROM dbo.COLAB_DESPESA_CONTAB_LINHA WHERE DESPLINHASTAMP = :stamp"), {'stamp': stamp})
+    for line in normalized:
+        db.session.execute(text("""
+            INSERT INTO dbo.COLAB_DESPESA_CONTAB_LINHA
+                (DESPCONTABSTAMP, DESPLINHASTAMP, ORDEM, ARTIGO_REF, DESIGN, REFERENCIA,
+                 CCUSTO, MATRICULA, TABIVA, TAXAIVA, TOTAL_SEM_IVA, VALOR_IVA, TOTAL_COM_IVA,
+                 CAMPO_ORIGEM_JSON, USERCRIACAO, USERALTERACAO)
+            VALUES (:stamp, :expense_stamp, :order, :article, :design, :reference,
+                    :ccusto, :plate, :tabiva, :taxaiva, :net, :vat, :gross,
+                    :origins, :login, :login)
+        """), line)
+    _record_expense_history(stamp, 'ALTERADA', {'version': expected_version + 1, 'linhas': len(normalized), 'total_linhas': float(total_gross)}, login)
+    db.session.commit()
+    row = db.session.execute(text("SELECT TOP 1 * FROM dbo.COLAB_DESPESA_LINHA WHERE DESPLINHASTAMP = :stamp"), {'stamp': stamp}).mappings().first()
+    item = serialize_line(row or {})
+    _attach_processing_details([item])
+    return {'ok': True, 'line': item}
+
+
+def _record_expense_history(stamp: str, action: str, detail: dict[str, Any], login: str) -> None:
+    db.session.execute(text("""
+        INSERT INTO dbo.COLAB_DESPESA_HIST
+            (DESPHISTSTAMP, DESPLINHASTAMP, ACAO, DETALHE_JSON, UTILIZADOR)
+        VALUES (:hist, :stamp, :action, :detail, :login)
+    """), {
+        'hist': _new_stamp(), 'stamp': stamp, 'action': str(action or '')[:30],
+        'detail': json.dumps(detail or {}, ensure_ascii=False, default=str), 'login': str(login or '')[:60],
+    })
 
 
 def _phc_columns(cursor, table_name: str) -> set[str]:
@@ -1896,7 +2177,13 @@ def _load_processing_lines_for_launch(stamps: list[str]) -> list[dict[str, Any]]
     missing = [stamp for stamp in clean_stamps if stamp not in found]
     if missing:
         raise ValueError('Algumas despesas já foram lançadas, anuladas ou não estão fechadas.')
-    return [dict(row) for row in rows]
+    result = [dict(row) for row in rows]
+    items = [{'stamp': str(row.get('DESPLINHASTAMP') or '')} for row in result]
+    _attach_processing_details(items)
+    line_map = {str(item.get('stamp') or ''): item.get('accounting_lines') or [] for item in items}
+    for row in result:
+        row['ACCOUNTING_LINES'] = line_map.get(str(row.get('DESPLINHASTAMP') or ''), [])
+    return result
 
 
 def launch_expenses_to_phc(stamps: list[str], user) -> dict[str, Any]:
@@ -1905,14 +2192,27 @@ def launch_expenses_to_phc(stamps: list[str], user) -> dict[str, Any]:
     feids = {int(row.get('LINHA_FEID') or 0) for row in lines}
     logins = {str(row.get('LOGIN') or '').strip().lower() for row in lines}
     penos = {int(row.get('PENO') or 0) for row in lines}
+    currencies = {str(row.get('MOEDA') or 'EUR').strip().upper() or 'EUR' for row in lines}
     if len(feids) != 1:
         raise ValueError('Só podes lançar despesas da mesma empresa de cada vez.')
     if len(logins) != 1 or len(penos) != 1:
         raise ValueError('Só podes lançar despesas do mesmo colaborador de cada vez.')
+    if len(currencies) != 1:
+        raise ValueError('Só podes lançar despesas da mesma moeda de cada vez.')
 
+    validation_errors: list[str] = []
     for row in lines:
-        if not str(row.get('REF') or '').strip():
-            raise ValueError('Não é possível lançar despesas sem referência.')
+        accounting = row.get('ACCOUNTING_LINES') or []
+        if not accounting:
+            validation_errors.append(f"{row.get('DATA_DESPESA') or 'Despesa'}: sem linha contabilística")
+            continue
+        for index, accounting_line in enumerate(accounting, start=1):
+            if not str(accounting_line.get('artigo_ref') or '').strip():
+                validation_errors.append(f"{row.get('DATA_DESPESA') or 'Despesa'}, linha {index}: artigo em falta")
+            if _safe_decimal(accounting_line.get('total_com_iva')) < 0:
+                validation_errors.append(f"{row.get('DATA_DESPESA') or 'Despesa'}, linha {index}: valor negativo não autorizado")
+    if validation_errors:
+        raise ValueError('Não foi possível lançar:\n' + '\n'.join(validation_errors))
 
     feid = next(iter(feids))
     peno = next(iter(penos))
@@ -1934,8 +2234,7 @@ def launch_expenses_to_phc(stamps: list[str], user) -> dict[str, Any]:
     login = str(getattr(user, 'LOGIN', '') or getattr(user, 'login', '') or '').strip() or 'APP'
     user_inis = login[:3].upper() or 'APP'
     today_value = date.today()
-    # dataobra follows the latest selected expense date where available.
-    dataobra = max((row.get('DATA_DESPESA') for row in lines if row.get('DATA_DESPESA')), default=today_value)
+    dataobra = today_value
 
     with pyodbc.connect(_phc_conn_str(phc_db, phc_server), timeout=30) as conn:
         conn.autocommit = False
@@ -1950,10 +2249,13 @@ def launch_expenses_to_phc(stamps: list[str], user) -> dict[str, Any]:
             company_info = _phc_company_info(cursor)
             logo_path = _local_or_remote_file_path(str(company.get('logo_path') or ''))
             prepared_lines = []
-            for index, row in enumerate(lines, start=1):
-                article = _phc_article(cursor, str(row.get('REF') or '').strip())
-                gross = _safe_decimal(row.get('VALOR'))
-                taxaiva = _safe_decimal(row.get('TAXAIVA'))
+            sequence = 0
+            for row in lines:
+              for accounting_line in row.get('ACCOUNTING_LINES') or []:
+                sequence += 1
+                article = _phc_article(cursor, str(accounting_line.get('artigo_ref') or '').strip())
+                gross = _safe_decimal(accounting_line.get('total_com_iva'))
+                taxaiva = _safe_decimal(accounting_line.get('taxaiva'))
                 net, vat = _vat_amounts_from_gross(gross, taxaiva)
                 is_dkv = str(row.get('TIPO') or '').strip().upper() == 'DKV'
                 # DKV is paid directly by the company. Keep the expense line
@@ -1961,10 +2263,11 @@ def launch_expenses_to_phc(stamps: list[str], user) -> dict[str, Any]:
                 # Notes de Frais value in PHC.
                 phc_net = Decimal('0.00') if is_dkv else net
                 phc_vat = Decimal('0.00') if is_dkv else vat
-                tabiva = _safe_int(row.get('TABIVA'))
-                ccusto = str(row.get('CCUSTO') or supplier.get('ccusto') or '').strip()
+                tabiva = _safe_int(accounting_line.get('tabiva'))
+                ccusto = str(accounting_line.get('ccusto') or supplier.get('ccusto') or '').strip()
                 prepared_lines.append({
                     'row': row,
+                    'accounting_line': accounting_line,
                     'article': article,
                     'gross': gross,
                     'net': net,
@@ -1974,7 +2277,7 @@ def launch_expenses_to_phc(stamps: list[str], user) -> dict[str, Any]:
                     'tabiva': tabiva,
                     'taxaiva': taxaiva,
                     'ccusto': ccusto,
-                    'lordem': index * 10000,
+                    'lordem': sequence * 10000,
                     'bistamp': _new_stamp(),
                 })
 
@@ -2000,7 +2303,7 @@ def launch_expenses_to_phc(stamps: list[str], user) -> dict[str, Any]:
                 ORDER BY DATAOBRA DESC, OBRANO DESC
             """, PHC_NOTES_FRAIS_NDOS)
             currency_row = cursor.fetchone()
-            phc_currency = str(currency_row[0] or '').strip() if currency_row else 'EURO'
+            phc_currency = next(iter(currencies)) or (str(currency_row[0] or '').strip() if currency_row else 'EUR')
             tax_by_code: dict[int, dict[str, Decimal]] = {}
             for line in prepared_lines:
                 bucket = tax_by_code.setdefault(line['tabiva'], {'taxa': line['taxaiva'], 'base': Decimal('0.00'), 'iva': Decimal('0.00')})
@@ -2124,7 +2427,7 @@ def launch_expenses_to_phc(stamps: list[str], user) -> dict[str, Any]:
                     'boano': today_value.year,
                     'dataobra': dataobra,
                     'ref': article['ref'],
-                    'design': (str(row.get('DESIGN') or '').strip() or article['design'])[:60],
+                    'design': (str(line.get('accounting_line', {}).get('design') or '').strip() or article['design'])[:60],
                     'qtt': Decimal('1.0000'),
                     # QTT2 is the quantity satisfied by downstream documents.
                     # A new internal dossier line must always start unsatisfied.
@@ -2144,8 +2447,12 @@ def launch_expenses_to_phc(stamps: list[str], user) -> dict[str, Any]:
                     'stipo': article['stipo'],
                     'no': supplier['no'],
                     'nome': supplier['nome'][:55],
-                    'lobs': _phc_text(row.get('VIATURA'), bi_lobs_length, 60),
-                    'lobs2': _phc_text(row.get('OBS'), bi_lobs2_length, 60),
+                    'lobs': _phc_text(line.get('accounting_line', {}).get('matricula'), bi_lobs_length, 60),
+                    'lobs2': _phc_text(
+                        f"EXP:{row.get('DESPLINHASTAMP')} LIN:{line.get('accounting_line', {}).get('stamp')} {row.get('OBS') or ''}",
+                        bi_lobs2_length,
+                        60,
+                    ),
                     'ccusto': line['ccusto'],
                     'bofref': supplier.get('fref') or '',
                     'bifref': supplier.get('fref') or '',
@@ -2187,13 +2494,21 @@ def launch_expenses_to_phc(stamps: list[str], user) -> dict[str, Any]:
         'bostamp': bostamp,
         'login': login,
     }
+    expense_bistamps: dict[str, str] = {}
     for line in prepared_lines:
-        stamp = str(line['row'].get('DESPLINHASTAMP') or '').strip()
+        expense_bistamps.setdefault(str(line['row'].get('DESPLINHASTAMP') or ''), line['bistamp'])
+    for row in lines:
+        stamp = str(row.get('DESPLINHASTAMP') or '').strip()
         db.session.execute(text("""
             UPDATE dbo.COLAB_DESPESA_LINHA
             SET PHC_STATUS = 'LANCADO',
                 PHC_BOSTAMP = :bostamp,
                 PHC_BISTAMP = :bistamp,
+                PHC_OBRANO = :obrano,
+                PHC_NMDOS = :nmdos,
+                ARQUIVO_ESTADO = 'LANCADA',
+                ARQUIVO_DATA = GETDATE(),
+                ARQUIVO_POR = :login,
                 PHC_DTENVIO = GETDATE(),
                 PHC_ERRO = N'',
                 DTALT = GETDATE(),
@@ -2201,9 +2516,15 @@ def launch_expenses_to_phc(stamps: list[str], user) -> dict[str, Any]:
             WHERE DESPLINHASTAMP = :stamp
         """), {
             **line_params,
-            'bistamp': line['bistamp'],
+            'bistamp': expense_bistamps.get(stamp, ''),
             'stamp': stamp,
+            'obrano': obrano,
+            'nmdos': PHC_NOTES_FRAIS_NMDOS,
         })
+        _record_expense_history(stamp, 'LANCADA_PHC', {
+            'phc_db': phc_db, 'bostamp': bostamp, 'obrano': obrano,
+            'nmdos': PHC_NOTES_FRAIS_NMDOS,
+        }, login)
     db.session.commit()
     return {
         'ok': True,
@@ -2254,8 +2575,11 @@ def delete_expense_processing_line(line_stamp: str, user) -> dict[str, Any]:
     login = str(getattr(user, 'LOGIN', '') or getattr(user, 'login', '') or '').strip()
     result = db.session.execute(text("""
         UPDATE dbo.COLAB_DESPESA_LINHA
-        SET ANULADA = 1,
-            ESTADO = 'ANULADA',
+        SET ANULADA = 0,
+            ESTADO = 'ELIMINADA',
+            ARQUIVO_ESTADO = 'ELIMINADA',
+            ARQUIVO_DATA = GETDATE(),
+            ARQUIVO_POR = :login,
             DTALT = GETDATE(),
             USERALTERACAO = :login
         WHERE DESPLINHASTAMP = :stamp
@@ -2266,7 +2590,9 @@ def delete_expense_processing_line(line_stamp: str, user) -> dict[str, Any]:
     if result.rowcount == 0:
         raise ValueError('A despesa não está disponível para eliminar.')
     db.session.commit()
-    return {'ok': True, 'stamp': stamp, 'estado': 'ANULADA'}
+    _record_expense_history(stamp, 'ELIMINADA', {}, login)
+    db.session.commit()
+    return {'ok': True, 'stamp': stamp, 'estado': 'ELIMINADA'}
 
 
 def return_expense_from_processing(line_stamp: str, observation: str, user) -> dict[str, Any]:
@@ -2285,8 +2611,11 @@ def return_expense_from_processing(line_stamp: str, observation: str, user) -> d
     result = db.session.execute(text("""
         UPDATE dbo.COLAB_DESPESA_LINHA
         SET ANULADA = 0,
-            ESTADO = 'RASCUNHO',
+            ESTADO = 'DEVOLVIDA',
             DEVOLUCAO_OBS = :observation,
+            ARQUIVO_ESTADO = 'DEVOLVIDA',
+            ARQUIVO_DATA = GETDATE(),
+            ARQUIVO_POR = :login,
             DTALT = GETDATE(),
             USERALTERACAO = :login
         WHERE DESPLINHASTAMP = :stamp
@@ -2297,7 +2626,131 @@ def return_expense_from_processing(line_stamp: str, observation: str, user) -> d
     if result.rowcount == 0:
         raise ValueError('A despesa não está disponível para devolver ao colaborador.')
     db.session.commit()
-    return {'ok': True, 'stamp': stamp, 'estado': 'RASCUNHO'}
+    _record_expense_history(stamp, 'DEVOLVIDA', {'observacao': observation}, login)
+    db.session.commit()
+    return {'ok': True, 'stamp': stamp, 'estado': 'DEVOLVIDA'}
+
+
+def list_expense_processing_archive(filters: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    ensure_colaborador_despesas_schema()
+    filters = filters or {}
+    clauses = ["UPPER(LTRIM(RTRIM(ISNULL(L.ESTADO, '')))) IN ('DEVOLVIDA', 'ELIMINADA', 'LANCADA') OR LTRIM(RTRIM(ISNULL(L.PHC_BOSTAMP, ''))) <> ''"]
+    params: dict[str, Any] = {}
+    if str(filters.get('date_from') or '').strip():
+        clauses.append("COALESCE(L.ARQUIVO_DATA, L.PHC_DTENVIO, L.DTALT, L.DTCRI) >= TRY_CONVERT(date, :date_from)")
+        params['date_from'] = str(filters.get('date_from')).strip()
+    if str(filters.get('date_to') or '').strip():
+        clauses.append("COALESCE(L.ARQUIVO_DATA, L.PHC_DTENVIO, L.DTALT, L.DTCRI) < DATEADD(day, 1, TRY_CONVERT(date, :date_to))")
+        params['date_to'] = str(filters.get('date_to')).strip()
+    if str(filters.get('user') or '').strip():
+        clauses.append("LTRIM(RTRIM(ISNULL(H.LOGIN, ''))) = :user_login")
+        params['user_login'] = str(filters.get('user')).strip()
+    rows = db.session.execute(text(f"""
+        SELECT L.*, H.LOGIN, H.PENO, H.PENOME, H.PEFEID, H.PHC_DB, H.PHC_SERVER,
+               ISNULL(NULLIF(L.FEID, 0), H.FEID) AS LINHA_FEID,
+               COALESCE(NULLIF(L.EMPRESA, ''), H.EMPRESA, '') AS LINHA_EMPRESA
+        FROM dbo.COLAB_DESPESA_LINHA L
+        INNER JOIN dbo.COLAB_DESPESA_CAB H ON H.DESPCABSTAMP = L.DESPCABSTAMP
+        WHERE ({clauses[0]}) {' '.join('AND ' + c for c in clauses[1:])}
+        ORDER BY COALESCE(L.ARQUIVO_DATA, L.PHC_DTENVIO, L.DTALT, L.DTCRI) DESC, L.DTCRI DESC
+    """), params).mappings().all()
+    items = []
+    for row in rows:
+        item = serialize_line(row)
+        item.update({
+            'login': str(row.get('LOGIN') or '').strip(), 'peno': int(row.get('PENO') or 0),
+            'penome': str(row.get('PENOME') or '').strip(), 'feid': int(row.get('LINHA_FEID') or 0),
+            'empresa': str(row.get('LINHA_EMPRESA') or '').strip(),
+        })
+        items.append(item)
+    _attach_processing_details(items)
+    return items
+
+
+def delete_expense_processing_pdf(line_stamp: str, user) -> dict[str, Any]:
+    ensure_colaborador_despesas_schema()
+    stamp = str(line_stamp or '').strip()
+    row = db.session.execute(text("""
+        SELECT TOP 1 CAMINHO FROM dbo.COLAB_DESPESA_LINHA
+        WHERE DESPLINHASTAMP = :stamp AND LTRIM(RTRIM(ISNULL(PHC_BOSTAMP, ''))) = ''
+    """), {'stamp': stamp}).mappings().first()
+    if not row:
+        raise ValueError('A despesa não está disponível para remover o PDF.')
+    login = str(getattr(user, 'LOGIN', '') or '').strip()
+    db.session.execute(text("""
+        UPDATE dbo.COLAB_DESPESA_LINHA SET FICHEIRO_ORIGINAL=N'', FICHEIRO=N'', CAMINHO=N'',
+            MIME_TYPE='', EXT='', TAMANHO=0, FILE_HASH='', VERSION=VERSION+1,
+            DTALT=GETDATE(), USERALTERACAO=:login WHERE DESPLINHASTAMP=:stamp
+    """), {'stamp': stamp, 'login': login})
+    _record_expense_history(stamp, 'PDF_ELIMINADO', {}, login)
+    db.session.commit()
+    local_path = _expense_local_file_path(str(row.get('CAMINHO') or ''))
+    try:
+        if local_path and os.path.isfile(local_path) and os.path.realpath(local_path).startswith(os.path.realpath(current_app.root_path)):
+            os.remove(local_path)
+    except OSError:
+        current_app.logger.warning('Não foi possível remover o PDF da despesa %s.', stamp, exc_info=True)
+    return {'ok': True, 'stamp': stamp}
+
+
+def upload_expense_processing_pdf(line_stamp: str, file_storage, user) -> dict[str, Any]:
+    ensure_colaborador_despesas_schema()
+    stamp = str(line_stamp or '').strip()
+    if not file_storage or not str(getattr(file_storage, 'filename', '') or '').lower().endswith('.pdf'):
+        raise ValueError('Seleciona um ficheiro PDF.')
+    size = int(getattr(file_storage, 'content_length', 0) or 0)
+    stream = getattr(file_storage, 'stream', None)
+    if stream and not size:
+        stream.seek(0, os.SEEK_END); size = stream.tell(); stream.seek(0)
+    if size > 50 * 1024 * 1024:
+        raise ValueError('O PDF não pode ultrapassar 50 MB.')
+    row = db.session.execute(text("""
+        SELECT TOP 1 DESPCABSTAMP, CAMINHO FROM dbo.COLAB_DESPESA_LINHA
+        WHERE DESPLINHASTAMP=:stamp AND ESTADO='FECHADO'
+          AND LTRIM(RTRIM(ISNULL(PHC_BOSTAMP, '')))=''
+    """), {'stamp': stamp}).mappings().first()
+    if not row:
+        raise ValueError('A despesa não está disponível para receber o PDF.')
+    if str(row.get('CAMINHO') or '').strip():
+        raise ValueError('Esta despesa já tem um PDF. Elimina-o antes de carregar outro.')
+    stored = _store_line_file(file_storage, str(row.get('DESPCABSTAMP') or ''), stamp)
+    login = str(getattr(user, 'LOGIN', '') or '').strip()
+    db.session.execute(text("""
+        UPDATE dbo.COLAB_DESPESA_LINHA SET FICHEIRO_ORIGINAL=:original, FICHEIRO=:name,
+            CAMINHO=:path, MIME_TYPE=:mime, EXT=:ext, TAMANHO=:size, FILE_HASH=:hash,
+            VERSION=VERSION+1, DTALT=GETDATE(), USERALTERACAO=:login
+        WHERE DESPLINHASTAMP=:stamp
+    """), {**stored, 'stamp': stamp, 'login': login})
+    _record_expense_history(stamp, 'PDF_CARREGADO', {'ficheiro': stored['original'], 'tamanho': stored['size']}, login)
+    db.session.commit()
+    return {'ok': True, 'stamp': stamp, 'file_url': _expense_public_file_url(stored['path'])}
+
+
+def permanently_delete_archived_expense(line_stamp: str, user) -> dict[str, Any]:
+    ensure_colaborador_despesas_schema()
+    stamp = str(line_stamp or '').strip()
+    row = db.session.execute(text("""
+        SELECT TOP 1 CAMINHO, ESTADO, PHC_BOSTAMP
+        FROM dbo.COLAB_DESPESA_LINHA WITH (UPDLOCK, ROWLOCK)
+        WHERE DESPLINHASTAMP = :stamp
+    """), {'stamp': stamp}).mappings().first()
+    if not row:
+        raise ValueError('Despesa não encontrada.')
+    if str(row.get('PHC_BOSTAMP') or '').strip():
+        raise ValueError('Uma despesa lançada no PHC não pode ser eliminada do arquivo.')
+    if str(row.get('ESTADO') or '').strip().upper() not in {'DEVOLVIDA', 'ELIMINADA'}:
+        raise ValueError('A despesa não está disponível para eliminação definitiva.')
+    db.session.execute(text("DELETE FROM dbo.COLAB_DESPESA_CONTAB_LINHA WHERE DESPLINHASTAMP=:stamp"), {'stamp': stamp})
+    db.session.execute(text("DELETE FROM dbo.COLAB_DESPESA_HIST WHERE DESPLINHASTAMP=:stamp"), {'stamp': stamp})
+    db.session.execute(text("DELETE FROM dbo.COLAB_DESPESA_LINHA WHERE DESPLINHASTAMP=:stamp"), {'stamp': stamp})
+    db.session.commit()
+    path = _expense_local_file_path(str(row.get('CAMINHO') or ''))
+    try:
+        if path and os.path.isfile(path) and os.path.realpath(path).startswith(os.path.realpath(current_app.root_path)):
+            os.remove(path)
+    except OSError:
+        current_app.logger.warning('Não foi possível remover o anexo arquivado %s.', stamp, exc_info=True)
+    return {'ok': True, 'stamp': stamp}
 
 
 def close_expense_line(user, line_stamp: str) -> dict[str, Any]:

@@ -143,13 +143,13 @@
             </section>
 
             <div class="docai-extract-summary-grid">
-              <article id="docAiExtractCustomerCard" class="docai-info-card docai-extract-supplier-card" tabindex="0" role="button" aria-label="Escolher entidade">
+              <article id="docAiExtractCustomerCard" class="docai-info-card docai-extract-supplier-card" tabindex="0" role="button" aria-label="Associar Entidade">
                 <h4 id="docAiExtractCustomerLabel">Entidade</h4>
                 <strong id="docAiExtractCustomerName">--</strong>
                 <span id="docAiExtractCustomerTax" class="sz_text_muted">--</span>
-                <span id="docAiExtractCustomerHint" class="docai-extract-card-hint" hidden><i class="fa-solid fa-hand-pointer"></i> Escolher empresa do grupo</span>
+                <span id="docAiExtractCustomerHint" class="docai-extract-card-hint" hidden><i class="fa-solid fa-hand-pointer"></i> Associar Entidade</span>
               </article>
-              <article id="docAiExtractSupplierCard" class="docai-info-card docai-extract-supplier-card" tabindex="0" role="button" aria-label="Escolher fornecedor">
+              <article id="docAiExtractSupplierCard" class="docai-info-card docai-extract-supplier-card" tabindex="0" role="button" aria-label="Associar Fornecedor">
                 <h4 id="docAiExtractPartyLabel">Fornecedor</h4>
                 <strong id="docAiExtractSupplierName">--</strong>
                 <span id="docAiExtractSupplierTax" class="sz_text_muted">--</span>
@@ -162,7 +162,7 @@
                   <div id="docAiExtractGedFolderControl" class="docai-classification-agency" hidden>
                     <button id="docAiExtractGedFolderTrigger" type="button" class="docai-classification-agency-trigger">Agência INTERSOL</button>
                     <select id="docAiExtractGedFolderSelect" class="sz_input" hidden aria-label="Agência INTERSOL">
-                      <option value="">Escolher</option>
+                      <option value="">Associar</option>
                     </select>
                     <span id="docAiExtractGedFolderHint" hidden></span>
                   </div>
@@ -179,7 +179,7 @@
                 <strong id="docAiExtractProjectName">-</strong>
                 <span id="docAiExtractProjectMeta" class="sz_text_muted">-</span>
                 <span id="docAiExtractProjectHint" class="docai-extract-card-hint" hidden></span>
-                <button id="docAiExtractProjectClear" type="button" class="docai-extract-project-clear" hidden aria-label="Remover filtro de obra">
+                <button id="docAiExtractProjectClear" type="button" class="docai-extract-project-clear" hidden aria-label="Remover Centro de Custo">
                   <i class="fa-solid fa-xmark"></i>
                 </button>
               </article>
@@ -230,8 +230,8 @@
                       <col style="width: 7%">
                       <col style="width: 5%">
                       <col style="width: 7%">
-                      <col style="width: 4%">
                       <col style="width: 11%">
+                      <col style="width: 4%">
                       <col style="width: 3%">
                       <col style="width: 14%">
                       <col style="width: 4%">
@@ -245,9 +245,9 @@
                         <th>PU</th>
                         <th>PT</th>
                         <th>IVA</th>
-                        <th>Obra</th>
-                        <th>Matrícula</th>
+                        <th>CdC</th>
                         <th>Data</th>
+                        <th aria-label="Matrícula"></th>
                         <th id="docAiExtractDistributionHead" aria-label="Distribuição" hidden></th>
                         <th id="docAiExtractPrimaryOriginHead">NdE</th>
                         <th id="docAiExtractSecondaryOriginHead">GdR</th>
@@ -301,7 +301,10 @@
   <div id="docAiOriginDetailModal" class="sz_modal" aria-hidden="true">
     <div class="sz_modal_dialog docai-origin-detail-modal" role="dialog" aria-modal="true" aria-labelledby="docAiOriginDetailTitle">
       <div class="sz_modal_header">
-        <h3 id="docAiOriginDetailTitle" class="sz_h4 sz_modal_title">Origem</h3>
+        <div class="docai-origin-detail-heading">
+          <h3 id="docAiOriginDetailTitle" class="sz_h4 sz_modal_title">Origem</h3>
+          <p id="docAiOriginDetailSubtitle" class="sz_text_muted" hidden></p>
+        </div>
         <button id="docAiOriginDetailCloseTop" type="button" class="sz_icon_button" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div class="sz_modal_body">
@@ -325,7 +328,7 @@
   <div class="sz_panel docai-supplier-match-panel">
     <div class="sz_modal_header">
       <div>
-        <h3 id="docAiEntityTitle" class="sz_h4 sz_modal_title">Escolher entidade</h3>
+        <h3 id="docAiEntityTitle" class="sz_h4 sz_modal_title">Associar Entidade</h3>
         <p class="sz_text_muted">Seleciona uma empresa do grupo existente na tabela FE.</p>
       </div>
       <button id="docAiEntityCloseTop" type="button" class="sz_button sz_button_ghost" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
@@ -348,7 +351,7 @@
   <div class="sz_panel docai-supplier-match-panel">
     <div class="sz_modal_header">
       <div>
-        <h3 id="docAiSupplierMatchTitle" class="sz_h4 sz_modal_title">Escolher fornecedor</h3>
+        <h3 id="docAiSupplierMatchTitle" class="sz_h4 sz_modal_title">Associar Fornecedor</h3>
         <p id="docAiSupplierMatchContext" class="sz_text_muted">Fornecedores da empresa cliente identificada.</p>
       </div>
       <button id="docAiSupplierMatchCloseTop" type="button" class="sz_button sz_button_ghost" aria-label="Fechar">
@@ -489,8 +492,8 @@
   <div class="sz_panel docai-supplier-match-panel">
     <div class="sz_modal_header">
       <div>
-        <h3 id="docAiProjectTitle" class="sz_h4 sz_modal_title">Escolher obra</h3>
-        <p id="docAiProjectContext" class="sz_text_muted">Pesquisa obras na empresa cliente identificada.</p>
+        <h3 id="docAiProjectTitle" class="sz_h4 sz_modal_title">Associar Centro de Custo</h3>
+        <p id="docAiProjectContext" class="sz_text_muted">Pesquisa Centros de Custo na Entidade identificada.</p>
       </div>
       <button id="docAiProjectCloseTop" type="button" class="sz_button sz_button_ghost" aria-label="Fechar">
         <i class="fa-solid fa-xmark"></i>
@@ -499,7 +502,7 @@
     <div class="sz_modal_body docai-modal-body">
       <div class="docai-supplier-match-search">
         <div class="sz_field">
-          <label class="sz_label" for="docAiProjectSearch">Código, nome ou local da obra</label>
+          <label class="sz_label" for="docAiProjectSearch">Código, nome, cliente, morada ou localidade</label>
           <input id="docAiProjectSearch" class="sz_input" type="search" placeholder="Ex.: IS1986, INTERSOL-LORRAINE ou HELLIMER">
         </div>
         <button id="docAiProjectSearchBtn" type="button" class="sz_button sz_button_secondary">
@@ -519,7 +522,7 @@
   <div class="sz_panel docai-supplier-match-panel">
     <div class="sz_modal_header">
       <div>
-        <h3 id="docAiArticleTitle" class="sz_h4 sz_modal_title">Escolher artigo</h3>
+        <h3 id="docAiArticleTitle" class="sz_h4 sz_modal_title">Associar Artigo</h3>
         <p id="docAiArticleContext" class="sz_text_muted">Pesquisa nos artigos PHC da entidade.</p>
       </div>
       <button id="docAiArticleCloseTop" type="button" class="sz_button sz_button_ghost" aria-label="Fermer">
@@ -583,8 +586,7 @@
   <div class="sz_panel docai-supplier-match-panel">
     <div class="sz_modal_header">
       <div>
-        <h3 id="docAiBcTitle" class="sz_h4 sz_modal_title">Associar Nota de Encomenda à linha</h3>
-        <p class="sz_text_muted">Apenas são apresentadas as Notas de Encomenda já associadas em Origem.</p>
+        <h3 id="docAiBcTitle" class="sz_h4 sz_modal_title">Origem da linha</h3>
       </div>
       <button id="docAiBcCloseTop" type="button" class="sz_button sz_button_ghost" aria-label="Fechar">
         <i class="fa-solid fa-xmark"></i>

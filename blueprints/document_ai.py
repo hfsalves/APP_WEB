@@ -1301,6 +1301,8 @@ def api_document_ai_document_workflow_validate(docinstamp: str):
             integration_permissions={
                 'correspondence': _document_ai_has_integration_access('correspondence'),
                 'provisional_invoice': _document_ai_has_integration_access('provisional_invoice'),
+                'proforma_invoice': _document_ai_has_integration_access('proforma_invoice'),
+                'invoice': _document_ai_has_integration_access('invoice'),
             },
             expected_version=str(body.get('expected_version') or ''),
         ))

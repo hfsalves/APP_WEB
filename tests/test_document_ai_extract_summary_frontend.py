@@ -11,7 +11,7 @@ class DocumentAiExtractSummaryFrontendTests(unittest.TestCase):
         cls.css = (root / 'static/css/document_ai.css').read_text(encoding='utf-8')
 
     def test_summary_has_five_business_cards(self):
-        for label in ('Entidade', 'Fornecedor', 'Classificação', 'Obra', 'Totais'):
+        for label in ('Entidade', 'Fornecedor', 'Classificação', 'Centro de Custo', 'Totais'):
             self.assertIn(f'>{label}<', self.template)
         self.assertNotIn('docAiExtractClassificationValue', self.template)
         self.assertNotIn('docAiExtractClassificationMeta', self.template)
@@ -78,6 +78,31 @@ class DocumentAiExtractSummaryFrontendTests(unittest.TestCase):
     def test_project_card_uses_centro_de_custo_label(self):
         self.assertIn('<h4>Centro de Custo</h4>', self.template)
         self.assertIn('aria-label="Associar Centro de Custo"', self.template)
+
+    def test_line_headers_use_cdc_and_hide_the_vehicle_caption(self):
+        self.assertIn('<th>CdC</th>', self.template)
+        self.assertIn('<th aria-label="Matrícula"></th>', self.template)
+        self.assertIn('<th title="Centro de Custo">CdC</th><th>Data</th><th>Matrícula</th>', self.script)
+
+    def test_project_search_exposes_distinguishing_phc_fields(self):
+        self.assertIn('Código, nome, cliente, morada ou localidade', self.template)
+        self.assertIn('project.name, project.client', self.script)
+        self.assertNotIn('project.document_count', self.script)
+
+    def test_origin_cards_reserve_the_four_required_lines(self):
+        self.assertIn('docai-origin-card-score', self.script)
+        self.assertIn('docai-origin-card-total', self.script)
+        self.assertIn("purchase_order: 'NdE'", self.script)
+        self.assertIn("delivery_note: 'GdR'", self.script)
+        self.assertIn("subcontract_contract: 'Contrato Sub.Emp.'", self.script)
+
+    def test_business_associations_do_not_use_generic_choose_wording(self):
+        business_source = self.template.replace('Escolher PDF', '')
+        self.assertNotIn('Escolher fornecedor', business_source.lower())
+        self.assertNotIn('Escolher entidade', business_source.lower())
+        self.assertNotIn('Escolher artigo', business_source.lower())
+        self.assertIn('Associar Centro de Custo', self.template)
+        self.assertIn("line.article_ref || line.article || 'Associar'", self.script)
 
     def test_validation_error_uses_a_single_message_channel(self):
         validation = self.script.split('async function validateWorkflowStage', 1)[1].split("els.backBtn?.addEventListener", 1)[0]

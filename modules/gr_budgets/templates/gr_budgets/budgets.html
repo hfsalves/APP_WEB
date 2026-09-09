@@ -4,7 +4,7 @@
 
 {% block extra_head %}
   {{ super() }}
-  <link rel="stylesheet" href="{{ url_for('gr_budgets.static', filename='gr_budgets.css') }}?v={{ config.get('STATIC_VERSION', 1) }}-prorata-11">
+  <link rel="stylesheet" href="{{ url_for('gr_budgets.static', filename='gr_budgets.css') }}?v={{ config.get('STATIC_VERSION', 1) }}-prorata-total-13">
 {% endblock %}
 
 {% block content %}
@@ -802,5 +802,5 @@
   <script>
     window.SZ_I18N = Object.assign({}, window.SZ_I18N || {}, {{ gr_budgets_i18n|tojson }});
   </script>
-  <script src="{{ url_for('gr_budgets.static', filename='gr_budgets.js') }}?v={{ config.get('STATIC_VERSION', 1) }}-prorata-11" defer></script>
+  <script src="{{ url_for('gr_budgets.static', filename='gr_budgets.js') }}?v={{ config.get('STATIC_VERSION', 1) }}-prorata-total-13" defer></script>
 {% endblock %}

@@ -54,7 +54,7 @@ class BudgetPayloadTests(unittest.TestCase):
             "currency": "EUR",
         }
 
-    def test_prorata_budget_line_is_written_as_a_deduction(self):
+    def test_prorata_budget_line_is_stored_as_a_positive_value(self):
         total = _write_budget_line_total(
             {"item_label": "PP"},
             Decimal("150.00"),
@@ -62,7 +62,7 @@ class BudgetPayloadTests(unittest.TestCase):
             Decimal("1"),
         )
 
-        self.assertEqual(total, Decimal("-150.00"))
+        self.assertEqual(total, Decimal("150.00"))
 
     def test_regular_budget_line_total_remains_positive(self):
         total = _write_budget_line_total(

@@ -26626,7 +26626,11 @@ def create_app():
     def colaborador_despesas_processamento_page():
         from services.colaborador_despesas_service import list_expense_companies, list_expense_cost_centers, list_expense_processing_users
 
+        if not _expense_processing_has_permission('consultar'):
+            abort(403)
+
         today_value = date.today()
+        archive_mode = request.args.get('arquivo') == '1'
         return render_template(
             'colaborador_despesas_processamento.html',
             page_title='Processamento de Despesas',
@@ -26635,20 +26639,41 @@ def create_app():
             expense_ccustos=list_expense_cost_centers(),
             default_date_from=today_value.replace(day=1).isoformat(),
             default_date_to=today_value.isoformat(),
+            archive_mode=archive_mode,
+            expense_permissions={
+                'consultar': _expense_processing_has_permission('consultar'),
+                'inserir': _expense_processing_has_permission('inserir'),
+                'editar': _expense_processing_has_permission('editar'),
+                'eliminar': _expense_processing_has_permission('eliminar'),
+            },
         )
+
+    def _expense_processing_has_permission(action='consultar'):
+        if bool(getattr(current_user, 'ADMIN', False)):
+            return True
+        access = Acessos.query.filter_by(
+            utilizador=str(getattr(current_user, 'LOGIN', '') or '').strip(),
+            tabela='PROC_DESP',
+        ).first()
+        return bool(access and getattr(access, action, False))
 
     @app.route('/api/colaborador/despesas/processamento')
     @login_required
     def api_colaborador_despesas_processamento():
-        from services.colaborador_despesas_service import list_expenses_for_processing
+        from services.colaborador_despesas_service import list_expense_processing_archive, list_expense_processing_users, list_expenses_for_processing
 
         try:
-            rows = list_expenses_for_processing({
+            if not _expense_processing_has_permission('consultar'):
+                return jsonify({'ok': False, 'error': 'Sem permissão para consultar o processamento de despesas.'}), 403
+            filters = {
                 'date_from': request.args.get('date_from', ''),
                 'date_to': request.args.get('date_to', ''),
                 'user': request.args.get('user', ''),
-            })
-            return jsonify({'ok': True, 'rows': rows, 'total': len(rows)})
+            }
+            archive = request.args.get('arquivo') == '1'
+            rows = list_expense_processing_archive(filters) if archive else list_expenses_for_processing(filters)
+            users = list_expense_processing_users(filters) if not archive else []
+            return jsonify({'ok': True, 'rows': rows, 'users': users, 'total': len(rows), 'arquivo': archive})
         except Exception:
             db.session.rollback()
             app.logger.exception('Erro ao listar despesas para processamento.')
@@ -26660,11 +26685,14 @@ def create_app():
         from services.colaborador_despesas_service import update_expense_processing_classification
 
         try:
+            if not _expense_processing_has_permission('editar'):
+                return jsonify({'ok': False, 'error': 'Sem permissão para editar despesas.'}), 403
             payload = request.get_json(silent=True) or {}
             return jsonify(update_expense_processing_classification(line_stamp, payload, current_user))
         except ValueError as exc:
             db.session.rollback()
-            return jsonify({'ok': False, 'error': str(exc)}), 400
+            status = 409 if 'outro utilizador' in str(exc) else 400
+            return jsonify({'ok': False, 'error': str(exc)}), status
         except Exception:
             db.session.rollback()
             app.logger.exception('Erro ao gravar classificação da despesa.')
@@ -26676,13 +26704,7 @@ def create_app():
         from services.colaborador_despesas_service import delete_expense_processing_line
 
         try:
-            can_delete = bool(getattr(current_user, 'ADMIN', False)) or any(
-                bool(getattr(access, 'eliminar', False))
-                for access in Acessos.query.filter_by(
-                    utilizador=getattr(current_user, 'LOGIN', ''),
-                    tabela='DESPESAS',
-                ).all()
-            )
+            can_delete = _expense_processing_has_permission('eliminar')
             if not can_delete:
                 return jsonify({'ok': False, 'error': 'Sem permissão para eliminar despesas.'}), 403
             return jsonify(delete_expense_processing_line(line_stamp, current_user))
@@ -26700,13 +26722,7 @@ def create_app():
         from services.colaborador_despesas_service import return_expense_from_processing
 
         try:
-            can_return = bool(getattr(current_user, 'ADMIN', False)) or any(
-                bool(getattr(access, 'eliminar', False))
-                for access in Acessos.query.filter_by(
-                    utilizador=getattr(current_user, 'LOGIN', ''),
-                    tabela='DESPESAS',
-                ).all()
-            )
+            can_return = _expense_processing_has_permission('eliminar')
             if not can_return:
                 return jsonify({'ok': False, 'error': 'Sem permissão para devolver despesas.'}), 403
             payload = request.get_json(silent=True) or {}
@@ -26729,6 +26745,8 @@ def create_app():
         from services.colaborador_despesas_service import search_expense_articles
 
         try:
+            if not _expense_processing_has_permission('consultar'):
+                return jsonify({'ok': False, 'rows': [], 'error': 'Sem permissão.'}), 403
             rows = search_expense_articles(
                 _to_int(request.args.get('feid'), 0),
                 request.args.get('q', ''),
@@ -26745,7 +26763,9 @@ def create_app():
         from services.colaborador_despesas_service import search_expense_vehicles
 
         try:
-            rows = search_expense_vehicles(request.args.get('q', ''))
+            if not _expense_processing_has_permission('consultar'):
+                return jsonify({'ok': False, 'rows': [], 'error': 'Sem permissão.'}), 403
+            rows = search_expense_vehicles(request.args.get('q', ''), feid=_to_int(request.args.get('feid'), 0))
             return jsonify({'ok': True, 'rows': rows})
         except Exception:
             db.session.rollback()
@@ -26771,6 +26791,8 @@ def create_app():
         from services.colaborador_despesas_service import list_expense_vat_rates
 
         try:
+            if not _expense_processing_has_permission('consultar'):
+                return jsonify({'ok': False, 'rows': [], 'error': 'Sem permissão.'}), 403
             rows = list_expense_vat_rates(_to_int(request.args.get('feid'), 0))
             return jsonify({'ok': True, 'rows': rows})
         except Exception:
@@ -26784,6 +26806,8 @@ def create_app():
         from services.colaborador_despesas_service import launch_expenses_to_phc
 
         try:
+            if not _expense_processing_has_permission('inserir'):
+                return jsonify({'ok': False, 'error': 'Sem permissão para lançar despesas no PHC.'}), 403
             payload = request.get_json(silent=True) or {}
             stamps = payload.get('stamps') or payload.get('linhas') or []
             return jsonify(launch_expenses_to_phc(stamps, current_user))
@@ -26794,6 +26818,40 @@ def create_app():
             db.session.rollback()
             app.logger.exception('Erro ao lançar despesas no PHC.')
             return jsonify({'ok': False, 'error': f'Erro ao lançar despesas no PHC: {str(sys.exc_info()[1])}'}), 500
+
+    @app.route('/api/colaborador/despesas/processamento/<string:line_stamp>/pdf', methods=['POST', 'DELETE'])
+    @login_required
+    def api_colaborador_despesas_processamento_pdf(line_stamp):
+        from services.colaborador_despesas_service import delete_expense_processing_pdf, upload_expense_processing_pdf
+        if not _expense_processing_has_permission('editar'):
+            return jsonify({'ok': False, 'error': 'Sem permissão para editar documentos.'}), 403
+        try:
+            if request.method == 'DELETE':
+                return jsonify(delete_expense_processing_pdf(line_stamp, current_user))
+            return jsonify(upload_expense_processing_pdf(line_stamp, request.files.get('file'), current_user))
+        except ValueError as exc:
+            db.session.rollback()
+            return jsonify({'ok': False, 'error': str(exc)}), 400
+        except Exception:
+            db.session.rollback()
+            app.logger.exception('Erro ao gerir PDF da despesa.')
+            return jsonify({'ok': False, 'error': 'Erro ao gerir o PDF da despesa.'}), 500
+
+    @app.route('/api/colaborador/despesas/processamento/<string:line_stamp>/arquivo', methods=['DELETE'])
+    @login_required
+    def api_colaborador_despesas_processamento_archive_delete(line_stamp):
+        from services.colaborador_despesas_service import permanently_delete_archived_expense
+        if not _expense_processing_has_permission('eliminar'):
+            return jsonify({'ok': False, 'error': 'Sem permissão para eliminar do arquivo.'}), 403
+        try:
+            return jsonify(permanently_delete_archived_expense(line_stamp, current_user))
+        except ValueError as exc:
+            db.session.rollback()
+            return jsonify({'ok': False, 'error': str(exc)}), 400
+        except Exception:
+            db.session.rollback()
+            app.logger.exception('Erro ao eliminar despesa do arquivo.')
+            return jsonify({'ok': False, 'error': 'Erro ao eliminar a despesa do arquivo.'}), 500
 
     @app.route('/alojamentos-seguros')
     @app.route('/alojamentos_seguros')

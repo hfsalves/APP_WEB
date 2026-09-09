@@ -208,11 +208,11 @@ def _write_budget_line_total(
     quantity: Decimal,
     factor: Decimal,
 ) -> Decimal:
-    """Calculate the PHC BI total, keeping dossier prorata as a deduction."""
+    """Calculate the BI line value; PHC stores the PP prorata as positive."""
     total = _write_money(unit_price * quantity * factor)
     item_code = _text_value(line.get("item_label") or line.get("item")).upper()
     reference = _text_value(line.get("reference")).upper()
-    return -abs(total) if item_code == "PP" or reference == "PP" else total
+    return abs(total) if item_code == "PP" or reference == "PP" else total
 
 
 def _write_oci_purchase_price(row: dict[str, Any]) -> Decimal:
@@ -1188,7 +1188,11 @@ def budget_print_payload(detail: dict[str, Any]) -> dict[str, Any]:
     articles, pro_rata = [], []
     for line in primary:
         if line.get("pro_rata") or str(line.get("reference") or "").strip().upper() == "PP":
-            pro_rata.append(line)
+            adjustment = dict(line)
+            adjustment["display_quantity"] = _budget_line_print_quantity(adjustment)
+            adjustment["display_total"] = abs(_budget_line_display_total(adjustment))
+            adjustment["display_unit_price"] = adjustment["display_total"]
+            pro_rata.append(adjustment)
             continue
         article = dict(line)
         # The commercial description printed on a budget is the snapshot kept
@@ -1223,7 +1227,7 @@ def budget_print_payload(detail: dict[str, Any]) -> dict[str, Any]:
     goods_total = sum((_decimal(row.get("total")) for row in goods_articles), Decimal("0"))
     discount_total = sum((_decimal(row.get("total")) for row in discount_articles), Decimal("0"))
     commercial_total = goods_total + discount_total
-    pro_rata_total = sum((_decimal(row.get("total")) for row in pro_rata), Decimal("0"))
+    pro_rata_total = sum((abs(_decimal(row.get("total"))) for row in pro_rata), Decimal("0"))
     net_total = commercial_total + pro_rata_total
     vat_rows = [row for row in detail.get("vat_rows") or [] if _decimal(row.get("amount"))]
     if not vat_rows:

@@ -31,7 +31,7 @@ class DocumentAiAnalysisHeaderTests(unittest.TestCase):
     def test_requested_technical_messages_are_hidden(self):
         source = (ROOT / 'static/js/document_ai_extract.js').read_text(encoding='utf-8')
         self.assertIn('Leitura guardada carregada do inbox', source)
-        self.assertIn('Filtro de obra .* aplicado às origens', source)
+        self.assertIn('Centro de Custo .* aplicado às origens', source)
         self.assertIn('els.status.hidden = !visibleMessage', source)
 
     def test_row_actions_have_stable_square_dimensions(self):

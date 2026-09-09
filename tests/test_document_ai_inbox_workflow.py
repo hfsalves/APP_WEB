@@ -240,7 +240,7 @@ class DocumentAiInboxWorkflowTests(unittest.TestCase):
         self.assertIn("candidate.source_ref = candidate.extracted_ref || candidate.ref || '';", selection)
         self.assertIn("candidate.article_ref = article.ref || '';", selection)
         self.assertNotIn("candidate.ref = article.ref || '';", selection)
-        self.assertIn("line.article_ref || line.article || 'Escolher'", extract_script)
+        self.assertIn("line.article_ref || line.article || 'Associar'", extract_script)
 
     def test_article_search_is_scoped_and_reports_invalid_selection(self):
         extract_script = Path('static/js/document_ai_extract.js').read_text()

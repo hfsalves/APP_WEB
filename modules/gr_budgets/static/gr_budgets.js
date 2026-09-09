@@ -2582,7 +2582,7 @@
     const adjustment = roundMoney(percentageMode
       ? baseTotal * value / 100
       : baseTotal - value);
-    const total = roundMoney(-adjustment);
+    const total = roundMoney(prorataMode ? adjustment : -adjustment);
     const vatSource = baseLines.find((line) => Number(line.vat_table || 0) > 0) || {};
     const header = state.detail.header || {};
     const vatTable = Number(header.default_vat_table || vatSource.vat_table || 0);

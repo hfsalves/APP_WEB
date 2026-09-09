@@ -1,5 +1,23 @@
 DECLARE @menustamp varchar(25);
 
+IF COL_LENGTH('dbo.OPC', 'U_PLANEXT') IS NULL
+BEGIN
+    ALTER TABLE dbo.OPC
+        ADD U_PLANEXT bit NOT NULL
+            CONSTRAINT DF_OPC_U_PLANEXT DEFAULT (0) WITH VALUES;
+END;
+
+-- The planning engine reads HSOLS_MASTER..OPC. Bring the app mirror in line
+-- when this configuration is deployed, then normal edits keep both aligned.
+EXEC sys.sp_executesql N'
+    UPDATE O
+       SET U_PLANEXT = ISNULL(M.U_PLANEXT, 0)
+    FROM dbo.OPC O
+    INNER JOIN HSOLS_MASTER.dbo.OPC M
+        ON LTRIM(RTRIM(O.OPCSTAMP)) COLLATE Latin1_General_CI_AS
+         = LTRIM(RTRIM(M.OPCSTAMP)) COLLATE Latin1_General_CI_AS;
+';
+
 SELECT TOP 1 @menustamp = MENUSTAMP
 FROM dbo.MENU
 WHERE UPPER(LTRIM(RTRIM(ISNULL(TABELA, '')))) = 'OPC'
@@ -48,6 +66,7 @@ VALUES
     ('U_ORIGEM', 'Origem', 'TEXT', 21, 3, 41, 20, 1, 1, 0, 1, 0, 0),
     ('DATAI', 'Data início', 'DATE', 22, 3, 51, 10, 1, 1, 0, 1, 0, 0),
     ('DATAF', 'Data fim', 'DATE', 23, 3, 52, 10, 1, 1, 0, 1, 0, 0),
+    ('U_PLANEXT', 'Planeamento externo', 'BIT', 24, 3, 53, 20, 0, 0, 1, 1, 0, 0),
     ('U_MORADA', 'Morada', 'TEXT', 31, 6, 61, 20, 0, 0, 0, 1, 0, 0),
     ('U_LOCAL', 'Localidade', 'TEXT', 32, 3, 62, 20, 0, 0, 0, 1, 0, 0),
     ('OBS', 'Observações', 'TEXT', 41, 9, 71, 20, 0, 0, 0, 1, 0, 0),
