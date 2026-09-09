@@ -26637,7 +26637,7 @@ def create_app():
             expense_users=list_expense_processing_users(),
             expense_companies=list_expense_companies(),
             expense_ccustos=list_expense_cost_centers(),
-            default_date_from=today_value.replace(day=1).isoformat(),
+            default_date_from='',
             default_date_to=today_value.isoformat(),
             archive_mode=archive_mode,
             expense_permissions={
@@ -26800,6 +26800,19 @@ def create_app():
             app.logger.exception('Erro ao listar taxas de IVA para despesas.')
             return jsonify({'ok': False, 'rows': [], 'error': 'Erro ao listar taxas de IVA.'}), 500
 
+    @app.route('/api/colaborador/despesas/processamento/centros-custo')
+    @login_required
+    def api_colaborador_despesas_processamento_cost_centers():
+        from services.colaborador_despesas_service import list_expense_cost_centers
+        if not _expense_processing_has_permission('consultar'):
+            return jsonify({'ok': False, 'rows': [], 'error': 'Sem permissão.'}), 403
+        try:
+            return jsonify({'ok': True, 'rows': list_expense_cost_centers(feid=_to_int(request.args.get('feid'), 0))})
+        except Exception:
+            db.session.rollback()
+            app.logger.exception('Erro ao listar centros de custo para despesas.')
+            return jsonify({'ok': False, 'rows': [], 'error': 'Erro ao listar centros de custo.'}), 500
+
     @app.route('/api/colaborador/despesas/processamento/lancar-phc', methods=['POST'])
     @login_required
     def api_colaborador_despesas_processamento_lancar_phc():
@@ -26836,6 +26849,22 @@ def create_app():
             db.session.rollback()
             app.logger.exception('Erro ao gerir PDF da despesa.')
             return jsonify({'ok': False, 'error': 'Erro ao gerir o PDF da despesa.'}), 500
+
+    @app.route('/api/colaborador/despesas/processamento/<string:line_stamp>/analisar-ia', methods=['POST'])
+    @login_required
+    def api_colaborador_despesas_processamento_ai(line_stamp):
+        from services.colaborador_despesas_service import reanalyze_expense_processing_pdf
+        if not _expense_processing_has_permission('editar'):
+            return jsonify({'ok': False, 'error': 'Sem permissão para analisar documentos.'}), 403
+        try:
+            return jsonify(reanalyze_expense_processing_pdf(line_stamp, current_user))
+        except ValueError as exc:
+            db.session.rollback()
+            return jsonify({'ok': False, 'error': str(exc)}), 400
+        except Exception:
+            db.session.rollback()
+            app.logger.exception('Erro na análise IA da despesa.')
+            return jsonify({'ok': False, 'error': 'A análise IA falhou. A despesa foi mantida sem alterações.'}), 500
 
     @app.route('/api/colaborador/despesas/processamento/<string:line_stamp>/arquivo', methods=['DELETE'])
     @login_required

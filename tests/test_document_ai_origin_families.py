@@ -56,7 +56,9 @@ class DocumentAiOriginFamilyTests(unittest.TestCase):
     def test_origin_search_does_not_require_a_cost_center(self):
         source = (Path(__file__).resolve().parents[1] / 'services/document_ai_service.py').read_text(encoding='utf-8')
         self.assertNotIn('Seleciona primeiro a obra para procurar origens elegíveis.', source)
-        self.assertIn("project_filter_sql = \" AND LTRIM(RTRIM(ISNULL(BO.CCUSTO, ''))) = ?\" if project_ccusto else ''", source)
+        self.assertNotIn('project_filter_sql', source)
+        self.assertIn("reasons.append('Mesma Obra')", source)
+        self.assertIn("reasons.append('Outra Obra')", source)
 
 
 if __name__ == '__main__':

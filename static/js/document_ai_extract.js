@@ -64,7 +64,7 @@ document.addEventListener('DOMContentLoaded', () => {
     originDetailCloseTop: document.getElementById('docAiOriginDetailCloseTop'),
     originDetailClose: document.getElementById('docAiOriginDetailClose'),
     originMeta: document.getElementById('docAiExtractOriginMeta'),
-    originSource: document.getElementById('docAiExtractOriginSource'),
+    originAction: document.getElementById('docAiExtractOriginAction'),
     originLoading: document.getElementById('docAiExtractOriginLoading'),
     originFlow: document.getElementById('docAiExtractOriginFlow'),
     originTabs: document.getElementById('docAiExtractOriginTabs'),
@@ -235,6 +235,7 @@ document.addEventListener('DOMContentLoaded', () => {
     readOnly,
     view: allowedViews.has(initialView) ? initialView : ([...allowedViews][0] || ''),
   };
+  const originActionHandlers = new Map();
 
   const typeLabels = {
     invoice: 'Fatura',
@@ -1963,10 +1964,7 @@ document.addEventListener('DOMContentLoaded', () => {
     state.originCandidates = [];
     els.originLoading.hidden = true;
     els.originFlow.hidden = false;
-    els.originSource.hidden = !payload.available;
-    els.originSource.textContent = payload.available
-      ? `${payload.phc_database || 'PHC'} · Fornecedor nº ${phcPartyNumber(payload.supplier?.no, payload.supplier?.estab) || '--'}${payload.selected_project?.ccusto ? ` · Obra ${payload.selected_project.ccusto}` : ''}`
-      : '';
+    renderOriginContextAction();
     if (!options.skipLineMapping) applyOriginLineReferences(payload);
 
     const primaryFamilies = selectedPrimaryOriginFamilies();
@@ -2068,7 +2066,43 @@ document.addEventListener('DOMContentLoaded', () => {
       tabStages.splice(virtualIndex, 0, { key: 'delivery_note', label: 'GdR', count: state.deliveryNoteGroups.length });
     }
     renderOriginTabs(tabStages.filter((stage, index, items) => items.findIndex((item) => item.key === stage.key) === index));
+    renderOriginContextAction();
   }
+
+  function originContextAction() {
+    const stage = state.activeOriginStage;
+    const selected = state.selectedOrigins.find((origin) => originDisplayStage(String(origin.document_type || origin.key || '')) === stage);
+    if (stage === 'purchase_order') {
+      return selected
+        ? { key: 'correct_purchase_order', label: 'Corrigir Nota de Encomenda', origin: selected }
+        : { key: 'create_purchase_order', label: 'Criar Nota de Encomenda' };
+    }
+    if (stage === 'contract') return { key: 'create_contract', label: 'Criar Contrato' };
+    if (stage === 'subcontract_contract') return { key: 'create_subcontract', label: 'Criar Contrato Sub.Emp.' };
+    if (stage === 'delivery_note') {
+      return state.selectedDeliveryNoteGroups.size > 1
+        ? { key: 'distribute_delivery_note', label: 'Distribuir GdR' }
+        : { key: 'create_delivery_note', label: 'Criar GdR' };
+    }
+    if (stage === 'work_situation') return { key: 'create_work_situation', label: 'Criar STSE' };
+    return null;
+  }
+
+  function renderOriginContextAction() {
+    if (!els.originAction) return;
+    const action = originContextAction();
+    const available = Boolean(action && !state.readOnly && originActionHandlers.has(action.key));
+    els.originAction.hidden = !available;
+    els.originAction.textContent = available ? action.label : '';
+    els.originAction.dataset.originAction = available ? action.key : '';
+  }
+
+  window.registerDocumentAiOriginAction = (key, handler) => {
+    const cleanKey = String(key || '').trim();
+    if (!cleanKey || typeof handler !== 'function') return;
+    originActionHandlers.set(cleanKey, handler);
+    renderOriginContextAction();
+  };
 
   function renderOriginTabs(stages = []) {
     const availableKeys = stages.map((stage) => stage.key).filter(Boolean);
@@ -2096,6 +2130,7 @@ document.addEventListener('DOMContentLoaded', () => {
     els.originFlow.querySelectorAll('[data-origin-stage]').forEach((panel) => {
       panel.hidden = panel.dataset.originStage !== state.activeOriginStage;
     });
+    renderOriginContextAction();
   }
 
   function applyOriginLineReferences(payload = {}) {
@@ -2250,7 +2285,7 @@ document.addEventListener('DOMContentLoaded', () => {
     state.selectedOrigins = [];
     els.originLoading.hidden = false;
     els.originFlow.hidden = true;
-    els.originSource.hidden = true;
+    if (els.originAction) els.originAction.hidden = true;
     els.originMeta.textContent = 'A procurar documentos anteriores no PHC...';
     try {
       const payload = await fetchJson('/api/document_ai/origins/search', {
@@ -3990,6 +4025,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!option) return;
     event.preventDefault();
     openOriginDetail(option.dataset.originIndex);
+  });
+  els.originAction?.addEventListener('click', () => {
+    const action = originContextAction();
+    const handler = action ? originActionHandlers.get(action.key) : null;
+    if (handler) handler(action);
   });
   els.originDetailCloseTop?.addEventListener('click', closeOriginDetailModal);
   els.originDetailClose?.addEventListener('click', closeOriginDetailModal);

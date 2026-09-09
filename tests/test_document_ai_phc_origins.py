@@ -1,4 +1,5 @@
 import json
+import inspect
 import os
 import tempfile
 import unittest
@@ -805,6 +806,32 @@ class DocumentAiPhcOriginTests(unittest.TestCase):
 
         self.assertGreater(score, 0.65)
         self.assertIn('Quantidade pendente coincide (45)', reasons)
+
+    def test_selected_project_prioritizes_without_rejecting_other_projects(self):
+        document = {
+            'document_date': '2026-04-30',
+            'origin_project': {'ccusto': 'OBRA-A'},
+            'lines': [],
+            'totals': {},
+        }
+        matching = {
+            'ndos': 102, 'document_type': 'purchase_order', 'date': '2026-04-30',
+            'ccusto': 'OBRA-A',
+        }
+        other = {**matching, 'ccusto': 'OBRA-B'}
+
+        matching_score, matching_reasons = _score_phc_origin_candidate(matching, document, [])
+        other_score, other_reasons = _score_phc_origin_candidate(other, document, [])
+
+        self.assertGreater(matching_score, other_score)
+        self.assertIn('Mesma Obra', matching_reasons)
+        self.assertIn('Outra Obra', other_reasons)
+
+    def test_origin_search_does_not_filter_candidates_by_selected_project(self):
+        source = inspect.getsource(document_ai_service.search_phc_document_origins)
+
+        self.assertNotIn('project_filter_sql', source)
+        self.assertNotIn('header_params.append(project_ccusto)', source)
 
     def test_maps_many_invoice_deliveries_to_single_purchase_order_line(self):
         document_lines = [

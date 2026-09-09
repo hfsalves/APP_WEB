@@ -351,6 +351,19 @@ class BudgetPdfTests(unittest.TestCase):
         self.assertIn("class=\"theme-classic is-unapproved\"", classic_html)
         self.assertNotIn("body.theme-modern", classic_html)
 
+    def test_empty_bo_address_hides_its_labels_and_column(self):
+        detail = self._detail_1415()
+        detail["header"].update({"address": "", "postal_code": "", "place": ""})
+
+        app = Flask(__name__, template_folder="../modules/gr_budgets/templates")
+        with app.app_context():
+            html = render_budget_pdf_html(detail)
+
+        self.assertIn('class="meta second without-address"', html)
+        self.assertNotIn('class="address-meta"', html)
+        self.assertNotIn('<span class="label">Adresse:</span>', html)
+        self.assertNotIn('<div class="sub">Address:</div>', html)
+
     def test_approved_document_uses_compact_header_state(self):
         detail = self._detail_1415()
         detail["header"]["approved"] = True
@@ -649,8 +662,9 @@ class BudgetPdfTests(unittest.TestCase):
         self.assertLess(sync_header, start_loading)
         self.assertIn("syncEditableHeaderToState();\n    closeClientLookup();", script)
 
-    def test_address_modal_enters_edit_mode_and_writes_bo_morada(self):
+    def test_address_modal_edits_and_writes_all_bo_address_fields(self):
         root = Path(__file__).resolve().parents[1]
+        template = (root / "modules/gr_budgets/templates/gr_budgets/budgets.html").read_text(encoding="utf-8")
         script = (root / "modules/gr_budgets/static/gr_budgets.js").read_text(encoding="utf-8")
         service = (root / "modules/gr_budgets/service.py").read_text(encoding="utf-8")
 
@@ -660,8 +674,14 @@ class BudgetPdfTests(unittest.TestCase):
         self.assertIn("!isEditing() && budgetCanBeEdited() && selectedBudgetStamp()", modal_source)
         self.assertIn("startEditBudget();", modal_source)
         self.assertIn("elements.addressInput.readOnly = !isEditing();", modal_source)
+        self.assertIn('id="budgetAddressPostalCode"', template)
+        self.assertIn('id="budgetAddressPlace"', template)
         self.assertIn("address: elements.addressInput.value.trim(),", script)
+        self.assertIn("postal_code: elements.addressPostalCode.value.trim(),", script)
+        self.assertIn("place: elements.addressPlace.value.trim(),", script)
         self.assertIn('"morada": _limited(work_address, bo_lengths, "morada")', service)
+        self.assertIn('"codpost": _limited(work_postal_code, bo_lengths, "codpost")', service)
+        self.assertIn('"local": _limited(work_place, bo_lengths, "local")', service)
 
     def test_budget_line_money_is_presented_with_two_decimals(self):
         root = Path(__file__).resolve().parents[1]

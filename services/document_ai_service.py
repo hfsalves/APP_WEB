@@ -4022,6 +4022,14 @@ def _score_phc_origin_candidate(
     stage_weights = {218: 0.34, 130: 0.29, 102: 0.24}
     score = 0.22 if str(candidate.get('document_type') or '').strip() == 'contract' else stage_weights.get(_safe_int(candidate.get('ndos'), 0), 0.2)
     reasons = ['Mesmo fornecedor']
+    selected_project = dict(document_data.get('origin_project') or {})
+    selected_ccusto = str(selected_project.get('ccusto') or '').strip().casefold()
+    candidate_ccusto = str(candidate.get('ccusto') or '').strip().casefold()
+    if selected_ccusto and candidate_ccusto == selected_ccusto:
+        score += 0.18
+        reasons.append('Mesma Obra')
+    elif selected_ccusto and candidate_ccusto:
+        reasons.append('Outra Obra')
     candidate_type = str(candidate.get('document_type') or '').strip()
     candidate_number = _origin_number_key(candidate.get('number'))
     for explicit_origin in _explicit_document_origins(document_data):
@@ -4118,10 +4126,7 @@ def search_phc_document_origins(document_data: dict[str, Any] | None, limit_per_
             if stage.get('ndos') not in allowed_ndos
         )
         ndos_placeholders = ','.join('?' for _ in allowed_ndos)
-        project_filter_sql = " AND LTRIM(RTRIM(ISNULL(BO.CCUSTO, ''))) = ?" if project_ccusto else ''
         header_params = [phc_supplier['no'], *allowed_ndos, date_from, date_to]
-        if project_ccusto:
-            header_params.append(project_ccusto)
         header_rows = cursor.execute(f"""
             SELECT TOP 160
                 BO.BOSTAMP, BO.NDOS, LTRIM(RTRIM(ISNULL(BO.NMDOS, ''))) NMDOS,
@@ -4140,7 +4145,6 @@ def search_phc_document_origins(document_data: dict[str, Any] | None, limit_per_
               AND ISNULL(BO.FECHADA, 0) = 0
               AND BO.DATAOBRA >= ?
               AND BO.DATAOBRA <= ?
-              {project_filter_sql}
             ORDER BY BO.DATAOBRA DESC, BO.BOANO DESC, BO.OBRANO DESC
         """, *header_params).fetchall()
         columns = [str(item[0]).upper() for item in cursor.description or []]

@@ -611,7 +611,9 @@ def search_budget_clients(feid: Any, query: Any, user) -> dict[str, Any]:
                 ESTAB,
                 NOME,
                 NCONT,
+                MORADA,
                 LOCAL,
+                CODPOST,
                 CONTACTO,
                 EMAIL,
                 TELEFONE,
@@ -660,7 +662,9 @@ def _client_payload(row: dict[str, Any], tax_rates: dict[int, Decimal] | None = 
         "establishment": int(_number_value(row.get("ESTAB"))),
         "name": _text_value(row.get("NOME")),
         "vat_number": _text_value(row.get("NCONT")),
+        "address": _text_value(row.get("MORADA")),
         "locality": _text_value(row.get("LOCAL")),
+        "postal_code": _text_value(row.get("CODPOST")),
         "contact": _text_value(row.get("CONTACTO")),
         "email": _text_value(row.get("EMAIL")),
         "phone": _text_value(row.get("TELEFONE")),
@@ -2955,6 +2959,16 @@ def save_budget(payload: dict[str, Any], user) -> dict[str, Any]:
             work_name = _limited(header.get("work_name"), bo_lengths, "trab1")
             work_locality = _limited(header.get("locality"), bo_lengths, "obranome")
             work_address = _text_value(header.get("address"))
+            work_postal_code = (
+                _text_value(header.get("postal_code"))
+                if "postal_code" in header
+                else _text_value(client.get("CODPOST"))
+            )
+            work_place = (
+                _text_value(header.get("place"))
+                if "place" in header
+                else _text_value(client.get("LOCAL"))
+            )
             attention = _limited(header.get("attention"), bo_lengths, "serie")
             salesperson_number = int(_number_value(salesperson.get("CM")))
             salesperson_name = _limited(salesperson.get("CMDESC"), bo_lengths, "vendnm")
@@ -2970,8 +2984,8 @@ def save_budget(payload: dict[str, Any], user) -> dict[str, Any]:
                 "estab": customer_establishment,
                 "ncont": _limited(client.get("NCONT"), bo_lengths, "ncont"),
                 "morada": _limited(work_address, bo_lengths, "morada"),
-                "local": _limited(client.get("LOCAL"), bo_lengths, "local"),
-                "codpost": _limited(client.get("CODPOST"), bo_lengths, "codpost"),
+                "local": _limited(work_place, bo_lengths, "local"),
+                "codpost": _limited(work_postal_code, bo_lengths, "codpost"),
                 "zona": _limited(client.get("ZONA"), bo_lengths, "zona"),
                 "trab1": work_name,
                 "obranome": work_locality,
@@ -3041,8 +3055,8 @@ def save_budget(payload: dict[str, Any], user) -> dict[str, Any]:
                 "area": _limited(header.get("area"), bo2_lengths, "area"),
                 "armazem": int(_number_value(selected_series.get("warehouse"))) or 1,
                 "morada": _limited(work_address, bo2_lengths, "morada"),
-                "local": _limited(client.get("LOCAL"), bo2_lengths, "local"),
-                "codpost": _limited(client.get("CODPOST"), bo2_lengths, "codpost"),
+                "local": _limited(work_place, bo2_lengths, "local"),
+                "codpost": _limited(work_postal_code, bo2_lengths, "codpost"),
                 "cladrszona": _limited(client.get("ZONA"), bo2_lengths, "cladrszona"),
                 "telefone": _limited(client.get("TELEFONE"), bo2_lengths, "telefone"),
                 "contacto": _limited(client.get("CONTACTO"), bo2_lengths, "contacto"),
@@ -3169,8 +3183,8 @@ def save_budget(payload: dict[str, Any], user) -> dict[str, Any]:
                     "rdata": dataobra,
                     "obranome": work_locality,
                     "morada": _limited(work_address, bi_lengths, "morada"),
-                    "local": _limited(client.get("LOCAL"), bi_lengths, "local"),
-                    "codpost": _limited(client.get("CODPOST"), bi_lengths, "codpost"),
+                    "local": _limited(work_place, bi_lengths, "local"),
+                    "codpost": _limited(work_postal_code, bi_lengths, "codpost"),
                     "zona": _limited(client.get("ZONA"), bi_lengths, "zona"),
                     "vendedor": salesperson_number,
                     "vendnm": salesperson_name,
@@ -3215,8 +3229,8 @@ def save_budget(payload: dict[str, Any], user) -> dict[str, Any]:
                     "bi2stamp": bistamp,
                     "bostamp": bostamp,
                     "morada": _limited(work_address, bi2_lengths, "morada"),
-                    "local": _limited(client.get("LOCAL"), bi2_lengths, "local"),
-                    "codpost": _limited(client.get("CODPOST"), bi2_lengths, "codpost"),
+                    "local": _limited(work_place, bi2_lengths, "local"),
+                    "codpost": _limited(work_postal_code, bi2_lengths, "codpost"),
                     "cladrszona": _limited(client.get("ZONA"), bi2_lengths, "cladrszona"),
                     "telefone": _limited(client.get("TELEFONE"), bi2_lengths, "telefone"),
                     "contacto": _limited(client.get("CONTACTO"), bi2_lengths, "contacto"),

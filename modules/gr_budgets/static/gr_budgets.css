@@ -482,6 +482,19 @@
   white-space: pre-wrap;
 }
 
+.gr-budget-address-location {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  gap: var(--sz-space-3);
+  margin-top: var(--sz-space-3);
+}
+
+@media (max-width: 36rem) {
+  .gr-budget-address-location {
+    grid-template-columns: 1fr;
+  }
+}
+
 .gr-budget-address-modal-footer {
   justify-content: flex-end;
 }

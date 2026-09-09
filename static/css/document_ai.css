@@ -1756,16 +1756,8 @@
   gap: 0.25rem;
 }
 
-.docai-extract-origin-source {
+.docai-extract-origin-action {
   flex: 0 0 auto;
-  max-width: 22rem;
-  padding: 0.35rem 0.65rem;
-  overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--sz-color-primary) 34%, var(--sz-color-border));
-  border-radius: 999px;
-  color: var(--sz-color-primary);
-  font-size: var(--sz-font-size-sm);
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 

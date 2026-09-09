@@ -203,6 +203,14 @@ def _phc_db_hint(company_name: str) -> str:
     return ""
 
 
+def _expense_company_currency(company: dict[str, Any], requested: Any = '') -> str:
+    phc_db = str(company.get('phc_db') or '').strip().upper()
+    requested_currency = str(requested or '').strip().upper()
+    if phc_db in {'HSOLS_MA', 'HSOLS_MAROC'}:
+        return 'MAD'
+    return requested_currency or 'EUR'
+
+
 def ensure_colaborador_despesas_schema() -> None:
     try:
         database_name = str(db.session.execute(text('SELECT DB_NAME()')).scalar() or '').strip() or '__default__'
@@ -525,6 +533,21 @@ def ensure_colaborador_despesas_schema() -> None:
             CREATE INDEX IX_COLAB_DESPESA_HIST_DESPESA
                 ON dbo.COLAB_DESPESA_HIST (DESPLINHASTAMP, DTCRI DESC);
         END
+
+        IF OBJECT_ID('dbo.COLAB_DESPESA_LANCAMENTO', 'U') IS NULL
+        BEGIN
+            CREATE TABLE dbo.COLAB_DESPESA_LANCAMENTO (
+                LANCAMENTO_CHAVE varchar(64) NOT NULL CONSTRAINT PK_COLAB_DESPESA_LANCAMENTO PRIMARY KEY,
+                ESTADO varchar(20) NOT NULL CONSTRAINT DF_COLAB_DESPESA_LANC_ESTADO DEFAULT 'EM_CURSO',
+                PHC_DB varchar(128) NOT NULL CONSTRAINT DF_COLAB_DESPESA_LANC_DB DEFAULT '',
+                PHC_BOSTAMP varchar(25) NOT NULL CONSTRAINT DF_COLAB_DESPESA_LANC_BO DEFAULT '',
+                PHC_OBRANO int NOT NULL CONSTRAINT DF_COLAB_DESPESA_LANC_NO DEFAULT 0,
+                PHC_NMDOS varchar(80) NOT NULL CONSTRAINT DF_COLAB_DESPESA_LANC_DOC DEFAULT '',
+                UTILIZADOR varchar(60) NOT NULL CONSTRAINT DF_COLAB_DESPESA_LANC_USER DEFAULT '',
+                DTCRI datetime NOT NULL CONSTRAINT DF_COLAB_DESPESA_LANC_DTCRI DEFAULT GETDATE(),
+                DTALT datetime NULL
+            );
+        END
     """))
     db.session.execute(text("""
         INSERT INTO dbo.COLAB_DESPESA_CONTAB_LINHA
@@ -765,18 +788,29 @@ def list_expense_vat_rates(feid: int) -> list[dict[str, Any]]:
     return rates
 
 
-def list_expense_cost_centers(limit: int = 500) -> list[str]:
+def list_expense_cost_centers(limit: int = 500, feid: int = 0) -> list[str]:
     ensure_colaborador_despesas_schema()
     if not db.session.execute(text("SELECT OBJECT_ID('dbo.V_CCT', 'V')")).scalar():
         return []
     safe_limit = max(1, min(int(limit or 500), 1000))
+    columns = {
+        str(value or '').strip().upper()
+        for value in db.session.execute(text("""
+            SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA='dbo' AND TABLE_NAME='V_CCT'
+        """)).scalars().all()
+    }
+    company = _expense_company_by_feid(_safe_int(feid)) if _safe_int(feid) else {}
+    origin = str(company.get('phc_db') or '').strip()
+    origin_filter = "AND UPPER(LTRIM(RTRIM(ISNULL(ORIGEM,''))))=UPPER(:origin)" if origin and 'ORIGEM' in columns else ""
     rows = db.session.execute(text("""
         SELECT DISTINCT TOP """ + str(safe_limit) + """
             LTRIM(RTRIM(ISNULL(CCUSTO, ''))) AS CCUSTO
         FROM dbo.V_CCT
         WHERE LTRIM(RTRIM(ISNULL(CCUSTO, ''))) <> ''
+        """ + origin_filter + """
         ORDER BY LTRIM(RTRIM(ISNULL(CCUSTO, '')))
-    """)).mappings().all()
+    """), {'origin': origin}).mappings().all()
     return [str(row.get('CCUSTO') or '').strip() for row in rows if str(row.get('CCUSTO') or '').strip()]
 
 
@@ -842,7 +876,11 @@ def search_expense_vehicles(term: str, limit: int = 12, feid: int = 0) -> list[d
     modelo_select = "LTRIM(RTRIM(ISNULL(MODELO, ''))) AS MODELO" if 'MODELO' in cols else "CAST('' AS varchar(80)) AS MODELO"
     nofrota_select = "LTRIM(RTRIM(ISNULL(NOFROTA, ''))) AS NOFROTA" if 'NOFROTA' in cols else "CAST('' AS varchar(80)) AS NOFROTA"
     inactive_filter = "AND ISNULL(INATIVO, 0) = 0" if 'INATIVO' in cols else ""
-    company_filter = "AND ISNULL(FEID, 0) = :feid" if 'FEID' in cols and _safe_int(feid) else ""
+    company = _expense_company_by_feid(_safe_int(feid)) if _safe_int(feid) else {}
+    origin = str(company.get('phc_db') or '').strip()
+    company_filter = "AND ISNULL(FEID, 0) = :feid" if 'FEID' in cols and _safe_int(feid) else (
+        "AND UPPER(LTRIM(RTRIM(ISNULL(ORIGEM,''))))=UPPER(:origin)" if origin and 'ORIGEM' in cols else ""
+    )
     search_parts = ["LTRIM(RTRIM(ISNULL(MATRICULA, ''))) LIKE :term"]
     if 'MARCA' in cols:
         search_parts.append("LTRIM(RTRIM(ISNULL(MARCA, ''))) LIKE :term")
@@ -866,6 +904,7 @@ def search_expense_vehicles(term: str, limit: int = 12, feid: int = 0) -> list[d
     """), {
         'term': f'%{clean_term}%',
         'feid': _safe_int(feid),
+        'origin': origin,
     }).mappings().all()
     return [
         {
@@ -1079,6 +1118,8 @@ def list_expenses_for_processing(filters: dict[str, Any] | None = None) -> list[
             'phc_server': str(row.get('PHC_SERVER') or '').strip(),
             'ccusto': ccusto,
         })
+        company_data = _expense_company_by_feid(int(item.get('feid') or 0))
+        item['moeda'] = _expense_company_currency(company_data, item.get('moeda'))
         items.append(item)
     _attach_processing_details(items)
     return items
@@ -1221,6 +1262,7 @@ def upsert_expense_line(user, payload: dict[str, Any], file_storage=None) -> dic
     userstamp = str(colaborador.get('userstamp') or '').strip()
     line_stamp = str(payload.get('stamp') or payload.get('line_stamp') or '').strip()
     is_new = not line_stamp
+    was_returned = False
     if is_new:
         line_stamp = _new_stamp()
         ordem = _safe_int(db.session.execute(text("""
@@ -1253,6 +1295,7 @@ def upsert_expense_line(user, payload: dict[str, Any], file_storage=None) -> dic
         }).mappings().first()
         if not existing:
             raise ValueError('Despesa não encontrada.')
+        was_returned = str(existing.get('ESTADO') or '').strip().upper() == 'DEVOLVIDA'
         if str(existing.get('ESTADO') or '').strip().upper() not in {'RASCUNHO', 'DEVOLVIDA'}:
             raise ValueError('Despesa fechada.')
 
@@ -1359,6 +1402,8 @@ def upsert_expense_line(user, payload: dict[str, Any], file_storage=None) -> dic
         'header_stamp': header_stamp,
         'login': login,
     })
+    if was_returned:
+        _record_expense_history(line_stamp, 'CORRECAO_COLABORADOR', {}, login)
     db.session.commit()
 
     row = db.session.execute(text("""
@@ -1481,7 +1526,7 @@ def update_expense_processing_classification(line_stamp: str, payload: dict[str,
         raise ValueError('Escolhe uma empresa válida.')
     login = str(getattr(user, 'LOGIN', '') or getattr(user, 'login', '') or '').strip()
     expense_date = str(payload.get('data_despesa') or current.get('DATA_DESPESA') or '').strip()[:10] or None
-    currency = str(payload.get('moeda') or current.get('MOEDA') or 'EUR').strip().upper()[:10] or 'EUR'
+    currency = _expense_company_currency(company, payload.get('moeda') or current.get('MOEDA'))[:10]
     comment = str(payload.get('obs') if 'obs' in payload else current.get('OBS') or '').strip()[:100]
     lines = payload.get('accounting_lines')
     if not isinstance(lines, list) or not lines:
@@ -1497,7 +1542,7 @@ def update_expense_processing_classification(line_stamp: str, payload: dict[str,
         seen.add(line_id)
         gross = _safe_decimal(raw.get('total_com_iva'))
         rate = _safe_decimal(raw.get('taxaiva'))
-        if gross < 0:
+        if gross < 0 and not bool(getattr(user, 'ADMIN', False)):
             raise ValueError('Os valores negativos não estão autorizados neste ecrã.')
         net, vat = _vat_amounts_from_gross(gross, rate)
         origins = raw.get('origens') if isinstance(raw.get('origens'), dict) else {}
@@ -2041,8 +2086,13 @@ def _create_notes_frais_pdf(prepared_lines: list[dict[str, Any]], supplier: dict
         for page in PdfReader(cover_path).pages:
             writer.add_page(page)
 
+        attached_expenses: set[str] = set()
         for index, line in enumerate(prepared_lines, start=1):
             row = line["row"]
+            expense_stamp = str(row.get("DESPLINHASTAMP") or "")
+            if expense_stamp in attached_expenses:
+                continue
+            attached_expenses.add(expense_stamp)
             source = _expense_local_file_path(str(row.get("CAMINHO") or ""))
             if not source:
                 continue
@@ -2222,6 +2272,67 @@ def launch_expenses_to_phc(stamps: list[str], user) -> dict[str, Any]:
     if not phc_db:
         raise ValueError('A empresa selecionada não tem base de dados PHC configurada.')
 
+    batch_key = hashlib.sha256('|'.join(sorted(str(row.get('DESPLINHASTAMP') or '') for row in lines)).encode('utf-8')).hexdigest()
+    marker = f'EXP:{batch_key[:24]}'
+    existing_launch = db.session.execute(text("""
+        SELECT TOP 1 * FROM dbo.COLAB_DESPESA_LANCAMENTO WITH (UPDLOCK, HOLDLOCK)
+        WHERE LANCAMENTO_CHAVE = :batch_key
+    """), {'batch_key': batch_key}).mappings().first()
+    owns_launch = not bool(existing_launch) or str((existing_launch or {}).get('ESTADO') or '').upper() == 'FALHOU'
+    if owns_launch:
+        launch_params = {
+            'batch_key': batch_key, 'phc_db': phc_db,
+            'login': str(getattr(user, 'LOGIN', '') or getattr(user, 'login', '') or '').strip(),
+        }
+        if existing_launch:
+            db.session.execute(text("""
+                UPDATE dbo.COLAB_DESPESA_LANCAMENTO SET ESTADO='EM_CURSO', PHC_DB=:phc_db,
+                    UTILIZADOR=:login, DTALT=GETDATE() WHERE LANCAMENTO_CHAVE=:batch_key
+            """), launch_params)
+        else:
+            db.session.execute(text("""
+                INSERT INTO dbo.COLAB_DESPESA_LANCAMENTO
+                    (LANCAMENTO_CHAVE, ESTADO, PHC_DB, UTILIZADOR)
+                VALUES (:batch_key, 'EM_CURSO', :phc_db, :login)
+            """), launch_params)
+        db.session.commit()
+    else:
+        db.session.commit()
+        if str(existing_launch.get('ESTADO') or '').upper() == 'LANCADO':
+            return {
+                'ok': True, 'recovered': True, 'phc_db': str(existing_launch.get('PHC_DB') or ''),
+                'bostamp': str(existing_launch.get('PHC_BOSTAMP') or ''),
+                'obrano': int(existing_launch.get('PHC_OBRANO') or 0),
+                'nmdos': str(existing_launch.get('PHC_NMDOS') or PHC_NOTES_FRAIS_NMDOS),
+                'linhas': len(lines),
+            }
+        with pyodbc.connect(_phc_conn_str(phc_db, phc_server), timeout=15) as recovery_conn:
+            recovery_cursor = recovery_conn.cursor()
+            bo_columns = _phc_columns(recovery_cursor, 'BO')
+            if 'maquina' in bo_columns:
+                recovered = recovery_cursor.execute(
+                    "SELECT TOP 1 BOSTAMP, OBRANO, NMDOS FROM dbo.BO WHERE NDOS=? AND MAQUINA=?",
+                    PHC_NOTES_FRAIS_NDOS, marker,
+                ).fetchone()
+                if recovered:
+                    recovered_bostamp, recovered_obrano, recovered_nmdos = str(recovered[0] or ''), int(recovered[1] or 0), str(recovered[2] or PHC_NOTES_FRAIS_NMDOS)
+                    for row in lines:
+                        expense_stamp = str(row.get('DESPLINHASTAMP') or '')
+                        db.session.execute(text("""
+                            UPDATE dbo.COLAB_DESPESA_LINHA SET PHC_STATUS='LANCADO',
+                                PHC_BOSTAMP=:bostamp, PHC_OBRANO=:obrano, PHC_NMDOS=:nmdos,
+                                ARQUIVO_ESTADO='LANCADA', ARQUIVO_DATA=GETDATE(), PHC_DTENVIO=GETDATE()
+                            WHERE DESPLINHASTAMP=:stamp
+                        """), {'stamp': expense_stamp, 'bostamp': recovered_bostamp, 'obrano': recovered_obrano, 'nmdos': recovered_nmdos})
+                    db.session.execute(text("""
+                        UPDATE dbo.COLAB_DESPESA_LANCAMENTO SET ESTADO='LANCADO',
+                            PHC_BOSTAMP=:bostamp, PHC_OBRANO=:obrano, PHC_NMDOS=:nmdos, DTALT=GETDATE()
+                        WHERE LANCAMENTO_CHAVE=:batch_key
+                    """), {'batch_key': batch_key, 'bostamp': recovered_bostamp, 'obrano': recovered_obrano, 'nmdos': recovered_nmdos})
+                    db.session.commit()
+                    return {'ok': True, 'recovered': True, 'phc_db': phc_db, 'bostamp': recovered_bostamp, 'obrano': recovered_obrano, 'nmdos': recovered_nmdos, 'linhas': len(lines)}
+        raise ValueError('Este lançamento já está em processamento. Atualiza a lista antes de tentar novamente.')
+
     # The employee record belongs to the company in the user's profile. The
     # destination company may be different, so resolve the employee's NIF in
     # the source PE first and only then look up FL.NCONT in the destination.
@@ -2328,6 +2439,7 @@ def launch_expenses_to_phc(stamps: list[str], user) -> dict[str, Any]:
                 'estab': supplier['estab'],
                 'moeda': phc_currency or 'EURO',
                 'ccusto': header_ccusto,
+                'maquina': marker,
                 'fref': supplier.get('fref') or '',
                 'totaldeb': _phc_value(total_deb),
                 'etotaldeb': total_deb,
@@ -2425,7 +2537,7 @@ def launch_expenses_to_phc(stamps: list[str], user) -> dict[str, Any]:
                     'ndos': PHC_NOTES_FRAIS_NDOS,
                     'obrano': obrano,
                     'boano': today_value.year,
-                    'dataobra': dataobra,
+                    'dataobra': row.get('DATA_DESPESA') or dataobra,
                     'ref': article['ref'],
                     'design': (str(line.get('accounting_line', {}).get('design') or '').strip() or article['design'])[:60],
                     'qtt': Decimal('1.0000'),
@@ -2488,6 +2600,11 @@ def launch_expenses_to_phc(stamps: list[str], user) -> dict[str, Any]:
             conn.commit()
         except Exception:
             conn.rollback()
+            db.session.execute(text("""
+                UPDATE dbo.COLAB_DESPESA_LANCAMENTO SET ESTADO='FALHOU', DTALT=GETDATE()
+                WHERE LANCAMENTO_CHAVE=:batch_key
+            """), {'batch_key': batch_key})
+            db.session.commit()
             raise
 
     line_params = {
@@ -2525,6 +2642,15 @@ def launch_expenses_to_phc(stamps: list[str], user) -> dict[str, Any]:
             'phc_db': phc_db, 'bostamp': bostamp, 'obrano': obrano,
             'nmdos': PHC_NOTES_FRAIS_NMDOS,
         }, login)
+    db.session.commit()
+    db.session.execute(text("""
+        UPDATE dbo.COLAB_DESPESA_LANCAMENTO SET ESTADO='LANCADO',
+            PHC_BOSTAMP=:bostamp, PHC_OBRANO=:obrano, PHC_NMDOS=:nmdos, DTALT=GETDATE()
+        WHERE LANCAMENTO_CHAVE=:batch_key
+    """), {
+        'batch_key': batch_key, 'bostamp': bostamp, 'obrano': obrano,
+        'nmdos': PHC_NOTES_FRAIS_NMDOS,
+    })
     db.session.commit()
     return {
         'ok': True,
@@ -2662,6 +2788,7 @@ def list_expense_processing_archive(filters: dict[str, Any] | None = None) -> li
             'penome': str(row.get('PENOME') or '').strip(), 'feid': int(row.get('LINHA_FEID') or 0),
             'empresa': str(row.get('LINHA_EMPRESA') or '').strip(),
         })
+        item['moeda'] = _expense_company_currency(_expense_company_by_feid(int(item.get('feid') or 0)), item.get('moeda'))
         items.append(item)
     _attach_processing_details(items)
     return items
@@ -2724,6 +2851,81 @@ def upload_expense_processing_pdf(line_stamp: str, file_storage, user) -> dict[s
     _record_expense_history(stamp, 'PDF_CARREGADO', {'ficheiro': stored['original'], 'tamanho': stored['size']}, login)
     db.session.commit()
     return {'ok': True, 'stamp': stamp, 'file_url': _expense_public_file_url(stored['path'])}
+
+
+def reanalyze_expense_processing_pdf(line_stamp: str, user) -> dict[str, Any]:
+    """Run the shared OCR cascade and fill only still-empty expense fields."""
+    from services.document_ai_processing_orchestrator import extract_document_with_cascade
+
+    ensure_colaborador_despesas_schema()
+    stamp = str(line_stamp or '').strip()
+    row = db.session.execute(text("""
+        SELECT TOP 1 * FROM dbo.COLAB_DESPESA_LINHA
+        WHERE DESPLINHASTAMP=:stamp AND ESTADO='FECHADO'
+          AND LTRIM(RTRIM(ISNULL(PHC_BOSTAMP, '')))=''
+    """), {'stamp': stamp}).mappings().first()
+    if not row:
+        raise ValueError('A despesa não está disponível para análise.')
+    path = _expense_local_file_path(str(row.get('CAMINHO') or ''))
+    if not path:
+        raise ValueError('Esta despesa não tem PDF disponível.')
+    extraction = extract_document_with_cascade(
+        path, str(row.get('EXT') or '.pdf'), str(row.get('MIME_TYPE') or 'application/pdf'),
+        document_stamp=stamp,
+    )
+    if not extraction.get('ok'):
+        raise ValueError('A análise IA não conseguiu ler este documento. A despesa foi mantida sem alterações.')
+    extracted_text = str(extraction.get('text') or '')
+    reference = ''
+    reference_match = re.search(
+        r'(?im)\b(?:facture|fatura|invoice|receipt|re[çc]u|n[ºo°]|ref(?:erence|erência)?)\s*[:#-]?\s*([A-Z0-9][A-Z0-9./_-]{2,30})',
+        extracted_text,
+    )
+    if reference_match:
+        reference = str(reference_match.group(1) or '').strip()[:160]
+    expense_date = ''
+    date_match = re.search(r'\b(\d{1,2})[/.\-](\d{1,2})[/.\-](20\d{2})\b', extracted_text)
+    if date_match:
+        try:
+            expense_date = date(int(date_match.group(3)), int(date_match.group(2)), int(date_match.group(1))).isoformat()
+        except ValueError:
+            expense_date = ''
+    origins = _json_object(row.get('CAMPO_ORIGEM_JSON'))
+    updates = {
+        'reference': str(row.get('REFERENCIA_DOCUMENTO') or '').strip() or reference,
+        'expense_date': row.get('DATA_DESPESA') or expense_date or None,
+    }
+    if not str(row.get('REFERENCIA_DOCUMENTO') or '').strip() and reference:
+        origins['referencia_documento'] = 'IA'
+    if not row.get('DATA_DESPESA') and expense_date:
+        origins['data_despesa'] = 'IA'
+    login = str(getattr(user, 'LOGIN', '') or '').strip()
+    db.session.execute(text("""
+        UPDATE dbo.COLAB_DESPESA_LINHA SET REFERENCIA_DOCUMENTO=:reference,
+            DATA_DESPESA=TRY_CONVERT(date,:expense_date), CAMPO_ORIGEM_JSON=:origins,
+            VERSION=VERSION+1, DTALT=GETDATE(), USERALTERACAO=:login
+        WHERE DESPLINHASTAMP=:stamp
+    """), {
+        'stamp': stamp, 'reference': updates['reference'], 'expense_date': updates['expense_date'],
+        'origins': json.dumps(origins, ensure_ascii=False), 'login': login,
+    })
+    if reference:
+        db.session.execute(text("""
+            UPDATE dbo.COLAB_DESPESA_CONTAB_LINHA SET REFERENCIA=:reference,
+                CAMPO_ORIGEM_JSON=CASE WHEN LTRIM(RTRIM(ISNULL(CAMPO_ORIGEM_JSON,''))) IN ('','{}')
+                    THEN N'{"referencia":"IA"}' ELSE CAMPO_ORIGEM_JSON END,
+                DTALT=GETDATE(), USERALTERACAO=:login
+            WHERE DESPLINHASTAMP=:stamp AND LTRIM(RTRIM(ISNULL(REFERENCIA,'')))=''
+        """), {'stamp': stamp, 'reference': reference, 'login': login})
+    _record_expense_history(stamp, 'ANALISE_IA', {
+        'method': extraction.get('method'), 'engine': extraction.get('engine'),
+        'reference_found': bool(reference), 'date_found': bool(expense_date),
+    }, login)
+    db.session.commit()
+    refreshed = db.session.execute(text("SELECT TOP 1 * FROM dbo.COLAB_DESPESA_LINHA WHERE DESPLINHASTAMP=:stamp"), {'stamp': stamp}).mappings().first()
+    item = serialize_line(refreshed or {})
+    _attach_processing_details([item])
+    return {'ok': True, 'line': item, 'message': 'Documento analisado. Os valores manuais foram preservados.'}
 
 
 def permanently_delete_archived_expense(line_stamp: str, user) -> dict[str, Any]:

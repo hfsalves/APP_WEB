@@ -577,6 +577,7 @@
   "gr_budgets.field.ouvrage_type": "Type d’ouvrage",
   "gr_budgets.field.position": "Position",
   "gr_budgets.field.position_description": "Description de la position",
+  "gr_budgets.field.postal_code": "Code postal",
   "gr_budgets.field.price": "Prix",
   "gr_budgets.field.profit": "Bénéfice",
   "gr_budgets.field.prorata": "Prorata %",

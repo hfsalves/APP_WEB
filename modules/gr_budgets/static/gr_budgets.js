@@ -63,6 +63,8 @@
     addressOpen: document.getElementById('budgetAddressOpen'),
     addressModal: document.getElementById('budgetAddressModal'),
     addressInput: document.getElementById('budgetAddressInput'),
+    addressPostalCode: document.getElementById('budgetAddressPostalCode'),
+    addressPlace: document.getElementById('budgetAddressPlace'),
     dateInput: document.getElementById('budgetDateInput'),
     salesperson: document.getElementById('budgetSalespersonSelect'),
     attentionInput: document.getElementById('budgetAttentionInput'),
@@ -582,6 +584,8 @@
       work_name: elements.workInput.value.trim(),
       locality: elements.localityInput.value.trim(),
       address: elements.addressInput.value.trim(),
+      postal_code: elements.addressPostalCode.value.trim(),
+      place: elements.addressPlace.value.trim(),
       date: elements.dateInput.value,
       salesperson_number: salespersonNumber,
       salesperson: salesperson ? salesperson.name : '',
@@ -652,6 +656,8 @@
       : tr('gr_budgets.client.meta_unselected');
     setInputValue(elements.workInput, header.work_name);
     setInputValue(elements.addressInput, header.address);
+    setInputValue(elements.addressPostalCode, header.postal_code);
+    setInputValue(elements.addressPlace, header.place);
     renderAssociatedWork(payload.work, header.process);
     setInputValue(elements.localityInput, header.locality || header.place);
     setInputValue(elements.dateInput, header.date);
@@ -697,6 +703,10 @@
     }
     elements.addressInput.readOnly = !isEditing();
     elements.addressInput.setAttribute('aria-readonly', isEditing() ? 'false' : 'true');
+    [elements.addressPostalCode, elements.addressPlace].forEach((input) => {
+      input.readOnly = !isEditing();
+      input.setAttribute('aria-readonly', isEditing() ? 'false' : 'true');
+    });
     elements.addressModal.classList.add('sz_is_open');
     elements.addressModal.setAttribute('aria-hidden', 'false');
     if (isEditing()) elements.addressInput.focus();
@@ -1163,6 +1173,9 @@
         { number: row.number, establishment: row.establishment }
       )
       : tr('gr_budgets.client.meta_selected');
+    setInputValue(elements.addressInput, row.address || '');
+    setInputValue(elements.addressPostalCode, row.postal_code || '');
+    setInputValue(elements.addressPlace, row.locality || '');
     if (row.contact) setInputValue(elements.attentionInput, row.contact);
     if (row.salesperson_number) {
       renderSalespeople(row.salesperson_number, row.salesperson);
@@ -2859,7 +2872,7 @@
     elements.saveBudget.disabled = busy || !state.detail;
     elements.addLine.disabled = busy || !state.detail || !budgetCanBeEdited();
 
-    [elements.clientSearch, elements.workInput, elements.localityInput, elements.addressInput, elements.dateInput, elements.attentionInput]
+    [elements.clientSearch, elements.workInput, elements.localityInput, elements.addressInput, elements.addressPostalCode, elements.addressPlace, elements.dateInput, elements.attentionInput]
       .forEach((input) => {
         input.readOnly = !editing;
         input.setAttribute('aria-readonly', editing ? 'false' : 'true');
@@ -2996,6 +3009,8 @@
         work_name: elements.workInput.value.trim(),
         locality: elements.localityInput.value.trim(),
         address: elements.addressInput.value.trim(),
+        postal_code: elements.addressPostalCode.value.trim(),
+        place: elements.addressPlace.value.trim(),
         date: elements.dateInput.value,
         salesperson_number: Number(elements.salesperson.value || 0),
         attention: elements.attentionInput.value.trim(),
@@ -3111,7 +3126,7 @@
     syncEditableHeaderToState();
     scheduleClientSearch();
   });
-  [elements.workInput, elements.localityInput, elements.addressInput, elements.dateInput, elements.attentionInput]
+  [elements.workInput, elements.localityInput, elements.addressInput, elements.addressPostalCode, elements.addressPlace, elements.dateInput, elements.attentionInput]
     .forEach((input) => input.addEventListener('input', syncEditableHeaderToState));
   elements.addressOpen?.addEventListener('click', openAddressModal);
   root.querySelectorAll('[data-address-modal-close]').forEach((button) => {

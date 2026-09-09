@@ -4,7 +4,7 @@
 
 {% block extra_head %}
   {{ super() }}
-  <link rel="stylesheet" href="{{ url_for('gr_budgets.static', filename='gr_budgets.css') }}?v={{ config.get('STATIC_VERSION', 1) }}-prorata-total-13">
+  <link rel="stylesheet" href="{{ url_for('gr_budgets.static', filename='gr_budgets.css') }}?v={{ config.get('STATIC_VERSION', 1) }}-address-fields-14">
 {% endblock %}
 
 {% block content %}
@@ -460,6 +460,16 @@
           <span class="sz_label">{{ _('gr_budgets.field.address') }}</span>
           <textarea id="budgetAddressInput" class="sz_input gr-budget-address-input" rows="4" readonly></textarea>
         </label>
+        <div class="gr-budget-address-location">
+          <label class="sz_field">
+            <span class="sz_label">{{ _('gr_budgets.field.postal_code') }}</span>
+            <input id="budgetAddressPostalCode" class="sz_input" type="text" readonly>
+          </label>
+          <label class="sz_field">
+            <span class="sz_label">{{ _('gr_budgets.field.locality') }}</span>
+            <input id="budgetAddressPlace" class="sz_input" type="text" readonly>
+          </label>
+        </div>
       </div>
       <div class="sz_modal_footer gr-budget-address-modal-footer">
         <button type="button" class="sz_button sz_button_secondary" data-address-modal-close>{{ _('gr_budgets.aria.close') }}</button>
@@ -802,5 +812,5 @@
   <script>
     window.SZ_I18N = Object.assign({}, window.SZ_I18N || {}, {{ gr_budgets_i18n|tojson }});
   </script>
-  <script src="{{ url_for('gr_budgets.static', filename='gr_budgets.js') }}?v={{ config.get('STATIC_VERSION', 1) }}-prorata-total-13" defer></script>
+  <script src="{{ url_for('gr_budgets.static', filename='gr_budgets.js') }}?v={{ config.get('STATIC_VERSION', 1) }}-address-fields-14" defer></script>
 {% endblock %}

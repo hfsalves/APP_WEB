@@ -23,6 +23,21 @@ class DocumentAiOriginDetailsUiTests(unittest.TestCase):
         self.assertNotIn('Virtual — ainda não existe no PHC', script)
         self.assertNotIn('Sugestão · a criar', script)
 
+    def test_origin_header_uses_one_contextual_action(self):
+        template = (ROOT / 'templates' / 'document_ai_extract.html').read_text(encoding='utf-8')
+        script = (ROOT / 'static' / 'js' / 'document_ai_extract.js').read_text(encoding='utf-8')
+
+        self.assertIn('docAiExtractOriginAction', template)
+        self.assertNotIn('docAiExtractOriginSource', template)
+        self.assertIn('function originContextAction()', script)
+        self.assertIn('registerDocumentAiOriginAction', script)
+        self.assertIn('originActionHandlers.has(action.key)', script)
+        for label in (
+            'Criar Nota de Encomenda', 'Corrigir Nota de Encomenda', 'Criar Contrato',
+            'Criar Contrato Sub.Emp.', 'Distribuir GdR', 'Criar GdR', 'Criar STSE',
+        ):
+            self.assertIn(label, script)
+
 
 if __name__ == '__main__':
     unittest.main()
