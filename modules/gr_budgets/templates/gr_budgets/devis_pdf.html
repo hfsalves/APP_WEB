@@ -34,13 +34,13 @@
     .plus-row td { padding-top: 0; } .plus-value { margin: 3.5mm 1mm 1mm 7mm; border: .5pt solid #888; border-radius: 1.5mm; padding: 2mm 3mm; display: grid; grid-template-columns: 1fr 22mm 9mm 20mm 22mm; column-gap: 2mm; align-items: start; font-style: italic; } .plus-value .name { font-weight: bold; color: #555; } .plus-value .num { text-align: right; }
     .totals-zone { break-inside: avoid; page-break-inside: avoid; }
     .totals { margin-top: 1mm; margin-left: auto; width: 50%; border-collapse: collapse; break-inside: avoid; page-break-inside: avoid; } .totals td { padding: 1.5mm 1mm; text-align: right; } .totals tr:first-child td { border-top: .7pt solid #111; } .totals .label { font-size: 9pt; } .totals .sub { color: #777; font-size: 6.2pt; font-style: italic; } .totals .strong { font-size: 10pt; font-weight: 700; }
-    .totals-overview { display: grid; grid-template-columns: .82fr 1fr 1fr 1.12fr; border-bottom: .45pt solid #c9c9c9; }
-    .total-stat { display: grid; grid-template-columns: 1fr auto; gap: 2mm; align-items: center; min-width: 0; padding: 2mm 2.5mm; }
+    .totals-overview { display: grid; grid-template-columns: 1.15fr .95fr .9fr 1.15fr; border-bottom: .45pt solid #c9c9c9; }
+    .total-stat { display: grid; grid-template-columns: 1fr auto; gap: 2mm; align-items: center; min-width: 0; min-height: 12mm; padding: 2.2mm 2.5mm 2.5mm; }
     .total-stat + .total-stat { border-left: .35pt solid #d7d7d7; }
     .total-stat .label { text-align: right; font-size: 8pt; }
-    .total-stat .sub { color: #888; font-size: 5.8pt; font-style: italic; }
-    .total-stat .value { text-align: right; font-size: 9pt; font-weight: 700; white-space: nowrap; }
-    .pro-rata { break-inside: avoid; border-top: .7pt solid #111; border-bottom: .45pt solid #111; margin-top: 4mm; padding: 4mm 1mm 14mm 8%; display: grid; grid-template-columns: 1fr 17mm 9mm 22mm; gap: 2mm; font-size: 9pt; } .pro-rata .num { text-align: right; }
+    .total-stat .label-title { display: block; white-space: nowrap; line-height: 1.05; }
+    .total-stat .sub { color: #888; font-size: 5.8pt; font-style: italic; line-height: 1; margin-top: 0; white-space: nowrap; }
+    .total-stat .value { align-self: start; margin-top: .15mm; text-align: right; font-size: 9pt; font-weight: 700; white-space: nowrap; }
     .signature { break-inside: avoid; margin-top: 62mm; width: 43%; text-align: center; } .signature .line { border-top: .6pt solid #111; padding-top: 2mm; font-weight: 700; font-size: 9pt; } .signature p { font-size: 6.3pt; font-style: italic; line-height: 1.6; }
     .commercial-choices { margin-top: 5mm; break-before: auto; }
     .choice-section { margin-top: 3mm; }
@@ -103,12 +103,11 @@
     .theme-modern .plus-value { color: #484b50; background: #f5f5f5; border: 0; border-left: 2.2pt solid #d32632; border-radius: 0 1.5mm 1.5mm 0; padding: 2.5mm 3mm; }
     .theme-modern .plus-value .name { color: #9f1d27; text-transform: uppercase; font-size: 7.2pt; letter-spacing: .5pt; }
     .theme-modern .totals-zone { background: #f4f4f4; border-top: 2pt solid #d32632; border-radius: 0 0 1.5mm 1.5mm; margin-top: 4mm; padding: 2mm 3mm 3mm; }
-    .theme-modern .totals-overview { background: #fff; border: .45pt solid #dedede; border-left: 1.8pt solid #d32632; }
+    .theme-modern .totals-overview { background: #fff; border: .45pt solid #dedede; border-left: 1.8pt solid #d32632; padding-bottom: 2.7mm; }
     .theme-modern .totals { width: 55%; margin-top: 0; }
     .theme-modern .totals tr:first-child td { border-top: 0; }
     .theme-modern .totals td { padding: 1.7mm 2mm; }
     .theme-modern .grand-totals tr:last-child td { color: #fff; background: #303236; padding-top: 2mm; padding-bottom: 2mm; }
-    .theme-modern .pro-rata { background: #fff; border: .45pt solid #d8d8d8; border-left: 1.8pt solid #d32632; margin: 2mm 0; padding: 3mm 2mm 3mm 8%; }
     .theme-modern .totals-bottom { display: grid; grid-template-columns: 43% 55%; gap: 2%; align-items: end; margin-top: 2mm; }
     .theme-modern .grand-totals-wrap { width: 100%; align-self: end; }
     .theme-modern .grand-totals-wrap .grand-totals { width: 100%; margin: 0; }
@@ -138,10 +137,10 @@
   </table>
   <div class="totals-zone">
     <div class="totals-overview">
-      <div class="total-stat"><div class="label">{{ labels.pro_rata_total }}<div class="sub">{{ labels.pro_rata_total_sub }}</div></div><div class="value">{{ fmt_money(document.totals.pro_rata_total) }}</div></div>
-      <div class="total-stat"><div class="label">{{ labels.amount_total }}<div class="sub">{{ labels.amount_total_sub }}</div></div><div class="value">{{ fmt_money(document.totals.goods_total) }}</div></div>
-      <div class="total-stat"><div class="label">{{ labels.discounts }}<div class="sub">{{ labels.discounts_sub }}</div></div><div class="value">{{ fmt_money(document.totals.discount_total) }}</div></div>
-      <div class="total-stat"><div class="label">{{ labels.net_total }}<div class="sub">{{ labels.net_total_sub }}</div></div><div class="value">{{ fmt_money(document.totals.net_total) }}</div></div>
+      <div class="total-stat"><div class="label"><span class="label-title">{{ labels.pro_rata_label }}{% if document.pro_rata and document.pro_rata[0].pro_rata_percentage %} ({{ fmt_money(document.pro_rata[0].pro_rata_percentage) }}%){% endif %}:</span><div class="sub">{{ labels.pro_rata_total_sub }}</div></div><div class="value">{{ fmt_money(document.totals.pro_rata_total) }}</div></div>
+      <div class="total-stat"><div class="label"><span class="label-title">{{ labels.amount_total }}</span><div class="sub">{{ labels.amount_total_sub }}</div></div><div class="value">{{ fmt_money(document.totals.goods_total) }}</div></div>
+      <div class="total-stat"><div class="label"><span class="label-title">{{ labels.discounts }}</span><div class="sub">{{ labels.discounts_sub }}</div></div><div class="value">{{ fmt_money(document.totals.discount_total) }}</div></div>
+      <div class="total-stat"><div class="label"><span class="label-title">{{ labels.net_total }}</span><div class="sub">{{ labels.net_total_sub }}</div></div><div class="value">{{ fmt_money(document.totals.net_total) }}</div></div>
     </div>
     <div class="totals-bottom">
       {% if theme == "modern" %}<div class="signature signature-in-totals"><div class="line">{{ labels.signature }}</div><p>{{ labels.signature_text }}</p></div>{% endif %}

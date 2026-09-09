@@ -75,7 +75,12 @@ class BudgetPdfTests(unittest.TestCase):
         for line in lines:
             line["technical_lines"] = [{"designation": text} for text in technical[line["item_label"]]]
         lines.insert(1, self._line("1.1", "PVL", "27094.50", quantity="18063", price="1.50", description="PLUS-VALUE EPAISSEUR 19cm AU LIEU DE 18cm SI NECESSAIRE"))
-        lines.append(self._line("PP", "PP", "20973.00", quantity=1, price="20973", pro_rata=True, discount_1=Decimal("2")))
+        lines.append(
+            self._line(
+                "PP", "PP", "20973.00", quantity=1, price="20973",
+                pro_rata=True, pro_rata_percentage=Decimal("2"), discount_1=Decimal("2"),
+            )
+        )
         return {
             "company": {
                 "name": "NOME FE NÃO DEVE SER USADO",
@@ -99,6 +104,17 @@ class BudgetPdfTests(unittest.TestCase):
         self.assertEqual(document["totals"]["net_total"], 1069623.24)
         self.assertEqual(document["totals"]["vat_total"], 213924.65)
         self.assertEqual(document["totals"]["gross_total"], 1283547.89)
+
+    def test_prorata_percentage_is_shown_in_final_summary(self):
+        document = budget_print_payload(self._detail_1415())
+        self.assertEqual(document["pro_rata"][0]["pro_rata_percentage"], Decimal("2"))
+
+        app = Flask(__name__, template_folder="../modules/gr_budgets/templates")
+        with app.app_context():
+            html = render_budget_pdf_html(self._detail_1415())
+        self.assertIn("Prorata (2,00%):", html)
+        self.assertIn("20 973,00", html)
+        self.assertNotIn('class="pro-rata-row"', html)
 
     def test_main_item_description_prefers_bi_dgeral(self):
         detail = self._detail_1415()
@@ -558,15 +574,17 @@ class BudgetPdfTests(unittest.TestCase):
 
         self.assertIn('id="budgetFinalPrice"', template)
         self.assertIn('id="budgetDiscount"', template)
+        self.assertIn('id="budgetProrata"', template)
         self.assertIn('id="budgetCommercialAdjustment"', template)
         self.assertIn("function applyCommercialAdjustment()", script)
         self.assertIn("baseTotal * value / 100", script)
         self.assertIn("baseTotal - value", script)
-        self.assertIn("order: 999999999", script)
-        self.assertIn("item_label: 'ZZ'", script)
-        self.assertIn("designation: 'ESCOMPTE'", script)
-        self.assertIn("quantity: -1", script)
+        self.assertIn("order: prorataMode ? 999999997 : 999999999", script)
+        self.assertIn("item_label: prorataMode ? 'PP' : 'ZZ'", script)
+        self.assertIn("designation: prorataMode ? 'PRORATA' : 'ESCOMPTE'", script)
+        self.assertIn("quantity: prorataMode ? 1 : -1", script)
         self.assertIn("filter((line) => !isBudgetDiscountLine(line))", script)
+        self.assertIn("filter((line) => !isBudgetProrataLine(line))", script)
 
     def test_budget_can_apply_one_vat_rate_to_all_lines(self):
         root = Path(__file__).resolve().parents[1]

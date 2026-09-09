@@ -40,6 +40,7 @@ from modules.gr_budgets.service import (
     _series_rows,
     _tax_rate_rows,
     _write_money,
+    _write_budget_line_total,
     _write_oci_purchase_price,
 )
 
@@ -52,6 +53,26 @@ class BudgetPayloadTests(unittest.TestCase):
             "country": "FR",
             "currency": "EUR",
         }
+
+    def test_prorata_budget_line_is_written_as_a_deduction(self):
+        total = _write_budget_line_total(
+            {"item_label": "PP"},
+            Decimal("150.00"),
+            Decimal("1"),
+            Decimal("1"),
+        )
+
+        self.assertEqual(total, Decimal("-150.00"))
+
+    def test_regular_budget_line_total_remains_positive(self):
+        total = _write_budget_line_total(
+            {"item_label": "1"},
+            Decimal("150.00"),
+            Decimal("2"),
+            Decimal("1"),
+        )
+
+        self.assertEqual(total, Decimal("300.00"))
 
     def test_devis_is_the_default_series(self):
         rows = [

@@ -114,10 +114,12 @@ class DocumentAiPhcOriginTests(unittest.TestCase):
             document_ai_service.db.session, 'get', return_value=document
         ), patch.object(
             document_ai_service.db.session, 'commit'
-        ) as commit, patch.object(document_ai_service, '_now', return_value=moment):
+        ) as commit, patch.object(document_ai_service, '_now', return_value=moment), patch.object(
+            document_ai_service, '_document_log'
+        ):
             result = save_document_draft(
                 'DOC-1',
-                {'expected_version': moment.isoformat(timespec='microseconds'), 'document': draft},
+                {'expected_version': moment.isoformat(timespec='microseconds'), 'view': 'home', 'document': draft},
                 'tester',
             )
 
@@ -145,6 +147,21 @@ class DocumentAiPhcOriginTests(unittest.TestCase):
                 )
 
         rollback.assert_called_once()
+
+    def test_accounting_cannot_persist_analysis_draft(self):
+        moment = datetime(2026, 9, 1, 10, 31, 0)
+        document = SimpleNamespace(dtalt=moment, dtcri=moment)
+        locked = MagicMock()
+        locked.mappings.return_value.first.return_value = {'DTALT': moment, 'DTCRI': moment}
+        with patch.object(document_ai_service, '_ensure_document_ai_schema'), patch.object(
+            document_ai_service.db.session, 'execute', return_value=locked
+        ), patch.object(document_ai_service.db.session, 'get', return_value=document):
+            with self.assertRaisesRegex(ValueError, 'apenas de consulta'):
+                save_document_draft(
+                    'DOC-1',
+                    {'expected_version': moment.isoformat(timespec='microseconds'), 'view': 'accounting', 'document': {}},
+                    'tester',
+                )
 
     def test_inbox_query_filters_by_group_entity(self):
         where_sql, params = _doc_queryset_sql({'feid': '8'})

@@ -2,6 +2,7 @@ import unittest
 
 from services.document_ai_service import (
     _phc_origin_family,
+    _validate_line_phc_origin_assignments,
     _validate_phc_origin_combination,
 )
 
@@ -16,13 +17,12 @@ class DocumentAiOriginFamilyTests(unittest.TestCase):
     def test_multiple_purchase_orders_are_allowed(self):
         _validate_phc_origin_combination([{'ndos': 102}], {'ndos': 102})
 
-    def test_primary_families_cannot_be_mixed(self):
-        with self.assertRaisesRegex(ValueError, 'mudar de família'):
-            _validate_phc_origin_combination([{'ndos': 102}], {'ndos': 119})
+    def test_primary_families_can_be_mixed(self):
+        _validate_phc_origin_combination([{'ndos': 102}], {'ndos': 119})
+        _validate_phc_origin_combination([{'ndos': 102}, {'ndos': 119}], {'ndos': 128})
 
-    def test_only_one_contract_is_allowed(self):
-        with self.assertRaisesRegex(ValueError, 'Contrato associado'):
-            _validate_phc_origin_combination([{'ndos': 119}], {'ndos': 119})
+    def test_multiple_contracts_are_allowed(self):
+        _validate_phc_origin_combination([{'ndos': 119}], {'ndos': 119})
 
     def test_delivery_note_requires_purchase_order(self):
         with self.assertRaisesRegex(ValueError, 'primeiro uma Nota de Encomenda'):
@@ -31,6 +31,15 @@ class DocumentAiOriginFamilyTests(unittest.TestCase):
     def test_work_situation_requires_subcontract(self):
         with self.assertRaisesRegex(ValueError, 'Sout-Traitant'):
             _validate_phc_origin_combination([{'ndos': 119}], {'ndos': 129})
+
+    def test_line_and_subline_must_reference_selected_origins(self):
+        origins = [{'stamp': 'BO-NDE'}, {'stamp': 'BO-CONTRATO'}]
+        _validate_line_phc_origin_assignments([
+            {'phc_origin_stamp': 'BO-NDE'},
+            {'sublines': [{'phc_origin_stamp': 'BO-CONTRATO'}]},
+        ], origins)
+        with self.assertRaisesRegex(ValueError, 'não está associada'):
+            _validate_line_phc_origin_assignments([{'phc_origin_stamp': 'BO-OUTRA'}], origins)
 
 
 if __name__ == '__main__':

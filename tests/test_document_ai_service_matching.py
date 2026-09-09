@@ -98,6 +98,7 @@ class ReconcileExtractedDocumentTests(unittest.TestCase):
             'FEID': 5,
             'TAX_FIELD': 'ncont',
             'SOURCE': 'phc',
+            'SUPPLIER_TYPE': 'Banque',
         }]
 
         with patch.object(document_ai_service, '_load_suppliers', return_value=suppliers):
@@ -106,6 +107,19 @@ class ReconcileExtractedDocumentTests(unittest.TestCase):
         self.assertEqual(result[0]['no'], 88)
         self.assertEqual(result[0]['tax_field'], 'ncont')
         self.assertEqual(result[0]['source'], 'phc')
+        self.assertEqual(result[0]['supplier_type'], 'Banque')
+
+    def test_existing_document_is_enriched_from_authoritative_phc_type(self):
+        document = {
+            'customer': {'feid': 5},
+            'supplier': {'supplier_no': 88, 'estab': 0, 'name': 'Nome sem pista'},
+        }
+        suppliers = [{'NO': 88, 'ESTAB': 0, 'SUPPLIER_TYPE': 'Banque'}]
+
+        with patch.object(document_ai_service, '_load_suppliers', return_value=suppliers):
+            result = document_ai_service._enrich_supplier_classification(document)
+
+        self.assertEqual(result['supplier']['supplier_type'], 'Banque')
 
     def test_supplier_search_keeps_establishments_and_prefers_visible_location(self):
         suppliers = [

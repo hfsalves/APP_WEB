@@ -16,6 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let config = null;
   let editing = null;
+  const openGroups = new Set();
   const escapeHtml = (value) => String(value == null ? '' : value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   const showMessage = (message, type = 'info') => typeof window.showToast === 'function' ? window.showToast(message, type) : window.alert(message);
   const label = (items, value) => items?.find((item) => item.value === value)?.label || value;
@@ -45,10 +46,16 @@ document.addEventListener('DOMContentLoaded', () => {
       groups.get(rule.doc_class).push(rule);
     });
     const ordered = [...groups.entries()].sort((a, b) => label(config.classifications, a[0]).localeCompare(label(config.classifications, b[0]), 'pt'));
-    els.groups.innerHTML = ordered.map(([docClass, rules]) => `
+    els.groups.innerHTML = ordered.map(([docClass, rules]) => {
+      const open = openGroups.has(docClass);
+      return `
       <section class="docai-distribution-group">
-        <h4>${escapeHtml(label(config.classifications, docClass))}</h4>
-        <table class="docai-distribution-table is-required">
+        <button type="button" class="docai-required-group-toggle" data-toggle-required="${escapeHtml(docClass)}" aria-expanded="${open ? 'true' : 'false'}">
+          <i class="fa-solid fa-${open ? 'minus' : 'plus'}" aria-hidden="true"></i>
+          <strong>${escapeHtml(label(config.classifications, docClass))}</strong>
+          <span>${rules.length}</span>
+        </button>
+        <table class="docai-distribution-table is-required" ${open ? '' : 'hidden'}>
           <thead><tr><th>Origem</th><th>Informação Obrigatória</th><th>Ação</th></tr></thead>
           <tbody>${rules.sort((a, b) => `${label(config.views, a.view)}:${label(config.fields, a.field)}`.localeCompare(`${label(config.views, b.view)}:${label(config.fields, b.field)}`, 'pt')).map((rule) => `
             <tr>
@@ -57,7 +64,8 @@ document.addEventListener('DOMContentLoaded', () => {
               <td><button type="button" class="sz_button sz_button_ghost docai-access-remove" data-delete-required="${escapeHtml(rule.id)}" title="Eliminar" aria-label="Eliminar"><i class="fa-solid fa-trash"></i></button></td>
             </tr>`).join('')}</tbody>
         </table>
-      </section>`).join('') || '<p class="sz_text_muted">Sem informações obrigatórias configuradas.</p>';
+      </section>`;
+    }).join('') || '<p class="sz_text_muted">Sem informações obrigatórias configuradas.</p>';
   }
 
   function options(select, items, selected) {
@@ -127,6 +135,12 @@ document.addEventListener('DOMContentLoaded', () => {
   els.view.addEventListener('change', compatibleFields);
   els.docClass.addEventListener('change', compatibleFields);
   els.groups.addEventListener('click', (event) => {
+    const toggleClass = event.target.closest('[data-toggle-required]')?.dataset.toggleRequired;
+    if (toggleClass) {
+      openGroups.has(toggleClass) ? openGroups.delete(toggleClass) : openGroups.add(toggleClass);
+      render();
+      return;
+    }
     const editId = event.target.closest('[data-edit-required]')?.dataset.editRequired;
     if (editId) { const rule = config.rules.find((item) => item.id === editId); if (rule) openModal(rule); return; }
     const deleteId = event.target.closest('[data-delete-required]')?.dataset.deleteRequired;

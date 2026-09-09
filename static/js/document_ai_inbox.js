@@ -122,6 +122,16 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  function positionColumnFilterMenu(host) {
+    const trigger = host.querySelector('.docai-column-filter-trigger');
+    const menu = host.querySelector('.docai-column-filter-menu');
+    if (!trigger || !menu || !host.classList.contains('is-open')) return;
+    const bounds = trigger.getBoundingClientRect();
+    menu.style.top = `${Math.min(window.innerHeight - 12, bounds.bottom + 6)}px`;
+    menu.style.left = `${Math.max(12, Math.min(bounds.left, window.innerWidth - Math.max(240, bounds.width) - 12))}px`;
+    menu.style.width = `${Math.max(240, bounds.width)}px`;
+  }
+
   function renderColumnFilter(field) {
     const host = document.querySelector(`.docai-column-filter[data-filter="${field}"]`);
     if (!host) return;
@@ -146,6 +156,22 @@ document.addEventListener('DOMContentLoaded', () => {
         <button type="button" class="docai-column-filter-clear">Limpar</button>
       </div>
     `;
+  }
+
+  function renderColumnFilterOptions(field) {
+    const host = document.querySelector(`.docai-column-filter[data-filter="${field}"]`);
+    const optionsHost = host?.querySelector('.docai-column-filter-options');
+    const search = host?.querySelector('.docai-column-filter-search');
+    if (!host || !optionsHost || !search) return;
+    const query = String(search.value || '').trim().toLowerCase();
+    const selected = state.filters[field];
+    const options = contextualOptions(field).filter((value) => value.toLowerCase().includes(query));
+    optionsHost.innerHTML = options.length ? options.map((value) => `
+      <label class="docai-column-filter-option">
+        <input type="checkbox" value="${escapeHtml(value)}" ${selected.has(value) ? 'checked' : ''}>
+        <span>${escapeHtml(value)}</span>
+      </label>
+    `).join('') : '<span class="sz_text_muted">Sem valores.</span>';
   }
 
   function refreshColumnFilters() {
@@ -293,7 +319,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!els.counts) return;
     const stateCounts = new Map();
     const statePopulation = state.allItems.filter((item) => matchesFilters(item, 'state'));
-    const total = state.total;
+    const scopeTotal = state.total;
+    const visibleTotal = state.filteredItems.length;
     const requiredStates = state.archived
       ? ['Validado', 'Eliminado']
       : state.view === 'accounting'
@@ -331,9 +358,8 @@ document.addEventListener('DOMContentLoaded', () => {
     typeGroups.push(counterGroup('Tipo de documento', 'document_type', 'document_type', state.docTypes, state.typeFilters));
     if (state.view !== 'home') typeGroups.push(counterGroup('Tipo de fatura', 'invoice_type', 'invoice_type', state.invoiceTypes, state.invoiceTypeFilters));
     els.counts.innerHTML = `
-      <div class="docai-counts-scroll">
-      <div class="docai-business-count-group" aria-label="Filtros de estado">
-        <span class="docai-business-count-title">Estado</span>
+      <div class="docai-business-count-group docai-business-count-states" aria-label="Filtros de estados">
+        <span class="docai-business-count-title">Estados</span>
         <div class="docai-business-count-options">
           ${[...stateCounts.entries()].map(([value, count]) => `
             <button type="button" class="docai-business-count-chip ${state.stateFilters.has(value) ? 'is-active' : ''}"
@@ -343,13 +369,64 @@ document.addEventListener('DOMContentLoaded', () => {
           `).join('') || '<span class="sz_text_muted">Sem estados</span>'}
         </div>
       </div>
-      ${typeGroups.join('')}
+      <div class="docai-counts-types" tabindex="0" aria-label="Tipos de documento; use as setas para deslocar">
+        ${typeGroups.join('')}
       </div>
       <button type="button" class="docai-count-card docai-count-card-action docai-filtered-total" data-action="reset-filters" title="Limpar filtros" aria-label="Mostrar todos os documentos e limpar filtros">
-        <span class="count">${total}</span>
+        <span class="count">${visibleTotal} de ${scopeTotal}</span>
         <span class="label">Total</span>
       </button>
     `;
+    bindTypeCounterScroller();
+  }
+
+  function bindTypeCounterScroller() {
+    const scroller = els.counts?.querySelector('.docai-counts-types');
+    if (!scroller) return;
+    let pointerId = null;
+    let startX = 0;
+    let startScroll = 0;
+    let dragged = false;
+    scroller.addEventListener('pointerdown', (event) => {
+      if (event.pointerType === 'mouse' && event.button !== 0) return;
+      pointerId = event.pointerId;
+      startX = event.clientX;
+      startScroll = scroller.scrollLeft;
+      dragged = false;
+      scroller.setPointerCapture(pointerId);
+    });
+    scroller.addEventListener('pointermove', (event) => {
+      if (pointerId !== event.pointerId) return;
+      const delta = event.clientX - startX;
+      if (Math.abs(delta) > 5) dragged = true;
+      if (dragged) scroller.scrollLeft = startScroll - delta;
+    });
+    const finishDrag = (event) => {
+      if (pointerId !== event.pointerId) return;
+      if (scroller.hasPointerCapture(pointerId)) scroller.releasePointerCapture(pointerId);
+      pointerId = null;
+      if (dragged) scroller.dataset.dragged = '1';
+    };
+    scroller.addEventListener('pointerup', finishDrag);
+    scroller.addEventListener('pointercancel', finishDrag);
+    scroller.addEventListener('click', (event) => {
+      if (scroller.dataset.dragged !== '1') return;
+      event.preventDefault();
+      event.stopPropagation();
+      delete scroller.dataset.dragged;
+    }, true);
+    scroller.addEventListener('wheel', (event) => {
+      if (!event.deltaX && !event.shiftKey) return;
+      scroller.scrollLeft += event.deltaX || event.deltaY;
+      event.preventDefault();
+    }, { passive: false });
+    scroller.addEventListener('keydown', (event) => {
+      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+      if (event.key === 'Home') scroller.scrollTo({ left: 0, behavior: 'smooth' });
+      else if (event.key === 'End') scroller.scrollTo({ left: scroller.scrollWidth, behavior: 'smooth' });
+      else scroller.scrollBy({ left: event.key === 'ArrowLeft' ? -160 : 160, behavior: 'smooth' });
+      event.preventDefault();
+    });
   }
 
   function applyFilters({ resetScroll = false } = {}) {
@@ -471,7 +548,10 @@ document.addEventListener('DOMContentLoaded', () => {
         closeColumnFilters(host);
         host.classList.toggle('is-open', opening);
         renderColumnFilter(field);
-        if (opening) host.querySelector('.docai-column-filter-search')?.focus();
+        if (opening) {
+          positionColumnFilterMenu(host);
+          host.querySelector('.docai-column-filter-search')?.focus();
+        }
         return;
       }
       const checkbox = event.target.closest('input[type="checkbox"]');
@@ -490,17 +570,15 @@ document.addEventListener('DOMContentLoaded', () => {
     host.addEventListener('input', (event) => {
       event.stopPropagation();
       if (!event.target.matches('.docai-column-filter-search')) return;
-      const cursorValue = event.target.value;
-      renderColumnFilter(host.dataset.filter);
-      host.classList.add('is-open');
-      const search = host.querySelector('.docai-column-filter-search');
-      if (search) search.value = cursorValue;
+      renderColumnFilterOptions(host.dataset.filter);
     });
   });
 
   document.addEventListener('click', (event) => {
     if (!event.target.closest('.docai-column-filter')) closeColumnFilters();
   });
+  els.tableScroller?.addEventListener('scroll', () => closeColumnFilters());
+  window.addEventListener('resize', () => closeColumnFilters());
   [els.dateFrom, els.dateTo, els.valueMin, els.valueMax].forEach((input) => input?.addEventListener('input', applyFilters));
   els.counts?.addEventListener('click', (event) => {
     if (event.target.closest('[data-action="reset-filters"]')) {

@@ -39,6 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
     gedFileRow: document.getElementById('docAiExtractGedFileRow'),
     gedPath: document.getElementById('docAiExtractGedPath'),
     gedFolderControl: document.getElementById('docAiExtractGedFolderControl'),
+    gedFolderTrigger: document.getElementById('docAiExtractGedFolderTrigger'),
     gedFolderSelect: document.getElementById('docAiExtractGedFolderSelect'),
     gedFolderHint: document.getElementById('docAiExtractGedFolderHint'),
     projectCard: document.getElementById('docAiExtractProjectCard'),
@@ -179,6 +180,7 @@ document.addEventListener('DOMContentLoaded', () => {
     projectCandidates: [],
     projectTargetLineIndex: null,
     articleCandidates: [],
+    articleSuggestionConfidence: 'none',
     articleTargetLineIndex: null,
     vehicleCandidates: [],
     vehicleTargetLineIndex: null,
@@ -214,6 +216,7 @@ document.addEventListener('DOMContentLoaded', () => {
     workflow: {},
     duplicateMatches: [],
     duplicateModalShownFor: '',
+    headerPreflight: null,
     deletingDocument: false,
     draftVersion: '',
     draftTimer: null,
@@ -224,6 +227,10 @@ document.addEventListener('DOMContentLoaded', () => {
     draftError: false,
     draftConflict: false,
     pendingManualOverrides: null,
+    headerEditing: '',
+    confirmInvoiceTypeRemoval: false,
+    validationVisible: false,
+    validationMissing: new Set(),
     readOnly,
     view: allowedViews.has(initialView) ? initialView : ([...allowedViews][0] || ''),
   };
@@ -249,6 +256,7 @@ document.addEventListener('DOMContentLoaded', () => {
     concrete: 'Betão',
     material: 'Material',
     services: 'Serviços',
+    fuel_tolls: 'C&P',
   };
 
   function escapeHtml(value) {
@@ -552,7 +560,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const isIntersol = customer.phc_database === 'INTERSOL'
       || String(customer.ged_folder || '').startsWith('HSOLS_INTERSOL_');
     els.gedFolderControl.hidden = !isIntersol;
-    if (!isIntersol) return;
+    if (!isIntersol) {
+      els.gedFolderSelect.hidden = true;
+      return;
+    }
 
     const suggestion = suggestIntersolGedFolder(state.documentData);
     if (!state.gedFolderManuallySelected && suggestion) {
@@ -571,6 +582,8 @@ document.addEventListener('DOMContentLoaded', () => {
       return element;
     }));
     placeholder.selected = !selectedFolder;
+    const selectedLabel = intersolGedFolders.find((option) => option.value === selectedFolder)?.label;
+    els.gedFolderTrigger.textContent = selectedLabel || 'Agência INTERSOL';
     els.gedFolderHint.textContent = state.gedFolderManuallySelected
       ? 'Destino escolhido manualmente'
       : (customer.ged_folder_suggested_by || (selectedFolder ? 'Agência definida pela entidade' : 'Falta a agência.'));
@@ -761,19 +774,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderDocumentCard() {
     const documentData = state.documentData || {};
-    const docType = typeLabels[documentData.document_type] || documentData.document_type || typeLabels.unknown;
+    const normalizedDocumentType = String(documentData.document_type || '').trim().toLowerCase();
+    const docType = normalizedDocumentType && normalizedDocumentType !== 'unknown'
+      ? (typeLabels[normalizedDocumentType] || documentData.document_type)
+      : '';
     const displayedNumber = documentData.document_type === 'mail'
       ? documentData.mail_title
       : documentData.document_number;
     const invoiceType = ['invoice', 'provisional_invoice'].includes(documentData.document_type)
       ? invoiceTypeLabels[String(documentData.invoice_type || '').toLowerCase()]
       : '';
-    els.documentSummary.textContent = [
-      docType,
-      invoiceType,
-      displayedNumber,
-      documentData.document_date ? formatDate(documentData.document_date) : '',
-    ].filter(Boolean).join(' · ');
+    const editable = !state.readOnly && ['home', 'management'].includes(state.view) && !state.workflow?.management_validated;
+    const text = (field, value, fallback) => editable
+      ? `<button type="button" class="docai-header-editable" data-header-edit="${field}">${escapeHtml(value || fallback)}</button>`
+      : escapeHtml(value || fallback);
+    const editing = state.headerEditing;
+    const documentTypes = Object.entries(typeLabels).filter(([key]) => key !== 'unknown')
+      .map(([key, label]) => `<option value="${key}" ${documentData.document_type === key ? 'selected' : ''}>${escapeHtml(label)}</option>`).join('');
+    const invoiceTypes = Object.entries(invoiceTypeLabels)
+      .map(([key, label]) => `<option value="${key}" ${documentData.invoice_type === key ? 'selected' : ''}>${escapeHtml(label)}</option>`).join('');
+    const isInvoice = ['invoice', 'provisional_invoice'].includes(documentData.document_type);
+    const parts = [
+      editing === 'document_type' ? `<select class="sz_select docai-header-inline-input" data-header-input="document_type">${documentTypes}</select>` : text('document_type', docType, 'Tipo de documento'),
+      ...(isInvoice || editing === 'document_type' ? [editing === 'invoice_type' ? `<select class="sz_select docai-header-inline-input" data-header-input="invoice_type">${invoiceTypes}</select>` : text('invoice_type', invoiceType, 'Tipo de fatura')] : []),
+      editing === 'document_number' ? `<input class="sz_input docai-header-inline-input" data-header-input="document_number" value="${escapeHtml(displayedNumber || '')}">` : text('document_number', displayedNumber, 'Nº do documento'),
+      editing === 'document_date' ? `<input class="sz_input docai-header-inline-input" data-header-input="document_date" value="${escapeHtml(documentData.document_date ? formatDate(documentData.document_date) : '')}" placeholder="DD/MM/AAAA">` : text('document_date', documentData.document_date ? formatDate(documentData.document_date) : '', 'Data do documento'),
+    ];
+    els.documentSummary.innerHTML = parts.join('<span class="docai-header-separator"> · </span>');
+    const editor = els.documentSummary.querySelector('[data-header-input]');
+    if (editor && editing === 'document_date' && window.flatpickr) window.flatpickr(editor, { dateFormat: 'd/m/Y', allowInput: true, defaultDate: documentData.document_date || null });
+    if (editor) window.setTimeout(() => editor.focus(), 0);
     if (state.correspondenceReference) {
       els.correspondenceReference.textContent = `Correspondência n.º ${state.correspondenceReference} · ${state.correspondenceYear}`;
     } else {
@@ -781,10 +811,80 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  async function saveHeaderField(field, value) {
+    const data = state.documentData;
+    if (!data) return;
+    const previousValue = data[field];
+    const previousInvoiceType = data.invoice_type;
+    if (field === 'document_date') {
+      const match = String(value || '').trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+      if (!match) return showMessage('Indica a data no formato DD/MM/AAAA.', 'error');
+      value = `${match[3]}-${match[2]}-${match[1]}`;
+    }
+    if (field === 'document_type') {
+      const leavingInvoice = ['invoice', 'provisional_invoice'].includes(data.document_type) && !['invoice', 'provisional_invoice'].includes(value) && data.invoice_type;
+      if (leavingInvoice && !window.confirm('Ao alterar o tipo de documento será removido o tipo de fatura. Continuar?')) return;
+      state.confirmInvoiceTypeRemoval = Boolean(leavingInvoice);
+      data.document_type = value;
+      if (leavingInvoice) data.invoice_type = 'unknown';
+    } else data[field] = value;
+    state.headerEditing = '';
+    renderDocumentCard();
+    renderGedDestination();
+    const saved = await scheduleAnalysisSave({ immediate: true });
+    state.confirmInvoiceTypeRemoval = false;
+    if (!saved) {
+      data[field] = previousValue;
+      data.invoice_type = previousInvoiceType;
+      renderDocumentCard();
+      renderGedDestination();
+      showMessage('Não foi possível guardar a correção. O valor anterior foi reposto.', 'error');
+      return;
+    }
+    await refreshHeaderDependencies();
+  }
+
+  async function refreshHeaderDependencies() {
+    if (!state.currentDocumentId || !state.documentData) return;
+    const [, preflight] = await Promise.allSettled([
+      loadCorrespondenceReference(),
+      fetchJson(`/api/document_ai/documents/${encodeURIComponent(state.currentDocumentId)}/workflow/preflight`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ view: state.view, document: state.documentData }),
+      }),
+    ]);
+    if (preflight.status === 'fulfilled') {
+      state.headerPreflight = preflight.value;
+      const duplicates = Array.isArray(preflight.value?.duplicates) ? preflight.value.duplicates : [];
+      state.duplicateMatches = duplicates;
+      if (duplicates.length) openDuplicateModal(duplicates);
+    }
+    renderDocumentCard();
+    renderGedDestination();
+    updateSubmitPhcButton();
+  }
+
   async function loadCorrespondenceReference() {
     const integration = state.integrationResult || {};
     state.correspondenceReference = Number(integration.reference || 0) || null;
     state.correspondenceYear = Number(integration.year || new Date().getFullYear());
+    if (!state.correspondenceReference && state.documentData?.customer?.feid) {
+      const year = Number(String(state.documentData.document_date || '').slice(0, 4)) || new Date().getFullYear();
+      try {
+        const preview = await fetchJson('/api/document_ai/correspondence/next-reference', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ customer: state.documentData.customer || {}, year }),
+        });
+        if (preview?.available) {
+          state.correspondenceReference = Number(preview.reference || 0) || null;
+          state.correspondenceYear = Number(preview.year || year);
+        }
+      } catch (_) {
+        setStatus('Não foi possível obter o próximo número de correspondência.', true);
+      }
+    }
     if (state.documentData) {
       state.documentData.correspondence_reference = state.correspondenceReference;
       state.documentData.correspondence_year = state.correspondenceYear;
@@ -1017,7 +1117,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function scheduleAnalysisSave({ immediate = false } = {}) {
-    if (state.readOnly) return Promise.resolve(true);
+    if (state.readOnly || state.view === 'accounting') return Promise.resolve(true);
     if (!state.currentDocumentId || !state.documentData || state.draftConflict) return Promise.resolve(false);
     state.draftRevision += 1;
     window.clearTimeout(state.draftTimer);
@@ -1028,7 +1128,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function flushAnalysisSave() {
-    if (state.readOnly) return true;
+    if (state.readOnly || state.view === 'accounting') return true;
     window.clearTimeout(state.draftTimer);
     state.draftTimer = null;
     if (!state.currentDocumentId || !state.documentData || state.draftConflict) return !state.draftError;
@@ -1052,7 +1152,7 @@ document.addEventListener('DOMContentLoaded', () => {
     state.draftRequest = fetchJson(`/api/document_ai/documents/${encodeURIComponent(state.currentDocumentId)}/draft`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ expected_version: state.draftVersion, document: snapshot }),
+      body: JSON.stringify({ expected_version: state.draftVersion, view: state.view, confirm_invoice_type_removal: state.confirmInvoiceTypeRemoval, document: snapshot }),
     });
     try {
       const payload = await state.draftRequest;
@@ -1464,14 +1564,46 @@ document.addEventListener('DOMContentLoaded', () => {
       els.linesBody.innerHTML = '<tr><td colspan="12" class="sz_text_muted">Não foram encontradas linhas comerciais visíveis.</td></tr>';
       return;
     }
-    els.linesBody.innerHTML = items.map((line, lineIndex) => {
+    const displayItems = items.map((line, lineIndex) => {
+      const costCenter = String(line.ccusto || line.project_ccusto || state.selectedProject?.ccusto || '').trim();
+      const registration = String(line.registration || line.matricula || '').trim();
+      return { line, lineIndex, costCenter, registration, groupKey: `${costCenter}\u0000${registration}` };
+    }).sort((left, right) => (
+      left.costCenter.localeCompare(right.costCenter, 'pt', { sensitivity: 'base' })
+      || left.registration.localeCompare(right.registration, 'pt', { sensitivity: 'base' })
+      || left.lineIndex - right.lineIndex
+    ));
+    const validationTitle = (condition, title) => condition ? ` title="${escapeHtml(title)}"` : '';
+    const validationClass = (condition) => condition ? ' docai-validation-field-error' : '';
+    els.linesBody.innerHTML = displayItems.map(({ line, lineIndex, groupKey }, displayIndex) => {
+      const groupStart = displayIndex === 0 || displayItems[displayIndex - 1].groupKey !== groupKey;
       const selectedForSplit = state.selectedSplitLines.has(line);
       const project = String(line.ccusto || line.project_ccusto || state.selectedProject?.ccusto || '').trim();
       const groupCode = normalizeLineGroupCode(line.article_group_code);
       const registration = String(line.registration || line.matricula || '').trim();
+      const vehicleInvalid = Boolean(registration) && Boolean(
+        line.vehicle_not_found || line.vehicle_invalid || line.registration_valid === false
+      );
+      const validation = state.validationVisible ? {
+        article: state.validationMissing.has('article') && !String(line.article_ref || line.article || '').trim(),
+        description: state.validationMissing.has('description') && !String(line.description || '').trim(),
+        quantity: state.validationMissing.has('quantity') && (line.qty === null || line.qty === undefined || line.qty === ''),
+        unitPrice: state.validationMissing.has('unit_price') && (line.unit_price === null || line.unit_price === undefined || line.unit_price === ''),
+        total: state.validationMissing.has('line_total') && (line.net_amount === null || line.net_amount === undefined || line.net_amount === ''),
+        value: Number.isFinite(Number(line.qty)) && Number.isFinite(Number(line.unit_price)) && Number.isFinite(Number(line.net_amount))
+          && Math.abs((Number(line.qty) * Number(line.unit_price)) - Number(line.net_amount)) > 0.02,
+        project: state.validationMissing.has('project') && !project,
+        vehicle: (state.validationMissing.has('vehicle') && Boolean(line.vehicle_required) && !registration) || vehicleInvalid,
+        date: state.validationMissing.has('date') && !String(line.date || line.data || state.documentData?.document_date || '').trim(),
+        distribution: state.validationMissing.has('delivery_note') && !String(line.origin_delivery_note_number || '').trim(),
+      } : {};
+      const lineError = Object.values(validation).some(Boolean);
+      const validationTone = groupCode.startsWith('A') || line._virtual_split_allocation
+        ? 'docai-validation-subline-error'
+        : 'docai-validation-primary-line-error';
       const vehicleCell = registration
-        ? `<button type="button" class="docai-extract-vehicle-btn is-selected" data-line-vehicle="${lineIndex}" title="${escapeHtml(registration)}" aria-label="${escapeHtml(registration)}"><i class="fa-solid fa-car"></i></button>`
-        : `<button type="button" class="docai-extract-vehicle-btn is-empty" data-line-vehicle="${lineIndex}" aria-label="Associar veículo"></button>`;
+        ? `<button type="button" class="docai-extract-vehicle-btn is-selected" data-line-vehicle="${lineIndex}" title="${vehicleInvalid ? canonicalValidationTooltips.invalidRegistration : canonicalValidationTooltips.vehicleAssociated}" aria-label="${canonicalValidationTooltips.vehicleAssociated}: ${escapeHtml(registration)}"><i class="fa-solid fa-car"></i></button>`
+        : `<button type="button" class="docai-extract-vehicle-btn is-empty" data-line-vehicle="${lineIndex}" title="${canonicalValidationTooltips.vehicleToAssociate}" aria-label="${canonicalValidationTooltips.vehicleToAssociate}"></button>`;
       const lineDate = String(line.date || line.data || '').trim().slice(0, 10);
       const currencyCode = String(currency || '').trim().toUpperCase();
       const currencySuffix = /^[A-Z]{3}$/.test(currencyCode)
@@ -1498,42 +1630,49 @@ document.addEventListener('DOMContentLoaded', () => {
             <td class="docai-extract-number">${escapeHtml(formatNumber(allocation.quantity))}</td>
             <td class="docai-extract-number">${escapeHtml(formatMoney(allocation.unit_price, currency))}</td>
             <td class="docai-extract-number">${escapeHtml(formatMoney(allocation.total, currency))}</td>
-            <td></td><td></td><td></td><td hidden></td>
+            <td></td><td></td><td></td><td></td><td hidden></td>
             <td><span class="docai-extract-bc-ref">${escapeHtml(formatBcLabel(allocation))}${allocation.origin_line_order ? ` · Linha ${escapeHtml(formatNumber(allocation.origin_line_order))}` : ''}</span></td>${hasDeliveryNoteColumn ? '<td></td>' : ''}
           </tr>`).join('')
         : '';
       const primaryOrigin = state.selectedOrigins.find((origin) => originFamily(origin) === primaryFamily);
       const primaryReference = primaryFamily === 'bc'
         ? `<button type="button" class="docai-extract-cell-link" data-line-bc="${lineIndex}" title="Associar Nota de Encomenda à linha">${escapeHtml(bcSummary)}</button>${distributionButton}`
-        : `<span class="docai-extract-bc-ref">${escapeHtml(primaryOrigin ? `${primaryFamily === 'subcontract' ? 'Contrato de SubEmpreitada' : 'Contrato'} N.º ${primaryOrigin.number || '--'}${primaryOrigin.year ? ` / ${primaryOrigin.year}` : ''}` : '--')}</span>`;
+        : `<span class="docai-extract-bc-ref">${escapeHtml(primaryOrigin ? `${primaryFamily === 'subcontract' ? 'Contrato de SubEmpreitada' : 'Contrato'} N.º ${primaryOrigin.number || '--'}${primaryOrigin.year ? ` · ${primaryOrigin.year}` : ''}` : '--')}</span>`;
       const workSituation = state.selectedOrigins.find((origin) => originFamily(origin) === 'work_situation');
       const secondaryCell = hasDeliveryNoteColumn
         ? `<td class="docai-extract-line-picker-cell"><input type="checkbox" class="docai-extract-bl-selector" data-line-select="${lineIndex}" role="checkbox" aria-label="Selecionar para distribuir por Guia de Remessa" aria-checked="${selectedForSplit ? 'true' : 'false'}" ${selectedForSplit ? 'checked' : ''} ${line._virtual_split_allocation ? 'disabled' : ''}></td>`
         : hasWorkSituationColumn
-          ? `<td><span class="docai-extract-bc-ref">${escapeHtml(workSituation ? `N.º ${workSituation.number || '--'}${workSituation.year ? ` / ${workSituation.year}` : ''}` : '--')}</span></td>`
+          ? `<td><span class="docai-extract-bc-ref">${escapeHtml(workSituation ? `N.º ${workSituation.number || '--'}${workSituation.year ? ` · ${workSituation.year}` : ''}` : '--')}</span></td>`
           : '';
-      return `<tr class="${line._virtual_split_allocation ? 'is-split-allocation' : ''}">
+      return `<tr data-line-index="${lineIndex}" class="${line._virtual_split_allocation ? 'is-split-allocation ' : ''}${groupStart ? 'docai-extract-line-group-start ' : ''}${lineError ? `docai-validation-line-error ${validationTone}` : ''}"${validationTitle(lineError || line.informative || line.is_informative, lineError ? (validation.value || validation.total ? 'Valor não Conforme' : validation.article ? 'Artigo não Conforme' : validation.vehicle ? 'Falta Matrícula' : validation.project ? 'Falta Centro de Custo' : validation.distribution ? 'Falta Distribuição' : 'Valor não Conforme') : 'Linha Ignorada')}>
         <td><input class="sz_input docai-extract-line-group-input" data-line-group="${lineIndex}" value="${escapeHtml(groupCode)}" title="P = Principal · A = Associado" aria-label="Grupo de artigo"></td>
-        <td><button type="button" class="docai-extract-cell-link" data-line-article="${lineIndex}" title="Escolher artigo PHC">${escapeHtml(line.ref || 'Escolher')}</button></td>
-        <td><input class="sz_input docai-extract-line-description-input" data-line-description="${lineIndex}" value="${escapeHtml(line.description || '')}" aria-label="Designação da linha"></td>
-        <td><input class="sz_input docai-extract-line-number-input" inputmode="decimal" data-line-qty="${lineIndex}" value="${escapeHtml(formatEditableAmount(line.qty))}" aria-label="Quantidade"></td>
-        <td><span class="docai-extract-line-money-input"><input class="sz_input docai-extract-line-number-input" inputmode="decimal" data-line-unit-price="${lineIndex}" value="${escapeHtml(formatEditableAmount(line.unit_price))}" aria-label="Preço unitário">${currencySuffix}</span></td>
-        <td><span class="docai-extract-line-money-input"><input class="sz_input docai-extract-line-number-input" inputmode="decimal" data-line-total="${lineIndex}" value="${escapeHtml(formatEditableAmount(line.net_amount))}" aria-label="Preço total">${currencySuffix}</span></td>
-        <td><button type="button" class="docai-extract-cell-link" data-line-project="${lineIndex}" title="Escolher uma obra">${escapeHtml(project || 'Escolher')}</button></td>
-        <td class="docai-extract-vehicle-cell">${vehicleCell}</td>
-        <td><input type="date" class="sz_input docai-extract-line-date-input" data-line-date="${lineIndex}" value="${escapeHtml(lineDate)}" aria-label="Data da linha"></td>
+        <td><button type="button" class="docai-extract-cell-link${validationClass(validation.article)}" data-line-article="${lineIndex}" title="${validation.article ? 'Artigo não Conforme' : 'Escolher artigo PHC'}">${escapeHtml(line.article_ref || line.article || 'Escolher')}</button></td>
+        <td><input class="sz_input docai-extract-line-description-input${validationClass(validation.description)}" data-line-description="${lineIndex}" value="${escapeHtml(line.description || '')}" aria-label="Designação da linha"${validationTitle(validation.description, 'Valor não Conforme')}></td>
+        <td><input class="sz_input docai-extract-line-number-input${validationClass(validation.quantity)}" inputmode="decimal" data-line-qty="${lineIndex}" value="${escapeHtml(formatEditableAmount(line.qty))}" aria-label="Quantidade"${validationTitle(validation.quantity, 'Valor não Conforme')}></td>
+        <td><span class="docai-extract-line-money-input"><input class="sz_input docai-extract-line-number-input${validationClass(validation.unitPrice)}" inputmode="decimal" data-line-unit-price="${lineIndex}" value="${escapeHtml(formatEditableAmount(line.unit_price))}" aria-label="Preço unitário"${validationTitle(validation.unitPrice, 'Valor não Conforme')}>${currencySuffix}</span></td>
+        <td><span class="docai-extract-line-money-input"><input class="sz_input docai-extract-line-number-input${validationClass(validation.total || validation.value)}" inputmode="decimal" data-line-total="${lineIndex}" value="${escapeHtml(formatEditableAmount(line.net_amount))}" aria-label="Preço total"${validationTitle(validation.total || validation.value, 'Valor não Conforme')}>${currencySuffix}</span></td>
+        <td><input class="sz_input docai-extract-line-number-input" inputmode="decimal" data-line-tax-rate="${lineIndex}" value="${escapeHtml(formatEditableAmount(line.tax_rate))}" aria-label="Taxa de IVA"></td>
+        <td><button type="button" class="docai-extract-cell-link${validationClass(validation.project)}" data-line-project="${lineIndex}" title="${validation.project ? 'Falta Centro de Custo' : 'Escolher uma obra'}">${escapeHtml(project || 'Escolher')}</button></td>
+        <td class="docai-extract-vehicle-cell${validationClass(validation.vehicle)}"${validationTitle(validation.vehicle, 'Falta Matrícula')}>${vehicleCell}</td>
+        <td><input type="date" class="sz_input docai-extract-line-date-input${validationClass(validation.date)}" data-line-date="${lineIndex}" value="${escapeHtml(lineDate)}" aria-label="Data da linha"${validationTitle(validation.date, 'Valor não Conforme')}></td>
         <td class="docai-extract-line-distribution" hidden></td>
         <td class="docai-extract-bc-ref-cell">${primaryReference}</td>
         ${secondaryCell}
       </tr>${bcRows}`;
     }).join('');
+    window.setTimeout(refreshValidationHighlights, 0);
   }
 
   function applyReadOnlyState() {
-    if (!state.readOnly || !pageRoot) return;
+    const analysisReadOnly = state.readOnly || state.view === 'accounting';
+    if (!analysisReadOnly || !pageRoot) return;
     pageRoot.querySelectorAll('input, select, textarea').forEach((control) => {
       control.disabled = true;
       control.setAttribute('aria-readonly', 'true');
+    });
+    els.results?.querySelectorAll('button').forEach((control) => {
+      control.disabled = true;
+      control.setAttribute('aria-disabled', 'true');
     });
     [els.customerCard, els.supplierCard, els.projectCard].forEach((card) => {
       if (!card) return;
@@ -1542,14 +1681,36 @@ document.addEventListener('DOMContentLoaded', () => {
       card.setAttribute('aria-disabled', 'true');
     });
     if (els.splitLineBtn) els.splitLineBtn.hidden = true;
-    if (els.status) {
+    if (state.readOnly && els.status) {
       els.status.textContent = 'Consulta do Arquivo';
       els.status.hidden = false;
     }
   }
 
   function renderTaxes(taxes, currency) {
-    const items = Array.isArray(taxes) ? taxes : [];
+    const sourceItems = Array.isArray(taxes) ? taxes : [];
+    const grouped = new Map();
+    sourceItems.forEach((tax) => {
+      const rate = Number(tax?.tax_rate || 0);
+      const technicalKey = [
+        rate.toFixed(6),
+        String(tax?.tax_code || tax?.code || ''),
+        String(tax?.regime || tax?.tax_type || ''),
+        String(tax?.exemption_reason || ''),
+      ].join('|');
+      const current = grouped.get(technicalKey) || {
+        ...tax,
+        tax_rate: rate,
+        taxable_base: 0,
+        tax_amount: 0,
+        gross_total: 0,
+      };
+      current.taxable_base += Number(tax?.taxable_base || 0);
+      current.tax_amount += Number(tax?.tax_amount || 0);
+      current.gross_total += Number(tax?.gross_total || 0);
+      grouped.set(technicalKey, current);
+    });
+    const items = [...grouped.values()];
     if (!items.length) {
       els.taxesBody.innerHTML = '<tr><td colspan="4" class="sz_text_muted">Sem discriminação de IVA visível.</td></tr>';
       return;
@@ -1846,7 +2007,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return `
           <article class="docai-extract-origin-candidate${consulted ? ' is-selected' : ''}${associated ? ' is-associated' : ''}" data-origin-index="${candidateIndex}" role="button" tabindex="0" aria-label="Consultar ${escapeHtml(stage.label || 'origem')} ${escapeHtml(candidate.number || '')}">
             <span class="docai-extract-origin-candidate-top">
-              <strong>N.º ${escapeHtml(candidate.number || '--')}${candidate.year ? ` / ${escapeHtml(candidate.year)}` : ''}${scoreLabel}</strong>
+              <strong>N.º ${escapeHtml(candidate.number || '--')}${candidate.year ? ` · ${escapeHtml(candidate.year)}` : ''}${scoreLabel}</strong>
               <button type="button" class="docai-origin-link-button${associated ? ' is-associated' : ''}" data-origin-link="${candidateIndex}" aria-label="${associated ? 'Desassociar do processo' : (contractLocked ? 'Contrato associado.' : 'Associar ao processo')}" title="${associated ? 'Desassociar do processo' : (contractLocked ? 'Contrato associado.' : 'Associar ao processo')}" ${contractLocked && !associated ? 'disabled' : ''}><i class="fa-solid ${associated ? 'fa-link-slash' : 'fa-link'}"></i></button>
             </span>
             <span>${escapeHtml(formatDate(candidate.date))}</span>
@@ -2158,7 +2319,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!candidate || !state.currentDocumentId || !els.originDetailModal) return;
     state.consultedOriginStamp = candidate.stamp || '';
     renderOriginCandidates({ ...(state.originPayload || {}), selected_origins: state.selectedOrigins }, { skipLineMapping: true });
-    const number = `n.º ${candidate.number || '--'}${candidate.year ? ` / ${candidate.year}` : ''}`;
+    const number = `n.º ${candidate.number || '--'}${candidate.year ? ` · ${candidate.year}` : ''}`;
     els.originDetailTitle.textContent = `${candidate.stage_label || 'Origem'} ${number}`;
     els.originDetailLoading.hidden = false;
     els.originDetailTable.hidden = true;
@@ -2442,8 +2603,9 @@ document.addEventListener('DOMContentLoaded', () => {
     els.articleModal.setAttribute('aria-hidden', 'true');
   }
 
-  function renderArticleCandidates(items) {
+  function renderArticleCandidates(items, confidence = 'none') {
     state.articleCandidates = Array.isArray(items) ? items : [];
+    state.articleSuggestionConfidence = confidence;
     if (!state.articleCandidates.length) {
       els.articleList.innerHTML = '<div class="docai-empty-state">Nenhum artigo encontrado.</div>';
       return;
@@ -2451,16 +2613,20 @@ document.addEventListener('DOMContentLoaded', () => {
     els.articleList.innerHTML = state.articleCandidates.map((article, index) => `
       <button type="button" class="docai-supplier-match-option" data-article-index="${index}">
         <span class="docai-supplier-match-main">
-          <strong>${escapeHtml(article.ref || '--')}</strong>
+          <strong>${escapeHtml(article.ref || '--')}${index === 0 && confidence === 'strong' ? ' · Proposta forte' : ''}</strong>
           <span>${escapeHtml(article.design || 'Sem designação')}</span>
         </span>
-        <span class="docai-supplier-match-score">${escapeHtml([article.family, article.unit].filter(Boolean).join(' · '))}</span>
+        <span class="docai-supplier-match-score">${escapeHtml([
+          ...(article.match_reasons || []), article.family, article.unit,
+        ].filter(Boolean).join(' · '))}</span>
       </button>
     `).join('');
   }
 
   async function searchArticleCandidates() {
     if (!state.documentData?.customer) return;
+    const line = state.documentData?.lines?.[state.articleTargetLineIndex];
+    if (!line) return;
     els.articleSearchBtn.disabled = true;
     els.articleList.innerHTML = '<div class="docai-empty-state">A pesquisar artigos PHC...</div>';
     try {
@@ -2469,11 +2635,31 @@ document.addEventListener('DOMContentLoaded', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           customer: state.documentData.customer || {},
+          supplier_no: state.documentData.supplier?.supplier_no || state.documentData.supplier?.no || 0,
+          line: {
+            source_ref: line.source_ref || line.extracted_ref || line.ref || '',
+            description: line.description || '',
+            unit: line.unit || '',
+            unit_price: line.unit_price,
+            net_amount: line.net_amount,
+            tax_rate: line.tax_rate,
+            ccusto: line.ccusto || line.project_ccusto || '',
+            origin_article_refs: (line.bc_allocations || []).map((item) => item.article_ref || '').filter(Boolean),
+          },
+          selected_article_ref: line.article_ref || line.article || '',
           query: els.articleSearch.value.trim(),
           limit: 30,
         }),
       });
-      renderArticleCandidates(payload.items || []);
+      if (line.article_ref && payload.selected_article_valid === false) {
+        line.article_ref = '';
+        line.article_family = '';
+        markLineManualFields(line, 'article_ref', 'article_family');
+        renderLines(state.documentData.lines || [], state.documentData.currency || '');
+        await saveAdjustedLines('Artigo não encontrado. Escolhe um artigo válido para esta entidade.');
+        showMessage('Artigo não encontrado.', 'error');
+      }
+      renderArticleCandidates(payload.items || [], payload.suggestion_confidence || 'none');
       els.articleContext.textContent = `Artigos de ${state.documentData.customer?.name || 'entidade cliente'} · ${payload.phc_database || 'PHC'}`;
     } catch (error) {
       els.articleList.innerHTML = `<div class="docai-empty-state">${escapeHtml(error.message || 'Erreur de recherche.')}</div>`;
@@ -2490,7 +2676,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     state.articleTargetLineIndex = Number(lineIndex);
-    els.articleSearch.value = line.ref || line.description || '';
+    els.articleSearch.value = line.article_ref || line.source_ref || line.extracted_ref || line.ref || line.description || '';
     els.articleModal.classList.add('sz_is_open');
     els.articleModal.setAttribute('aria-hidden', 'false');
     window.setTimeout(() => {
@@ -2511,11 +2697,12 @@ document.addEventListener('DOMContentLoaded', () => {
         })
       : [line];
     groupedLines.forEach((candidate) => {
-      candidate.ref = article.ref || '';
+      if (!candidate.source_ref) candidate.source_ref = candidate.extracted_ref || candidate.ref || '';
       candidate.article_ref = article.ref || '';
       candidate.article_family = article.family || candidate.article_family || '';
       if (article.unit) candidate.unit = article.unit;
-      markLineManualFields(candidate, 'ref', 'article_ref', 'article_family', 'unit');
+      candidate.article_selection = 'manual';
+      markLineManualFields(candidate, 'article_ref', 'article_family', 'unit', 'article_selection');
     });
     state.articleTargetLineIndex = null;
     closeArticleModal();
@@ -3198,20 +3385,99 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  function clearRequiredInfoHighlights() {
+  const canonicalValidationTooltips = Object.freeze({
+    missingVehicle: 'Falta Matrícula',
+    missingProject: 'Falta Centro de Custo',
+    missingCategory: 'Falta Categoria ADM/LOG',
+    missingDistribution: 'Falta Distribuição',
+    invalidArticle: 'Artigo não Conforme',
+    invalidValue: 'Valor não Conforme',
+    duplicate: 'Movimento Duplicado',
+    invalidRegistration: 'Matrícula não Conforme',
+    ignoredLine: 'Linha Ignorada',
+    openSublines: 'Abrir Sublinhas',
+    groupLine: 'Agrupar linha',
+    ungroupLine: 'Desagrupar linha',
+    vehicleToAssociate: 'Veículo a associar',
+    vehicleAssociated: 'Veículo associado',
+  });
+
+  const validationTooltipByCode = {
+    project: canonicalValidationTooltips.missingProject,
+    article: canonicalValidationTooltips.invalidArticle,
+    vehicle: canonicalValidationTooltips.missingVehicle,
+    delivery_note: canonicalValidationTooltips.missingDistribution,
+    distribution: canonicalValidationTooltips.missingDistribution,
+    duplicate: canonicalValidationTooltips.duplicate,
+    category: canonicalValidationTooltips.missingCategory,
+    description: canonicalValidationTooltips.invalidValue,
+    quantity: canonicalValidationTooltips.invalidValue,
+    unit_price: canonicalValidationTooltips.invalidValue,
+    line_total: canonicalValidationTooltips.invalidValue,
+    date: canonicalValidationTooltips.invalidValue,
+  };
+
+  const validationTooltipByTarget = {
+    docAiExtractProjectCard: canonicalValidationTooltips.missingProject,
+    docAiExtractTotalsCard: canonicalValidationTooltips.invalidValue,
+  };
+
+  function restoreValidationTarget(element) {
+    element.classList.remove('docai-required-missing');
+    if (!element.dataset.docaiValidationTitle) return;
+    if (element.dataset.docaiPreviousTitle) element.title = element.dataset.docaiPreviousTitle;
+    else element.removeAttribute('title');
+    delete element.dataset.docaiValidationTitle;
+    delete element.dataset.docaiPreviousTitle;
+  }
+
+  function clearRequiredInfoHighlights({ resetState = true } = {}) {
     document.querySelectorAll('.docai-required-missing').forEach((element) => {
-      element.classList.remove('docai-required-missing');
+      restoreValidationTarget(element);
+    });
+    if (resetState) {
+      state.validationVisible = false;
+      state.validationMissing = new Set();
+    }
+  }
+
+  function refreshValidationHighlights() {
+    if (!state.validationVisible) return;
+    document.querySelectorAll('.docai-required-missing').forEach((element) => {
+      const resolved = {
+        docAiExtractCustomerCard: Boolean(state.documentData?.customer?.feid),
+        docAiExtractSupplierCard: Boolean(state.documentData?.supplier?.supplier_no || state.documentData?.supplier?.no || state.documentData?.supplier_explicitly_absent),
+        docAiExtractProjectCard: Boolean(state.selectedProject?.ccusto || ((state.documentData?.lines || []).length && (state.documentData?.lines || []).every((line) => String(line.ccusto || line.project_ccusto || '').trim()))),
+        docAiExtractModeCard: Boolean(state.documentData?.document_type && state.documentData.document_type !== 'unknown'),
+        docAiExtractOriginSection: Boolean(state.selectedOrigins.length),
+        docAiExtractLinesSection: !document.querySelector('.docai-validation-line-error'),
+      }[element.id];
+      if (resolved === true) restoreValidationTarget(element);
     });
   }
 
   function showRequiredInfo(requiredInfo) {
     clearRequiredInfoHighlights();
     const targets = Array.isArray(requiredInfo?.targets) ? requiredInfo.targets : [];
+    const messages = Array.isArray(requiredInfo?.messages) ? requiredInfo.messages : [];
+    const tooltips = Array.isArray(requiredInfo?.tooltips) ? requiredInfo.tooltips : [];
+    const missing = Array.isArray(requiredInfo?.missing) ? requiredInfo.missing : [];
+    state.validationVisible = true;
+    state.validationMissing = new Set(missing);
+    renderLines(state.documentData?.lines || [], state.documentData?.currency || '');
     let firstTarget = null;
-    targets.forEach((targetId) => {
+    targets.forEach((targetId, index) => {
       const target = document.getElementById(targetId);
       if (!target) return;
       target.classList.add('docai-required-missing');
+      const codeTooltip = validationTooltipByCode[missing[index]]
+        || missing.map((code) => validationTooltipByCode[code]).find(Boolean);
+      const message = String(validationTooltipByTarget[targetId] || codeTooltip || tooltips[index] || tooltips[0] || messages[index] || messages[0] || '').trim().replace(/[.]+$/, '');
+      if (message) {
+        target.dataset.docaiPreviousTitle = target.getAttribute('title') || '';
+        target.title = message;
+        target.dataset.docaiValidationTitle = 'true';
+      }
       firstTarget ||= target;
     });
     firstTarget?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -3240,6 +3506,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }),
       });
       if (preflight.duplicate_confirmation_required) {
+        showRequiredInfo({
+          missing: ['duplicate'],
+          targets: ['docAiExtractLinesSection'],
+          tooltips: ['Movimento Duplicado'],
+        });
         openDuplicateModal(preflight.duplicates || []);
         setStatus('Confirma o documento duplicado antes de continuar.', true);
         return;
@@ -3256,12 +3527,20 @@ document.addEventListener('DOMContentLoaded', () => {
       await fetchJson(`/api/document_ai/documents/${encodeURIComponent(state.currentDocumentId)}/workflow/validate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ view: state.view, document: state.documentData }),
+        body: JSON.stringify({
+          view: state.view,
+          expected_version: state.draftVersion,
+          document: state.documentData,
+        }),
       });
       showMessage('Documento validado.', 'success');
       window.location.href = inboxUrl();
     } catch (error) {
-      setStatus(error.message || 'Não foi possível validar a etapa.', true);
+      if (error.status === 409 || error.payload?.code === 'document_version_conflict') {
+        openDraftConflict();
+      } else {
+        setStatus(error.message || 'Não foi possível validar a etapa.', true);
+      }
     } finally {
       state.workflowSubmitting = false;
       updateSubmitPhcButton();
@@ -3291,6 +3570,10 @@ document.addEventListener('DOMContentLoaded', () => {
     renderViewTabs();
     renderModeCard();
   });
+  els.gedFolderTrigger?.addEventListener('click', () => {
+    els.gedFolderSelect.hidden = false;
+    els.gedFolderSelect.focus();
+  });
   els.gedFolderSelect?.addEventListener('change', async () => {
     if (!state.documentData?.customer) return;
     state.gedFolderManuallySelected = true;
@@ -3298,6 +3581,7 @@ document.addEventListener('DOMContentLoaded', () => {
     state.documentData.customer.ged_folder_manually_selected = true;
     state.documentData.customer.ged_folder_suggested_by = '';
     renderGedDestination();
+    els.gedFolderSelect.hidden = true;
     const agency = els.gedFolderSelect.selectedOptions[0]?.textContent || 'Escolher';
     setStatus(els.gedFolderSelect.value ? `Agência INTERSOL alterada para ${agency}.` : 'Falta a agência.', !els.gedFolderSelect.value);
     if (!state.currentDocumentId) return;
@@ -3444,10 +3728,26 @@ document.addEventListener('DOMContentLoaded', () => {
     const picker = event.target.closest('[data-line-select]');
     if (picker) selectLineForSplit(Number(picker.dataset.lineSelect));
   });
-  els.linesBody?.addEventListener('change', async (event) => {
-    const input = event.target.closest('[data-line-group], [data-line-description], [data-line-qty], [data-line-unit-price], [data-line-total], [data-line-date]');
+  els.documentSummary?.addEventListener('click', (event) => {
+    const field = event.target.closest('[data-header-edit]')?.dataset.headerEdit;
+    if (!field) return;
+    state.headerEditing = field;
+    renderDocumentCard();
+  });
+  els.documentSummary?.addEventListener('change', (event) => {
+    const input = event.target.closest('[data-header-input]');
+    if (input) saveHeaderField(input.dataset.headerInput, input.value);
+  });
+  els.documentSummary?.addEventListener('keydown', (event) => {
+    const input = event.target.closest('[data-header-input]');
     if (!input) return;
-    const lineIndex = Number(input.dataset.lineGroup ?? input.dataset.lineDescription ?? input.dataset.lineQty ?? input.dataset.lineUnitPrice ?? input.dataset.lineTotal ?? input.dataset.lineDate);
+    if (event.key === 'Escape') { state.headerEditing = ''; renderDocumentCard(); }
+    if (event.key === 'Enter') { event.preventDefault(); saveHeaderField(input.dataset.headerInput, input.value); }
+  });
+  els.linesBody?.addEventListener('change', async (event) => {
+    const input = event.target.closest('[data-line-group], [data-line-description], [data-line-qty], [data-line-unit-price], [data-line-total], [data-line-tax-rate], [data-line-date]');
+    if (!input) return;
+    const lineIndex = Number(input.dataset.lineGroup ?? input.dataset.lineDescription ?? input.dataset.lineQty ?? input.dataset.lineUnitPrice ?? input.dataset.lineTotal ?? input.dataset.lineTaxRate ?? input.dataset.lineDate);
     const line = state.documentData?.lines?.[lineIndex];
     if (!line) return;
     let message = 'Linha guardada.';
@@ -3476,6 +3776,10 @@ document.addEventListener('DOMContentLoaded', () => {
       line.net_amount = parseEditableNumber(input.value);
       markLineManualFields(line, 'net_amount');
       message = 'Preço total guardado.';
+    } else if (input.matches('[data-line-tax-rate]')) {
+      line.tax_rate = parseEditableNumber(input.value);
+      markLineManualFields(line, 'tax_rate');
+      message = 'Taxa de IVA guardada.';
     } else {
       if (input.matches('[data-line-qty]')) line.qty = parseEditableNumber(input.value);
       if (input.matches('[data-line-unit-price]')) line.unit_price = parseEditableNumber(input.value);

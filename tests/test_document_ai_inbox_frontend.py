@@ -8,7 +8,8 @@ class DocumentAiInboxFrontendTests(unittest.TestCase):
         cls.source = (Path(__file__).resolve().parents[1] / 'static/js/document_ai_inbox.js').read_text(encoding='utf-8')
 
     def test_total_uses_unfiltered_server_scope(self):
-        self.assertIn('const total = state.total;', self.source)
+        self.assertIn('const scopeTotal = state.total;', self.source)
+        self.assertIn('const visibleTotal = state.filteredItems.length;', self.source)
         self.assertNotIn('const total = state.allItems.filter((item) => matchesFilters(item)).length;', self.source)
 
     def test_currency_uses_accounting_number_and_real_code(self):

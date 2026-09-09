@@ -24,6 +24,25 @@ class DocumentAiExtractSummaryFrontendTests(unittest.TestCase):
         self.assertIn('id="docAiExtractGedFolderSelect"', card)
         self.assertIn('function renderClassificationCard()', self.script)
 
+    def test_classification_card_only_exposes_business_destination_content(self):
+        card = self.template.split('id="docAiExtractModeCard"', 1)[1].split('</article>', 1)[0]
+        self.assertNotIn('Nome GED', card)
+        self.assertIn('id="docAiExtractGedStatus" hidden', card)
+        self.assertIn('id="docAiExtractGedFolderTrigger"', card)
+        self.assertIn('>Agência INTERSOL</button>', card)
+        self.assertIn('id="docAiExtractGedFolderSelect" class="sz_input" hidden', card)
+
+    def test_missing_header_values_use_business_prompts(self):
+        self.assertIn("normalizedDocumentType !== 'unknown'", self.script)
+        for label in ('Tipo de documento', 'Tipo de fatura', 'Nº do documento', 'Data do documento'):
+            self.assertIn(label, self.script)
+
+    def test_failed_header_save_restores_previous_value(self):
+        save_header = self.script.split('async function saveHeaderField', 1)[1].split('async function refreshHeaderDependencies', 1)[0]
+        self.assertIn('const previousValue = data[field]', save_header)
+        self.assertIn('data[field] = previousValue', save_header)
+        self.assertIn('O valor anterior foi reposto', save_header)
+
     def test_missing_project_and_totals_are_not_rendered_as_false_values(self):
         self.assertIn("els.projectName.textContent = selected ? project.ccusto : '-';", self.script)
         self.assertIn('formatOptionalMoney(totals.net_total, currency)', self.script)

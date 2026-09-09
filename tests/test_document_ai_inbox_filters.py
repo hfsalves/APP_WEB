@@ -22,7 +22,9 @@ class DocumentAiInboxFiltersTests(unittest.TestCase):
 
     def test_counts_keep_total_and_render_number_first(self):
         source = (ROOT / 'static/js/document_ai_inbox.js').read_text(encoding='utf-8')
-        self.assertIn('const total = state.total;', source)
+        self.assertIn('const scopeTotal = state.total;', source)
+        self.assertIn('const visibleTotal = state.filteredItems.length;', source)
+        self.assertIn('${visibleTotal} de ${scopeTotal}', source)
         self.assertIn('<strong>${count}</strong><span>${escapeHtml(value)}</span>', source)
         self.assertIn("<strong>${data.count}</strong><span>${escapeHtml(data.label || '-')}</span>", source)
 
@@ -35,6 +37,36 @@ class DocumentAiInboxFiltersTests(unittest.TestCase):
         source = (ROOT / 'static/js/document_ai_inbox.js').read_text(encoding='utf-8')
         listener = source[source.index("host.addEventListener('click'"):source.index("host.addEventListener('input'")]
         self.assertIn('event.stopPropagation();', listener)
+
+    def test_column_filter_search_updates_only_options_and_keeps_input_node(self):
+        source = (ROOT / 'static/js/document_ai_inbox.js').read_text(encoding='utf-8')
+        listener = source[source.index("host.addEventListener('input'"):source.index("document.addEventListener('click'")]
+        self.assertIn('renderColumnFilterOptions(host.dataset.filter);', listener)
+        self.assertNotIn('renderColumnFilter(host.dataset.filter)', listener)
+
+    def test_only_document_types_are_horizontally_scrollable(self):
+        source = (ROOT / 'static/js/document_ai_inbox.js').read_text(encoding='utf-8')
+        css = (ROOT / 'static/css/document_ai.css').read_text(encoding='utf-8')
+        self.assertIn('docai-business-count-states', source)
+        self.assertIn('class="docai-counts-types" tabindex="0"', source)
+        self.assertIn('bindTypeCounterScroller();', source)
+        self.assertIn("scroller.addEventListener('pointermove'", source)
+        self.assertIn("scroller.addEventListener('wheel'", source)
+        self.assertIn("scroller.addEventListener('keydown'", source)
+        self.assertIn('.docai-counts-types::-webkit-scrollbar', css)
+        self.assertNotIn('.docai-counts {\n    grid-template-columns: max-content minmax(12rem, 1fr) 7.5rem;\n    overflow-x: auto;', css)
+
+    def test_required_groups_and_entity_scope_match_tp051(self):
+        required = (ROOT / 'static/js/document_ai_required_info.js').read_text(encoding='utf-8')
+        access = (ROOT / 'static/js/document_ai_access.js').read_text(encoding='utf-8')
+        template = (ROOT / 'templates/document_ai_inbox.html').read_text(encoding='utf-8')
+        self.assertIn('data-toggle-required=', required)
+        self.assertIn("fa-${open ? 'minus' : 'plus'}", required)
+        self.assertIn('${rules.length}', required)
+        self.assertIn('id="docAiAccessAllEntities" type="radio"', template)
+        self.assertIn('id="docAiAccessSpecificEntities" type="radio"', template)
+        self.assertIn('els.specificEntityPanel.hidden = entityDraft.all_entities;', access)
+        self.assertIn('const permissionsByView = {', access)
 
 
 if __name__ == '__main__':

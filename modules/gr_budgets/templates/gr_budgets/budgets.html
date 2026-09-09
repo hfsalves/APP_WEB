@@ -4,7 +4,7 @@
 
 {% block extra_head %}
   {{ super() }}
-  <link rel="stylesheet" href="{{ url_for('gr_budgets.static', filename='gr_budgets.css') }}?v={{ config.get('STATIC_VERSION', 1) }}-address-edit-10">
+  <link rel="stylesheet" href="{{ url_for('gr_budgets.static', filename='gr_budgets.css') }}?v={{ config.get('STATIC_VERSION', 1) }}-prorata-11">
 {% endblock %}
 
 {% block content %}
@@ -151,6 +151,10 @@
                   <button id="budgetDiscount" type="button" class="dropdown-item gr-budget-action-item" disabled>
                     <i class="fa-solid fa-percent" aria-hidden="true"></i>
                     <span>{{ _('gr_budgets.action.discount') }}</span>
+                  </button>
+                  <button id="budgetProrata" type="button" class="dropdown-item gr-budget-action-item" disabled>
+                    <i class="fa-solid fa-circle-minus" aria-hidden="true"></i>
+                    <span>{{ _('gr_budgets.action.prorata') }}</span>
                   </button>
                   <button id="budgetApplyVat" type="button" class="dropdown-item gr-budget-action-item" disabled>
                     <i class="fa-solid fa-file-invoice-dollar" aria-hidden="true"></i>
@@ -798,5 +802,5 @@
   <script>
     window.SZ_I18N = Object.assign({}, window.SZ_I18N || {}, {{ gr_budgets_i18n|tojson }});
   </script>
-  <script src="{{ url_for('gr_budgets.static', filename='gr_budgets.js') }}?v={{ config.get('STATIC_VERSION', 1) }}-address-edit-10" defer></script>
+  <script src="{{ url_for('gr_budgets.static', filename='gr_budgets.js') }}?v={{ config.get('STATIC_VERSION', 1) }}-prorata-11" defer></script>
 {% endblock %}

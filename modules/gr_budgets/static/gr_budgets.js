@@ -38,6 +38,7 @@
     duplicateBudget: document.getElementById('budgetDuplicate'),
     finalPriceBudget: document.getElementById('budgetFinalPrice'),
     discountBudget: document.getElementById('budgetDiscount'),
+    prorataBudget: document.getElementById('budgetProrata'),
     applyVatBudget: document.getElementById('budgetApplyVat'),
     newBudget: document.getElementById('budgetNew'),
     editBudget: document.getElementById('budgetEdit'),
@@ -1353,7 +1354,7 @@
       const title = line.description || line.designation || tr('gr_budgets.line.no_designation');
       const secondary = line.designation && line.designation !== line.description ? line.designation : '';
       const plusValue = isPlusValue(line.reference);
-      const commercialAdjustment = isBudgetDiscountLine(line);
+      const commercialAdjustment = isBudgetAdjustmentLine(line);
       const nonTechnicalLine = plusValue || commercialAdjustment;
       const technicalControl = nonTechnicalLine
         ? '<span class="sz_text_muted">—</span>'
@@ -2181,7 +2182,7 @@
   }
 
   function updateOciPositionsTrigger() {
-    const lines = ((state.detail && state.detail.lines) || []).filter((line) => !isBudgetDiscountLine(line));
+    const lines = ((state.detail && state.detail.lines) || []).filter((line) => !isBudgetAdjustmentLine(line));
     const count = lines.length;
     elements.ociPositions.hidden = count <= 1;
     elements.ociPositionsCount.textContent = plural('gr_budgets.count.position_one', 'gr_budgets.count.position_other', count);
@@ -2230,7 +2231,7 @@
     const currency = (state.detail && state.detail.header && state.detail.header.currency) || 'EUR';
     const indexedLines = lines
       .map((line, index) => ({ line, index }))
-      .filter(({ line }) => !isBudgetDiscountLine(line))
+      .filter(({ line }) => !isBudgetAdjustmentLine(line))
       .sort((left, right) => compareBudgetLines(left.line, right.line));
     elements.positionPickerSubtitle.textContent = plural(
       'gr_budgets.count.position_available_one',
@@ -2241,7 +2242,7 @@
   }
 
   function openPositionPicker() {
-    const lines = ((state.detail && state.detail.lines) || []).filter((line) => !isBudgetDiscountLine(line));
+    const lines = ((state.detail && state.detail.lines) || []).filter((line) => !isBudgetAdjustmentLine(line));
     if (!state.ociContext || lines.length <= 1) return;
     renderPositionCards();
     elements.positionPicker.classList.add('sz_is_open');
@@ -2487,8 +2488,22 @@
       || normalizedCode(line && line.reference) === 'ZZ';
   }
 
+  function isBudgetProrataLine(line) {
+    return normalizedCode(line && line.item_label) === 'PP'
+      || normalizedCode(line && line.item) === 'PP'
+      || normalizedCode(line && line.reference) === 'PP';
+  }
+
+  function isBudgetAdjustmentLine(line) {
+    return isBudgetDiscountLine(line) || isBudgetProrataLine(line);
+  }
+
   function budgetLinesWithoutDiscount() {
     return ((state.detail && state.detail.lines) || []).filter((line) => !isBudgetDiscountLine(line));
+  }
+
+  function budgetLinesWithoutProrata() {
+    return ((state.detail && state.detail.lines) || []).filter((line) => !isBudgetProrataLine(line));
   }
 
   function budgetBaseTotal(lines) {
@@ -2507,22 +2522,23 @@
 
   function openCommercialAdjustment(mode) {
     if (isEditing() || state.loadingCount || !state.detail || !selectedBudgetStamp() || !budgetCanBeEdited()) return;
-    const baseLines = budgetLinesWithoutDiscount();
+    const prorataMode = mode === 'prorata';
+    const baseLines = prorataMode ? budgetLinesWithoutProrata() : budgetLinesWithoutDiscount();
     const baseTotal = budgetBaseTotal(baseLines);
     const currentTotal = roundMoney(Number((state.detail.totals && state.detail.totals.total) || 0));
     const discountPercentage = baseTotal ? Math.max(0, (baseTotal - currentTotal) / baseTotal * 100) : 0;
     const finalPriceMode = mode === 'final';
-    state.commercialAdjustmentMode = finalPriceMode ? 'final' : 'discount';
-    elements.commercialAdjustmentTitle.textContent = tr(finalPriceMode
-      ? 'gr_budgets.adjustment.final_title'
-      : 'gr_budgets.adjustment.discount_title');
-    elements.commercialAdjustmentText.textContent = tr(finalPriceMode
-      ? 'gr_budgets.adjustment.final_text'
-      : 'gr_budgets.adjustment.discount_text');
-    elements.commercialAdjustmentLabel.textContent = tr(finalPriceMode
-      ? 'gr_budgets.adjustment.final_label'
-      : 'gr_budgets.adjustment.discount_label');
-    elements.commercialAdjustmentValue.value = (finalPriceMode ? currentTotal : discountPercentage).toFixed(2);
+    state.commercialAdjustmentMode = finalPriceMode ? 'final' : (prorataMode ? 'prorata' : 'discount');
+    const translationMode = finalPriceMode ? 'final' : (prorataMode ? 'prorata' : 'discount');
+    elements.commercialAdjustmentTitle.textContent = tr(`gr_budgets.adjustment.${translationMode}_title`);
+    elements.commercialAdjustmentText.textContent = tr(`gr_budgets.adjustment.${translationMode}_text`);
+    elements.commercialAdjustmentLabel.textContent = tr(`gr_budgets.adjustment.${translationMode}_label`);
+    const existingProrata = ((state.detail && state.detail.lines) || []).find(isBudgetProrataLine);
+    const prorataPercentage = Number(existingProrata && existingProrata.pro_rata_percentage);
+    const initialValue = finalPriceMode
+      ? currentTotal
+      : (prorataMode ? (prorataPercentage > 0 ? prorataPercentage : 1.5) : discountPercentage);
+    elements.commercialAdjustmentValue.value = initialValue.toFixed(2);
     elements.commercialAdjustmentError.hidden = true;
     elements.commercialAdjustmentError.textContent = '';
     elements.commercialAdjustment.classList.add('sz_is_open');
@@ -2544,8 +2560,12 @@
       elements.commercialAdjustmentValue.focus();
       return;
     }
-    if (state.commercialAdjustmentMode === 'discount' && (value < 0 || value > 100)) {
-      showCommercialAdjustmentError(tr('gr_budgets.adjustment.invalid_discount'));
+    const percentageMode = state.commercialAdjustmentMode === 'discount'
+      || state.commercialAdjustmentMode === 'prorata';
+    if (percentageMode && (value < 0 || value > 100)) {
+      showCommercialAdjustmentError(tr(state.commercialAdjustmentMode === 'prorata'
+        ? 'gr_budgets.adjustment.invalid_prorata'
+        : 'gr_budgets.adjustment.invalid_discount'));
       elements.commercialAdjustmentValue.focus();
       return;
     }
@@ -2556,9 +2576,10 @@
     }
 
     syncEditableHeaderToState();
-    const baseLines = budgetLinesWithoutDiscount();
+    const prorataMode = state.commercialAdjustmentMode === 'prorata';
+    const baseLines = prorataMode ? budgetLinesWithoutProrata() : budgetLinesWithoutDiscount();
     const baseTotal = budgetBaseTotal(baseLines);
-    const adjustment = roundMoney(state.commercialAdjustmentMode === 'discount'
+    const adjustment = roundMoney(percentageMode
       ? baseTotal * value / 100
       : baseTotal - value);
     const total = roundMoney(-adjustment);
@@ -2566,17 +2587,17 @@
     const header = state.detail.header || {};
     const vatTable = Number(header.default_vat_table || vatSource.vat_table || 0);
     const vatRate = vatRateForTable(vatTable, header.default_vat_rate || vatSource.vat_rate || 0);
-    const discountLine = {
+    const adjustmentLine = {
       bistamp: newDraftId('line'),
       budget_stamp: header.bostamp || '',
-      order: 999999999,
-      item: 'ZZ',
-      item_label: 'ZZ',
+      order: prorataMode ? 999999997 : 999999999,
+      item: prorataMode ? 'PP' : 'ZZ',
+      item_label: prorataMode ? 'PP' : 'ZZ',
       reference: '',
-      designation: 'ESCOMPTE',
-      description: 'ESCOMPTE',
-      quantity: -1,
-      surface: -1,
+      designation: prorataMode ? 'PRORATA' : 'ESCOMPTE',
+      description: prorataMode ? 'PRORATA' : 'ESCOMPTE',
+      quantity: prorataMode ? 1 : -1,
+      surface: prorataMode ? 1 : -1,
       unit: '',
       thickness: 0,
       volume: 0,
@@ -2599,12 +2620,13 @@
       blocked_price: true,
       pump: false,
       labour: false,
-      pro_rata: false,
+      pro_rata: prorataMode,
+      pro_rata_percentage: prorataMode ? value : 0,
       _ociRows: [],
       technical_lines: []
     };
 
-    state.detail.lines = [...baseLines, discountLine].sort(compareBudgetLines);
+    state.detail.lines = [...baseLines, adjustmentLine].sort(compareBudgetLines);
     state.mode = 'edit';
     state.returnStamp = selectedBudgetStamp();
     state.ociCache.clear();
@@ -2618,7 +2640,7 @@
     if (!state.detail || !budgetCanBeEdited()) return -1;
     const lines = state.detail.lines || [];
     const sourceLine = lines[lineIndex];
-    if (!sourceLine || isPlusValue(sourceLine.reference) || isBudgetDiscountLine(sourceLine)) return -1;
+    if (!sourceLine || isPlusValue(sourceLine.reference) || isBudgetAdjustmentLine(sourceLine)) return -1;
 
     syncEditableHeaderToState();
     if (!isEditing()) {
@@ -2817,6 +2839,7 @@
     elements.duplicateBudget.disabled = busy || !state.detail || !selectedBudgetStamp() || !elements.company.value;
     elements.finalPriceBudget.disabled = busy || !state.detail || !selectedBudgetStamp() || !elements.company.value || !budgetCanBeEdited();
     elements.discountBudget.disabled = busy || !state.detail || !selectedBudgetStamp() || !elements.company.value || !budgetCanBeEdited();
+    elements.prorataBudget.disabled = busy || !state.detail || !selectedBudgetStamp() || !elements.company.value || !budgetCanBeEdited();
     elements.applyVatBudget.disabled = busy || !state.detail || !selectedBudgetStamp() || !elements.company.value || !budgetCanBeEdited() || !availableVatRates().length;
     elements.approvalBudget.disabled = navigationLocked || !state.detail || !selectedBudgetStamp() || !elements.company.value || !budgetApprovalAvailable();
     elements.convertExecution.disabled = navigationLocked || !state.detail || !selectedBudgetStamp() || !elements.company.value || !budgetConversionAvailable();
@@ -3072,6 +3095,7 @@
   elements.duplicateBudget.addEventListener('click', startDuplicateBudget);
   elements.finalPriceBudget.addEventListener('click', () => openCommercialAdjustment('final'));
   elements.discountBudget.addEventListener('click', () => openCommercialAdjustment('discount'));
+  elements.prorataBudget.addEventListener('click', () => openCommercialAdjustment('prorata'));
   elements.applyVatBudget.addEventListener('click', openVatApply);
   elements.newBudget.addEventListener('click', startNewBudget);
   elements.editBudget.addEventListener('click', startEditBudget);

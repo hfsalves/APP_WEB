@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import unicodedata
 import uuid
 from pathlib import Path
 from typing import Any
@@ -256,6 +257,28 @@ def normalize_distribution_document_class(value: Any) -> str:
     return 'invoice' if normalized == 'provisional_invoice' else normalized
 
 
+def _normalized_supplier_type(value: Any) -> str:
+    return ''.join(
+        char for char in unicodedata.normalize('NFKD', str(value or '').strip().lower())
+        if not unicodedata.combining(char)
+    )
+
+
+def _document_supplier_identity(document: Any) -> dict[str, Any]:
+    try:
+        payload = json.loads(str(getattr(document, 'json_resultado', '') or '{}'))
+    except (TypeError, ValueError, json.JSONDecodeError):
+        payload = {}
+    supplier = dict(payload.get('supplier') or {})
+    supplier_type = str(supplier.get('supplier_type') or supplier.get('u_tipo') or '').strip()
+    return {
+        'supplier_type': supplier_type,
+        'supplier_no': supplier.get('supplier_no') or supplier.get('no') or getattr(document, 'fornecedor_no', None),
+        'feid': (payload.get('customer') or {}).get('feid') or getattr(document, 'feid', None),
+        'is_bank': _normalized_supplier_type(supplier_type) in {'banco', 'banque'},
+    }
+
+
 def _validated_column(view: str) -> str:
     return {
         'home': 'RECEPTION_VALIDATED',
@@ -308,6 +331,12 @@ def assert_document_distribution_available(document: Any, source: str, document_
     doc_class = normalize_distribution_document_class(
         document_type if document_type is not None else getattr(document, 'doc_type_detected', '')
     )
+    supplier = _document_supplier_identity(document)
+    if source == 'home' and doc_class in {'invoice', 'credit_note'} and supplier['is_bank']:
+        return [{
+            'id': 'bank-direct', 'doc_class': doc_class, 'source': source,
+            'destination': 'accounting', 'state': 'none', 'terminal': False,
+        }]
     rules = _distribution_rules(doc_class, source)
     if not rules and source == 'accounting':
         return [{'id': '', 'doc_class': doc_class, 'source': source, 'destination': '', 'state': 'none', 'terminal': True}]
@@ -373,6 +402,7 @@ def apply_document_distribution(document: Any, source: str, actor_login: Any) ->
     if source not in VALID_VIEWS:
         raise ValueError('Origem de distribuição inválida.')
     actor = _login(actor_login)
+    supplier = _document_supplier_identity(document)
     rules = assert_document_distribution_available(document, source)
     desired_destinations = {rule['destination'] for rule in rules if not rule['terminal']}
     stale_rows = db.session.execute(text("""
@@ -419,8 +449,17 @@ def apply_document_distribution(document: Any, source: str, actor_login: Any) ->
         'document_id': document.docinstamp,
         'source': source,
         'doc_class': normalize_distribution_document_class(document.doc_type_detected),
+        'routing': 'bank_direct' if supplier['is_bank'] and source == 'home' else 'configured',
+        'supplier_no': supplier['supplier_no'],
+        'supplier_type': supplier['supplier_type'],
+        'feid': supplier['feid'],
     }, {'outcomes': outcomes})
-    return {'document_id': document.docinstamp, 'source': source, 'outcomes': outcomes}
+    return {
+        'document_id': document.docinstamp,
+        'source': source,
+        'routing': 'bank_direct' if supplier['is_bank'] and source == 'home' else 'configured',
+        'outcomes': outcomes,
+    }
 
 
 def apply_distribution_to_existing(doc_class: str, source: str, actor_login: Any) -> dict[str, Any]:

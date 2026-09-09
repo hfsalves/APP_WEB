@@ -1028,7 +1028,8 @@ def _load_suppliers(feid: int | None = None) -> list[dict[str, Any]]:
                     LTRIM(RTRIM(CAST(ISNULL(FL.NCONT, '') AS varchar(40)))) AS NIF,
                     LTRIM(RTRIM(ISNULL(FL.MORADA, ''))) AS MORADA,
                     LTRIM(RTRIM(ISNULL(FL.LOCAL, ''))) AS LOCAL,
-                    LTRIM(RTRIM(ISNULL(FL.CODPOST, ''))) AS CODPOST
+                    LTRIM(RTRIM(ISNULL(FL.CODPOST, ''))) AS CODPOST,
+                    LTRIM(RTRIM(ISNULL(FL.U_TIPO, ''))) AS SUPPLIER_TYPE
                 FROM dbo.FL FL
                 WHERE ISNULL(FL.NOME, '') <> ''
                 ORDER BY FL.NOME
@@ -1042,6 +1043,7 @@ def _load_suppliers(feid: int | None = None) -> list[dict[str, Any]]:
             'MORADA': str(row[5] or '').strip(),
             'LOCAL': str(row[6] or '').strip(),
             'CODPOST': str(row[7] or '').strip(),
+            'SUPPLIER_TYPE': str(row[8] or '').strip(),
             'FEID': _safe_int(feid, 0),
             'TAX_FIELD': 'ncont',
             'SOURCE': 'phc',
@@ -1056,6 +1058,7 @@ def _load_suppliers(feid: int | None = None) -> list[dict[str, Any]]:
     address_select = "LTRIM(RTRIM(ISNULL(FL.MORADA, '')))" if _column_exists('FL', 'MORADA') else "CAST('' AS varchar(80))"
     city_select = "LTRIM(RTRIM(ISNULL(FL.LOCAL, '')))" if _column_exists('FL', 'LOCAL') else "CAST('' AS varchar(80))"
     postal_select = "LTRIM(RTRIM(ISNULL(FL.CODPOST, '')))" if _column_exists('FL', 'CODPOST') else "CAST('' AS varchar(30))"
+    supplier_type_select = "LTRIM(RTRIM(ISNULL(FL.U_TIPO, '')))" if _column_exists('FL', 'U_TIPO') else "CAST('' AS varchar(80))"
     rows = db.session.execute(text("""
         SELECT
             CAST(FL.NO AS int) AS NO,
@@ -1066,6 +1069,7 @@ def _load_suppliers(feid: int | None = None) -> list[dict[str, Any]]:
             {address_select} AS MORADA,
             {city_select} AS LOCAL,
             {postal_select} AS CODPOST,
+            {supplier_type_select} AS SUPPLIER_TYPE,
             {feid_select} AS FEID
         FROM dbo.FL FL
         WHERE ISNULL(FL.NOME, '') <> ''
@@ -1073,7 +1077,8 @@ def _load_suppliers(feid: int | None = None) -> list[dict[str, Any]]:
         ORDER BY FL.NOME
     """.format(feid_filter=feid_filter, feid_select=feid_select, tax_select=tax_select,
                estab_select=estab_select, name2_select=name2_select, address_select=address_select,
-               city_select=city_select, postal_select=postal_select)), {'feid': int(feid or 0)}).mappings().all()
+               city_select=city_select, postal_select=postal_select,
+               supplier_type_select=supplier_type_select)), {'feid': int(feid or 0)}).mappings().all()
     return [{
         **dict(row),
         'TAX_FIELD': str(source.get('tax_field') or 'unknown'),
@@ -1176,11 +1181,40 @@ def search_suppliers(value: str, feid: int | None = None, limit: int = 8, contex
             'address': str(supplier.get('MORADA') or '').strip(),
             'city': str(supplier.get('LOCAL') or '').strip(),
             'postal_code': str(supplier.get('CODPOST') or '').strip(),
+            'supplier_type': str(supplier.get('SUPPLIER_TYPE') or '').strip(),
             'location_score': _party_location_score(context, supplier),
         })
 
     results.sort(key=lambda item: (-float(item.get('location_score') or 0), -float(item.get('score') or 0), str(item.get('name') or ''), int(item.get('estab') or 0)))
     return results[:max(1, min(int(limit or 8), 20))]
+
+
+def _enrich_supplier_classification(document_data: dict[str, Any], stored_feid: Any = None) -> dict[str, Any]:
+    """Attach the authoritative PHC FL.U_TIPO without inferring it from a name."""
+    supplier = dict(document_data.get('supplier') or {})
+    if str(supplier.get('supplier_type') or supplier.get('u_tipo') or '').strip():
+        return document_data
+    supplier_no = _safe_int(supplier.get('supplier_no') or supplier.get('no'), 0)
+    if not supplier_no:
+        return document_data
+    customer = dict(document_data.get('customer') or {})
+    feid = _safe_int(customer.get('feid') or stored_feid, 0)
+    if not feid:
+        return document_data
+    wanted_estab = _safe_int(supplier.get('estab'), 0)
+    try:
+        match = next((item for item in _load_suppliers(feid) if (
+            _safe_int(item.get('NO'), 0) == supplier_no
+            and _safe_int(item.get('ESTAB'), 0) == wanted_estab
+        )), None)
+    except Exception as exc:
+        current_app.logger.warning('Não foi possível obter FL.U_TIPO do fornecedor %s: %s', supplier_no, exc)
+        return document_data
+    if not match:
+        return document_data
+    supplier['supplier_type'] = str(match.get('SUPPLIER_TYPE') or '').strip()
+    document_data['supplier'] = supplier
+    return document_data
 
 
 def _load_customers(feid: int) -> list[dict[str, Any]]:
@@ -1685,19 +1719,17 @@ def _phc_origin_family(origin: dict[str, Any] | None) -> str:
 def _validate_phc_origin_combination(origins: list[dict[str, Any]], candidate: dict[str, Any]) -> None:
     family = _phc_origin_family(candidate)
     primary_families = {'bc', 'contract', 'subcontract'}
-    existing_primary = [item for item in origins if _phc_origin_family(item) in primary_families]
-    existing_family = _phc_origin_family(existing_primary[0]) if existing_primary else ''
+    existing_families = {_phc_origin_family(item) for item in origins}
 
     if family in primary_families:
-        if existing_family and existing_family != family:
-            raise ValueError('Retira a origem associada antes de mudar de família.')
-        if family in {'contract', 'subcontract'} and existing_primary:
-            raise ValueError('Contrato associado.')
+        # A document may contain independent lines from NdE, Contrato and
+        # Contrato Sub.Emp. The line-level PHC assignment decides the actual
+        # downstream filiation; this guard only protects dependent documents.
         return
-    if family == 'delivery_note' and existing_family != 'bc':
+    if family == 'delivery_note' and 'bc' not in existing_families:
         raise ValueError('Associa primeiro uma Nota de Encomenda.')
     if family == 'work_situation':
-        if existing_family != 'subcontract':
+        if 'subcontract' not in existing_families:
             raise ValueError('Associa primeiro um Contrato Sout-Traitant.')
         if any(_phc_origin_family(item) == 'work_situation' for item in origins):
             raise ValueError('Situação de Trabalho associada.')
@@ -2081,13 +2113,20 @@ def submit_correspondence_to_phc(
             raise RuntimeError('Não foi possível reservar a numeração da correspondência. Tenta novamente.')
 
         duplicate = cursor.execute("""
-            SELECT TOP 1 C.CRSTAMP, C.REF, C.ANO, A.FULLNAME
+            SELECT TOP 1 C.CRSTAMP, C.REF, C.ANO, A.FULLNAME, A.ANEXOSSTAMP
             FROM dbo.ANEXOS A WITH (UPDLOCK, HOLDLOCK)
             INNER JOIN dbo.CR C ON C.CRSTAMP = A.RECSTAMP
             WHERE A.ORITABLE = 'CR' AND A.UNIQUEID = ?
             ORDER BY C.ANO DESC, C.REF DESC
         """, unique_id).fetchone()
         if duplicate:
+            existing_path = str(duplicate[3] or '').strip()
+            existing_target = {
+                'unc_path': existing_path,
+                'write_path': existing_path,
+                'storage': 'local' if os.name == 'nt' else 'smb',
+            }
+            ged_confirmed = _document_ai_pdf_is_confirmed(existing_target, file_bytes)
             connection.rollback()
             return {
                 'ok': True,
@@ -2097,7 +2136,9 @@ def submit_correspondence_to_phc(
                 'reference': _safe_int(duplicate[1], 0),
                 'year': _safe_int(duplicate[2], target_year),
                 'phc_database': database_name,
-                'ged_path': str(duplicate[3] or '').strip(),
+                'ged_path': existing_path,
+                'anexosstamp': str(duplicate[4] or '').strip(),
+                'ged_confirmed': ged_confirmed,
             }
 
         row = cursor.execute("""
@@ -2189,6 +2230,7 @@ def submit_correspondence_to_phc(
             'usrhora': now_time,
         })
         connection.commit()
+        ged_confirmed = _document_ai_pdf_is_confirmed(ged, file_bytes)
         return {
             'ok': True,
             'duplicate': False,
@@ -2200,6 +2242,7 @@ def submit_correspondence_to_phc(
             'phc_database': database_name,
             'file_name': ged['file_name'],
             'ged_path': ged['unc_path'],
+            'ged_confirmed': ged_confirmed,
             'party': party,
         }
     except Exception:
@@ -2670,6 +2713,31 @@ def _write_document_ai_pdf(target: dict[str, str], file_bytes: bytes) -> bool:
             os.remove(temporary_path)
 
 
+def _document_ai_pdf_is_confirmed(target: dict[str, str], file_bytes: bytes | None = None) -> bool:
+    """Confirm that the final GED object exists and, when possible, has the expected content."""
+    expected_digest = hashlib.sha256(file_bytes).digest() if file_bytes else None
+    if target.get('storage') == 'smb':
+        try:
+            import smbclient
+            unc_path = target['unc_path']
+            _document_ai_smb_session(unc_path)
+            if not smbclient.path.exists(unc_path):
+                return False
+            if expected_digest:
+                with smbclient.open_file(unc_path, mode='rb') as handle:
+                    return _document_ai_file_digest(handle) == expected_digest
+            return True
+        except Exception:
+            return False
+    write_path = target.get('write_path') or target.get('unc_path') or ''
+    if not write_path or not os.path.isfile(write_path):
+        return False
+    if expected_digest:
+        with open(write_path, 'rb') as handle:
+            return _document_ai_file_digest(handle) == expected_digest
+    return True
+
+
 def _remove_document_ai_pdf(target: dict[str, str]) -> None:
     if target.get('storage') == 'smb':
         import smbclient
@@ -2867,7 +2935,7 @@ def submit_provisional_invoice_to_phc(
 
         supplier = _phc_provisional_supplier(cursor, dict(document.get('supplier') or {}))
         duplicate = cursor.execute("""
-            SELECT TOP 1 F.FOSTAMP, F.ADOC, A.FULLNAME
+            SELECT TOP 1 F.FOSTAMP, F.ADOC, A.FULLNAME, A.ANEXOSSTAMP
             FROM dbo.FO F WITH (UPDLOCK, HOLDLOCK)
             LEFT JOIN dbo.ANEXOS A ON A.RECSTAMP = F.FOSTAMP AND A.ORITABLE = 'FO'
             WHERE F.DOCCODE = ? AND F.NO = ?
@@ -2876,12 +2944,20 @@ def submit_provisional_invoice_to_phc(
         """, doc_config['doccode'], supplier['no'], f'{unique_root}:FO', document_number).fetchone()
         if duplicate:
             correspondence = cursor.execute("""
-                SELECT TOP 1 C.CRSTAMP, C.REF, C.ANO
+                SELECT TOP 1 C.CRSTAMP, C.REF, C.ANO, A.ANEXOSSTAMP, A.FULLNAME
                 FROM dbo.ANEXOS A WITH (UPDLOCK, HOLDLOCK)
                 INNER JOIN dbo.CR C ON C.CRSTAMP = A.RECSTAMP
                 WHERE A.ORITABLE = 'CR' AND A.UNIQUEID = ?
                 ORDER BY C.ANO DESC, C.REF DESC
             """, f'{unique_root}:CR').fetchone()
+            purchase_path = str(duplicate[2] or '').strip()
+            correspondence_path = str(correspondence[4] or '').strip() if correspondence else ''
+            existing_paths = [path for path in (correspondence_path, purchase_path) if path]
+            ged_confirmed = len(existing_paths) == 2 and all(_document_ai_pdf_is_confirmed({
+                'unc_path': path,
+                'write_path': path,
+                'storage': 'local' if os.name == 'nt' else 'smb',
+            }, file_bytes) for path in existing_paths)
             connection.rollback()
             return {
                 'ok': True,
@@ -2893,7 +2969,16 @@ def submit_provisional_invoice_to_phc(
                 'year': _safe_int(correspondence[2], datetime.now().year) if correspondence else datetime.now().year,
                 'document_number': str(duplicate[1] or '').strip(),
                 'phc_database': database_name,
-                'ged_path': str(duplicate[2] or '').strip(),
+                'ged_path': purchase_path,
+                'ged_paths': [
+                    {'label': 'Correio recebido', 'path': correspondence_path},
+                    {'label': 'Faturas de fornecedor', 'path': purchase_path},
+                ] if correspondence_path and purchase_path else [],
+                'anexosstamps': [
+                    str(correspondence[3] or '').strip() if correspondence else '',
+                    str(duplicate[3] or '').strip(),
+                ],
+                'ged_confirmed': ged_confirmed,
             }
 
         reference_row = cursor.execute("""
@@ -3052,6 +3137,7 @@ def submit_provisional_invoice_to_phc(
             'u_origem': _phc_correspondence_agency_origin(customer, source),
         })
 
+        anexosstamps = []
         for target, recstamp, oritable, tabnm, summary, unique_suffix in (
             (
                 ged_targets[0], crstamp, 'CR', 'Correspondência',
@@ -3059,8 +3145,10 @@ def submit_provisional_invoice_to_phc(
             ),
             (ged_targets[1], fostamp, 'FO', 'Compras a Fornecedores', doc_config['correspondence_type'], 'FO'),
         ):
+            anexosstamp = _new_stamp()
+            anexosstamps.append(anexosstamp)
             _phc_insert_values(cursor, 'ANEXOS', {
-                'anexosstamp': _new_stamp(), 'oritable': oritable, 'tabnm': tabnm,
+                'anexosstamp': anexosstamp, 'oritable': oritable, 'tabnm': tabnm,
                 'resumo': summary, 'grupo': '', 'recstamp': recstamp,
                 'uniqueid': f'{unique_root}:{unique_suffix}',
                 'descricao': f'{docname} {document_number}'[:100], 'bdados': pyodbc.Binary(b''),
@@ -3074,6 +3162,7 @@ def submit_provisional_invoice_to_phc(
             })
 
         connection.commit()
+        ged_confirmed = all(_document_ai_pdf_is_confirmed(target, file_bytes) for target in ged_targets)
         result = {
             'ok': True, 'duplicate': False,
             'message': f'{doc_config["label"].capitalize()} {document_number} integrada como {docname} no PHC com {len(physical_lines)} linha(s).',
@@ -3082,6 +3171,8 @@ def submit_provisional_invoice_to_phc(
             'phc_database': database_name, 'file_name': ged_targets[1]['file_name'],
             'ged_path': ged_targets[1]['unc_path'],
             'ged_paths': [{'label': target['label'], 'path': target['unc_path']} for target in ged_targets],
+            'anexosstamps': anexosstamps,
+            'ged_confirmed': ged_confirmed,
             'article_ref': DOC_AI_PROVISIONAL_ARTICLE_REF,
             'doccode': doc_config['doccode'],
             'docname': docname,
@@ -3207,7 +3298,114 @@ def search_phc_projects(customer_data: dict[str, Any] | None, query: str = '', l
     }
 
 
-def search_phc_articles(customer_data: dict[str, Any] | None, query: str = '', limit: int = 20) -> dict[str, Any]:
+def _score_phc_article_candidate(
+    candidate: dict[str, Any],
+    query: str = '',
+    line: dict[str, Any] | None = None,
+    history: list[dict[str, str]] | None = None,
+) -> tuple[float, list[str]]:
+    source = dict(line or {})
+    source_ref = str(source.get('source_ref') or source.get('extracted_ref') or source.get('ref') or '').strip()
+    description = str(source.get('description') or '').strip()
+    candidate_ref = str(candidate.get('ref') or '').strip()
+    candidate_design = str(candidate.get('design') or '').strip()
+    normalized_ref = _normalize_text(source_ref)
+    normalized_candidate_ref = _normalize_text(candidate_ref)
+    normalized_description = _normalize_text(description)
+    normalized_design = _normalize_text(candidate_design)
+    normalized_query = _normalize_text(query)
+    reasons: list[str] = []
+    score = 0.0
+
+    if normalized_ref and normalized_ref == normalized_candidate_ref:
+        score = 0.99
+        reasons.append('Referência lida coincide')
+    elif normalized_query and normalized_query == normalized_candidate_ref:
+        score = 0.96
+        reasons.append('Referência pesquisada coincide')
+    origin_refs = {
+        _normalize_text(value)
+        for value in (source.get('origin_article_refs') or [])
+        if _normalize_text(value)
+    }
+    if normalized_candidate_ref and normalized_candidate_ref in origin_refs:
+        score = max(score, 0.94)
+        reasons.append('Artigo da origem coincide')
+
+    source_text = ' '.join(value for value in (normalized_ref, normalized_description, normalized_query) if value)
+    candidate_text = ' '.join(value for value in (normalized_candidate_ref, normalized_design) if value)
+    if source_text and candidate_text:
+        similarity = SequenceMatcher(None, source_text, candidate_text).ratio()
+        source_tokens = {token for token in source_text.split() if len(token) > 2}
+        candidate_tokens = {token for token in candidate_text.split() if len(token) > 2}
+        overlap = len(source_tokens & candidate_tokens) / max(1, min(len(source_tokens), len(candidate_tokens)))
+        text_score = min(0.82, similarity * 0.56 + overlap * 0.36)
+        if text_score > score:
+            score = text_score
+        if overlap >= 0.5 or similarity >= 0.72:
+            reasons.append('Designação semelhante')
+
+    source_unit = _normalize_text(source.get('unit'))
+    candidate_unit = _normalize_text(candidate.get('unit'))
+    if source_unit and candidate_unit and source_unit == candidate_unit:
+        score += 0.06
+        reasons.append('Unidade coincide')
+
+    for historical in history or []:
+        if _normalize_text(historical.get('article_ref')) != normalized_candidate_ref:
+            continue
+        historical_text = _normalize_text(
+            f"{historical.get('source_ref') or ''} {historical.get('description') or ''}"
+        )
+        if not historical_text or not source_text:
+            continue
+        historical_similarity = SequenceMatcher(None, source_text, historical_text).ratio()
+        if historical_similarity >= 0.68:
+            score += min(0.18, historical_similarity * 0.18)
+            reasons.append('Associação anterior do fornecedor')
+            break
+
+    return round(min(score, 1.0), 4), list(dict.fromkeys(reasons))
+
+
+def _document_article_history(feid: int, supplier_no: int, limit: int = 250) -> list[dict[str, str]]:
+    if feid <= 0 or supplier_no <= 0:
+        return []
+    try:
+        rows = db.session.execute(text("""
+            SELECT TOP (:limit) JSON_RESULTADO
+            FROM dbo.DOC_INBOX WITH (NOLOCK)
+            WHERE FEID=:feid AND FORNECEDOR_NO=:supplier_no
+              AND (ISNULL(MANAGEMENT_VALIDATED, 0)=1 OR ISNULL(ACCOUNTING_VALIDATED, 0)=1)
+              AND ISJSON(JSON_RESULTADO)=1
+            ORDER BY DTALT DESC, DTCRI DESC
+        """), {'limit': max(1, min(int(limit or 250), 500)), 'feid': feid, 'supplier_no': supplier_no}).scalars().all()
+    except Exception:
+        current_app.logger.info('Document AI: histórico de artigos indisponível.', exc_info=True)
+        return []
+    history: list[dict[str, str]] = []
+    for raw in rows:
+        document = _json_loads(raw, {})
+        for item in document.get('lines') or []:
+            if not isinstance(item, dict) or not str(item.get('article_ref') or '').strip():
+                continue
+            history.append({
+                'article_ref': str(item.get('article_ref') or '').strip(),
+                'source_ref': str(item.get('source_ref') or item.get('extracted_ref') or item.get('ref') or '').strip(),
+                'description': str(item.get('description') or '').strip(),
+            })
+    return history[:1000]
+
+
+def search_phc_articles(
+    customer_data: dict[str, Any] | None,
+    query: str = '',
+    limit: int = 20,
+    *,
+    line: dict[str, Any] | None = None,
+    supplier_no: int = 0,
+    selected_article_ref: str = '',
+) -> dict[str, Any]:
     import pyodbc
     from services.phc_user_import_service import _phc_conn_str
 
@@ -3216,10 +3414,30 @@ def search_phc_articles(customer_data: dict[str, Any] | None, query: str = '', l
     if not source.get('phc_db'):
         raise ValueError('A empresa identificada não tem uma base PHC configurada.')
     clean_query = str(query or '').strip()
-    like_query = f'%{clean_query}%'
+    line_data = dict(line or {})
+    source_ref = str(line_data.get('source_ref') or line_data.get('extracted_ref') or line_data.get('ref') or '').strip()
+    source_description = str(line_data.get('description') or '').strip()
+    terms: list[str] = []
+    for value in (selected_article_ref, source_ref, clean_query, source_description):
+        clean_value = str(value or '').strip()
+        if clean_value and clean_value not in terms:
+            terms.append(clean_value[:100])
+    for token in re.findall(r'[\wÀ-ÿ-]+', f'{source_ref} {source_description} {clean_query}'):
+        if len(token) >= 3 and token not in terms:
+            terms.append(token[:40])
+        if len(terms) >= 10:
+            break
     safe_limit = max(1, min(int(limit or 20), 50))
+    clauses: list[str] = []
+    parameters: list[Any] = []
+    for term in terms:
+        clauses.append('(ST.REF LIKE ? OR ST.DESIGN LIKE ? OR ST.FAMILIA LIKE ?)')
+        like_term = f'%{term}%'
+        parameters.extend((like_term, like_term, like_term))
+    search_sql = f"AND ({' OR '.join(clauses)})" if clauses else ''
+    fetch_limit = max(80, safe_limit * 8)
     with pyodbc.connect(_phc_conn_str(source['phc_db'], source.get('phc_server') or ''), timeout=12) as connection:
-        rows = connection.cursor().execute("""
+        rows = connection.cursor().execute(f"""
             SELECT TOP (?)
                 LTRIM(RTRIM(ISNULL(ST.REF, ''))) REF,
                 LTRIM(RTRIM(ISNULL(ST.DESIGN, ''))) DESIGN,
@@ -3228,21 +3446,31 @@ def search_phc_articles(customer_data: dict[str, Any] | None, query: str = '', l
             FROM dbo.ST ST WITH (NOLOCK)
             WHERE ISNULL(ST.INACTIVO, 0) = 0
               AND LTRIM(RTRIM(ISNULL(ST.REF, ''))) <> ''
-              AND (
-                    ? = ''
-                    OR ST.REF LIKE ?
-                    OR ST.DESIGN LIKE ?
-                    OR ST.FAMILIA LIKE ?
-              )
+              {search_sql}
             ORDER BY LTRIM(RTRIM(ISNULL(ST.REF, '')))
-        """, safe_limit, clean_query, like_query, like_query, like_query).fetchall()
-    return {
-        'items': [{
+        """, fetch_limit, *parameters).fetchall()
+    history = _document_article_history(_safe_int(customer.get('feid'), 0), _safe_int(supplier_no, 0))
+    candidates = []
+    for row in rows:
+        candidate = {
             'ref': str(row[0] or '').strip(),
             'design': str(row[1] or '').strip(),
             'unit': str(row[2] or '').strip(),
             'family': str(row[3] or '').strip(),
-        } for row in rows],
+        }
+        score, reasons = _score_phc_article_candidate(candidate, clean_query, line_data, history)
+        candidates.append({**candidate, 'score': score, 'match_reasons': reasons})
+    candidates.sort(key=lambda item: (-float(item.get('score') or 0), str(item.get('ref') or '')))
+    candidates = candidates[:safe_limit]
+    best_score = float(candidates[0].get('score') or 0) if candidates else 0
+    next_score = float(candidates[1].get('score') or 0) if len(candidates) > 1 else 0
+    confidence = 'strong' if best_score >= 0.82 and best_score - next_score >= 0.08 else ('uncertain' if best_score >= 0.35 else 'none')
+    selected_key = _normalize_text(selected_article_ref)
+    return {
+        'items': candidates,
+        'suggested_article': candidates[0] if candidates and confidence != 'none' else None,
+        'suggestion_confidence': confidence,
+        'selected_article_valid': not selected_key or any(_normalize_text(item.get('ref')) == selected_key for item in candidates),
         'phc_database': str(source.get('phc_db') or ''),
     }
 
@@ -3926,6 +4154,29 @@ def get_document_phc_origin(document_stamp: str) -> dict[str, Any] | None:
     return origins[0] if origins else None
 
 
+def _line_phc_origin_stamps(lines: list[dict[str, Any]]) -> set[str]:
+    stamps: set[str] = set()
+
+    def visit(items: list[dict[str, Any]]) -> None:
+        for item in items:
+            stamp = str(item.get('phc_origin_stamp') or '').strip()
+            if stamp:
+                stamps.add(stamp)
+            children = item.get('sublines') or item.get('sub_lines') or []
+            if isinstance(children, list):
+                visit([dict(child) for child in children if isinstance(child, dict)])
+
+    visit([dict(line) for line in lines if isinstance(line, dict)])
+    return stamps
+
+
+def _validate_line_phc_origin_assignments(lines: list[dict[str, Any]], origins: list[dict[str, Any]]) -> None:
+    selected = {str(origin.get('stamp') or '').strip() for origin in origins if str(origin.get('stamp') or '').strip()}
+    unknown = _line_phc_origin_stamps(lines) - selected
+    if unknown:
+        raise ValueError('Uma Linha ou Sublinha referencia uma Origem PHC que não está associada ao documento.')
+
+
 def clear_document_phc_origin(document_stamp: str, requested_by: str, origin_stamp: str = '') -> dict[str, Any]:
     document = db.session.get(DocInbox, str(document_stamp or '').strip())
     if not document:
@@ -3934,6 +4185,10 @@ def clear_document_phc_origin(document_stamp: str, requested_by: str, origin_sta
     origins = get_phc_origins_from_meta(meta)
     clean_stamp = str(origin_stamp or '').strip()
     if clean_stamp:
+        cached = meta.get('llm_full_extraction') or {}
+        cached_document = cached.get('document') if isinstance(cached, dict) else {}
+        if isinstance(cached_document, dict) and clean_stamp in _line_phc_origin_stamps(cached_document.get('lines') or []):
+            raise ValueError('Remove ou altera primeiro a Origem PHC associada a uma Linha ou Sublinha.')
         remaining = [item for item in origins if str(item.get('stamp') or '').strip() != clean_stamp]
         removed_count = len(origins) - len(remaining)
     else:
@@ -3972,6 +4227,7 @@ def save_document_adjusted_lines(
     if not isinstance(cached, dict) or not isinstance(cached.get('document'), dict):
         raise ValueError('O documento ainda não tem uma leitura guardada para ajustar.')
     cached_document = dict(cached.get('document') or {})
+    _validate_line_phc_origin_assignments(lines, get_phc_origins_from_meta(meta))
     cached_document['lines'] = [dict(line) for line in lines]
     cached['document'] = cached_document
     cached['adjusted_at'] = _now().isoformat()
@@ -4097,6 +4353,9 @@ def mark_document_control_ok(
         raise ValueError('Confirma o número do documento antes do Contrôle OK.')
     if not [line for line in (document_data.get('lines') or []) if isinstance(line, dict)]:
         raise ValueError('Confirma pelo menos uma linha antes do Contrôle OK.')
+    financial_consistency = validate_document_financial_consistency(document_data)
+    if not financial_consistency['ok']:
+        raise ValueError(financial_consistency['errors'][0])
     origins = get_phc_origins_from_meta(meta)
     if not any(_phc_origin_family(origin) in {'', 'bc', 'contract', 'subcontract'} for origin in origins):
         raise ValueError('Falta associar uma Nota de Encomenda ou um Contrato.')
@@ -4147,9 +4406,24 @@ def preflight_document_inbox_stage(
         raise ValueError('Documento do inbox não encontrado.')
     stage = _normalize_document_inbox_view(view)
     result = dict(reviewed_document or {}) or _json_loads(document.json_resultado, {})
+    result = _enrich_supplier_classification(result, document.feid)
     document_type = str(result.get('document_type') or document.doc_type_detected or 'unknown').strip().lower()
     result.setdefault('document_type', document_type)
     result.setdefault('invoice_type', _normalize_invoice_type(document.invoice_type))
+    financial_consistency = validate_document_financial_consistency(result)
+    if document_type in {'invoice', 'provisional_invoice', 'credit_note'} and not financial_consistency['ok']:
+        return {
+            'ok': False,
+            'view': stage,
+            'financial_consistency': financial_consistency,
+            'required_info': {
+                'ok': False,
+                'messages': financial_consistency['errors'],
+                'targets': financial_consistency.get('targets') or [],
+                'tooltips': financial_consistency.get('tooltips') or [],
+            },
+            'message': financial_consistency['errors'][0],
+        }
     from services.document_ai_distribution_service import assert_document_distribution_available
     from services.document_ai_required_info_service import evaluate_required_info
     if stage == 'home':
@@ -4276,6 +4550,28 @@ def preflight_document_inbox_stage(
     return {'ok': True, 'view': stage, 'required_info': required_info}
 
 
+def _has_complete_reception_integration(
+    integration: dict[str, Any] | None,
+    document_type: Any,
+) -> bool:
+    """Only reuse a reception integration when its PHC/GED identity is complete."""
+    payload = dict(integration or {})
+    if str(payload.get('status') or '').strip().lower() != 'confirmed':
+        return False
+    if not all(payload.get(key) not in (None, '') for key in ('reference', 'year', 'phc_database')):
+        return False
+
+    clean_type = str(document_type or '').strip().lower()
+    ged_confirmed = bool(payload.get('ged_confirmed'))
+    if clean_type in {'mail', 'bank_statement'}:
+        return bool(payload.get('crstamp') and payload.get('anexosstamp') and ged_confirmed)
+    if _is_provisional_purchase_source_type(clean_type):
+        attachment_stamps = [str(value or '').strip() for value in (payload.get('anexosstamps') or [])]
+        return bool(payload.get('fostamp') and payload.get('crstamp') and len(attachment_stamps) >= 2
+                    and all(attachment_stamps[:2]) and ged_confirmed)
+    return False
+
+
 def _integrate_reception_document(
     document: DocInbox,
     document_data: dict[str, Any],
@@ -4285,10 +4581,9 @@ def _integrate_reception_document(
     """Run the historical PHC reception action once and persist its identity."""
     meta = _json_loads(document.processing_meta_json, {})
     existing = dict(meta.get('phc_integration') or {})
-    if existing.get('status') == 'confirmed' and (existing.get('crstamp') or existing.get('fostamp')):
-        return existing
-
     document_type = str(document_data.get('document_type') or '').strip().lower()
+    if _has_complete_reception_integration(existing, document_type):
+        return existing
     is_correspondence = document_type in {'mail', 'bank_statement'}
     is_provisional_purchase = _is_provisional_purchase_source_type(document_type)
     if not is_correspondence and not is_provisional_purchase:
@@ -4306,22 +4601,48 @@ def _integrate_reception_document(
     if not file_bytes:
         raise ValueError('O PDF original está vazio.')
 
-    if is_correspondence:
-        result = submit_correspondence_to_phc(
-            document_data,
-            file_bytes,
-            document.file_name or os.path.basename(absolute_path),
-            requested_by,
-        )
-        integration_type = 'correspondence'
-    else:
-        result = submit_provisional_invoice_to_phc(
-            document_data,
-            file_bytes,
-            document.file_name or os.path.basename(absolute_path),
-            requested_by,
-        )
-        integration_type = 'provisional_invoice'
+    integration_type = 'correspondence' if is_correspondence else 'provisional_invoice'
+    meta['phc_integration'] = {
+        **existing,
+        'type': integration_type,
+        'status': 'pending',
+        'attempted_at': _now().isoformat(),
+        'attempted_by': requested_by or '',
+    }
+    document.processing_meta_json = _json_dumps(meta)
+    document.processing_stage = 'integration_pending'
+    document.dtalt = _now()
+    document.useralteracao = requested_by or document.useralteracao or ''
+    db.session.commit()
+    try:
+        if is_correspondence:
+            result = submit_correspondence_to_phc(
+                document_data,
+                file_bytes,
+                document.file_name or os.path.basename(absolute_path),
+                requested_by,
+            )
+        else:
+            result = submit_provisional_invoice_to_phc(
+                document_data,
+                file_bytes,
+                document.file_name or os.path.basename(absolute_path),
+                requested_by,
+            )
+    except Exception as exc:
+        failed_meta = _json_loads(document.processing_meta_json, {})
+        failed_meta['phc_integration'] = {
+            **dict(failed_meta.get('phc_integration') or {}),
+            'status': 'failed_recoverable',
+            'failed_at': _now().isoformat(),
+            'error': str(exc)[:1000],
+        }
+        document.processing_meta_json = _json_dumps(failed_meta)
+        document.processing_stage = 'integration_failed_recoverable'
+        document.last_processing_error = str(exc)[:4000]
+        document.dtalt = _now()
+        db.session.commit()
+        raise
 
     integration = {
         'type': integration_type,
@@ -4332,11 +4653,25 @@ def _integrate_reception_document(
             key: result.get(key)
             for key in (
                 'crstamp', 'fostamp', 'reference', 'year', 'document_number',
-                'phc_database', 'file_name', 'ged_path', 'ged_paths', 'duplicate',
+                'phc_database', 'file_name', 'ged_path', 'ged_paths', 'anexosstamp',
+                'anexosstamps', 'ged_confirmed', 'duplicate',
             )
             if result.get(key) not in (None, '')
         },
     }
+    if not _has_complete_reception_integration(integration, document_type):
+        meta['phc_integration'] = {
+            **integration,
+            'status': 'failed_recoverable',
+            'failed_at': _now().isoformat(),
+            'error': 'A integração PHC/GED não devolveu todos os identificadores obrigatórios.',
+        }
+        document.processing_meta_json = _json_dumps(meta)
+        document.processing_stage = 'integration_failed_recoverable'
+        document.last_processing_error = meta['phc_integration']['error']
+        document.dtalt = _now()
+        db.session.commit()
+        raise RuntimeError('A integração PHC/GED não devolveu todos os identificadores obrigatórios.')
     meta['phc_integration'] = integration
     document.processing_meta_json = _json_dumps(meta)
     if is_provisional_purchase:
@@ -4344,6 +4679,9 @@ def _integrate_reception_document(
     document.last_processing_error = ''
     document.dtalt = _now()
     document.useralteracao = requested_by or document.useralteracao or ''
+    # Preserve the PHC/GED identity before publishing any Portal workflow state.
+    # A distribution retry must reuse these exact stamps.
+    db.session.commit()
     return integration
 
 
@@ -4353,6 +4691,7 @@ def validate_document_inbox_stage(
     requested_by: str,
     reviewed_document: dict[str, Any] | None = None,
     integration_permissions: dict[str, bool] | None = None,
+    expected_version: str = '',
 ) -> dict[str, Any]:
     """Persist a business workflow transition after server-side validation."""
     stage = _normalize_document_inbox_view(view)
@@ -4371,6 +4710,14 @@ def validate_document_inbox_stage(
         existing_integration = dict(
             _json_loads(getattr(document, 'processing_meta_json', ''), {}).get('phc_integration') or {}
         )
+        existing_result = _json_loads(getattr(document, 'json_resultado', ''), {})
+        existing_type = str(
+            existing_result.get('document_type') or getattr(document, 'doc_type_detected', '') or ''
+        ).strip().lower()
+        if stage == 'home' and (
+            existing_type in {'mail', 'bank_statement'} or _is_provisional_purchase_source_type(existing_type)
+        ) and not _has_complete_reception_integration(existing_integration, existing_type):
+            return None
         return {
             'ok': True,
             'already_validated': True,
@@ -4392,6 +4739,11 @@ def validate_document_inbox_stage(
         WHERE DOCINSTAMP=:document_id
     """), {'document_id': document.docinstamp}).scalar_one()
     db.session.refresh(document)
+    version_before = _document_draft_version(document)
+    clean_expected_version = str(expected_version or '').strip()
+    if clean_expected_version and clean_expected_version != version_before:
+        db.session.rollback()
+        raise DocumentDraftConflictError(version_before)
     now = _now()
     already_completed = completed_payload()
     if already_completed:
@@ -4419,6 +4771,7 @@ def validate_document_inbox_stage(
     )
     if not preflight.get('ok'):
         raise ValueError(str(preflight.get('message') or 'Não foi possível validar a etapa documental.'))
+    document.json_resultado = _json_dumps(result)
 
     if stage == 'home':
         integration = _integrate_reception_document(
@@ -4442,13 +4795,32 @@ def validate_document_inbox_stage(
     from services.document_ai_distribution_service import apply_document_distribution
     distribution = apply_document_distribution(document, stage, requested_by)
 
+    transition_now = _now()
     document.invoice_type = invoice_type
     document.processing_stage = f'{stage}_validated'
-    document.dtalt = now
+    document.dtalt = transition_now
     document.useralteracao = requested_by or document.useralteracao or ''
+    version_after = _document_draft_version(document)
+    destination = {
+        'home': 'management',
+        'management': 'accounting',
+        'accounting': 'archive',
+    }[stage]
     _document_log(document.docinstamp, 'workflow', 'ok', f'Etapa {stage} validada.', {
-        'view': stage,
+        'source': stage,
+        'destination': destination,
         'requested_by': requested_by or '',
+        'version_before': version_before,
+        'version_after': version_after,
+        'persisted_sections': [
+            'identification', 'classification', 'analysis', 'origin',
+            'details', 'totals', 'distribution',
+        ],
+        'preconditions': {
+            'preflight': True,
+            'phc_integration': str((integration or {}).get('status') or '') if stage == 'home' else 'not_applicable',
+            'distribution': bool(distribution.get('ok')),
+        },
     })
     db.session.commit()
     return {
@@ -6086,6 +6458,13 @@ def _normalize_invoice_type(value: Any) -> str:
         'services': 'services',
         'service': 'services',
         'servicos': 'services',
+        'c&p': 'fuel_tolls',
+        'c_p': 'fuel_tolls',
+        'cp': 'fuel_tolls',
+        'combustiveis_e_portagens': 'fuel_tolls',
+        'combustibles_y_peajes': 'fuel_tolls',
+        'carburants_et_peages': 'fuel_tolls',
+        'fuel_tolls': 'fuel_tolls',
     }
     return aliases.get(normalized, 'unknown')
 
@@ -6095,6 +6474,7 @@ def _invoice_type_label(value: Any) -> str:
         'concrete': 'Betão',
         'material': 'Material',
         'services': 'Serviços',
+        'fuel_tolls': 'C&P',
     }.get(_normalize_invoice_type(value), '-')
 
 
@@ -6109,6 +6489,12 @@ def _infer_invoice_type(result: dict[str, Any], extracted_text: Any = '') -> str
     normalized = _normalize_text(' '.join(fragments))
     if any(token in normalized for token in ('beton', 'concrete', 'betao', 'toupie')):
         return 'concrete'
+    if any(token in normalized for token in (
+        'combustivel', 'combustiveis', 'gasoil', 'gasoleo', 'diesel', 'essence',
+        'carburant', 'carburants', 'peage', 'peages', 'portagem', 'portagens',
+        'autoroute', 'telepeage', 'telepass', 'toll',
+    )):
+        return 'fuel_tolls'
     if any(token in normalized for token in ('honoraires', 'prestation', 'service', 'main d oeuvre', 'consult')):
         return 'services'
     if any(isinstance(line, dict) and str(line.get('description') or '').strip() for line in (result.get('lines') or [])):
@@ -6188,6 +6574,87 @@ def assess_document_reception(
         'invoice_type': invoice_type,
         'multiple_documents': multiple_documents,
         'supplier_explicitly_absent': supplier_absent,
+    }
+
+
+def validate_document_financial_consistency(document_data: dict[str, Any] | None) -> dict[str, Any]:
+    """Keep the saved totals and IVA detail as one financial truth before validation."""
+    result = dict(document_data or {})
+    totals = dict(result.get('totals') or {})
+    taxes = [dict(item or {}) for item in (result.get('taxes') or []) if isinstance(item, dict)]
+    tolerance = Decimal('0.02')
+    net_total = _phc_money(totals.get('net_total'))
+    tax_total = _phc_money(totals.get('tax_total'))
+    gross_total = _phc_money(totals.get('gross_total'))
+    base_sum = Decimal('0.00')
+    iva_sum = Decimal('0.00')
+    gross_sum = Decimal('0.00')
+    errors: list[str] = []
+
+    if not taxes:
+        if tax_total != 0:
+            errors.append('Falta o detalhe IVA correspondente ao IVA total.')
+        return {
+            'ok': not errors,
+            'errors': errors,
+            'targets': ['docAiExtractTotalsCard'] if errors else [],
+            'tooltips': ['Valor não Conforme'] if errors else [],
+        }
+
+    for position, item in enumerate(taxes, start=1):
+        base = _phc_money(item.get('taxable_base') if item.get('taxable_base') not in (None, '') else item.get('net_total'))
+        iva = _phc_money(item.get('tax_amount') if item.get('tax_amount') not in (None, '') else item.get('vat_amount'))
+        rate = _phc_money(item.get('tax_rate'))
+        gross = _phc_money(item.get('gross_total'))
+        base_sum += base
+        iva_sum += iva
+        gross_sum += gross or base + iva
+        if gross and abs(gross - (base + iva)) > tolerance:
+            errors.append(f'Detalhe IVA {position}: total c/IVA não coincide com base + IVA.')
+        expected_iva = (base * rate / Decimal('100.00')).quantize(Decimal('0.01'))
+        if rate and abs(iva - expected_iva) > tolerance:
+            errors.append(f'Detalhe IVA {position}: IVA não coincide com a taxa indicada.')
+
+    if abs(base_sum - net_total) > tolerance:
+        errors.append('A soma das bases de IVA não coincide com o total s/IVA.')
+    if abs(iva_sum - tax_total) > tolerance:
+        errors.append('A soma do IVA detalhado não coincide com o IVA total.')
+    if abs(gross_sum - gross_total) > tolerance:
+        errors.append('A soma dos totais c/IVA não coincide com o total do documento.')
+    if abs((net_total + tax_total) - gross_total) > tolerance:
+        errors.append('O total do documento não coincide com total s/IVA + IVA.')
+
+    effective_lines = _effective_portal_lines([
+        dict(item or {}) for item in (result.get('lines') or []) if isinstance(item, dict)
+    ])
+    if effective_lines:
+        line_net = Decimal('0.00')
+        line_tax = Decimal('0.00')
+        line_gross = Decimal('0.00')
+        for item in effective_lines:
+            net = _phc_money(item.get('net_amount'))
+            rate = _phc_money(item.get('tax_rate'))
+            tax = (net * rate / Decimal('100.00')).quantize(Decimal('0.01'))
+            line_net += net
+            line_tax += tax
+            line_gross += net + tax
+        if abs(line_net - net_total) > tolerance:
+            errors.append('A soma das linhas efetivas não coincide com o total s/IVA.')
+        if abs(line_tax - tax_total) > tolerance:
+            errors.append('A soma do IVA arredondado por linha não coincide com o IVA total.')
+        if abs(line_gross - gross_total) > tolerance:
+            errors.append('A soma das linhas efetivas não coincide com o total c/IVA.')
+
+    targets = []
+    if errors:
+        targets.append('docAiExtractTotalsCard')
+        if effective_lines:
+            targets.append('docAiExtractLinesSection')
+    return {
+        'ok': not errors,
+        'errors': errors,
+        'targets': targets,
+        'tooltips': ['Valor não Conforme'] * len(targets),
     }
 
 
@@ -6735,6 +7202,7 @@ def list_documents(filters: dict[str, Any] | None = None) -> dict[str, Any]:
             {'value': 'concrete', 'label': 'Betão'},
             {'value': 'material', 'label': 'Material'},
             {'value': 'services', 'label': 'Serviços'},
+            {'value': 'fuel_tolls', 'label': 'C&P'},
             {'value': 'unknown', 'label': '-'},
         ],
         'entities': [
@@ -7267,6 +7735,48 @@ def _document_draft_version(document: DocInbox) -> str:
     return value.isoformat(timespec='microseconds') if value else ''
 
 
+def _document_financial_changes(before: dict[str, Any], after: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return only manually changed financial values, with stable line paths."""
+    changes: list[dict[str, Any]] = []
+    for field in ('net_total', 'tax_total', 'gross_total'):
+        old_value = (before.get('totals') or {}).get(field)
+        new_value = (after.get('totals') or {}).get(field)
+        if old_value != new_value:
+            changes.append({'field': f'totals.{field}', 'before': old_value, 'after': new_value})
+
+    old_taxes = before.get('taxes') or []
+    new_taxes = after.get('taxes') or []
+    if old_taxes != new_taxes:
+        changes.append({'field': 'taxes', 'before': old_taxes, 'after': new_taxes})
+
+    financial_line_fields = ('qty', 'unit_price', 'discount', 'net_amount', 'tax_rate', 'tax_amount', 'gross_amount')
+    old_lines = before.get('lines') or []
+    new_lines = after.get('lines') or []
+    for line_index in range(max(len(old_lines), len(new_lines))):
+        old_line = old_lines[line_index] if line_index < len(old_lines) and isinstance(old_lines[line_index], dict) else {}
+        new_line = new_lines[line_index] if line_index < len(new_lines) and isinstance(new_lines[line_index], dict) else {}
+        for field in financial_line_fields:
+            if old_line.get(field) != new_line.get(field):
+                changes.append({
+                    'field': f'lines.{line_index}.{field}',
+                    'before': old_line.get(field),
+                    'after': new_line.get(field),
+                })
+        old_sub_lines = old_line.get('sub_lines') or []
+        new_sub_lines = new_line.get('sub_lines') or []
+        for sub_index in range(max(len(old_sub_lines), len(new_sub_lines))):
+            old_sub = old_sub_lines[sub_index] if sub_index < len(old_sub_lines) and isinstance(old_sub_lines[sub_index], dict) else {}
+            new_sub = new_sub_lines[sub_index] if sub_index < len(new_sub_lines) and isinstance(new_sub_lines[sub_index], dict) else {}
+            for field in financial_line_fields:
+                if old_sub.get(field) != new_sub.get(field):
+                    changes.append({
+                        'field': f'lines.{line_index}.sub_lines.{sub_index}.{field}',
+                        'before': old_sub.get(field),
+                        'after': new_sub.get(field),
+                    })
+    return changes
+
+
 def save_document_draft(
     document_stamp: str,
     payload: dict[str, Any],
@@ -7296,6 +7806,28 @@ def save_document_draft(
     result = payload.get('document')
     if not isinstance(result, dict):
         raise ValueError('Rascunho documental inválido.')
+    draft_view = _normalize_document_inbox_view(payload.get('view'))
+    if draft_view == 'accounting':
+        raise ValueError('O bloco Análise é apenas de consulta na Contabilidade.')
+
+    previous_result = _json_loads(document.json_resultado, {})
+    financial_changes = _document_financial_changes(previous_result, result)
+    header_fields = ('document_type', 'invoice_type', 'document_number', 'document_date')
+    header_changes = {
+        field: {'before': previous_result.get(field), 'after': result.get(field)}
+        for field in header_fields
+        if str(previous_result.get(field) or '') != str(result.get(field) or '')
+    }
+    if header_changes:
+        if draft_view not in {'home', 'management'} or bool(getattr(document, 'management_validated', False)):
+            raise ValueError('Os dados do cabeçalho estão bloqueados nesta etapa.')
+        leaving_invoice = (
+            str(previous_result.get('document_type') or '').strip().lower() in {'invoice', 'provisional_invoice'}
+            and str(result.get('document_type') or '').strip().lower() not in {'invoice', 'provisional_invoice'}
+            and str(previous_result.get('invoice_type') or '').strip()
+        )
+        if leaving_invoice and not bool(payload.get('confirm_invoice_type_removal')):
+            raise ValueError('Confirma a remoção do tipo de fatura antes de alterar o tipo de documento.')
 
     customer = dict(result.get('customer') or {})
     supplier = dict(result.get('supplier') or {})
@@ -7327,6 +7859,17 @@ def save_document_draft(
         document.processing_meta_json = _json_dumps(meta)
     document.dtalt = _now()
     document.useralteracao = str(requested_by or '')[:50]
+    if header_changes:
+        _document_log(document.docinstamp, 'manual_correction', 'ok', 'Cabeçalho do documento corrigido manualmente.', {
+            'user': str(requested_by or '')[:50], 'source': 'manual', 'changes': header_changes,
+        })
+    if financial_changes:
+        _document_log(document.docinstamp, 'financial_correction', 'ok', 'Valores financeiros corrigidos manualmente.', {
+            'user': str(requested_by or '')[:50],
+            'source': 'manual',
+            'changed_at': document.dtalt.isoformat(),
+            'changes': financial_changes,
+        })
     db.session.commit()
     return {
         'ok': True,
@@ -7481,6 +8024,7 @@ def _postprocess_visual_classification(
             continue
         normalized_lines.append({
             'ref': str(item.get('ref') or '').strip(),
+            'source_ref': str(item.get('source_ref') or item.get('ref') or '').strip(),
             'description': description,
             'qty': float(qty),
             'unit': str(item.get('unit') or '').strip(),

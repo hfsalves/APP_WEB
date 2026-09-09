@@ -65,6 +65,7 @@ from services.document_ai_service import (
     suggest_template,
     test_template,
     toggle_template_active,
+    validate_document_financial_consistency,
     validate_document_inbox_stage,
     DocumentDraftConflictError,
 )
@@ -650,6 +651,9 @@ def api_document_ai_articles_search():
             body.get('customer') or {},
             str(body.get('query') or ''),
             int(body.get('limit') or 20),
+            line=body.get('line') or {},
+            supplier_no=int(body.get('supplier_no') or 0),
+            selected_article_ref=str(body.get('selected_article_ref') or ''),
         ))
     except ValueError as exc:
         return jsonify({'error': str(exc)}), 400
@@ -766,6 +770,12 @@ def api_document_ai_provisional_invoice_submit():
         document_data = json.loads(request.form.get('document_data') or '{}')
     except Exception:
         return jsonify({'error': 'Os dados da Fatura Provisória não são válidos.'}), 400
+    financial_consistency = validate_document_financial_consistency(document_data)
+    if not financial_consistency['ok']:
+        return jsonify({
+            'error': financial_consistency['errors'][0],
+            'financial_consistency': financial_consistency,
+        }), 400
     document_id = str(request.form.get('document_id') or '').strip()
     if not document_id:
         return jsonify({'error': 'O documento tem de estar guardado no inbox antes da validação.'}), 400
@@ -1292,7 +1302,14 @@ def api_document_ai_document_workflow_validate(docinstamp: str):
                 'correspondence': _document_ai_has_integration_access('correspondence'),
                 'provisional_invoice': _document_ai_has_integration_access('provisional_invoice'),
             },
+            expected_version=str(body.get('expected_version') or ''),
         ))
+    except DocumentDraftConflictError as exc:
+        return jsonify({
+            'error': str(exc),
+            'code': 'document_version_conflict',
+            'current_version': exc.current_version,
+        }), 409
     except FileNotFoundError as exc:
         return jsonify({'error': str(exc)}), 409
     except PermissionError as exc:

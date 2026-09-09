@@ -13,8 +13,15 @@ document.addEventListener('DOMContentLoaded', () => {
     entityCancel: document.getElementById('docAiAccessEntityCancel'), entityApply: document.getElementById('docAiAccessEntityApply'),
     entitySearch: document.getElementById('docAiAccessEntitySearch'), entityList: document.getElementById('docAiAccessEntityList'),
     allEntities: document.getElementById('docAiAccessAllEntities'),
+    specificEntities: document.getElementById('docAiAccessSpecificEntities'),
+    specificEntityPanel: document.getElementById('docAiAccessSpecificEntityPanel'),
   };
   const permissionLabels = { consult: 'Consultar', create: 'Criar', analyze: 'Analisar', delete: 'Eliminar', ai: 'iA', associate: 'Associar', validate: 'Validar' };
+  const permissionsByView = {
+    home: ['consult', 'create', 'analyze', 'delete', 'ai', 'associate', 'validate'],
+    management: ['consult', 'analyze', 'delete', 'associate', 'validate'],
+    accounting: ['consult', 'delete', 'validate'],
+  };
   let config = null;
   let expanded = new Set();
   let editingAssignment = null;
@@ -63,7 +70,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="docai-access-view-row" data-assignment="${escapeHtml(item.id)}">
               <strong>${escapeHtml(viewLabel(item.view))}</strong>
               <button type="button" class="docai-access-entity-button" data-entities="${escapeHtml(item.id)}">${escapeHtml(entityLabel(item))}</button>
-              <div class="docai-access-permissions">${Object.entries(permissionLabels).map(([key, label]) => `<label class="docai-access-check"><input type="checkbox" data-permission="${key}" ${item.permissions[key] ? 'checked' : ''}><span>${label}</span></label>`).join('')}</div>
+              <div class="docai-access-permissions">${Object.entries(permissionLabels).filter(([key]) => (permissionsByView[item.view] || []).includes(key)).map(([key, label]) => `<label class="docai-access-check"><input type="checkbox" data-permission="${key}" ${item.permissions[key] ? 'checked' : ''}><span>${label}</span></label>`).join('')}</div>
               <button type="button" class="sz_button sz_button_ghost docai-access-remove" data-remove="${escapeHtml(item.id)}" title="Remover visualização" aria-label="Remover visualização"><i class="fa-solid fa-trash"></i></button>
             </div>`).join('')}
         </div>
@@ -98,6 +105,7 @@ document.addEventListener('DOMContentLoaded', () => {
     editingAssignment = item;
     entityDraft = { all_entities: item.all_entities, entity_ids: [...item.entity_ids] };
     els.allEntities.checked = entityDraft.all_entities;
+    els.specificEntities.checked = !entityDraft.all_entities;
     els.entitySearch.value = '';
     renderEntities();
     entityModal.hidden = false;
@@ -105,9 +113,11 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function renderEntities() {
+    els.specificEntityPanel.hidden = entityDraft.all_entities;
+    if (entityDraft.all_entities) return;
     const query = String(els.entitySearch.value || '').trim().toLowerCase();
     els.entityList.innerHTML = config.entities.filter((item) => item.name.toLowerCase().includes(query)).map((item) => `
-      <label class="docai-access-check"><input type="checkbox" value="${item.feid}" ${entityDraft.entity_ids.includes(item.feid) ? 'checked' : ''} ${entityDraft.all_entities ? 'disabled' : ''}><span>${escapeHtml(item.name)}</span></label>
+      <label class="docai-access-check"><input type="checkbox" value="${item.feid}" ${entityDraft.entity_ids.includes(item.feid) ? 'checked' : ''}><span>${escapeHtml(item.name)}</span></label>
     `).join('');
   }
 
@@ -148,7 +158,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (removeId) { config.assignments = config.assignments.filter((item) => item.id !== removeId); render(); }
   });
   els.entitySearch.addEventListener('input', renderEntities);
-  els.allEntities.addEventListener('change', () => { entityDraft.all_entities = els.allEntities.checked; renderEntities(); });
+  els.allEntities.addEventListener('change', () => { if (els.allEntities.checked) { entityDraft.all_entities = true; renderEntities(); } });
+  els.specificEntities.addEventListener('change', () => { if (els.specificEntities.checked) { entityDraft.all_entities = false; renderEntities(); } });
   els.entityList.addEventListener('change', (event) => {
     const feid = Number(event.target.value || 0); if (!feid) return;
     entityDraft.entity_ids = event.target.checked ? [...new Set([...entityDraft.entity_ids, feid])] : entityDraft.entity_ids.filter((value) => value !== feid);

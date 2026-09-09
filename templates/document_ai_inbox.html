@@ -174,9 +174,14 @@
       <div><h3 id="docAiAccessEntityTitle">Entidades</h3><p class="sz_text_muted">Define o perímetro desta visualização</p></div>
       <button id="docAiAccessEntityCloseTop" type="button" class="sz_button sz_button_ghost" title="Fechar" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
     </div>
-    <label class="docai-access-check docai-access-all-entities"><input id="docAiAccessAllEntities" type="checkbox"><span>Todas as entidades</span></label>
-    <input id="docAiAccessEntitySearch" class="sz_input" type="search" placeholder="Pesquisar entidade">
-    <div id="docAiAccessEntityList" class="docai-access-entity-list"></div>
+    <div class="docai-access-entity-scope" role="radiogroup" aria-label="Âmbito de entidades">
+      <label class="docai-access-check"><input id="docAiAccessAllEntities" type="radio" name="docAiEntityScope" value="all"><span>Todas as entidades</span></label>
+      <label class="docai-access-check"><input id="docAiAccessSpecificEntities" type="radio" name="docAiEntityScope" value="specific"><span>Selecionar entidades específicas</span></label>
+    </div>
+    <div id="docAiAccessSpecificEntityPanel">
+      <input id="docAiAccessEntitySearch" class="sz_input" type="search" placeholder="Pesquisar entidade">
+      <div id="docAiAccessEntityList" class="docai-access-entity-list"></div>
+    </div>
     <div class="sz_modal_footer">
       <button id="docAiAccessEntityCancel" type="button" class="sz_button sz_button_secondary">Cancelar</button>
       <button id="docAiAccessEntityApply" type="button" class="sz_button sz_button_primary">Aplicar</button>

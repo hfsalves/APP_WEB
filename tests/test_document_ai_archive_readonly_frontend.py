@@ -17,8 +17,13 @@ class DocumentAiArchiveReadonlyFrontendTests(unittest.TestCase):
         self.assertIn('detail.result || cached.document || {}', self.source)
 
     def test_read_only_mode_never_autosaves_and_returns_to_archive(self):
-        self.assertIn('if (state.readOnly) return Promise.resolve(true);', self.source)
+        self.assertIn("if (state.readOnly || state.view === 'accounting') return Promise.resolve(true);", self.source)
         self.assertIn("if (state.readOnly) params.set('archived', '1')", self.source)
+
+    def test_accounting_analysis_is_read_only_but_keeps_workflow_actions(self):
+        self.assertIn("const analysisReadOnly = state.readOnly || state.view === 'accounting';", self.source)
+        self.assertIn("els.results?.querySelectorAll('button')", self.source)
+        self.assertIn('expected_version: state.draftVersion', self.source)
 
     def test_original_pdf_request_preserves_archive_scope(self):
         self.assertIn("state.readOnly ? '&archive=1' : ''", self.source)

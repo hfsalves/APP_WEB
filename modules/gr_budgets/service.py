@@ -202,6 +202,19 @@ def _write_money(value: Any) -> Decimal:
     return _decimal(value).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
+def _write_budget_line_total(
+    line: dict[str, Any],
+    unit_price: Decimal,
+    quantity: Decimal,
+    factor: Decimal,
+) -> Decimal:
+    """Calculate the PHC BI total, keeping dossier prorata as a deduction."""
+    total = _write_money(unit_price * quantity * factor)
+    item_code = _text_value(line.get("item_label") or line.get("item")).upper()
+    reference = _text_value(line.get("reference")).upper()
+    return -abs(total) if item_code == "PP" or reference == "PP" else total
+
+
 def _write_oci_purchase_price(row: dict[str, Any]) -> Decimal:
     """Prefer the normalized text still visible in the OCI input.
 
@@ -1345,6 +1358,7 @@ def _budget_print_labels(language: str) -> dict[str, str]:
             "line_total_sub": "Net Amount",
             "amount_total": "Total:",
             "amount_total_sub": "Total Goods:",
+            "pro_rata_label": "Prorata",
             "pro_rata_total": "Prorata:",
             "pro_rata_total_sub": "Prorata:",
             "discounts": "Descontos:",
@@ -1394,6 +1408,7 @@ def _budget_print_labels(language: str) -> dict[str, str]:
         "line_total_sub": "Net Amount",
         "amount_total": "Total HT :",
         "amount_total_sub": "Amount:",
+        "pro_rata_label": "Prorata",
         "pro_rata_total": "Prorata :",
         "pro_rata_total_sub": "Prorata:",
         "discounts": "Escomptes :",
@@ -2865,13 +2880,14 @@ def save_budget(payload: dict[str, Any], user) -> dict[str, Any]:
                 factor = (Decimal("1") - discount_1 / Decimal("100")) * (
                     Decimal("1") - discount_2 / Decimal("100")
                 )
-                total = _write_money(unit_price * quantity * factor)
+                total = _write_budget_line_total(raw_line, unit_price, quantity, factor)
                 technical_unit_cost = _write_money(
                     raw_line.get("_technical_unit_cost")
                     if raw_line.get("_technical_unit_cost") is not None
                     else raw_line.get("unit_cost")
                 )
-                stored_unit_cost = Decimal("0") if excluded else technical_unit_cost
+                prorata_line = item_label.upper() == "PP" or reference.upper() == "PP"
+                stored_unit_cost = Decimal("0") if excluded or prorata_line else technical_unit_cost
                 stored_cost_total = _write_money(stored_unit_cost * quantity)
                 vat_code = int(_number_value(raw_line.get("vat_table")))
                 if vat_code <= 0:

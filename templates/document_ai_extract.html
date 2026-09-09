@@ -160,16 +160,15 @@
                 <h4>Classificação</h4>
                 <div id="docAiExtractGedDestination" class="docai-classification-ged">
                   <div id="docAiExtractGedFolderControl" class="docai-classification-agency" hidden>
-                    <label for="docAiExtractGedFolderSelect">Agência INTERSOL</label>
-                    <select id="docAiExtractGedFolderSelect" class="sz_input">
+                    <button id="docAiExtractGedFolderTrigger" type="button" class="docai-classification-agency-trigger">Agência INTERSOL</button>
+                    <select id="docAiExtractGedFolderSelect" class="sz_input" hidden aria-label="Agência INTERSOL">
                       <option value="">Escolher</option>
                     </select>
-                    <span id="docAiExtractGedFolderHint" class="sz_text_muted"></span>
+                    <span id="docAiExtractGedFolderHint" hidden></span>
                   </div>
-                  <span id="docAiExtractGedStatus" class="sz_text_muted"></span>
+                  <span id="docAiExtractGedStatus" hidden aria-hidden="true"></span>
                   <span id="docAiExtractLegalBadge" class="docai-extract-legal-badge" hidden></span>
                   <div id="docAiExtractGedFileRow" class="docai-classification-file" hidden>
-                    <span>Nome GED</span>
                     <strong id="docAiExtractGedFileName"></strong>
                   </div>
                   <div id="docAiExtractGedPath" class="docai-classification-destinations"></div>
@@ -186,9 +185,9 @@
               </article>
               <article id="docAiExtractTotalsCard" class="docai-info-card docai-totals-card" tabindex="0" role="button" aria-label="Ver detalhe dos totais por taxa de IVA">
                 <h4>Totais</h4>
-                <div><span>Total c/IVA</span><strong id="docAiExtractGrossTotal">--</strong></div>
-                <div><span>IVA</span><strong id="docAiExtractTaxTotal">--</strong></div>
                 <div><span>Total s/IVA</span><strong id="docAiExtractNetTotal">--</strong></div>
+                <div><span>IVA</span><strong id="docAiExtractTaxTotal">--</strong></div>
+                <div><span>Total c/IVA</span><strong id="docAiExtractGrossTotal">--</strong></div>
               </article>
             </div>
 
@@ -223,17 +222,18 @@
                 <div class="sz_table_wrap">
                   <table class="sz_table sz_table_compact">
                     <colgroup>
+                      <col style="width: 3%">
+                      <col style="width: 9%">
+                      <col style="width: 20%">
+                      <col style="width: 6%">
+                      <col style="width: 7%">
+                      <col style="width: 7%">
+                      <col style="width: 5%">
+                      <col style="width: 7%">
                       <col style="width: 4%">
                       <col style="width: 11%">
-                      <col style="width: 19%">
-                      <col style="width: 8%">
-                      <col style="width: 7%">
-                      <col style="width: 8%">
-                      <col style="width: 8%">
-                      <col style="width: 7%">
-                      <col style="width: 8%">
                       <col style="width: 3%">
-                      <col style="width: 13%">
+                      <col style="width: 14%">
                       <col style="width: 4%">
                     </colgroup>
                     <thead class="sz_table_head">
@@ -244,6 +244,7 @@
                         <th>Quantidade</th>
                         <th>PU</th>
                         <th>PT</th>
+                        <th>IVA</th>
                         <th>Obra</th>
                         <th>Matrícula</th>
                         <th>Data</th>
