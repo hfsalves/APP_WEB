@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }}{% endblock %}
+{% block content %}
+<div class="container-fluid py-3" id="touristTaxApp">
+  <div class="d-flex flex-wrap gap-2 align-items-end mb-3"><div><h1 class="sz_page_title mb-0">Taxas turísticas</h1><div class="text-muted">Mapa de dormidas por período · GuestSpaTur</div></div>
+    <div class="ms-auto d-flex flex-wrap gap-2"><label>Tipo<select id="taxType" class="form-select"><option value="mensal">Mensal</option><option value="trimestral">Trimestral</option></select></label><label>Ano<input id="taxYear" class="form-control" type="number" min="2000" max="2100" value="{{ year }}"></label><label id="taxPeriodLabel">Mês<select id="taxPeriod" class="form-select">{% for i in range(1,13) %}<option value="{{ i }}" {% if i == month %}selected{% endif %}>{{ i }}</option>{% endfor %}</select></label><button id="taxLoad" class="btn btn-primary">Consultar</button><button id="taxExport" class="btn btn-outline-primary">Exportar Excel</button></div>
+  </div>
+  <div id="taxError" class="alert alert-warning d-none"></div><div id="taxSummary" class="row g-3"></div>
+  <h2 class="h5 mt-4">Detalhe por reserva</h2><div class="table-responsive"><table class="table table-sm table-striped" id="taxDetail"><thead><tr><th>N.º reserva</th><th>Origem</th><th>Alojamento</th><th>Check-in</th><th>Check-out</th><th>Noites no período</th><th>Adultos</th><th>Crianças</th><th>Hóspedes total</th><th>Dormidas totais</th><th>Dormidas acima limite</th><th>Limite</th></tr></thead><tbody></tbody></table></div>
+  <h2 class="h5 mt-4">Avisos</h2><ul id="taxWarnings" class="small text-muted"></ul>
+</div>
+<script src="{{ url_for('static', filename='js/tourist_tax.js') }}?v={{ static_version }}"></script>
+{% endblock %}

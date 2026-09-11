@@ -285,17 +285,21 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     const canOpen = Boolean(state.archived ? state.permissions.consult : state.permissions.analyze);
+    const ellipsisCell = (value, fallback = '-') => {
+      const text = String(value == null || value === '' ? fallback : value);
+      return `<span class="docai-cell-ellipsis" title="${escapeHtml(text)}" aria-label="${escapeHtml(text)}">${escapeHtml(text)}</span>`;
+    };
     els.inboxBody.innerHTML = state.filteredItems.map((item) => `
       <tr class="${canOpen ? 'docai-inbox-row is-interactive' : 'docai-inbox-row'}${state.activeDocumentId === item.id ? ' is-returned' : ''}"
           data-document-id="${escapeHtml(item.id)}" ${canOpen ? 'tabindex="0" role="button" aria-label="Analisar"' : ''}>
-        <td><span class="docai-business-state ${stateClass(item.business_state)}"><i></i>${escapeHtml(item.business_state || '-')}</span></td>
-        <td>${escapeHtml(item.doc_type_label || docTypeLabel(item.doc_type))}</td>
-        <td>${escapeHtml(item.entity_name || '-')}</td>
-        <td>${escapeHtml(item.supplier_name || '-')}</td>
-        <td>${escapeHtml(item.cost_center || '-')}</td>
-        <td>${escapeHtml(item.document_number || '-')}</td>
-        <td>${escapeHtml(formatDate(item.document_date))}</td>
-        <td class="docai-value-cell">${escapeHtml(formatValue(item.document_value, item.currency))}</td>
+        <td><span class="docai-business-state ${stateClass(item.business_state)}" title="${escapeHtml(item.business_state || '-')}" aria-label="${escapeHtml(item.business_state || '-')}"><i></i><span>${escapeHtml(item.business_state || '-')}</span></span></td>
+        <td>${ellipsisCell(item.doc_type_label || docTypeLabel(item.doc_type))}</td>
+        <td>${ellipsisCell(item.entity_name)}</td>
+        <td>${ellipsisCell(item.supplier_name)}</td>
+        <td>${ellipsisCell(item.cost_center)}</td>
+        <td>${ellipsisCell(item.document_number)}</td>
+        <td>${ellipsisCell(formatDate(item.document_date))}</td>
+        <td class="docai-value-cell">${ellipsisCell(formatValue(item.document_value, item.currency))}</td>
         <td>
           <div class="docai-row-actions">
             ${!state.archived && state.permissions.delete ? `
@@ -350,31 +354,36 @@ document.addEventListener('DOMContentLoaded', () => {
         <span class="docai-business-count-title">${escapeHtml(title)}</span>
         <div class="docai-business-count-options">${ordered.map(([value, data]) => `
           <button type="button" class="docai-business-count-chip ${selected.has(value) ? 'is-active' : ''}"
-                  data-count-filter="${filterName}" data-value="${escapeHtml(value)}">
+                  data-count-filter="${filterName}" data-value="${escapeHtml(value)}"
+                  title="${data.count} ${escapeHtml(data.label || '-')}" aria-label="${data.count} ${escapeHtml(data.label || '-')}">
             <strong>${data.count}</strong><span>${escapeHtml(data.label || '-')}</span>
           </button>`).join('')}</div></div>`;
     };
-    const typeGroups = [];
-    typeGroups.push(counterGroup('Tipo de documento', 'document_type', 'document_type', state.docTypes, state.typeFilters));
-    if (state.view !== 'home') typeGroups.push(counterGroup('Tipo de fatura', 'invoice_type', 'invoice_type', state.invoiceTypes, state.invoiceTypeFilters));
+    const documentTypeGroup = counterGroup('Tipo de documento', 'document_type', 'document_type', state.docTypes, state.typeFilters);
+    const invoiceTypeGroup = state.view !== 'home'
+      ? counterGroup('Tipo de fatura', 'invoice_type', 'invoice_type', state.invoiceTypes, state.invoiceTypeFilters)
+      : '';
+    els.counts.classList.toggle('has-invoice-type', Boolean(invoiceTypeGroup));
     els.counts.innerHTML = `
       <div class="docai-business-count-group docai-business-count-states" aria-label="Filtros de estados">
         <span class="docai-business-count-title">Estados</span>
         <div class="docai-business-count-options">
           ${[...stateCounts.entries()].map(([value, count]) => `
             <button type="button" class="docai-business-count-chip ${state.stateFilters.has(value) ? 'is-active' : ''}"
-                    data-state="${escapeHtml(String(value).toLowerCase())}" data-count-filter="state" data-value="${escapeHtml(value)}">
+                    data-state="${escapeHtml(String(value).toLowerCase())}" data-count-filter="state" data-value="${escapeHtml(value)}"
+                    title="${count} ${escapeHtml(value)}" aria-label="${count} ${escapeHtml(value)}">
               <strong>${count}</strong><span>${escapeHtml(value)}</span>
             </button>
           `).join('') || '<span class="sz_text_muted">Sem estados</span>'}
         </div>
       </div>
-      <div class="docai-counts-types" tabindex="0" aria-label="Tipos de documento; use as setas para deslocar">
-        ${typeGroups.join('')}
+      <div class="docai-counts-types" tabindex="0" aria-label="Tipo de documento; arraste ou use as setas para deslocar">
+        ${documentTypeGroup}
       </div>
+      ${invoiceTypeGroup ? `<div class="docai-counts-invoice">${invoiceTypeGroup}</div>` : ''}
       <button type="button" class="docai-count-card docai-count-card-action docai-filtered-total" data-action="reset-filters" title="Limpar filtros" aria-label="Mostrar todos os documentos e limpar filtros">
-        <span class="count">${visibleTotal} de ${scopeTotal}</span>
         <span class="label">Total</span>
+        <span class="count">${visibleTotal} de ${scopeTotal}</span>
       </button>
     `;
     bindTypeCounterScroller();

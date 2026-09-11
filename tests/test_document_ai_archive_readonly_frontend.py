@@ -28,6 +28,11 @@ class DocumentAiArchiveReadonlyFrontendTests(unittest.TestCase):
     def test_original_pdf_request_preserves_archive_scope(self):
         self.assertIn("state.readOnly ? '&archive=1' : ''", self.source)
 
+    def test_management_ai_only_touches_existing_components_and_recovers_after_failure(self):
+        self.assertNotIn('els.originSource', self.source)
+        self.assertIn('if (options.force) state.pendingManualOverrides = null;', self.source)
+        self.assertIn('state.loading = false;', self.source)
+
 
 if __name__ == '__main__':
     unittest.main()

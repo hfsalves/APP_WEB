@@ -1,6 +1,7 @@
 import json
 import unittest
 from datetime import datetime
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -21,6 +22,12 @@ class DocumentAiDistributionRuleTests(unittest.TestCase):
         self.assertTrue(rule['terminal'])
         self.assertEqual(rule['destination'], '')
         self.assertEqual(rule['state'], 'none')
+
+    def test_mail_without_destination_is_reception_terminal(self):
+        service = __import__('services.document_ai_distribution_service', fromlist=['x'])
+        self.assertIn("('mail', 'home', None, 'none', True)", Path(service.__file__).read_text(encoding='utf-8'))
+        workflow_source = Path(__import__('services.document_ai_service', fromlist=['x']).__file__).read_text(encoding='utf-8')
+        self.assertIn("destination = ','.join(routed_destinations) if routed_destinations else 'archive'", workflow_source)
 
     def test_same_source_and_destination_is_rejected(self):
         with self.assertRaisesRegex(ValueError, 'não podem ser iguais'):

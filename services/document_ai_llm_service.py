@@ -193,7 +193,7 @@ def _document_classification_schema() -> dict[str, Any]:
         'properties': {
             'document_type': {
                 'type': 'string',
-                'enum': ['invoice', 'provisional_invoice', 'credit_note', 'purchase_order', 'delivery_note', 'mail', 'unknown'],
+                'enum': ['invoice', 'credit_note', 'purchase_order', 'delivery_note', 'mail', 'unknown'],
             },
             'invoice_type': {
                 'type': 'string',
@@ -313,7 +313,31 @@ def _document_full_extraction_schema() -> dict[str, Any]:
     schema['properties']['document_type'] = {'type': 'string'}
     line_schema = schema['properties']['lines']['items']
     line_schema['properties']['origin_delivery_note_number'] = {'type': 'string'}
+    line_schema['properties']['detailed_costs'] = {
+        'type': 'array',
+        'items': {
+            'type': 'object',
+            'additionalProperties': False,
+            'properties': {
+                'cost_type': {'type': 'string', 'enum': ['included', 'additional']},
+                'description': {'type': 'string'},
+                'qty': {'type': 'number'},
+                'unit': {'type': 'string'},
+                'unit_price': {'type': 'number'},
+                'net_amount': {'type': 'number'},
+                'reference': {'type': 'string'},
+                'date': {'type': 'string'},
+                'registration': {'type': 'string'},
+                'ccusto': {'type': 'string'},
+            },
+            'required': [
+                'cost_type', 'description', 'qty', 'unit', 'unit_price',
+                'net_amount', 'reference', 'date', 'registration', 'ccusto',
+            ],
+        },
+    }
     line_schema['required'].append('origin_delivery_note_number')
+    line_schema['required'].append('detailed_costs')
     schema['properties']['origin_references'] = {
         'type': 'array',
         'items': {
@@ -433,6 +457,21 @@ def _normalize_document_batch(document: dict[str, Any], actual_page_count: int) 
 
 def _normalize_full_extraction_line_origins(document: dict[str, Any]) -> dict[str, Any]:
     document = _apply_known_document_rules(dict(document or {}))
+    legacy_type = str(document.get('document_type') or '').strip().lower()
+    if legacy_type in {'provisional_invoice', 'proforma_invoice'}:
+        document['document_type'] = 'invoice'
+    elif legacy_type == 'other':
+        document['document_type'] = 'unknown'
+    batch = document.get('document_batch')
+    if isinstance(batch, dict):
+        for item in batch.get('documents') or []:
+            if not isinstance(item, dict):
+                continue
+            item_type = str(item.get('document_type') or '').strip().lower()
+            if item_type in {'provisional_invoice', 'proforma_invoice'}:
+                item['document_type'] = 'invoice'
+            elif item_type == 'other':
+                item['document_type'] = 'unknown'
     delivery_numbers = {
         re.sub(r'[^a-z0-9]', '', str(item.get('document_number') or '').lower())
         for item in document.get('origin_references') or []
@@ -743,7 +782,6 @@ def classify_document_visual(context: dict[str, Any]) -> dict[str, Any]:
         ),
         'allowed_document_types': {
             'invoice': 'Invoice / Fatura / Facture / Note d’honoraires / Fee note',
-            'provisional_invoice': 'Facture Provisoire / Fatura Provisória, explicitly identified as provisional and intended for the PHC provisional-purchase workflow.',
             'credit_note': 'Credit note / Nota de crédito / Avoir',
             'purchase_order': 'Purchase order / Nota de encomenda / Bon de commande',
             'delivery_note': 'Delivery note / Guia / Bon de livraison / Bon d’enlèvement',
@@ -758,7 +796,7 @@ def classify_document_visual(context: dict[str, Any]) -> dict[str, Any]:
             'Use OCR mostly for document number, dates and amounts. For supplier identity, trust logo/header/footer/legal/tax blocks and known_supplier_candidates.',
             'Dates must be ISO yyyy-mm-dd when visible; otherwise empty string.',
             'Amounts must be numeric values without currency symbols.',
-            'For invoice and provisional_invoice, set invoice_type to concrete when the main purchase is ready-mix concrete/béton, material for products or construction materials, services for labour, fees or other services, and unknown only when there is not enough visible evidence. For other document types use unknown.',
+            'For invoice, set invoice_type to concrete when the main purchase is ready-mix concrete/béton, material for products or construction materials, services for labour, fees or other services, and unknown only when there is not enough visible evidence. For other document types use unknown.',
             'Extract supplier name and tax/VAT id from the issuer/seller section.',
             'Extract the supplier and customer street address, postal code and city when visible; otherwise return empty strings.',
             'The supplier is the legal issuer shown in the logo/header/footer/contact/tax block, not an operational site.',
@@ -776,7 +814,7 @@ def classify_document_visual(context: dict[str, Any]) -> dict[str, Any]:
             'Known exception: a Tradsafty document headed Recibo/Receipt is a supplier invoice and belongs to FAC, not mail.',
             'For Millennium BCP Extrato Silver Empresas correspondence, use mail_title "Extrato Silver MJ" when addressed to Dra. Maria João and "Extrato Silver AC" when addressed to António Cruz.',
             'Scanned retail invoices, including Auchan invoices, remain invoices even when OCR is weak. Use the visible seller identity, invoice number, date, tax and total blocks and do not downgrade them to mail only because item text is hard to read.',
-            'When the document itself is explicitly titled Facture Provisoire or Fatura Provisória, classify it as document_type provisional_invoice. Do not use provisional_invoice merely because an ordinary invoice is awaiting internal approval.',
+            'Documents visibly titled Facture Provisoire, Fatura Provisória, Pré-Facture or Facture Pro Forma use document_type invoice in the current public classification; never emit provisional_invoice, proforma_invoice or other.',
             'For a Note d’honoraires, the professional, consultant, lawyer or other service provider issuing the document is the supplier and the recipient group company is the customer. Treat the visible services/fees as invoice lines even when there are no product references or physical quantities.',
             'On French Notes d’honoraires, identify the issuer from the logo/brand plus the legal, VAT, bank and contact details in the footer. A large company-and-address block on the upper right is commonly the addressee/customer, not the issuer. Do not reverse supplier and customer because the recipient name is large or appears near the date.',
             'Specific known layout: when the document carries the EFFIGEST logo and the footer VAT number FR80432966927, EFFIGEST is the supplier/issuer. When HSOLS FRANCE appears in the upper-right address block, HSOLS FRANCE is the customer/recipient.',
@@ -816,6 +854,11 @@ def classify_document_visual(context: dict[str, Any]) -> dict[str, Any]:
             'Set document_batch.contains_multiple_documents=true only when there are at least two distinct documents, not merely several pages.',
             'If several documents are detected, the remaining root extraction fields must describe only the first document and must never combine lines or totals from different documents.',
             'For the document represented by the root extraction fields, extract every visible commercial line in its original order; do not summarize, merge or omit repeated lines.',
+            'First reconstruct every independently billed line whose own amount contributes directly to the invoice net total. Contributions, transport, subscriptions and management fees with an autonomous amount are visible lines, including footer or recap lines.',
+            'Only after reconciling those visible lines with the net total, attach explanatory movements to their visible parent in detailed_costs. Use cost_type included when already absorbed in the parent PU/PT and additional only when it helps form the parent total but is not independently billed.',
+            'Never add a detailed_cost amount a second time to invoice totals and never emit a detailed_cost as another visible line.',
+            'BON, BL, site, delivery date, card and transaction references are context; they do not create a group or accounting line by themselves.',
+            'When a visible line consolidates movements with several source unit prices or has no applicable commercial quantity, set qty=1 and unit_price=net_amount. Never invent an average unit price; retain source quantities and prices in detailed_costs.',
             'Search the complete document for explicit references to earlier workflow documents: purchase orders / Bon de Commande / BC / Votre commande, delivery notes / Bon de Livraison / BL, and contracts / Contrat / Contract.',
             'Return every explicit earlier-document reference in origin_references with document_type purchase_order, delivery_note or contract, its exact visible document_number, the supporting visible_text and page number.',
             'Do not confuse the current invoice number, customer number, contract number or line reference with an origin document number. Never invent an origin reference.',
@@ -826,7 +869,7 @@ def classify_document_visual(context: dict[str, Any]) -> dict[str, Any]:
             'Text such as Réf. Client, Votre référence, customer reference or order reference inside the designation is not an article ref unless the document explicitly labels a separate product/article reference column.',
             'However, a supplier may use Réf. Client / Référence client on delivery lines for the customer purchase-order number. When the same value is repeated across related delivery lines, return it in origin_references as document_type purchase_order, preserving the exact visible_text. Keep it as a candidate even when another Votre référence commande value is also visible; the PHC lookup will validate which reference is correct.',
             'Do not copy the same BL number into both ref and origin_delivery_note_number.',
-            'Document types may also include provisional_invoice, proforma_invoice, receipt, debit_note or other when those labels are visibly more accurate. Facture Provisoire is provisional_invoice; Pré-Facture or Facture Pro Forma is proforma_invoice.',
+            'Never emit provisional_invoice, proforma_invoice or other. Those legacy values remain readable only on historical records.',
             'For each line, preserve the visible reference and full description. Use empty strings and numeric zero only when a value is not visible.',
             'Discount is the visible discount percentage, not the monetary discount amount.',
             'Tax rows must reproduce the footer VAT/tax breakdown by rate. Derive gross_total per rate only when it is arithmetically unambiguous.',

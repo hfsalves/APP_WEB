@@ -707,6 +707,9 @@ def create_app():
     from blueprints.guestspa_ferias import bp as guestspa_ferias_bp
     app.register_blueprint(guestspa_ferias_bp)
 
+    from blueprints.tourist_tax import bp as tourist_tax_bp
+    app.register_blueprint(tourist_tax_bp)
+
     from blueprints.email_service import bp as email_service_bp
     app.register_blueprint(email_service_bp)
 

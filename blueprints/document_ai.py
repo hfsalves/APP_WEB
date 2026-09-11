@@ -17,6 +17,9 @@ from services.document_ai_service import (
     get_document_group,
     get_document_phc_origins,
     get_phc_document_origin_detail,
+    preview_document_delivery_note,
+    preview_document_purchase_order,
+    preview_document_work_situation,
     get_next_phc_correspondence_reference,
     get_cached_llm_extraction,
     get_document_original_file,
@@ -47,6 +50,7 @@ from services.document_ai_service import (
     save_document_draft,
     save_document_review,
     save_document_phc_origin,
+    save_document_credit_note_mapping,
     save_document_adjusted_lines,
     save_llm_extraction,
     save_template,
@@ -56,6 +60,7 @@ from services.document_ai_service import (
     search_customers,
     search_external_parties,
     search_phc_document_origins,
+    search_document_credit_note_origins,
     search_phc_articles,
     search_phc_vehicles,
     search_phc_projects,
@@ -67,6 +72,9 @@ from services.document_ai_service import (
     toggle_template_active,
     validate_document_financial_consistency,
     validate_document_inbox_stage,
+    validate_document_delivery_note,
+    validate_document_purchase_order,
+    validate_document_work_situation,
     DocumentDraftConflictError,
 )
 from services.document_ai_inbox_access_service import (
@@ -223,6 +231,7 @@ def document_ai_extract_page():
         can_use_document_ai=not read_only and bool(profile['permissions'].get('ai')),
         can_associate_document=not read_only and bool(profile['permissions'].get('associate')),
         can_submit_correspondence=not read_only and _document_ai_has_integration_access('correspondence'),
+        can_submit_delivery_note=not read_only and _document_ai_has_integration_access('delivery_note'),
         can_submit_provisional_invoice=not read_only and _document_ai_has_integration_access('provisional_invoice'),
         document_ai_access_admin=_document_ai_is_admin(),
     )
@@ -612,6 +621,238 @@ def api_document_ai_origin_detail(docinstamp: str, originstamp: str):
         return jsonify({'error': str(exc)}), 400
     except Exception as exc:
         current_app.logger.exception('Erro ao consultar detalhe da origem PHC')
+        return jsonify({'error': str(exc)}), 500
+
+
+@bp.route('/api/document_ai/documents/<docinstamp>/credit-note/origins', methods=['POST'])
+@login_required
+def api_document_ai_credit_note_origins(docinstamp: str):
+    requested_view = _requested_document_ai_view()
+    if requested_view != 'accounting' or not _current_document_access(docinstamp, requested_view, 'associate'):
+        return jsonify({'error': 'A origem da Nota de Crédito só pode ser associada na Contabilidade.'}), 403
+    body = request.get_json(silent=True) or {}
+    try:
+        return jsonify(search_document_credit_note_origins(docinstamp, body.get('document') or None))
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception as exc:
+        current_app.logger.exception('Erro ao pesquisar a origem da Nota de Crédito')
+        return jsonify({'error': str(exc)}), 500
+
+
+@bp.route('/api/document_ai/documents/<docinstamp>/credit-note/mapping', methods=['PUT'])
+@login_required
+def api_document_ai_credit_note_mapping(docinstamp: str):
+    requested_view = _requested_document_ai_view()
+    if requested_view != 'accounting' or not _document_ai_has_access('editar') \
+            or not _current_document_access(docinstamp, requested_view, 'associate'):
+        return jsonify({'error': 'Sem permissão para associar a origem da Nota de Crédito.'}), 403
+    body = request.get_json(silent=True) or {}
+    try:
+        return jsonify(save_document_credit_note_mapping(
+            docinstamp, str(body.get('original_fostamp') or ''),
+            body.get('mappings') or [], _current_login(),
+        ))
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception as exc:
+        current_app.logger.exception('Erro ao guardar a origem da Nota de Crédito')
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        return jsonify({'error': str(exc)}), 500
+
+
+@bp.route('/api/document_ai/documents/<docinstamp>/purchase-order/preview', methods=['POST'])
+@login_required
+def api_document_ai_purchase_order_preview(docinstamp: str):
+    requested_view = _requested_document_ai_view()
+    if requested_view != 'management':
+        return jsonify({'error': 'A Nota de Encomenda só pode ser preparada no Controlo de Gestão.'}), 403
+    if not _document_ai_has_access('editar') or not _current_document_access(docinstamp, requested_view, 'associate'):
+        return jsonify({'error': 'Sem permissão para preparar a Nota de Encomenda.'}), 403
+    body = request.get_json(silent=True) or {}
+    try:
+        return jsonify(preview_document_purchase_order(docinstamp, str(body.get('origin_stamp') or '')))
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception as exc:
+        current_app.logger.exception('Erro ao preparar Nota de Encomenda no PHC')
+        return jsonify({'error': str(exc)}), 500
+
+
+@bp.route('/api/document_ai/documents/<docinstamp>/phc-source/preview', methods=['POST'])
+@login_required
+def api_document_ai_phc_source_preview(docinstamp: str):
+    requested_view = _requested_document_ai_view()
+    if requested_view != 'management':
+        return jsonify({'error': 'A Origem PHC só pode ser preparada no Controlo de Gestão.'}), 403
+    if not _document_ai_has_access('editar') or not _current_document_access(docinstamp, requested_view, 'associate'):
+        return jsonify({'error': 'Sem permissão para preparar a Origem PHC.'}), 403
+    body = request.get_json(silent=True) or {}
+    family = str(body.get('family') or '').strip()
+    if family not in {'contract', 'subcontract'}:
+        return jsonify({'error': 'Família de Origem PHC inválida.'}), 400
+    try:
+        return jsonify(preview_document_purchase_order(
+            docinstamp, str(body.get('origin_stamp') or ''), family,
+        ))
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception as exc:
+        current_app.logger.exception('Erro ao preparar Origem PHC')
+        return jsonify({'error': str(exc)}), 500
+
+
+@bp.route('/api/document_ai/documents/<docinstamp>/phc-source/validate', methods=['POST'])
+@login_required
+def api_document_ai_phc_source_validate(docinstamp: str):
+    requested_view = _requested_document_ai_view()
+    if requested_view != 'management':
+        return jsonify({'error': 'A Origem PHC só pode ser criada ou corrigida no Controlo de Gestão.'}), 403
+    if not _document_ai_has_access('editar') or not _current_document_access(docinstamp, requested_view, 'associate'):
+        return jsonify({'error': 'Sem permissão para criar ou corrigir a Origem PHC.'}), 403
+    body = request.get_json(silent=True) or {}
+    family = str(body.get('family') or '').strip()
+    if family not in {'contract', 'subcontract'}:
+        return jsonify({'error': 'Família de Origem PHC inválida.'}), 400
+    try:
+        return jsonify(validate_document_purchase_order(
+            docinstamp,
+            _current_login(),
+            origin_stamp=str(body.get('origin_stamp') or ''),
+            expected_snapshot=str(body.get('expected_snapshot') or ''),
+            family=family,
+        ))
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception as exc:
+        current_app.logger.exception('Erro ao criar ou corrigir Origem PHC')
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        return jsonify({'error': str(exc)}), 500
+
+
+@bp.route('/api/document_ai/documents/<docinstamp>/delivery-note/preview', methods=['POST'])
+@login_required
+def api_document_ai_delivery_note_preview(docinstamp: str):
+    requested_view = _requested_document_ai_view()
+    if requested_view != 'management':
+        return jsonify({'error': 'A GdR só pode ser preparada no Controlo de Gestão.'}), 403
+    if not _document_ai_has_access('editar') or not _current_document_access(docinstamp, requested_view, 'associate'):
+        return jsonify({'error': 'Sem permissão para preparar a GdR.'}), 403
+    if not _document_ai_has_integration_access('delivery_note'):
+        return jsonify({'error': 'Sem permissão PHC para criar GdR.'}), 403
+    body = request.get_json(silent=True) or {}
+    try:
+        return jsonify(preview_document_delivery_note(
+            docinstamp,
+            str(body.get('delivery_note_number') or ''),
+        ))
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception as exc:
+        current_app.logger.exception('Erro ao preparar GdR no PHC')
+        return jsonify({'error': str(exc)}), 500
+
+
+@bp.route('/api/document_ai/documents/<docinstamp>/work-situation/preview', methods=['POST'])
+@login_required
+def api_document_ai_work_situation_preview(docinstamp: str):
+    requested_view = _requested_document_ai_view()
+    if requested_view != 'management' or not _document_ai_has_access('editar') \
+            or not _current_document_access(docinstamp, requested_view, 'associate'):
+        return jsonify({'error': 'Sem permissão para preparar a STSE.'}), 403
+    body = request.get_json(silent=True) or {}
+    try:
+        return jsonify(preview_document_work_situation(
+            docinstamp, current_user, str(body.get('contract_stamp') or ''),
+        ))
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception as exc:
+        current_app.logger.exception('Erro ao preparar STSE')
+        return jsonify({'error': str(exc)}), 500
+
+
+@bp.route('/api/document_ai/documents/<docinstamp>/work-situation/validate', methods=['POST'])
+@login_required
+def api_document_ai_work_situation_validate(docinstamp: str):
+    requested_view = _requested_document_ai_view()
+    if requested_view != 'management' or not _document_ai_has_access('editar') \
+            or not _current_document_access(docinstamp, requested_view, 'associate'):
+        return jsonify({'error': 'Sem permissão para criar a STSE.'}), 403
+    body = request.get_json(silent=True) or {}
+    try:
+        return jsonify(validate_document_work_situation(
+            docinstamp, _current_login(), current_user, str(body.get('contract_stamp') or ''),
+        ))
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception as exc:
+        current_app.logger.exception('Erro ao criar STSE')
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        return jsonify({'error': str(exc)}), 500
+
+
+@bp.route('/api/document_ai/documents/<docinstamp>/delivery-note/validate', methods=['POST'])
+@login_required
+def api_document_ai_delivery_note_validate(docinstamp: str):
+    requested_view = _requested_document_ai_view()
+    if requested_view != 'management':
+        return jsonify({'error': 'A GdR só pode ser criada no Controlo de Gestão.'}), 403
+    if not _document_ai_has_access('editar') or not _current_document_access(docinstamp, requested_view, 'associate'):
+        return jsonify({'error': 'Sem permissão para criar a GdR.'}), 403
+    if not _document_ai_has_integration_access('delivery_note'):
+        return jsonify({'error': 'Sem permissão PHC para criar GdR.'}), 403
+    body = request.get_json(silent=True) or {}
+    try:
+        return jsonify(validate_document_delivery_note(
+            docinstamp,
+            _current_login(),
+            delivery_number=str(body.get('delivery_note_number') or ''),
+        ))
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception as exc:
+        current_app.logger.exception('Erro ao criar GdR no PHC')
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        return jsonify({'error': str(exc)}), 500
+
+
+@bp.route('/api/document_ai/documents/<docinstamp>/purchase-order/validate', methods=['POST'])
+@login_required
+def api_document_ai_purchase_order_validate(docinstamp: str):
+    requested_view = _requested_document_ai_view()
+    if requested_view != 'management':
+        return jsonify({'error': 'A Nota de Encomenda só pode ser validada no Controlo de Gestão.'}), 403
+    if not _document_ai_has_access('editar') or not _current_document_access(docinstamp, requested_view, 'associate'):
+        return jsonify({'error': 'Sem permissão para validar a Nota de Encomenda.'}), 403
+    body = request.get_json(silent=True) or {}
+    try:
+        return jsonify(validate_document_purchase_order(
+            docinstamp,
+            _current_login(),
+            origin_stamp=str(body.get('origin_stamp') or ''),
+            expected_snapshot=str(body.get('expected_snapshot') or ''),
+        ))
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception as exc:
+        current_app.logger.exception('Erro ao criar/corrigir Nota de Encomenda no PHC')
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
         return jsonify({'error': str(exc)}), 500
 
 

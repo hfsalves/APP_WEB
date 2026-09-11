@@ -49,12 +49,35 @@ class DocumentAiInboxFiltersTests(unittest.TestCase):
         css = (ROOT / 'static/css/document_ai.css').read_text(encoding='utf-8')
         self.assertIn('docai-business-count-states', source)
         self.assertIn('class="docai-counts-types" tabindex="0"', source)
+        self.assertIn('${documentTypeGroup}', source)
+        self.assertIn('class="docai-counts-invoice"', source)
+        self.assertNotIn("typeGroups.join('')", source)
         self.assertIn('bindTypeCounterScroller();', source)
         self.assertIn("scroller.addEventListener('pointermove'", source)
         self.assertIn("scroller.addEventListener('wheel'", source)
         self.assertIn("scroller.addEventListener('keydown'", source)
         self.assertIn('.docai-counts-types::-webkit-scrollbar', css)
+        self.assertIn('.docai-counts.has-invoice-type', css)
         self.assertNotIn('.docai-counts {\n    grid-template-columns: max-content minmax(12rem, 1fr) 7.5rem;\n    overflow-x: auto;', css)
+
+    def test_counter_titles_are_horizontal_and_table_has_no_global_horizontal_scroll(self):
+        source = (ROOT / 'static/js/document_ai_inbox.js').read_text(encoding='utf-8')
+        css = (ROOT / 'static/css/document_ai.css').read_text(encoding='utf-8')
+        self.assertNotIn('writing-mode: vertical-rl', css)
+        self.assertNotIn('min-width: 78rem', css)
+        self.assertIn('overflow-x: hidden', css)
+        self.assertIn('flex: 0 0 auto', css)
+        self.assertIn('flex: 1 1 auto', css)
+        self.assertIn('class="docai-cell-ellipsis"', source)
+        self.assertIn('title="${escapeHtml(text)}"', source)
+        self.assertIn('aria-label="${escapeHtml(text)}"', source)
+
+    def test_total_card_width_and_result_line_are_fixed_at_all_resolutions(self):
+        css = (ROOT / 'static/css/document_ai.css').read_text(encoding='utf-8')
+        self.assertIn('.docai-filtered-total .count {\n  white-space: nowrap;', css)
+        self.assertGreaterEqual(css.count('min-width: 7.5rem;'), 2)
+        self.assertNotIn('.docai-filtered-total {\n    width: 100%;', css)
+        self.assertNotIn('minmax(10.75rem, 1fr) 5.125rem', css)
 
     def test_required_groups_and_entity_scope_match_tp051(self):
         required = (ROOT / 'static/js/document_ai_required_info.js').read_text(encoding='utf-8')

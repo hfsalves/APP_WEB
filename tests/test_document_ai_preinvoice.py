@@ -15,8 +15,11 @@ def fixture():
     document = {'document_type': 'invoice', 'document_number': 'TEST-1',
                 'document_date': '2026-09-09', 'currency': 'EUR',
                 'customer': {'feid': 1}, 'supplier': {'supplier_no': 1},
-                'lines': [{'article_ref': 'A', 'quantity': 2, 'net_amount': 20,
-                           'cost_center': 'OBRA', 'tax_rate': 20}],
+                'lines': [{'line_id': 'LINE-1', 'article_ref': 'A', 'quantity': 2,
+                           'unit': 'UN', 'unit_price': 10, 'net_amount': 20,
+                           'cost_center': 'OBRA', 'tax_rate': 20,
+                           'phc_origin_stamp': 'BO-SOURCE',
+                           'phc_origin_line_stamp': 'BI-SOURCE'}],
                 'totals': {'net_total': 20, 'tax_total': 4, 'gross_total': 24}}
     header = {'bostamp': 'BO-SOURCE', 'ndos': 102, 'no': 1, 'estab': 0, 'moeda': 'EURO',
               'fechada': False, 'anulado': False}
@@ -60,6 +63,7 @@ class PreinvoicePlanningTests(unittest.TestCase):
     def test_immediate_delivery_note_supersedes_order(self):
         document, header, line = fixture()
         delivery = {**line, 'bistamp': 'BI-GDR', 'bostamp': 'BO-GDR', 'obistamp': 'BI-SOURCE'}
+        document['lines'][0].update(phc_origin_stamp='BO-GDR', phc_origin_line_stamp='BI-GDR')
         result = pf.plan_preinvoice(document, [line, delivery], {
             'BO-SOURCE': header, 'BO-GDR': {**header, 'bostamp': 'BO-GDR', 'ndos': 130}})
         self.assertEqual(result[0]['source']['bistamp'], 'BI-GDR')
@@ -75,7 +79,9 @@ class PreinvoicePlanningTests(unittest.TestCase):
 
     def test_ambiguity_is_not_guessed(self):
         document, header, line = fixture()
-        with self.assertRaisesRegex(ValueError, 'distribui'):
+        document['lines'][0].pop('phc_origin_stamp')
+        document['lines'][0].pop('phc_origin_line_stamp')
+        with self.assertRaisesRegex(ValueError, 'Origem PHC exata'):
             pf.plan_preinvoice(document, [line, {**line, 'bistamp': 'OTHER'}], {'BO-SOURCE': header})
 
     def test_closed_or_consumed_source_rejected(self):
@@ -101,6 +107,29 @@ class PreinvoicePlanningTests(unittest.TestCase):
         other = {**line, 'bistamp': 'BI-OTHER'}
         result = pf.plan_preinvoice(document, [line, other], {'BO-SOURCE': header})
         self.assertEqual(sum(p['net'] for p in result), Decimal(20))
+        self.assertEqual([part['portal_line_index'] for part in result], [0, 1])
+
+    def test_one_effective_line_cannot_create_two_phc_lines(self):
+        document, header, line = fixture()
+        document['lines'][0]['bc_allocations'] = [
+            {'origin_stamp': 'BO-SOURCE', 'origin_line_stamp': 'BI-SOURCE', 'quantity': 1},
+            {'origin_stamp': 'BO-SOURCE', 'origin_line_stamp': 'BI-OTHER', 'quantity': 1},
+        ]
+        with self.assertRaisesRegex(ValueError, 'uma única linha PHC'):
+            pf.plan_preinvoice(document, [line, {**line, 'bistamp': 'BI-OTHER'}], {'BO-SOURCE': header})
+
+    def test_generated_preinvoice_lineage_does_not_change_retry_fingerprint(self):
+        document, _, _ = fixture()
+        origins = [{'stamp': 'BO-SOURCE', 'document_type': 'purchase_order'}]
+        before = pf.payload_fingerprint(document, origins)
+        document['lines'][0]['phc_origin_links'] = [{
+            'origin_family': 'proforma_invoice', 'bostamp': 'BO-PF', 'bistamp': 'BI-PF-1',
+        }]
+        after = pf.payload_fingerprint(
+            document,
+            origins + [{'stamp': 'BO-PF', 'document_type': 'proforma_invoice'}],
+        )
+        self.assertEqual(before, after)
 
     def test_rejects_mismatch_in_price_tax_worksite_and_totals(self):
         for key, value in [('net_amount', 21), ('tax_rate', 21), ('cost_center', 'OTHER'),
@@ -127,6 +156,8 @@ class PreinvoiceTransactionTests(unittest.TestCase):
         def rows(_cursor, sql, *params):
             if 'A.UNIQUEID' in sql:
                 return [existing] if existing else []
+            if 'SELECT BISTAMP,LORDEM FROM BI' in sql:
+                return [{'bistamp': 'BI-RECOVERED', 'lordem': 1000}]
             if 'FROM TS' in sql:
                 return [{'ndos': 218, 'nmdos': 'Pre-Facture'}]
             if 'FROM FO' in sql:
@@ -182,10 +213,23 @@ class PreinvoiceTransactionTests(unittest.TestCase):
         self.assertEqual(bi['oobistamp'], 'BI-SOURCE')
         self.assertEqual(bi['oobostamp'], '')
         self.assertEqual(bi['bostamp'], result['bostamp'])
-        self.assertEqual(bi['qtt2'], 0)
+        self.assertEqual(bi['qtt2'], bi['qtt'])
+        self.assertEqual(bi['fechada'], 1)
+        self.assertEqual(bi['dataobra'], datetime(2026, 9, 9))
+        self.assertEqual(bi['dataopen'], datetime(2026, 9, 9))
+        self.assertEqual(bi['datafinal'], datetime(2026, 9, 9))
         self.assertEqual(bi['ndoc'], 55)
+        self.assertEqual(len(result['line_stamps']), 1)
+        self.assertEqual(result['line_stamps'][0]['line_stamp'], bi['bistamp'])
         connection.commit.assert_called_once()
         self.assertEqual({table for table, _ in inserts}, {'BO','BO2','BO3','BI','BI2','BOT','ANEXOS'})
+        bo = next(values for table, values in inserts if table == 'BO')
+        self.assertEqual((bo['fechada'], bo['aprovado']), (1, 1))
+        self.assertEqual((bo['tecnico'], bo['tecnnm'], bo['fref']), ('', '', ''))
+        self.assertEqual((bo['dataobra'], bo['dataopen'], bo['datafinal']),
+                         (datetime(2026, 9, 9),) * 3)
+        bo3 = next(values for table, values in inserts if table == 'BO3')
+        self.assertEqual(bo3['u_aprovusr'], 'TST')
 
     def test_ged_or_sql_failure_rolls_back(self):
         with self.assertRaisesRegex(ValueError, 'PDF original'):
@@ -194,7 +238,7 @@ class PreinvoiceTransactionTests(unittest.TestCase):
             with self.subTest(table=table), self.assertRaisesRegex(RuntimeError, 'injected'):
                 self.run_case(failure=table)
 
-    def test_retry_recovers_same_preinvoice_without_writing(self):
+    def test_retry_recovers_and_reconciles_same_preinvoice_without_duplicate(self):
         document, _, _ = fixture()
         existing = {'bostamp': 'RECOVERED', 'ndos': 218, 'nmdos': 'Pre-Facture',
                     'obrano': 123, 'boano': 2026, 'anexosstamp': 'A', 'fullname': 'test.pdf',
@@ -203,14 +247,49 @@ class PreinvoiceTransactionTests(unittest.TestCase):
         self.assertTrue(result['duplicate'])
         self.assertEqual(result['bostamp'], 'RECOVERED')
         self.assertEqual(inserts, [])
-        connection.commit.assert_not_called()
+        connection.commit.assert_called_once()
 
     def test_changed_retry_does_not_create_second_object(self):
         with self.assertRaisesRegex(ValueError, 'dados diferentes'):
             self.run_case(existing={'descricao': 'other'})
 
+    def test_intersol_agency_uses_official_phc_origin_value(self):
+        self.assertEqual(pf._preinvoice_agency({'customer': {
+            'phc_database': 'INTERSOL', 'ged_folder': 'HSOLS_INTERSOL_LOR',
+        }}), 'INTERSOL LORRAINE')
+        self.assertEqual(pf._preinvoice_agency({'customer': {
+            'phc_database': 'HSOLS_FR', 'ged_folder': 'HSOLS_FR',
+        }}), '')
+
+    def test_descriptive_rows_preceding_article_keep_order_without_portal_identity(self):
+        document, header, article = fixture()
+        article['lordem'] = 3000
+        context_one = {**article, 'bistamp': 'CTX-1', 'ref': '', 'design': 'CHANTIER',
+                       'qtt': 0, 'lordem': 1000}
+        context_two = {**article, 'bistamp': 'CTX-2', 'ref': '', 'design': 'ADRESSE',
+                       'qtt': 0, 'lordem': 2000}
+        planned = pf.plan_preinvoice(document, [context_one, context_two, article], {'BO-SOURCE': header})
+
+        output = pf._output_rows(planned, [article, context_two, context_one])
+
+        self.assertEqual([row['source']['bistamp'] for row in output], ['CTX-1', 'CTX-2', 'BI-SOURCE'])
+        self.assertEqual([row['context'] for row in output], [True, True, False])
+
 
 class PreinvoiceWorkflowTests(unittest.TestCase):
+    def test_completed_operation_requires_phc_approval_validation_empty_team_and_date(self):
+        complete = {
+            'status': 'confirmed', 'bostamp': 'BO-PF', 'phc_database': 'HSOLS_FR',
+            'anexosstamp': 'AN-1', 'ged_confirmed': True, 'payload_fingerprint': 'fp',
+            'approved': True, 'validated': True, 'team': '', 'effective_date': '2026-09-09',
+        }
+        self.assertTrue(svc._has_complete_preinvoice(complete))
+        for field in ('approved', 'validated', 'effective_date'):
+            with self.subTest(field=field):
+                broken = {**complete, field: False}
+                self.assertFalse(svc._has_complete_preinvoice(broken))
+        self.assertFalse(svc._has_complete_preinvoice({**complete, 'team': 'invoice-number'}))
+
     def test_failure_does_not_validate_or_distribute_management(self):
         document, _, _ = fixture()
         record = SimpleNamespace(docinstamp='DOC-1', json_resultado=json.dumps(document),
@@ -251,6 +330,45 @@ class PreinvoiceWorkflowTests(unittest.TestCase):
         saved = json.loads(record.processing_meta_json)
         self.assertEqual(saved['phc_integration']['fostamp'], 'FO-RECEPTION')
         self.assertEqual(saved['phc_origins'][0]['stamp'], 'BO-PF')
+
+    def test_confirmed_preinvoice_persists_one_exact_bistamp_per_effective_line(self):
+        document, _, _ = fixture()
+        meta = {
+            'phc_integration': {'fostamp': 'FO-RECEPTION', 'phc_database': 'HSOLS_FR'},
+            'phc_origins': [{'stamp': 'BO-SOURCE', 'ndos': 102}],
+            'llm_full_extraction': {'version': 4, 'document': copy.deepcopy(document)},
+        }
+        record = SimpleNamespace(
+            docinstamp='DOC-1', processing_meta_json=json.dumps(meta),
+            json_resultado=json.dumps(document),
+        )
+        confirmed = {
+            'status': 'confirmed', 'bostamp': 'BO-PF', 'ndos': 218,
+            'document_type': 'proforma_invoice', 'document_name': 'Pre-Facture',
+            'number': 12, 'year': 2026, 'phc_database': 'HSOLS_FR',
+            'anexosstamp': 'AN-1', 'ged_path': 'test.pdf', 'ged_confirmed': True,
+            'payload_fingerprint': 'fp', 'duplicate': False,
+            'line_stamps': [{
+                'portal_line_index': 0, 'portal_line_id': 'LINE-1',
+                'line_stamp': 'BI-PF-1', 'line_order': 1000,
+            }],
+        }
+
+        def run(_document, **kwargs):
+            kwargs['on_confirmed'](confirmed)
+            return confirmed
+
+        with patch.object(svc, '_document_absolute_path', return_value=__file__), patch(
+                'services.document_ai_phc_operation_service.run_document_phc_operation', side_effect=run):
+            svc._integrate_management_preinvoice(record, document, 'tester', {'proforma_invoice': True})
+
+        saved = json.loads(record.processing_meta_json)
+        controlled_line = saved['llm_full_extraction']['document']['lines'][0]
+        proforma_links = [link for link in controlled_line['phc_origin_links']
+                          if link['origin_family'] == 'proforma_invoice']
+        self.assertEqual([(link['bostamp'], link['bistamp']) for link in proforma_links], [('BO-PF', 'BI-PF-1')])
+        proforma = next(origin for origin in saved['phc_origins'] if origin['stamp'] == 'BO-PF')
+        self.assertEqual(proforma['lines'][0]['line_stamp'], 'BI-PF-1')
 
 
 if __name__ == '__main__':

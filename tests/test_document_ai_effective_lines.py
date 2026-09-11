@@ -16,7 +16,19 @@ class DocumentAiEffectiveLinesTests(unittest.TestCase):
 
     def test_undistributed_line_remains_unchanged(self):
         line = {'id': 'L1', 'qty': 2, 'ref': 'A'}
-        self.assertEqual(_effective_portal_lines([line]), [line])
+        result = _effective_portal_lines([line])
+        self.assertEqual({key: result[0][key] for key in line}, line)
+        self.assertEqual(result[0]['portal_line_id'], 'L1')
+        self.assertEqual(result[0]['portal_line_index'], 0)
+
+    def test_distributed_child_does_not_inherit_parent_lineage(self):
+        result = _effective_portal_lines([{
+            'line_id': 'L1', 'article_ref': 'A', 'bostamp': 'BO-PARENT', 'bistamp': 'BI-PARENT',
+            'sub_lines': [{'subline_id': 'S1', 'qty': 1}],
+        }])
+        self.assertEqual(result[0]['portal_line_id'], 'S1')
+        self.assertNotIn('bostamp', result[0])
+        self.assertNotIn('bistamp', result[0])
 
     def test_accepts_legacy_sub_lines_key(self):
         result = _effective_portal_lines([{'line_id': 'L1', 'sub_lines': [{'qty': 1}]}])

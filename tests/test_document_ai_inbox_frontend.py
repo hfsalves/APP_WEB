@@ -12,6 +12,10 @@ class DocumentAiInboxFrontendTests(unittest.TestCase):
         self.assertIn('const visibleTotal = state.filteredItems.length;', self.source)
         self.assertNotIn('const total = state.allItems.filter((item) => matchesFilters(item)).length;', self.source)
 
+    def test_total_card_has_the_required_two_line_order(self):
+        card = self.source.split('class="docai-count-card docai-count-card-action docai-filtered-total"', 1)[1].split('</button>', 1)[0]
+        self.assertLess(card.index('<span class="label">Total</span>'), card.index('<span class="count">${visibleTotal} de ${scopeTotal}</span>'))
+
     def test_currency_uses_accounting_number_and_real_code(self):
         self.assertIn("return code ? `${formatted} ${code}` : formatted;", self.source)
 
@@ -26,8 +30,9 @@ class DocumentAiInboxFrontendTests(unittest.TestCase):
         self.assertIn("excludedField !== 'invoice_type'", self.source)
 
     def test_management_keeps_document_type_and_invoice_type_counters(self):
-        self.assertIn("typeGroups.push(counterGroup('Tipo de documento'", self.source)
-        self.assertNotIn("state.view !== 'management') typeGroups.push", self.source)
+        self.assertIn("const documentTypeGroup = counterGroup('Tipo de documento'", self.source)
+        self.assertIn("const invoiceTypeGroup = state.view !== 'home'", self.source)
+        self.assertNotIn("state.view !== 'management'", self.source)
 
     def test_invoice_type_counts_only_invoices_and_hides_empty_unknown(self):
         self.assertIn("filterName !== 'invoice_type' || String(item.document_type || 'unknown') === 'invoice'", self.source)
@@ -35,8 +40,8 @@ class DocumentAiInboxFrontendTests(unittest.TestCase):
         self.assertIn("options.map((option) => [String(option.value), { count: 0", self.source)
 
     def test_each_view_has_the_expected_counter_groups(self):
-        self.assertIn("typeGroups.push(counterGroup('Tipo de documento'", self.source)
-        self.assertIn("if (state.view !== 'home')", self.source)
+        self.assertIn("const documentTypeGroup = counterGroup('Tipo de documento'", self.source)
+        self.assertIn("const invoiceTypeGroup = state.view !== 'home'", self.source)
 
     def test_rows_open_analysis_and_restore_list_position(self):
         self.assertNotIn('data-action="extract"', self.source)

@@ -15,6 +15,7 @@ import textwrap
 import threading
 import unicodedata
 import uuid
+from collections import defaultdict
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from difflib import SequenceMatcher
@@ -49,7 +50,7 @@ DOC_AI_DOC_TYPES = [
     {'value': 'provisional_invoice', 'label': 'Fatura Provisória'},
     {'value': 'credit_note', 'label': 'Nota de Crédito'},
     {'value': 'contract', 'label': 'Contrato'},
-    {'value': 'subcontract', 'label': 'Contrato de SubEmpreitada'},
+    {'value': 'subcontract', 'label': 'Contrato Sub.Emp.'},
     {'value': 'purchase_order', 'label': 'Nota de Encomenda'},
     {'value': 'delivery_note', 'label': 'Guia de Remessa'},
     {'value': 'bank_statement', 'label': 'Extrato Bancário'},
@@ -1352,7 +1353,7 @@ def search_external_parties(value: str, feid: int | None = None, limit: int = 12
 
 
 def reconcile_extracted_document(document_data: dict[str, Any] | None) -> dict[str, Any]:
-    result = dict(document_data or {})
+    result = normalize_unified_document_model(document_data)
     is_mail = str(result.get('document_type') or '').strip().lower() == 'mail'
     customer = dict(result.get('customer') or {})
     supplier = dict(result.get('supplier') or {})
@@ -1502,6 +1503,12 @@ def reconcile_extracted_document(document_data: dict[str, Any] | None) -> dict[s
         supplier['match_score'] = selected_score
         supplier['matched_by'] = ''
     result['supplier'] = supplier
+
+    if str(result.get('document_type') or '').strip().lower() in {'invoice', 'provisional_invoice'}:
+        inferred_invoice_type = _infer_invoice_type(result)
+        if _normalize_invoice_type(result.get('invoice_type')) == 'unknown' and inferred_invoice_type != 'unknown':
+            result['invoice_type'] = inferred_invoice_type
+    result = normalize_unified_document_model(result)
 
     return {
         'document': result,
@@ -1687,11 +1694,12 @@ def _phc_contract_flow_stages(cursor) -> list[dict[str, Any]]:
         normalized_label = _normalize_text(label)
         is_work_situation = 'situation' in normalized_label and 'trav' in normalized_label and 'st' in normalized_label.split()
         is_subcontract = 'sous traitant' in normalized_label or 'sout traitant' in normalized_label
+        public_label = 'SdTSub.Emp.' if is_work_situation else ('Contrato Sub.Emp.' if is_subcontract else 'Contrato')
         stages.append({
             'key': 'subcontract_measurement' if is_work_situation else ('subcontract_contract' if is_subcontract else 'contract'),
             'document_type': 'work_situation' if is_work_situation else ('subcontract' if is_subcontract else 'contract'),
             'origin_family': 'work_situation' if is_work_situation else ('subcontract' if is_subcontract else 'contract'),
-            'label': label,
+            'label': public_label,
             'ndos': ndos,
             'order': 3 if is_work_situation else (2 if is_subcontract else 1),
         })
@@ -1730,7 +1738,7 @@ def _validate_phc_origin_combination(origins: list[dict[str, Any]], candidate: d
         raise ValueError('Associa primeiro uma Nota de Encomenda ou um Contrato.')
     if family == 'work_situation':
         if 'subcontract' not in existing_families:
-            raise ValueError('Associa primeiro um Contrato Sout-Traitant.')
+            raise ValueError('Associa primeiro um Contrato Sub.Emp.')
         if any(_phc_origin_family(item) == 'work_situation' for item in origins):
             raise ValueError('Situação de Trabalho associada.')
 
@@ -2423,24 +2431,117 @@ def _expand_phc_invoice_lines(lines: list[dict[str, Any]]) -> list[dict[str, Any
     return expanded
 
 
+def normalize_unified_document_model(
+    document_data: dict[str, Any] | None,
+    document_stamp: str = '',
+) -> dict[str, Any]:
+    """Apply TP065's single model and losslessly read former TP056 documents."""
+    from services.document_ai_line_distribution_service import normalize_line_structures
+
+    result = dict(document_data or {})
+    result['line_model_version'] = 'TP065'
+    legacy_type = _normalize_text(result.get('invoice_type')).replace(' ', '_')
+    if legacy_type in {
+        'c&p', 'c_p', 'cp', 'combustiveis_e_portagens',
+        'combustibles_y_peajes', 'carburants_et_peages', 'fuel_tolls',
+    }:
+        result['invoice_type'] = 'services'
+        result['legacy_invoice_type_migration'] = {
+            **dict(result.get('legacy_invoice_type_migration') or {}),
+            'from': 'fuel_tolls', 'to': 'services', 'rule': 'TP065',
+        }
+    result['lines'] = normalize_line_structures(result.get('lines') or [], document_stamp)
+    return result
+
+
 def _effective_portal_lines(lines: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Flatten distributed Portal lines; never send a summary with its children."""
+    """Return the exact Portal rows that may become PHC lines.
+
+    Grouped lines stay independent. A distributed parent is UI-only and is
+    replaced by its children. Lineage is never inherited from that summary,
+    because each effective child must retain its own BOSTAMP/BISTAMP pair.
+    """
     effective: list[dict[str, Any]] = []
-    for line in lines or []:
+    lineage_fields = {
+        'phc_origin_stamp', 'phc_origin_line_stamp', 'origin_stamp',
+        'origin_line_stamp', 'bostamp', 'bistamp', 'phc_origin_links',
+        'bc_allocations',
+    }
+    summary_fields = {'sublines', 'sub_lines', 'qty', 'quantity', 'net_amount', 'total', 'pt'}
+    for line_index, line in enumerate(lines or []):
         if not isinstance(line, dict):
             continue
         children = line.get('sublines')
         if not isinstance(children, list):
             children = line.get('sub_lines')
         if not isinstance(children, list) or not children:
-            effective.append(dict(line))
+            item = dict(line)
+            item.setdefault('portal_line_index', line_index)
+            item.setdefault('portal_subline_index', None)
+            item.setdefault('portal_line_id', str(line.get('line_id') or line.get('id') or f'line-{line_index + 1}'))
+            effective.append(item)
             continue
         inherited = {key: value for key, value in line.items()
-                     if key not in {'sublines', 'sub_lines', 'qty', 'quantity', 'net_amount', 'total', 'pt'}}
-        for child in children:
+                     if key not in summary_fields | lineage_fields | {'id', 'line_id', 'subline_id', 'parent_line_id'}}
+        parent_id = str(line.get('line_id') or line.get('id') or f'line-{line_index + 1}')
+        for subline_index, child in enumerate(children):
             if isinstance(child, dict):
-                effective.append({**inherited, **child,
-                                  'parent_line_id': child.get('parent_line_id') or line.get('id') or line.get('line_id')})
+                child_id = str(child.get('subline_id') or child.get('id') or f'{parent_id}:subline-{subline_index + 1}')
+                effective.append({
+                    **inherited,
+                    **child,
+                    'parent_line_id': child.get('parent_line_id') or parent_id,
+                    'portal_line_index': line_index,
+                    'portal_subline_index': subline_index,
+                    'portal_line_id': child_id,
+                })
+    return effective
+
+
+def _assert_effective_portal_lines(
+    lines: list[dict[str, Any]],
+    *,
+    require_origin: bool = False,
+    require_cost_center: bool = True,
+) -> list[dict[str, Any]]:
+    """Validate the common one-Portal-line/one-PHC-line contract."""
+    effective = _effective_portal_lines(lines)
+    if not effective:
+        raise ValueError('Confirma pelo menos uma linha efetiva antes de criar o documento PHC.')
+    identities: set[str] = set()
+    for position, line in enumerate(effective, start=1):
+        identity = str(line.get('portal_line_id') or f'line-{position}').strip()
+        if identity in identities:
+            raise ValueError(f'Linha {position}: o identificador Portal efetivo está duplicado.')
+        identities.add(identity)
+        article = str(line.get('article_ref') or line.get('article') or line.get('ref') or '').strip()
+        unit = str(line.get('unit') or '').strip()
+        ccusto = str(line.get('ccusto') or line.get('project_ccusto') or line.get('cost_center') or '').strip()
+        if not article:
+            raise ValueError(f'Linha {position}: associa o Artigo PHC.')
+        if not unit:
+            raise ValueError(f'Linha {position}: confirma a unidade.')
+        if require_cost_center and not ccusto:
+            raise ValueError(f'Linha {position}: confirma o Centro de Custo.')
+        try:
+            quantity = Decimal(str(line.get('quantity') if line.get('quantity') is not None else line.get('qty')))
+            unit_price = Decimal(str(line.get('unit_price')))
+            total = Decimal(str(line.get('net_amount') if line.get('net_amount') is not None else line.get('pt')))
+            tax_rate = Decimal(str(line.get('tax_rate')))
+        except Exception as exc:
+            raise ValueError(f'Linha {position}: confirma Quantidade, PU, PT e IVA.') from exc
+        if not all(value.is_finite() for value in (quantity, unit_price, total, tax_rate)):
+            raise ValueError(f'Linha {position}: confirma Quantidade, PU, PT e IVA.')
+        if quantity <= 0 or unit_price < 0 or total < 0 or tax_rate < 0:
+            raise ValueError(f'Linha {position}: Quantidade, PU, PT e IVA têm valores inválidos.')
+        if abs((quantity * unit_price).quantize(Decimal('0.01')) - total.quantize(Decimal('0.01'))) > Decimal('0.01'):
+            raise ValueError(f'Linha {position}: Quantidade × PU não corresponde ao PT.')
+        bostamp = str(line.get('phc_origin_stamp') or line.get('bostamp') or '').strip()
+        bistamp = str(line.get('phc_origin_line_stamp') or line.get('bistamp') or '').strip()
+        if bool(bostamp) != bool(bistamp) or (require_origin and not (bostamp and bistamp)):
+            raise ValueError(f'Linha {position}: confirma a Origem PHC exata (BOSTAMP/BISTAMP).')
+        if bool(line.get('vehicle_required')) and not str(line.get('registration') or line.get('matricula') or '').strip():
+            raise ValueError(f'Linha {position}: confirma a Matrícula.')
     return effective
 
 
@@ -2610,6 +2711,28 @@ def _provisional_invoice_ged_paths(
             'storage': storage,
         })
     return results
+
+
+def _write_confirmed_ged_targets(
+    targets: list[dict[str, str]], file_bytes: bytes,
+) -> list[str]:
+    """Copy every GED target before exposing any PHC attachment link."""
+    created: list[tuple[dict[str, str], str]] = []
+    try:
+        for target in targets:
+            if not _write_document_ai_pdf(target, file_bytes):
+                raise RuntimeError('A cópia GED não ficou confirmada em todos os destinos.')
+            created.append((target, str(target.get('write_path') or '')))
+        if not all(_document_ai_pdf_is_confirmed(target, file_bytes) for target in targets):
+            raise RuntimeError('A cópia GED não ficou confirmada em todos os destinos.')
+        return [path for _target, path in created if path]
+    except Exception:
+        for target, _path in created:
+            try:
+                _remove_document_ai_pdf(target)
+            except Exception:
+                pass
+        raise
 
 
 def _document_ai_smb_session(unc_path: str) -> None:
@@ -3010,9 +3133,7 @@ def submit_provisional_invoice_to_phc(
         article = _ensure_phc_provisional_article(cursor, requested_by, received_at)
         tax_by_code, tax_by_rate = _phc_tax_configuration(cursor)
         ged_targets = _provisional_invoice_ged_paths(document, source, supplier, reference, document_date, doc_config['file_prefix'])
-        for target in ged_targets:
-            if _write_document_ai_pdf(target, file_bytes):
-                created_paths.append(target['write_path'])
+        created_paths = _write_confirmed_ged_targets(ged_targets, file_bytes)
 
         normalized_lines = []
         fn_unit_width = _phc_text_column_limit(cursor, 'FN', 'UNIDADE', 4)
@@ -3181,10 +3302,13 @@ def submit_provisional_invoice_to_phc(
             })
 
         connection.commit()
-        ged_confirmed = all(_document_ai_pdf_is_confirmed(target, file_bytes) for target in ged_targets)
+        ged_confirmed = True
         result = {
             'ok': True, 'duplicate': False,
-            'message': f'{doc_config["label"].capitalize()} {document_number} integrada como {docname} no PHC com {len(physical_lines)} linha(s).',
+            'message': (
+                f'{doc_config["label"].capitalize()} {document_number} integrada como {docname} no PHC com '
+                f'{len(physical_lines)} {"linha" if len(physical_lines) == 1 else "linhas"}.'
+            ),
             'fostamp': fostamp, 'crstamp': crstamp, 'reference': reference,
             'year': year, 'document_number': document_number,
             'phc_database': database_name, 'file_name': ged_targets[1]['file_name'],
@@ -3217,6 +3341,26 @@ def submit_provisional_invoice_to_phc(
         connection.close()
 
 
+def _assert_final_purchase_lineage(
+    effective_portal_lines: list[dict[str, Any]],
+    target_line_stamps: list[str],
+) -> None:
+    if len(target_line_stamps) != len(effective_portal_lines):
+        raise ValueError('A Pré-Fatura não contém exatamente uma linha PHC por linha Portal efetiva.')
+    target_set = {str(value or '').strip() for value in target_line_stamps if str(value or '').strip()}
+    portal_proforma_stamps = []
+    for line in effective_portal_lines:
+        links = [
+            item for item in (line.get('phc_origin_links') or [])
+            if isinstance(item, dict) and str(item.get('origin_family') or '') == 'proforma_invoice'
+        ]
+        if len(links) != 1:
+            raise ValueError('Cada linha Portal efetiva deve conservar o BISTAMP exato da Pré-Fatura.')
+        portal_proforma_stamps.append(str(links[0].get('bistamp') or links[0].get('origin_line_stamp') or '').strip())
+    if set(portal_proforma_stamps) != target_set or len(set(portal_proforma_stamps)) != len(portal_proforma_stamps):
+        raise ValueError('A filiação das linhas Portal não coincide com as linhas da Pré-Fatura PHC.')
+
+
 def finalize_purchase_on_existing_fo(
     document_data: dict[str, Any] | None,
     reception_integration: dict[str, Any] | None,
@@ -3232,6 +3376,9 @@ def finalize_purchase_on_existing_fo(
     from services.phc_user_import_service import _phc_conn_str
 
     document = dict(document_data or {})
+    effective_portal_lines = _assert_effective_portal_lines(
+        document.get('lines') or [], require_origin=True, require_cost_center=True,
+    )
     integration = dict(reception_integration or {})
     customer = dict(document.get('customer') or {})
     source = _phc_origin_source(customer)
@@ -3317,6 +3464,7 @@ def finalize_purchase_on_existing_fo(
             raise ValueError('A Pré-Fatura selecionada não contém linhas PHC.')
         target_line_stamps = [str(row[0] or '').strip() for row in line_rows]
         target_set = set(target_line_stamps)
+        _assert_final_purchase_lineage(effective_portal_lines, target_line_stamps)
 
         current_fn = cursor.execute("""
             SELECT FNSTAMP, LTRIM(RTRIM(ISNULL(BISTAMP, ''))),
@@ -3374,8 +3522,10 @@ def finalize_purchase_on_existing_fo(
             already_consumed = consumed.get(line_stamp, Decimal('0'))
             if quantity and already_consumed:
                 raise ValueError('Uma linha da Pré-Fatura já foi retomada noutra Compra.')
-            if quantity and (bool(row[22]) or abs(Decimal(str(row[5] or 0))) > Decimal('0.0001')):
-                raise ValueError('Uma linha da Pré-Fatura já está satisfeita ou fechada no PHC.')
+            # Pré-Faturas criadas no CdG are deliberately Validada/Aprovada:
+            # their BI rows are closed with QTT2=QTT before Accounting. Actual
+            # reuse is detected above through FN.BISTAMP, not through that
+            # validation state.
 
         now = datetime.now()
         user = _phc_correspondence_user(cursor, requested_by)
@@ -3487,7 +3637,10 @@ def finalize_purchase_on_existing_fo(
             'phc_database': database_name,
             'proforma_stamps': proforma_stamps,
             'final_line_count': len(line_rows),
-            'message': f'Compra finalizada na FO da Receção com {len(line_rows)} linha(s) da Pré-Fatura.',
+            'message': (
+                f'Compra finalizada na FO da Receção com {len(line_rows)} '
+                f'{"linha" if len(line_rows) == 1 else "linhas"} da Pré-Fatura.'
+            ),
         }
     except Exception:
         connection.rollback()
@@ -3789,13 +3942,28 @@ def search_phc_vehicles(customer_data: dict[str, Any] | None, query: str = '', l
     like_query = f'%{clean_query}%'
     safe_limit = max(1, min(int(limit or 20), 50))
     with pyodbc.connect(_phc_conn_str(source['phc_db'], source.get('phc_server') or ''), timeout=12) as connection:
-        rows = connection.cursor().execute("""
+        cursor = connection.cursor()
+        columns = {
+            str(row[0] or '').strip().upper()
+            for row in cursor.execute("""
+                SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_SCHEMA='dbo' AND TABLE_NAME='V_ALL_VA'
+            """).fetchall()
+        }
+        optional = lambda name: (
+            f"MAX(LTRIM(RTRIM(ISNULL(V.{name}, ''))))"
+            if name.upper() in columns else "CAST('' AS varchar(1))"
+        )
+        rows = cursor.execute(f"""
             SELECT TOP (?)
                 LTRIM(RTRIM(ISNULL(V.MATRICULA, ''))) MATRICULA,
                 MAX(LTRIM(RTRIM(ISNULL(V.MARCA, '')))) MARCA,
                 MAX(LTRIM(RTRIM(ISNULL(V.MODELO, '')))) MODELO,
                 MAX(LTRIM(RTRIM(ISNULL(V.NOFROTA, '')))) NOFROTA,
-                MAX(LTRIM(RTRIM(ISNULL(V.VASTAMP, '')))) VASTAMP
+                MAX(LTRIM(RTRIM(ISNULL(V.VASTAMP, '')))) VASTAMP,
+                {optional('CCUSTO')} CCUSTO,
+                {optional('OBRA')} OBRA,
+                {optional('DEPARTAMEN')} DEPARTAMENTO
             FROM dbo.V_ALL_VA V WITH (NOLOCK)
             WHERE ISNULL(V.INACTIVO, 0) = 0
               AND LTRIM(RTRIM(ISNULL(V.MATRICULA, ''))) <> ''
@@ -3816,6 +3984,9 @@ def search_phc_vehicles(customer_data: dict[str, Any] | None, query: str = '', l
             'model': str(row[2] or '').strip(),
             'fleet_number': str(row[3] or '').strip(),
             'vehicle_stamp': str(row[4] or '').strip(),
+            'ccusto': str(row[5] or '').strip(),
+            'project_name': str(row[6] or '').strip(),
+            'department': str(row[7] or '').strip(),
         } for row in rows],
         'phc_database': str(source.get('phc_db') or ''),
         'source': 'V_ALL_VA',
@@ -3948,13 +4119,21 @@ def _match_document_lines_to_origin(
     document_lines: list[dict[str, Any]],
     origin_lines: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    indexed_current = [
-        (index, line) for index, line in enumerate(document_lines or [])
-        if isinstance(line, dict)
-        and not bool(line.get('_virtual_split_allocation'))
-        and abs(float(line.get('qty') or line.get('quantity') or 0)) > 0
-    ]
-    delivery_current = [item for item in indexed_current if str(item[1].get('origin_delivery_note_number') or '').strip()]
+    indexed_current = []
+    for line_index, line in enumerate(document_lines or []):
+        if not isinstance(line, dict) or bool(line.get('_virtual_split_allocation')):
+            continue
+        children = line.get('sub_lines') or line.get('sublines') or []
+        effective = [
+            (line_index, subline_index, child)
+            for subline_index, child in enumerate(children)
+            if isinstance(child, dict)
+        ] if isinstance(children, list) and children else [(line_index, None, line)]
+        indexed_current.extend(
+            item for item in effective
+            if abs(float(item[2].get('qty') or item[2].get('quantity') or 0)) > 0
+        )
+    delivery_current = [item for item in indexed_current if str(item[2].get('origin_delivery_note_number') or '').strip()]
     if delivery_current:
         indexed_current = delivery_current
     usable_origins = [
@@ -3965,7 +4144,7 @@ def _match_document_lines_to_origin(
         return []
 
     positive_origins = [item for item in usable_origins if abs(float(item[1].get('pending_qty') or item[1].get('qty') or 0)) > 0]
-    current_total = round(sum(abs(float(line.get('qty') or line.get('quantity') or 0)) for _, line in indexed_current), 4)
+    current_total = round(sum(abs(float(line.get('qty') or line.get('quantity') or 0)) for _, _, line in indexed_current), 4)
     if len(positive_origins) == 1 and current_total > 0:
         origin_index, origin_line = positive_origins[0]
         origin_quantity = abs(float(origin_line.get('pending_qty') or origin_line.get('qty') or 0))
@@ -3973,39 +4152,51 @@ def _match_document_lines_to_origin(
         if quantity_difference <= 0.1:
             return [{
                 'document_line_index': current_index,
+                'document_subline_index': current_subline_index,
+                'document_line_id': str(current_line.get('line_id') or ''),
+                'document_subline_id': str(current_line.get('subline_id') or ''),
                 'origin_line_index': origin_index,
+                'origin_line_stamp': str(origin_line.get('line_stamp') or ''),
                 'origin_ref': str(origin_line.get('ref') or '').strip(),
                 'origin_description': str(origin_line.get('description') or origin_line.get('design') or '').strip(),
                 'origin_quantity': origin_quantity,
                 'score': round(min(0.99, 0.86 + ((1.0 - quantity_difference) * 0.13)), 4),
                 'reasons': ['Quantidade agregada coincide', 'Única linha quantitativa da Nota de Encomenda'],
-            } for current_index, _ in indexed_current]
+            } for current_index, current_subline_index, current_line in indexed_current]
 
     ranked_pairs = []
-    for current_index, current_line in indexed_current:
+    for current_index, current_subline_index, current_line in indexed_current:
         for origin_index, origin_line in usable_origins:
             score, reasons = _line_mapping_similarity(current_line, origin_line)
             if score >= 0.42:
-                ranked_pairs.append((score, current_index, origin_index, current_line, origin_line, reasons))
+                ranked_pairs.append((score, current_index, current_subline_index, origin_index, current_line, origin_line, reasons))
     ranked_pairs.sort(key=lambda item: item[0], reverse=True)
     used_current = set()
     used_origin = set()
     matches = []
-    for score, current_index, origin_index, _current_line, origin_line, reasons in ranked_pairs:
-        if current_index in used_current or origin_index in used_origin:
+    for score, current_index, current_subline_index, origin_index, current_line, origin_line, reasons in ranked_pairs:
+        current_key = (current_index, current_subline_index)
+        if current_key in used_current or origin_index in used_origin:
             continue
-        used_current.add(current_index)
+        used_current.add(current_key)
         used_origin.add(origin_index)
         matches.append({
             'document_line_index': current_index,
+            'document_subline_index': current_subline_index,
+            'document_line_id': str(current_line.get('line_id') or ''),
+            'document_subline_id': str(current_line.get('subline_id') or ''),
             'origin_line_index': origin_index,
+            'origin_line_stamp': str(origin_line.get('line_stamp') or ''),
             'origin_ref': str(origin_line.get('ref') or '').strip(),
             'origin_description': str(origin_line.get('description') or origin_line.get('design') or '').strip(),
             'origin_quantity': abs(float(origin_line.get('pending_qty') or origin_line.get('qty') or 0)),
             'score': score,
             'reasons': reasons,
         })
-    matches.sort(key=lambda item: int(item.get('document_line_index') or 0))
+    matches.sort(key=lambda item: (
+        int(item.get('document_line_index') or 0),
+        -1 if item.get('document_subline_index') is None else int(item.get('document_subline_index') or 0),
+    ))
     return matches
 
 
@@ -4030,6 +4221,20 @@ def _score_phc_origin_candidate(
         reasons.append('Mesma Obra')
     elif selected_ccusto and candidate_ccusto:
         reasons.append('Outra Obra')
+    agency_value = str((document_data.get('customer') or {}).get('ged_folder') or '').strip().upper()
+    agency_aliases = {
+        'HSOLS_INTERSOL_CH': ('CHAMPAGNE', 'INTERSOL-CHAMPAGNE', 'INTERSOL CHAMPAGNE'),
+        'HSOLS_INTERSOL_LOR': ('LORRAINE', 'INTERSOL-LORRAINE', 'INTERSOL LORRAINE'),
+        'HSOLS_INTERSOL_AL': ('ALSACE', 'INTERSOL-ALSACE', 'INTERSOL ALSACE'),
+    }
+    candidate_agency_text = ' '.join((
+        str(candidate.get('project_machine') or ''),
+        str(candidate.get('project_location') or ''),
+    )).strip().upper()
+    agency_terms = agency_aliases.get(agency_value, ())
+    if agency_terms and any(term in candidate_agency_text for term in agency_terms):
+        score += 0.24
+        reasons.append('Mesma agência INTERSOL')
     candidate_type = str(candidate.get('document_type') or '').strip()
     candidate_number = _origin_number_key(candidate.get('number'))
     for explicit_origin in _explicit_document_origins(document_data):
@@ -4142,7 +4347,6 @@ def search_phc_document_origins(document_data: dict[str, Any] | None, limit_per_
             WHERE BO.NO = ?
               AND BO.NDOS IN ({ndos_placeholders})
               AND ISNULL(BO2.ANULADO, 0) = 0
-              AND ISNULL(BO.FECHADA, 0) = 0
               AND BO.DATAOBRA >= ?
               AND BO.DATAOBRA <= ?
             ORDER BY BO.DATAOBRA DESC, BO.BOANO DESC, BO.OBRANO DESC
@@ -4222,8 +4426,6 @@ def search_phc_document_origins(document_data: dict[str, Any] | None, limit_per_
     for header in headers:
         stamp = str(header.get('BOSTAMP') or '').strip()
         pending_quantity = round(sum(float(line.get('pending_qty') or 0) for line in lines_by_stamp.get(stamp) or []), 4)
-        if pending_quantity <= 0:
-            continue
         candidate = {
             'origin_key': f'BO:{stamp}',
             'table': 'BO',
@@ -4244,6 +4446,7 @@ def search_phc_document_origins(document_data: dict[str, Any] | None, limit_per_
             'line_count': len(lines_by_stamp.get(stamp) or []),
             'lines': lines_by_stamp.get(stamp) or [],
             'pending_quantity': pending_quantity,
+            'available_balance': pending_quantity > 0 and not bool(header.get('FECHADA') or 0),
             'predecessor_stamps': sorted(predecessors_by_stamp.get(stamp) or []),
         }
         score, reasons = _score_phc_origin_candidate(candidate, document, lines_by_stamp.get(stamp) or [])
@@ -4252,10 +4455,14 @@ def search_phc_document_origins(document_data: dict[str, Any] | None, limit_per_
         candidate['line_matches'] = _match_document_lines_to_origin(
             document.get('lines') or [],
             lines_by_stamp.get(stamp) or [],
-        ) if candidate['document_type'] == 'purchase_order' else []
+        )
         candidate['date'] = candidate['date'].date().isoformat() if isinstance(candidate['date'], datetime) else str(candidate['date'] or '')[:10]
         candidates.append(candidate)
-    candidates.sort(key=lambda item: (float(item.get('score') or 0), str(item.get('date') or '')), reverse=True)
+    candidates.sort(key=lambda item: (
+        bool(item.get('available_balance')),
+        float(item.get('score') or 0),
+        str(item.get('date') or ''),
+    ), reverse=True)
 
     stages = []
     eligible_stages = [
@@ -4265,7 +4472,11 @@ def search_phc_document_origins(document_data: dict[str, Any] | None, limit_per_
     for display_order, stage in enumerate(eligible_stages, start=1):
         ndos = stage.get('ndos')
         stage_candidates = [item for item in candidates if item.get('ndos') == ndos]
-        stage_candidates.sort(key=lambda item: (float(item.get('score') or 0), str(item.get('date') or '')), reverse=True)
+        stage_candidates.sort(key=lambda item: (
+            bool(item.get('available_balance')),
+            float(item.get('score') or 0),
+            str(item.get('date') or ''),
+        ), reverse=True)
         if not stage_candidates:
             continue
         stages.append({
@@ -4284,7 +4495,7 @@ def search_phc_document_origins(document_data: dict[str, Any] | None, limit_per_
         'current_document_number': str(document.get('document_number') or ''),
         'detected_origins': explicit_origins,
         'selected_project': selected_project if project_ccusto else None,
-        'suggested_origin': candidates[0] if candidates else None,
+        'suggested_origin': next((item for item in candidates if item.get('available_balance')), None),
         'stages': stages,
         'candidate_count': sum(len(stage.get('candidates') or []) for stage in stages),
     }
@@ -4336,6 +4547,8 @@ def get_phc_document_origin_detail(
         registration_sql = f"LTRIM(RTRIM(ISNULL(BI.[{registration_column}], '')))" if registration_column else "CAST('' AS varchar(1))"
         line_rows = cursor.execute(f"""
             SELECT
+                LTRIM(RTRIM(ISNULL(BI.BISTAMP, ''))),
+                LTRIM(RTRIM(ISNULL(BI.BOSTAMP, ''))),
                 LTRIM(RTRIM(ISNULL(BI.REF, ''))),
                 LTRIM(RTRIM(ISNULL(BI.DESIGN, ''))),
                 ISNULL(BI.QTT, 0),
@@ -4350,35 +4563,49 @@ def get_phc_document_origin_detail(
             WHERE BI.BOSTAMP = ?
             ORDER BY BI.LORDEM, BI.BISTAMP
         """, clean_stamp).fetchall()
+        contract_detail_stages = _phc_contract_flow_stages(cursor)
 
     flow_lookup = {
         int(item.get('ndos') or 0): item
-        for item in DOC_AI_PHC_PURCHASE_FLOW
+        for item in [*DOC_AI_PHC_PURCHASE_FLOW, *contract_detail_stages]
         if item.get('ndos')
     }
     ndos = _safe_int(header[1], 0)
     stage = flow_lookup.get(ndos) or {}
     rows = [{
-        'article': str(row[0] or '').strip(),
-        'description': str(row[1] or '').strip(),
-        'quantity': float(row[2] or 0),
-        'unit_price': float(row[3] or 0),
-        'line_total': float(row[4] or 0),
-        'tax_rate': float(row[5] or 0),
-        'project': str(row[6] or '').strip(),
-        'registration': str(row[7] or '').strip(),
-        'date': row[8].date().isoformat() if isinstance(row[8], datetime) else str(row[8] or '')[:10],
+        'line_stamp': str(row[0] or '').strip(),
+        'origin_stamp': str(row[1] or '').strip(),
+        'article': str(row[2] or '').strip(),
+        'description': str(row[3] or '').strip(),
+        'quantity': float(row[4] or 0),
+        'unit_price': float(row[5] or 0),
+        'line_total': float(row[6] or 0),
+        'tax_rate': float(row[7] or 0),
+        'project': str(row[8] or '').strip(),
+        'registration': str(row[9] or '').strip(),
+        'date': row[10].date().isoformat() if isinstance(row[10], datetime) else str(row[10] or '')[:10],
     } for row in line_rows]
     line_net_total = sum(Decimal(str(row.get('line_total') or 0)) for row in rows)
     line_tax_total = sum(
-        Decimal(str(row.get('line_total') or 0)) * Decimal(str(row.get('tax_rate') or 0)) / Decimal('100')
+        (
+            Decimal(str(row.get('line_total') or 0))
+            * Decimal(str(row.get('tax_rate') or 0))
+            / Decimal('100')
+        ).quantize(Decimal('0.01'))
         for row in rows
-    ).quantize(Decimal('0.01'))
+    )
+    line_gross_total = line_net_total + line_tax_total
     header_net_total = Decimal(str(header[6] or 0))
     header_gross_total = Decimal(str(header[7] or 0))
     net_total = header_net_total if header_net_total else line_net_total
     gross_total = header_gross_total if header_gross_total else (net_total + line_tax_total)
     tax_total = gross_total - net_total if gross_total or net_total else line_tax_total
+    tolerance = Decimal('0.02')
+    totals_reconciled = (
+        abs(net_total - line_net_total) <= tolerance
+        and abs(tax_total - line_tax_total) <= tolerance
+        and abs(gross_total - line_gross_total) <= tolerance
+    )
     return {
         'ok': True,
         'origin': {
@@ -4395,9 +4622,555 @@ def get_phc_document_origin_detail(
             'tax_total': float(tax_total),
             'gross_total': float(gross_total),
         },
+        'line_totals': {
+            'net_total': float(line_net_total),
+            'tax_total': float(line_tax_total),
+            'gross_total': float(line_gross_total),
+        },
+        'totals_reconciled': totals_reconciled,
+        'totals_scope': 'visible_lines' if totals_reconciled else 'phc_document_header',
         'lines': rows,
         'show_registration': any(row['registration'] for row in rows),
         'source': 'PHC',
+    }
+
+
+def preview_document_purchase_order(
+    document_stamp: str,
+    origin_stamp: str = '',
+    family: str = 'purchase_order',
+) -> dict[str, Any]:
+    """Build a fresh PHC-versus-controlled-data preview without writing either database."""
+    from services.document_ai_purchase_order_service import preview_purchase_order
+
+    cached = get_cached_llm_extraction(document_stamp)
+    document_data = dict((cached or {}).get('document') or {})
+    if not document_data:
+        raise ValueError('O documento ainda não tem dados de Análise guardados.')
+    return preview_purchase_order(document_data, str(origin_stamp or '').strip(), family)
+
+
+def preview_document_delivery_note(document_stamp: str, delivery_number: str = '') -> dict[str, Any]:
+    """Prepare one INTERSOL Contract -> GdR operation without writing PHC."""
+    from services.document_ai_delivery_note_service import preview_delivery_note
+
+    cached = get_cached_llm_extraction(document_stamp)
+    document_data = dict((cached or {}).get('document') or {})
+    if not document_data:
+        raise ValueError('O documento ainda não tem dados de Análise guardados.')
+    return preview_delivery_note(document_data, str(delivery_number or '').strip())
+
+
+def _purchase_order_line_targets(lines: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    targets: list[dict[str, Any]] = []
+    for line in lines or []:
+        if not isinstance(line, dict):
+            continue
+        children = line.get('sublines')
+        if not isinstance(children, list):
+            children = line.get('sub_lines')
+        if isinstance(children, list) and children:
+            targets.extend(child for child in children if isinstance(child, dict))
+        else:
+            targets.append(line)
+    return targets
+
+
+def validate_document_purchase_order(
+    document_stamp: str,
+    requested_by: str,
+    *,
+    origin_stamp: str = '',
+    expected_snapshot: str = '',
+    family: str = 'purchase_order',
+) -> dict[str, Any]:
+    """Create/correct one controlled PHC source and persist its real identities."""
+    from services.document_ai_phc_operation_service import run_document_phc_operation
+    from services.document_ai_purchase_order_service import apply_purchase_order
+
+    document = db.session.get(DocInbox, str(document_stamp or '').strip())
+    if not document:
+        raise ValueError('Documento do inbox não encontrado.')
+    cached = get_cached_llm_extraction(document_stamp)
+    document_data = dict((cached or {}).get('document') or {})
+    if not document_data:
+        raise ValueError('O documento ainda não tem dados de Análise guardados.')
+    clean_origin_stamp = str(origin_stamp or '').strip()
+    family_config = {
+        'purchase_order': ('Nota de Encomenda', 'bc'),
+        'contract': ('Contrato', 'contract'),
+        'subcontract': ('Contrato Sub.Emp.', 'subcontract'),
+    }
+    if family not in family_config:
+        raise ValueError('Família de Origem inválida.')
+    public_label, origin_family = family_config[family]
+    preview = preview_document_purchase_order(document_stamp, clean_origin_stamp, family)
+    if clean_origin_stamp and str(expected_snapshot or '').strip() != str(preview.get('snapshot') or ''):
+        raise ValueError(f'{public_label} foi alterado desde a comparação. Reabre o modal.')
+
+    previous_stage = str(document.processing_stage or '')
+    operation_type = (
+        f'{family}_correct_{hashlib.sha1(clean_origin_stamp.encode()).hexdigest()[:12]}'
+        if clean_origin_stamp else f'{family}_create'
+    )
+
+    def is_complete(value: dict[str, Any]) -> bool:
+        return bool(
+            str(value.get('status') or '') == 'confirmed'
+            and str(value.get('bostamp') or '').strip()
+            and str(value.get('phc_database') or '').strip()
+            and int(value.get('ndos') or 0) > 0
+            and isinstance(value.get('line_stamps'), list)
+            and value.get('line_stamps')
+        )
+
+    def on_confirmed(result: dict[str, Any]) -> None:
+        meta = _json_loads(document.processing_meta_json, {})
+        origin = {
+            'origin_key': f'BO:{result["bostamp"]}',
+            'table': 'BO',
+            'stamp': result['bostamp'],
+            'ndos': int(result['ndos']),
+            'document_type': family,
+            'origin_family': origin_family,
+            'stage_label': public_label,
+            'document_name': str(result.get('document_name') or ''),
+            'number': str(result.get('number') or ''),
+            'year': int(result.get('year') or 0) or None,
+            'date': str(result.get('date') or ''),
+            'supplier_no': int(result.get('supplier_no') or 0),
+            'supplier_name': str(result.get('supplier_name') or ''),
+            'ccusto': str(result.get('ccusto') or ''),
+            'phc_database': str(result.get('phc_database') or ''),
+            'closed': False,
+            'linked_at': _now().isoformat(),
+            'linked_by': requested_by or '',
+        }
+        result_lines = list(result.get('line_stamps') or [])
+        controlled = dict((meta.get('llm_full_extraction') or {}).get('document') or document_data)
+        targets = _purchase_order_line_targets(controlled.get('lines') or [])
+        public_lines = []
+        for item in result_lines:
+            line_index = _safe_int(item.get('portal_line_index'), -1)
+            if line_index < 0 or line_index >= len(targets):
+                raise ValueError('O PHC devolveu uma associação de linha inválida.')
+            target = targets[line_index]
+            line_stamp = str(item.get('line_stamp') or '').strip()
+            quantity = float(item.get('quantity') or 0)
+            allocation = {
+                'origin_stamp': origin['stamp'],
+                'origin_number': origin['number'],
+                'origin_year': origin['year'],
+                'origin_line_stamp': line_stamp,
+                'origin_line_order': (line_index + 1) * 1000,
+                'article_ref': str(item.get('article_ref') or ''),
+                'quantity': quantity,
+                'unit_price': float(target.get('unit_price') or 0),
+                'total': float(target.get('net_amount') or 0),
+            }
+            target['phc_origin_stamp'] = origin['stamp']
+            target['phc_origin_line_stamp'] = line_stamp
+            target['bostamp'] = origin['stamp']
+            target['bistamp'] = line_stamp
+            target['phc_origin_links'] = [
+                link for link in (target.get('phc_origin_links') or [])
+                if isinstance(link, dict) and str(link.get('origin_family') or '') != origin_family
+            ] + [{
+                'origin_family': origin_family,
+                'bostamp': origin['stamp'],
+                'bistamp': line_stamp,
+                'origin_stamp': origin['stamp'],
+                'origin_line_stamp': line_stamp,
+                'origin_number': origin['number'],
+                'origin_year': origin['year'],
+                'origin_line_order': allocation['origin_line_order'],
+            }]
+            if origin_family == 'bc':
+                target['bc_allocations'] = [allocation]
+            public_lines.append({
+                'line_stamp': line_stamp,
+                'line_order': allocation['origin_line_order'],
+                'ref': allocation['article_ref'],
+                'description': str(target.get('description') or ''),
+                'qty': quantity,
+                'pending_qty': quantity,
+                'unit': str(target.get('unit') or ''),
+                'unit_price': allocation['unit_price'],
+                'line_total': allocation['total'],
+            })
+        origin['lines'] = public_lines
+        origin['line_count'] = len(public_lines)
+        origin['pending_quantity'] = sum(float(item.get('quantity') or 0) for item in result_lines)
+        origins = [item for item in get_phc_origins_from_meta(meta)
+                   if str(item.get('stamp') or '').strip() != origin['stamp']]
+        origins.append(origin)
+        meta['phc_origins'] = origins
+        meta.pop('phc_origin', None)
+        cached_meta = dict(meta.get('llm_full_extraction') or {})
+        cached_meta['document'] = controlled
+        cached_meta[f'{family}_updated_at'] = _now().isoformat()
+        cached_meta[f'{family}_updated_by'] = requested_by or ''
+        meta['llm_full_extraction'] = cached_meta
+        document.processing_meta_json = _json_dumps(meta)
+        document.json_resultado = _json_dumps(controlled)
+        document.processing_stage = previous_stage
+        document.last_processing_error = ''
+
+    result = run_document_phc_operation(
+        document,
+        operation_type=operation_type,
+        requested_by=requested_by,
+        execute=lambda: apply_purchase_order(
+            document_data,
+            document_stamp,
+            requested_by,
+            clean_origin_stamp,
+            str(expected_snapshot or '').strip(),
+            family,
+        ),
+        is_complete=is_complete,
+        result_fields=(
+            'mode', 'duplicate', 'bostamp', 'ndos', 'document_name', 'number', 'year', 'date',
+            'phc_database', 'supplier_no', 'supplier_name', 'ccusto', 'currency', 'line_stamps', 'message',
+        ),
+        operation_context={
+            'mode': 'correct' if clean_origin_stamp else 'create',
+            'origin_stamp': clean_origin_stamp,
+            'expected_snapshot': str(expected_snapshot or ''),
+            'phc_database': preview.get('phc_database'),
+            'series': preview.get('series'),
+            'proposal': preview.get('proposal'),
+            'before': preview.get('current'),
+        },
+        legacy_meta_key=f'phc_{family}_operation',
+        on_confirmed=on_confirmed,
+    )
+    return {
+        'ok': True,
+        **result,
+        'message': str(result.get('message') or f'{public_label} atualizado no PHC.'),
+        'origins': get_document_phc_origins(document_stamp),
+        'version': _document_draft_version(document),
+    }
+
+
+def preview_document_work_situation(document_stamp: str, user, contract_stamp: str = '') -> dict[str, Any]:
+    """Use the established subcontractor-measurements module to prepare one STSE."""
+    from modules.gr_subcontractor_measurements.service import get_contract_detail
+
+    document = db.session.get(DocInbox, str(document_stamp or '').strip())
+    if not document:
+        raise ValueError('Documento do inbox não encontrado.')
+    cached = get_cached_llm_extraction(document_stamp)
+    document_data = dict((cached or {}).get('document') or {})
+    origins = get_phc_origins_from_meta(_json_loads(document.processing_meta_json, {}))
+    candidates = [item for item in origins if _phc_origin_family(item) == 'subcontract']
+    clean_contract = str(contract_stamp or '').strip()
+    if clean_contract:
+        candidates = [item for item in candidates if str(item.get('stamp') or '').strip() == clean_contract]
+    if len(candidates) != 1:
+        raise ValueError('Associa exatamente um Contrato Sub.Emp. antes de criar a STSE.')
+    contract = candidates[0]
+    feid = _safe_int(document.feid or (document_data.get('customer') or {}).get('feid'), 0)
+    detail = get_contract_detail(feid, str(contract.get('stamp') or ''), user)
+    source_lines = {str(item.get('bistamp') or '').strip(): item for item in detail.get('lines') or []}
+    proposal = []
+    targets = _purchase_order_line_targets(document_data.get('lines') or [])
+    for index, line in enumerate(targets):
+        links = [link for link in (line.get('phc_origin_links') or [])
+                 if str(link.get('origin_family') or '') == 'subcontract'
+                 and str(link.get('bostamp') or link.get('origin_stamp') or '').strip() == str(contract.get('stamp') or '')]
+        if len(links) != 1:
+            raise ValueError(f'Linha {index + 1}: associa a linha exata do Contrato Sub.Emp.')
+        source_stamp = str(links[0].get('bistamp') or links[0].get('origin_line_stamp') or '').strip()
+        source = source_lines.get(source_stamp)
+        if not source:
+            raise ValueError(f'Linha {index + 1}: a linha do Contrato Sub.Emp. já não está disponível.')
+        quantity = float(line.get('qty') if line.get('qty') is not None else line.get('quantity') or 0)
+        if quantity <= 0 or quantity > float(source.get('remaining_qty') or 0) + 0.0001:
+            raise ValueError(f'Linha {index + 1}: a quantidade STSE excede o saldo do contrato.')
+        proposal.append({
+            'portal_line_index': index, 'source_line_stamp': source_stamp,
+            'article': str(source.get('ref') or ''), 'description': str(line.get('description') or source.get('design') or ''),
+            'quantity': quantity, 'unit': str(source.get('unit') or line.get('unit') or ''),
+            'unit_price': float(source.get('unit_price') or line.get('unit_price') or 0),
+            'line_total': float(line.get('net_amount') or 0), 'tax_rate': float(source.get('vat') or line.get('tax_rate') or 0),
+            'project': str(source.get('cost_center') or detail.get('contract', {}).get('cost_center') or ''),
+            'date': str(document_data.get('document_date') or '')[:10],
+        })
+    if not proposal:
+        raise ValueError('A STSE não tem linhas controladas para criar.')
+    return {
+        'ok': True, 'family': 'work_situation', 'phc_database': detail.get('company', {}).get('phc_db'),
+        'contract': detail.get('contract') or {}, 'proposal': {'lines': proposal},
+        'series': {'name': 'Situation Travaux ST'},
+    }
+
+
+def validate_document_work_situation(
+    document_stamp: str,
+    requested_by: str,
+    user,
+    contract_stamp: str = '',
+) -> dict[str, Any]:
+    """Create one STSE through the existing module and persist exact line lineage."""
+    from modules.gr_subcontractor_measurements.service import create_measurement_auto
+    from services.document_ai_phc_operation_service import run_document_phc_operation
+
+    document = db.session.get(DocInbox, str(document_stamp or '').strip())
+    if not document:
+        raise ValueError('Documento do inbox não encontrado.')
+    preview = preview_document_work_situation(document_stamp, user, contract_stamp)
+    cached = get_cached_llm_extraction(document_stamp)
+    document_data = dict((cached or {}).get('document') or {})
+    contract = preview['contract']
+    payload = {
+        'feid': _safe_int(document.feid or (document_data.get('customer') or {}).get('feid'), 0),
+        'bostamp': str(contract.get('bostamp') or ''),
+        'data_auto': str(document_data.get('document_date') or '')[:10],
+        'operation_key': f'DOC_AI:{document_stamp}:STSE:{contract.get("bostamp")}',
+        'lines': [{'bistamp': row['source_line_stamp'], 'qty': row['quantity']} for row in preview['proposal']['lines']],
+    }
+
+    def complete(value: dict[str, Any]) -> bool:
+        return bool(value.get('status') == 'confirmed' and value.get('bostamp') and value.get('line_stamps'))
+
+    def confirmed(result: dict[str, Any]) -> None:
+        meta = _json_loads(document.processing_meta_json, {})
+        controlled = dict((meta.get('llm_full_extraction') or {}).get('document') or document_data)
+        targets = _purchase_order_line_targets(controlled.get('lines') or [])
+        by_source = {str(item.get('source_line_stamp') or ''): item for item in result.get('line_stamps') or []}
+        public_lines = []
+        for row in preview['proposal']['lines']:
+            target = targets[int(row['portal_line_index'])]
+            created = by_source.get(row['source_line_stamp'])
+            if not created:
+                raise ValueError('A STSE não devolveu a filiação completa das linhas.')
+            link = {
+                'origin_family': 'work_situation', 'bostamp': result['bostamp'],
+                'bistamp': created['line_stamp'], 'origin_stamp': result['bostamp'],
+                'origin_line_stamp': created['line_stamp'], 'parent_bostamp': contract['bostamp'],
+                'parent_bistamp': row['source_line_stamp'], 'origin_number': str(result.get('obrano') or ''),
+                'origin_year': int(result.get('boano') or 0) or None,
+            }
+            target['phc_origin_links'] = [item for item in (target.get('phc_origin_links') or [])
+                                          if str(item.get('origin_family') or '') != 'work_situation'] + [link]
+            public_lines.append({
+                'line_stamp': created['line_stamp'], 'ref': created.get('article_ref') or row['article'],
+                'qty': created.get('quantity') or row['quantity'], 'parent_line_stamp': row['source_line_stamp'],
+            })
+        origin = {
+            'origin_key': f'BO:{result["bostamp"]}', 'table': 'BO', 'stamp': result['bostamp'],
+            'ndos': 129, 'document_type': 'work_situation', 'origin_family': 'work_situation',
+            'stage_label': 'SdTSub.Emp.', 'document_name': result.get('nmdos') or 'Situation Travaux ST',
+            'number': str(result.get('obrano') or ''), 'year': int(result.get('boano') or 0) or None,
+            'date': payload['data_auto'], 'supplier_no': int(contract.get('supplier_no') or 0),
+            'supplier_name': str(contract.get('supplier_name') or ''), 'ccusto': str(contract.get('cost_center') or ''),
+            'phc_database': preview.get('phc_database') or '', 'parent_bostamp': contract['bostamp'],
+            'lines': public_lines, 'line_count': len(public_lines), 'linked_at': _now().isoformat(),
+            'linked_by': requested_by or '',
+        }
+        meta['phc_origins'] = [item for item in get_phc_origins_from_meta(meta)
+                               if str(item.get('stamp') or '') != result['bostamp']] + [origin]
+        full = dict(meta.get('llm_full_extraction') or {}); full['document'] = controlled
+        meta['llm_full_extraction'] = full
+        document.processing_meta_json = _json_dumps(meta); document.json_resultado = _json_dumps(controlled)
+
+    result = run_document_phc_operation(
+        document, operation_type=f'work_situation_{hashlib.sha1(str(contract["bostamp"]).encode()).hexdigest()[:12]}',
+        requested_by=requested_by, execute=lambda: create_measurement_auto(payload, user),
+        is_complete=complete, result_fields=('bostamp', 'obrano', 'boano', 'nmdos', 'total', 'line_count', 'duplicate', 'line_stamps'),
+        operation_context={'contract_bostamp': contract['bostamp'], 'proposal': preview['proposal']},
+        legacy_meta_key='phc_work_situation_operation', on_confirmed=confirmed,
+    )
+    return {'ok': True, **result, 'message': f"STSE n.º {result.get('obrano') or ''} criada no PHC.",
+            'origins': get_document_phc_origins(document_stamp), 'version': _document_draft_version(document)}
+
+
+def validate_document_delivery_note(
+    document_stamp: str,
+    requested_by: str,
+    *,
+    delivery_number: str = '',
+) -> dict[str, Any]:
+    """Create one INTERSOL GdR and persist exact Contract/GdR lineage per Portal line."""
+    from services.document_ai_delivery_note_service import create_delivery_note, _delivery_number
+    from services.document_ai_phc_operation_service import run_document_phc_operation
+
+    document = db.session.get(DocInbox, str(document_stamp or '').strip())
+    if not document:
+        raise ValueError('Documento do inbox não encontrado.')
+    cached = get_cached_llm_extraction(document_stamp)
+    document_data = dict((cached or {}).get('document') or {})
+    if not document_data:
+        raise ValueError('O documento ainda não tem dados de Análise guardados.')
+    clean_delivery_number = _delivery_number(document_data, delivery_number)
+    operation_type = f'delivery_note_{hashlib.sha1(clean_delivery_number.encode()).hexdigest()[:12]}'
+    previous_stage = str(document.processing_stage or '')
+    selected_effective = [
+        line for line in _effective_portal_lines(document_data.get('lines') or [])
+        if str(line.get('origin_delivery_note_number') or '').strip() == clean_delivery_number
+    ]
+    contract_stamps = list(dict.fromkeys(
+        str(line.get('phc_origin_stamp') or line.get('bostamp') or '').strip()
+        for line in selected_effective
+        if str(line.get('phc_origin_stamp') or line.get('bostamp') or '').strip()
+    ))
+
+    original = get_document_original_file(document_stamp)
+    attachment = {}
+    if str(original.get('mime_type') or '').lower() == 'application/pdf':
+        with open(str(original['path']), 'rb') as handle:
+            attachment = {
+                'path': str(original['path']),
+                'name': str(original.get('file_name') or document.file_name or ''),
+                'bytes': handle.read(),
+            }
+
+    def is_complete(value: dict[str, Any]) -> bool:
+        return bool(
+            str(value.get('status') or '') == 'confirmed'
+            and str(value.get('bostamp') or '').strip()
+            and int(value.get('ndos') or 0) == 130
+            and str(value.get('phc_database') or '').strip().upper() == 'INTERSOL'
+            and isinstance(value.get('line_stamps'), list)
+            and value.get('line_stamps')
+        )
+
+    def on_confirmed(confirmed: dict[str, Any]) -> None:
+        meta = _json_loads(document.processing_meta_json, {})
+        cached_meta = dict(meta.get('llm_full_extraction') or {})
+        controlled = dict(cached_meta.get('document') or document_data)
+        targets = _purchase_order_line_targets(controlled.get('lines') or [])
+        target_by_id = {
+            str(item.get('subline_id') or item.get('line_id') or item.get('id') or '').strip(): item
+            for item in targets
+            if str(item.get('subline_id') or item.get('line_id') or item.get('id') or '').strip()
+        }
+        line_stamps = list(confirmed.get('line_stamps') or [])
+        if not line_stamps:
+            raise ValueError('A GdR não devolveu as linhas PHC criadas.')
+        public_lines = []
+        seen: set[str] = set()
+        for index, item in enumerate(line_stamps):
+            portal_id = str(item.get('portal_line_id') or '').strip()
+            target = target_by_id.get(portal_id)
+            if target is None:
+                line_index = _safe_int(item.get('portal_line_index'), -1)
+                subline_index = item.get('portal_subline_index')
+                candidates = [
+                    candidate for candidate in targets
+                    if _safe_int(candidate.get('portal_line_index'), -1) == line_index
+                    and candidate.get('portal_subline_index') == subline_index
+                ]
+                if len(candidates) == 1:
+                    target = candidates[0]
+            if target is None:
+                raise ValueError('A GdR devolveu uma associação que não corresponde às linhas Portal.')
+            gdr_bistamp = str(item.get('line_stamp') or '').strip()
+            contract_bistamp = str(item.get('origin_line_stamp') or '').strip()
+            if not gdr_bistamp or gdr_bistamp in seen or not contract_bistamp:
+                raise ValueError('A GdR devolveu BISTAMPs vazios ou duplicados.')
+            seen.add(gdr_bistamp)
+            contract_bostamp = str(target.get('phc_origin_stamp') or target.get('bostamp') or '').strip()
+            links = [link for link in (target.get('phc_origin_links') or []) if isinstance(link, dict)]
+            if contract_bostamp and not any(
+                str(link.get('origin_family') or '') == 'contract'
+                and str(link.get('bistamp') or link.get('origin_line_stamp') or '') == contract_bistamp
+                for link in links
+            ):
+                links.append({
+                    'origin_family': 'contract', 'bostamp': contract_bostamp,
+                    'bistamp': contract_bistamp, 'origin_stamp': contract_bostamp,
+                    'origin_line_stamp': contract_bistamp,
+                })
+            links = [link for link in links if str(link.get('origin_family') or '') != 'delivery_note']
+            links.append({
+                'origin_family': 'delivery_note', 'bostamp': confirmed['bostamp'],
+                'bistamp': gdr_bistamp, 'origin_stamp': confirmed['bostamp'],
+                'origin_line_stamp': gdr_bistamp,
+                'parent_origin_stamp': contract_bostamp,
+                'parent_origin_line_stamp': contract_bistamp,
+                'origin_number': str(confirmed.get('number') or ''),
+                'origin_year': confirmed.get('year'),
+                'origin_line_order': (index + 1) * 1000,
+            })
+            target['phc_origin_links'] = links
+            target['phc_origin_stamp'] = confirmed['bostamp']
+            target['phc_origin_line_stamp'] = gdr_bistamp
+            target['bostamp'] = confirmed['bostamp']
+            target['bistamp'] = gdr_bistamp
+            target['bc_allocations'] = [{
+                'origin_stamp': confirmed['bostamp'],
+                'origin_line_stamp': gdr_bistamp,
+                'quantity': float(item.get('quantity') or 0),
+            }]
+            public_lines.append({
+                'line_stamp': gdr_bistamp, 'line_order': (index + 1) * 1000,
+                'ref': str(target.get('article_ref') or target.get('article') or ''),
+                'description': str(target.get('description') or ''),
+                'qty': float(item.get('quantity') or 0),
+                'unit': str(target.get('unit') or ''),
+                'ccusto': str(target.get('ccusto') or target.get('project_ccusto') or ''),
+                'obistamp': contract_bistamp, 'oobistamp': contract_bistamp,
+            })
+        origin = {
+            'origin_key': f'BO:{confirmed["bostamp"]}', 'table': 'BO',
+            'stamp': confirmed['bostamp'], 'ndos': int(confirmed['ndos']),
+            'document_type': 'delivery_note', 'origin_family': 'delivery_note',
+            'stage_label': 'GdR', 'document_name': str(confirmed.get('document_name') or ''),
+            'number': str(confirmed.get('number') or ''), 'year': confirmed.get('year'),
+            'date': str(confirmed.get('date') or ''),
+            'phc_database': str(confirmed.get('phc_database') or ''),
+            'delivery_note_number': clean_delivery_number,
+            'contract_stamp': str(confirmed.get('contract_stamp') or ''),
+            'lines': public_lines, 'line_count': len(public_lines),
+            'linked_at': _now().isoformat(), 'linked_by': requested_by or '',
+        }
+        origins = [
+            item for item in get_phc_origins_from_meta(meta)
+            if str(item.get('stamp') or '').strip() != origin['stamp']
+        ]
+        origins.append(origin)
+        meta['phc_origins'] = origins
+        cached_meta['document'] = controlled
+        meta['llm_full_extraction'] = cached_meta
+        document.processing_meta_json = _json_dumps(meta)
+        document.json_resultado = _json_dumps(controlled)
+        document.processing_stage = previous_stage
+        document.last_processing_error = ''
+
+    result = run_document_phc_operation(
+        document,
+        operation_type=operation_type,
+        requested_by=requested_by,
+        execute=lambda: create_delivery_note(
+            document_data,
+            document_stamp,
+            clean_delivery_number,
+            requested_by,
+            attachment,
+        ),
+        is_complete=is_complete,
+        result_fields=(
+            'duplicate', 'bostamp', 'ndos', 'document_name', 'number', 'year', 'date',
+            'phc_database', 'delivery_note_number', 'contract_stamp', 'anexosstamp',
+            'line_stamps', 'message',
+        ),
+        operation_context={
+            'delivery_note_number': clean_delivery_number,
+            'contract_stamp': contract_stamps[0] if len(contract_stamps) == 1 else '',
+            'line_count': len(selected_effective),
+        },
+        legacy_meta_key='phc_delivery_note_operation',
+        on_confirmed=on_confirmed,
+    )
+    return {
+        'ok': True,
+        **result,
+        'message': str(result.get('message') or 'GdR criada no PHC.'),
+        'origins': get_document_phc_origins(document_stamp),
+        'version': _document_draft_version(document),
     }
 
 
@@ -4422,6 +5195,8 @@ def save_document_phc_origin(
     selected = valid_candidates.get(str(candidate.get('stamp') or '').strip())
     if not selected:
         raise ValueError('A origem selecionada já não está disponível entre os candidatos deste fornecedor.')
+    if selected.get('available_balance') is False:
+        raise ValueError('O dossier PHC selecionado está fechado ou não tem saldo disponível.')
     meta = _json_loads(document.processing_meta_json, {})
     selected_origin = {
         **selected,
@@ -4430,6 +5205,13 @@ def save_document_phc_origin(
         'linked_at': _now().isoformat(),
         'linked_by': requested_by or '',
     }
+    if _phc_origin_family(selected_origin) in {'contract', 'subcontract'}:
+        detail = get_phc_document_origin_detail(document_stamp, str(selected_origin.get('stamp') or ''))
+        if detail.get('totals_reconciled') is False:
+            raise ValueError(
+                'Não é possível associar o Contrato: os totais PHC do cabeçalho não coincidem '
+                'com as linhas apresentadas. Consulta o detalhe e corrige o dossier no PHC.'
+            )
     origins = get_phc_origins_from_meta(meta)
     origins = [item for item in origins if str(item.get('stamp') or '').strip() != str(selected_origin.get('stamp') or '').strip()]
     _validate_phc_origin_combination(origins, selected_origin)
@@ -4458,6 +5240,98 @@ def get_phc_origins_from_meta(meta: dict[str, Any] | None) -> list[dict[str, Any
     return [dict(legacy)] if isinstance(legacy, dict) and str(legacy.get('stamp') or '').strip() else []
 
 
+def search_document_credit_note_origins(
+    document_stamp: str,
+    document_data: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Search original purchase FO/FN rows for manual credit-note association."""
+    from services.document_ai_credit_note_service import search_originals
+
+    document = db.session.get(DocInbox, str(document_stamp or '').strip())
+    if not document:
+        raise ValueError('Documento do inbox não encontrado.')
+    controlled = dict(document_data or {}) or _json_loads(document.json_resultado, {})
+    if str(controlled.get('document_type') or document.doc_type_detected or '').strip().lower() != 'credit_note':
+        raise ValueError('Esta pesquisa aplica-se apenas a Notas de Crédito.')
+    meta = _json_loads(document.processing_meta_json, {})
+    reception = dict(
+        dict(meta.get('phc_operations') or {}).get('provisional_invoice')
+        or meta.get('phc_integration') or {}
+    )
+    payload = search_originals(controlled, reception)
+    payload['mapping'] = dict(meta.get('credit_note_mapping') or {})
+    return payload
+
+
+def save_document_credit_note_mapping(
+    document_stamp: str,
+    original_fostamp: str,
+    mappings: list[dict[str, Any]] | None,
+    requested_by: str,
+) -> dict[str, Any]:
+    """Persist an explicit FO/FN choice on each effective Portal row."""
+    from services.document_ai_credit_note_service import mapping_fingerprint
+
+    document = db.session.get(DocInbox, str(document_stamp or '').strip())
+    if not document:
+        raise ValueError('Documento do inbox não encontrado.')
+    controlled = _json_loads(document.json_resultado, {})
+    if str(controlled.get('document_type') or document.doc_type_detected or '').strip().lower() != 'credit_note':
+        raise ValueError('Este mapeamento aplica-se apenas a Notas de Crédito.')
+    clean_fo = str(original_fostamp or '').strip()
+    choices = [dict(item) for item in (mappings or []) if isinstance(item, dict)]
+    targets = _purchase_order_line_targets(controlled.get('lines') or [])
+    if not clean_fo or len(choices) != len(targets):
+        raise ValueError('Seleciona a FO original e uma linha FN para cada linha efetiva da Nota de Crédito.')
+    live = search_document_credit_note_origins(document.docinstamp, controlled)
+    live_candidate = next((item for item in live.get('candidates') or []
+                           if str(item.get('fostamp') or '').strip() == clean_fo), None)
+    valid_fnstamps = {str(item.get('fnstamp') or '').strip()
+                      for item in (live_candidate or {}).get('lines') or []}
+    if not live_candidate:
+        raise ValueError('A FO original selecionada já não está disponível para este fornecedor.')
+    by_id = {str(item.get('portal_line_id') or '').strip(): item for item in choices}
+    used: set[str] = set()
+    for index, target in enumerate(targets):
+        line_id = str(target.get('subline_id') or target.get('line_id') or target.get('id') or f'line-{index + 1}')
+        choice = by_id.get(line_id) or (choices[index] if not by_id else None)
+        fnstamp = str((choice or {}).get('fnstamp') or '').strip()
+        if not fnstamp or fnstamp not in valid_fnstamps or fnstamp in used:
+            raise ValueError('Cada linha efetiva exige uma linha FN original distinta.')
+        used.add(fnstamp)
+        target['credit_origin_fostamp'] = clean_fo
+        target['credit_origin_fnstamp'] = fnstamp
+        target['credit_origin_confirmed'] = True
+        # This workflow must not invent BO/BI or delivery-note lineage.
+        target.pop('bistamp', None)
+    fingerprint = mapping_fingerprint(controlled)
+    now = _now()
+    meta = _json_loads(document.processing_meta_json, {})
+    meta['credit_note_mapping'] = {
+        'original_fostamp': clean_fo,
+        'line_count': len(targets),
+        'fingerprint': fingerprint,
+        'confirmed_by': requested_by or '',
+        'confirmed_at': now.isoformat(),
+    }
+    cached = dict(meta.get('llm_full_extraction') or {})
+    if cached:
+        cached['document'] = controlled
+        meta['llm_full_extraction'] = cached
+    document.json_resultado = _json_dumps(controlled)
+    document.processing_meta_json = _json_dumps(meta)
+    document.dtalt = now
+    document.useralteracao = requested_by or document.useralteracao or ''
+    _document_log(document.docinstamp, 'credit_note_mapping', 'ok', 'Origem da Nota de Crédito confirmada.', {
+        'original_fostamp': clean_fo, 'line_count': len(targets),
+        'fingerprint': fingerprint, 'confirmed_by': requested_by or '',
+    })
+    db.session.commit()
+    return {'ok': True, 'message': 'Origem da Nota de Crédito guardada.',
+            'mapping': meta['credit_note_mapping'], 'document': controlled,
+            'version': _document_draft_version(document)}
+
+
 def get_document_phc_origins(document_stamp: str) -> list[dict[str, Any]]:
     document = db.session.get(DocInbox, str(document_stamp or '').strip())
     if not document:
@@ -4478,6 +5352,12 @@ def _line_phc_origin_stamps(lines: list[dict[str, Any]]) -> set[str]:
             stamp = str(item.get('phc_origin_stamp') or '').strip()
             if stamp:
                 stamps.add(stamp)
+            for link in item.get('phc_origin_links') or []:
+                if not isinstance(link, dict):
+                    continue
+                link_stamp = str(link.get('bostamp') or link.get('origin_stamp') or '').strip()
+                if link_stamp:
+                    stamps.add(link_stamp)
             children = item.get('sublines') or item.get('sub_lines') or []
             if isinstance(children, list):
                 visit([dict(child) for child in children if isinstance(child, dict)])
@@ -4491,6 +5371,49 @@ def _validate_line_phc_origin_assignments(lines: list[dict[str, Any]], origins: 
     unknown = _line_phc_origin_stamps(lines) - selected
     if unknown:
         raise ValueError('Uma Linha ou Sublinha referencia uma Origem PHC que não está associada ao documento.')
+
+
+def _validate_origin_allocation_balances(lines: list[dict[str, Any]], origins: list[dict[str, Any]]) -> None:
+    """Reject manual allocations that exceed the live balance exposed for one PHC line."""
+    capacities: dict[tuple[str, str], Decimal] = {}
+    for origin in origins or []:
+        origin_stamp = str(origin.get('stamp') or '').strip()
+        for source_line in origin.get('lines') or []:
+            if not isinstance(source_line, dict):
+                continue
+            line_stamp = str(source_line.get('line_stamp') or '').strip()
+            if origin_stamp and line_stamp:
+                capacities[(origin_stamp, line_stamp)] = Decimal(str(
+                    source_line.get('pending_qty')
+                    if source_line.get('pending_qty') is not None
+                    else source_line.get('qty') or 0
+                ))
+    allocated: dict[tuple[str, str], Decimal] = defaultdict(Decimal)
+
+    def visit(items: list[dict[str, Any]]) -> None:
+        for item in items or []:
+            for allocation in item.get('bc_allocations') or []:
+                if not isinstance(allocation, dict):
+                    continue
+                key = (
+                    str(allocation.get('origin_stamp') or '').strip(),
+                    str(allocation.get('origin_line_stamp') or '').strip(),
+                )
+                quantity = Decimal(str(allocation.get('quantity') or 0))
+                if quantity < 0:
+                    raise ValueError('A quantidade distribuída por origem não pode ser negativa.')
+                allocated[key] += quantity
+            children = item.get('sub_lines') or item.get('sublines') or []
+            if isinstance(children, list):
+                visit([child for child in children if isinstance(child, dict)])
+
+    visit(lines)
+    tolerance = Decimal('0.0001')
+    for key, quantity in allocated.items():
+        if key in capacities and quantity - capacities[key] > tolerance:
+            raise ValueError(
+                'A quantidade distribuída excede o saldo disponível da linha PHC selecionada.'
+            )
 
 
 def clear_document_phc_origin(document_stamp: str, requested_by: str, origin_stamp: str = '') -> dict[str, Any]:
@@ -4543,8 +5466,11 @@ def save_document_adjusted_lines(
     if not isinstance(cached, dict) or not isinstance(cached.get('document'), dict):
         raise ValueError('O documento ainda não tem uma leitura guardada para ajustar.')
     cached_document = dict(cached.get('document') or {})
-    _validate_line_phc_origin_assignments(lines, get_phc_origins_from_meta(meta))
-    cached_document['lines'] = [dict(line) for line in lines]
+    origins = get_phc_origins_from_meta(meta)
+    _validate_line_phc_origin_assignments(lines, origins)
+    _validate_origin_allocation_balances(lines, origins)
+    from services.document_ai_line_distribution_service import normalize_line_structures
+    cached_document['lines'] = normalize_line_structures(lines, str(document_stamp or '').strip())
     cached['document'] = cached_document
     cached['adjusted_at'] = _now().isoformat()
     cached['adjusted_by'] = requested_by or ''
@@ -4603,14 +5529,16 @@ def get_cached_llm_extraction(document_stamp: str) -> dict[str, Any] | None:
         or not isinstance(cached.get('document'), dict)
     ):
         return None
-    cached_document = dict(cached.get('document') or {})
+    cached_document = normalize_unified_document_model(cached.get('document') or {}, document.docinstamp)
     customer = dict(cached_document.get('customer') or {})
     entity = _fe_entity_by_id(customer.get('feid') or getattr(document, 'feid', None))
     if entity:
+        manual_agency = bool(customer.get('ged_folder_manually_selected'))
+        persisted_agency = str(customer.get('ged_folder') or '').strip()
         customer.update({
             'feid': entity.get('feid'),
-            'phc_database': entity.get('phc_database') or '',
-            'ged_folder': entity.get('ged_folder') or '',
+            'phc_database': customer.get('phc_database') or entity.get('phc_database') or '',
+            'ged_folder': persisted_agency if manual_agency and persisted_agency else entity.get('ged_folder') or persisted_agency,
         })
         cached_document['customer'] = customer
 
@@ -4851,6 +5779,24 @@ def preflight_document_inbox_stage(
             }
         if not assignment_state and document_type != 'credit_note' and not bool(document.management_validated):
             raise ValueError('O documento ainda não foi validado pelo Controlo de Gestão.')
+        if document_type == 'credit_note':
+            from services.document_ai_credit_note_service import mapping_fingerprint
+            meta = _json_loads(document.processing_meta_json, {})
+            confirmed = dict(meta.get('credit_note_mapping') or {})
+            try:
+                current_fingerprint = mapping_fingerprint(result)
+            except ValueError as exc:
+                message = str(exc)
+                return {'ok': False, 'view': stage, 'message': message,
+                        'required_info': {'ok': False, 'messages': [message],
+                                          'missing': ['credit_note_origin'],
+                                          'targets': ['docAiExtractOriginSection']}}
+            if str(confirmed.get('fingerprint') or '') != current_fingerprint:
+                message = 'Confirma a FO e a linha FN original de cada linha da Nota de Crédito.'
+                return {'ok': False, 'view': stage, 'message': message,
+                        'required_info': {'ok': False, 'messages': [message],
+                                          'missing': ['credit_note_origin'],
+                                          'targets': ['docAiExtractOriginSection']}}
     required_info = evaluate_required_info(
         result, stage, stored_feid=document.feid,
         stored_supplier_no=document.fornecedor_no,
@@ -4974,6 +5920,56 @@ def _has_complete_purchase_finalization(payload: dict[str, Any] | None) -> bool:
     )
 
 
+def _has_complete_credit_note_finalization(payload: dict[str, Any] | None) -> bool:
+    result = dict(payload or {})
+    return (
+        str(result.get('status') or '').strip().lower() == 'confirmed'
+        and bool(str(result.get('fostamp') or '').strip())
+        and bool(str(result.get('original_fostamp') or '').strip())
+        and bool(result.get('original_fnstamps'))
+        and _safe_int(result.get('final_line_count'), 0) > 0
+    )
+
+
+def _integrate_accounting_credit_note(
+    document: DocInbox,
+    document_data: dict[str, Any],
+    requested_by: str,
+    integration_permissions: dict[str, bool] | None = None,
+) -> dict[str, Any]:
+    from services.document_ai_credit_note_service import finalize_credit_note, mapping_fingerprint
+    from services.document_ai_phc_operation_service import run_document_phc_operation
+
+    if str(document_data.get('document_type') or '').strip().lower() != 'credit_note':
+        return {}
+    if integration_permissions is not None and not bool(integration_permissions.get('invoice')):
+        raise PermissionError('Sem permissão para contabilizar a Nota de Crédito no PHC.')
+    meta = _json_loads(document.processing_meta_json, {})
+    reception = dict(
+        dict(meta.get('phc_operations') or {}).get('provisional_invoice')
+        or meta.get('phc_integration') or {}
+    )
+    fingerprint = mapping_fingerprint(document_data)
+    confirmed = dict(meta.get('credit_note_mapping') or {})
+    if str(confirmed.get('fingerprint') or '') != fingerprint:
+        raise ValueError('O mapeamento da Nota de Crédito mudou; confirma novamente a origem das linhas.')
+    return run_document_phc_operation(
+        document, operation_type='credit_note_finalization', requested_by=requested_by,
+        execute=lambda: finalize_credit_note(document_data, reception, requested_by),
+        is_complete=_has_complete_credit_note_finalization,
+        result_fields=('fostamp', 'original_fostamp', 'original_fnstamps', 'phc_database',
+                       'final_line_count', 'duplicate', 'message'),
+        operation_context={
+            'document_id': str(document.docinstamp or ''),
+            'business_key': f'{document.docinstamp}:credit_note_finalization:{fingerprint}',
+            'action': 'update_existing_fo', 'permission': 'invoice',
+            'fostamp': str(reception.get('fostamp') or ''), 'mapping_fingerprint': fingerprint,
+        },
+        legacy_meta_key='phc_credit_note_finalization',
+        on_confirmed=lambda _result: setattr(document, 'processing_status', 'credit_note_finalized'),
+    )
+
+
 def _integrate_accounting_purchase(
     document: DocInbox,
     document_data: dict[str, Any],
@@ -5033,7 +6029,10 @@ def _integrate_accounting_purchase(
 def _has_complete_preinvoice(result: dict[str, Any]) -> bool:
     return bool(result.get('status') == 'confirmed' and result.get('bostamp')
                 and result.get('phc_database') and result.get('anexosstamp')
-                and result.get('ged_confirmed') and result.get('payload_fingerprint'))
+                and result.get('ged_confirmed') and result.get('payload_fingerprint')
+                and result.get('approved') and result.get('validated')
+                and not str(result.get('team') or '').strip()
+                and result.get('effective_date'))
 
 
 def _integrate_management_preinvoice(document, document_data, requested_by, integration_permissions=None):
@@ -5055,16 +6054,91 @@ def _integrate_management_preinvoice(document, document_data, requested_by, inte
         raise ValueError('O PDF original não está disponível para criar a Pré-Fatura.')
     with open(path, 'rb') as original:
         file_bytes = original.read()
+    def preinvoice_complete(value: dict[str, Any]) -> bool:
+        return bool(
+            _has_complete_preinvoice(value)
+            and isinstance(value.get('line_stamps'), list)
+            and value.get('line_stamps')
+        )
+
+    def on_confirmed_preinvoice(confirmed: dict[str, Any]) -> None:
+        current_meta = _json_loads(document.processing_meta_json, {})
+        cached = dict(current_meta.get('llm_full_extraction') or {})
+        controlled = dict(cached.get('document') or document_data)
+        targets = _purchase_order_line_targets(controlled.get('lines') or [])
+        line_stamps = list(confirmed.get('line_stamps') or [])
+        if len(line_stamps) != len(targets):
+            raise ValueError('A Pré-Fatura não devolveu uma linha PHC por linha Portal efetiva.')
+        seen: set[str] = set()
+        public_lines = []
+        for index, item in enumerate(line_stamps):
+            line_index = _safe_int(item.get('portal_line_index'), index)
+            if line_index != index or line_index < 0 or line_index >= len(targets):
+                raise ValueError('A Pré-Fatura devolveu uma ordem de linhas incompatível com o Portal.')
+            line_stamp = str(item.get('line_stamp') or '').strip()
+            if not line_stamp or line_stamp in seen:
+                raise ValueError('A Pré-Fatura devolveu um BISTAMP vazio ou duplicado.')
+            seen.add(line_stamp)
+            target = targets[line_index]
+            links = [
+                link for link in (target.get('phc_origin_links') or [])
+                if isinstance(link, dict) and str(link.get('origin_family') or '') != 'proforma_invoice'
+            ]
+            links.append({
+                'origin_family': 'proforma_invoice',
+                'bostamp': confirmed['bostamp'],
+                'bistamp': line_stamp,
+                'origin_stamp': confirmed['bostamp'],
+                'origin_line_stamp': line_stamp,
+                'origin_number': str(confirmed.get('number') or ''),
+                'origin_year': confirmed.get('year'),
+                'origin_line_order': _safe_int(item.get('line_order'), (index + 1) * 1000),
+            })
+            target['phc_origin_links'] = links
+            public_lines.append({
+                'line_stamp': line_stamp,
+                'line_order': _safe_int(item.get('line_order'), (index + 1) * 1000),
+                'ref': str(target.get('article_ref') or target.get('article') or ''),
+                'description': str(target.get('description') or ''),
+                'qty': float(target.get('quantity') if target.get('quantity') is not None else target.get('qty') or 0),
+                'unit': str(target.get('unit') or ''),
+                'unit_price': float(target.get('unit_price') or 0),
+                'line_total': float(target.get('net_amount') or target.get('pt') or 0),
+            })
+        origins_now = [
+            item for item in get_phc_origins_from_meta(current_meta)
+            if str(item.get('stamp') or '').strip() != str(confirmed['bostamp'])
+        ]
+        origins_now.append({
+            'table': 'BO', 'stamp': confirmed['bostamp'], 'ndos': confirmed['ndos'],
+            'document_type': 'proforma_invoice', 'origin_family': 'proforma_invoice',
+            'document_name': confirmed['document_name'], 'number': confirmed['number'],
+            'year': confirmed['year'], 'phc_database': confirmed['phc_database'],
+            'lines': public_lines, 'line_count': len(public_lines),
+            'linked_by': requested_by, 'linked_at': _now().isoformat(),
+        })
+        current_meta['phc_origins'] = origins_now
+        cached['document'] = controlled
+        current_meta['llm_full_extraction'] = cached
+        document.processing_meta_json = _json_dumps(current_meta)
+        document.json_resultado = _json_dumps(controlled)
+
     result = run_document_phc_operation(
         document, operation_type='preinvoice', requested_by=requested_by,
         execute=lambda: create_preinvoice(document_data, origins, reception,
                                          document.docinstamp, file_bytes, requested_by),
-        is_complete=_has_complete_preinvoice,
+        is_complete=preinvoice_complete,
         result_fields=('bostamp', 'ndos', 'document_type', 'document_name', 'number', 'year',
                        'phc_database', 'anexosstamp', 'ged_path', 'ged_confirmed',
-                       'payload_fingerprint', 'duplicate'),
-        operation_context={'document_id': document.docinstamp, 'permission': 'proforma_invoice'},
+                       'payload_fingerprint', 'duplicate', 'line_stamps', 'approved',
+                       'validated', 'team', 'agency_origin', 'effective_date'),
+        operation_context={
+            'document_id': document.docinstamp,
+            'permission': 'proforma_invoice',
+            'effective_line_count': len(_effective_portal_lines(document_data.get('lines') or [])),
+        },
         legacy_meta_key='phc_preinvoice',
+        on_confirmed=on_confirmed_preinvoice,
     )
     # Recover the association too if PHC committed but the subsequent Portal save failed.
     meta = _json_loads(document.processing_meta_json, {})
@@ -5112,6 +6186,10 @@ def validate_document_inbox_stage(
         if stage == 'management' and existing_type in {'invoice', 'provisional_invoice'}:
             meta = _json_loads(getattr(document, 'processing_meta_json', ''), {})
             if not _has_complete_preinvoice(dict(meta.get('phc_preinvoice') or {})):
+                return None
+        if stage == 'accounting' and existing_type == 'credit_note':
+            meta = _json_loads(getattr(document, 'processing_meta_json', ''), {})
+            if not _has_complete_credit_note_finalization(dict(meta.get('phc_credit_note_finalization') or {})):
                 return None
         if stage == 'home' and (
             existing_type in {'mail', 'bank_statement'} or _is_provisional_purchase_source_type(existing_type)
@@ -5188,12 +6266,14 @@ def validate_document_inbox_stage(
         document.management_validated_at = now
         document.management_validated_by = requested_by or ''
     else:
-        accounting_integration = _integrate_accounting_purchase(
-            document,
-            result,
-            requested_by,
-            integration_permissions=integration_permissions,
-        )
+        if document_type == 'credit_note':
+            accounting_integration = _integrate_accounting_credit_note(
+                document, result, requested_by, integration_permissions=integration_permissions,
+            )
+        else:
+            accounting_integration = _integrate_accounting_purchase(
+                document, result, requested_by, integration_permissions=integration_permissions,
+            )
         document.accounting_validated = True
         document.accounting_validated_at = now
         document.accounting_validated_by = requested_by or ''
@@ -5207,11 +6287,12 @@ def validate_document_inbox_stage(
     document.dtalt = transition_now
     document.useralteracao = requested_by or document.useralteracao or ''
     version_after = _document_draft_version(document)
-    destination = {
-        'home': 'management',
-        'management': 'accounting',
-        'accounting': 'archive',
-    }[stage]
+    routed_destinations = [
+        str(item.get('destination') or '')
+        for item in distribution.get('outcomes') or []
+        if str(item.get('destination') or '')
+    ]
+    destination = ','.join(routed_destinations) if routed_destinations else 'archive'
     _document_log(document.docinstamp, 'workflow', 'ok', f'Etapa {stage} validada.', {
         'source': stage,
         'destination': destination,
@@ -5240,9 +6321,12 @@ def validate_document_inbox_stage(
         'phc_integration': integration if stage == 'home' else dict(
             _json_loads(document.processing_meta_json, {}).get('phc_integration') or {}
         ),
-        'phc_purchase_finalization': accounting_integration if stage == 'accounting' else dict(
-            _json_loads(document.processing_meta_json, {}).get('phc_purchase_finalization') or {}
-        ),
+        'phc_purchase_finalization': accounting_integration
+        if stage == 'accounting' and document_type != 'credit_note' else dict(
+            _json_loads(document.processing_meta_json, {}).get('phc_purchase_finalization') or {}),
+        'phc_credit_note_finalization': accounting_integration
+        if stage == 'accounting' and document_type == 'credit_note' else dict(
+            _json_loads(document.processing_meta_json, {}).get('phc_credit_note_finalization') or {}),
     }
 
 
@@ -6867,13 +7951,15 @@ def _normalize_invoice_type(value: Any) -> str:
         'services': 'services',
         'service': 'services',
         'servicos': 'services',
-        'c&p': 'fuel_tolls',
-        'c_p': 'fuel_tolls',
-        'cp': 'fuel_tolls',
-        'combustiveis_e_portagens': 'fuel_tolls',
-        'combustibles_y_peajes': 'fuel_tolls',
-        'carburants_et_peages': 'fuel_tolls',
-        'fuel_tolls': 'fuel_tolls',
+        # Legacy TP056 values are read as Serviços; they are never exposed as
+        # a fourth type and are migrated without advancing workflow state.
+        'c&p': 'services',
+        'c_p': 'services',
+        'cp': 'services',
+        'combustiveis_e_portagens': 'services',
+        'combustibles_y_peajes': 'services',
+        'carburants_et_peages': 'services',
+        'fuel_tolls': 'services',
     }
     return aliases.get(normalized, 'unknown')
 
@@ -6883,7 +7969,6 @@ def _invoice_type_label(value: Any) -> str:
         'concrete': 'Betão',
         'material': 'Material',
         'services': 'Serviços',
-        'fuel_tolls': 'C&P',
     }.get(_normalize_invoice_type(value), '-')
 
 
@@ -6903,7 +7988,7 @@ def _infer_invoice_type(result: dict[str, Any], extracted_text: Any = '') -> str
         'carburant', 'carburants', 'peage', 'peages', 'portagem', 'portagens',
         'autoroute', 'telepeage', 'telepass', 'toll',
     )):
-        return 'fuel_tolls'
+        return 'services'
     if any(token in normalized for token in ('honoraires', 'prestation', 'service', 'main d oeuvre', 'consult')):
         return 'services'
     if any(isinstance(line, dict) and str(line.get('description') or '').strip() for line in (result.get('lines') or [])):
@@ -6991,7 +8076,8 @@ def validate_document_financial_consistency(document_data: dict[str, Any] | None
     result = dict(document_data or {})
     totals = dict(result.get('totals') or {})
     taxes = [dict(item or {}) for item in (result.get('taxes') or []) if isinstance(item, dict)]
-    tolerance = Decimal('0.02')
+    # TP065 accepts a demonstrated source rounding of at most one cent.
+    tolerance = Decimal('0.01')
     net_total = _phc_money(totals.get('net_total'))
     tax_total = _phc_money(totals.get('tax_total'))
     gross_total = _phc_money(totals.get('gross_total'))
@@ -7452,7 +8538,10 @@ def list_documents(filters: dict[str, Any] | None = None) -> dict[str, Any]:
     items = []
     counts = {}
     for row in rows:
-        result_data = _json_loads(row.get('JSON_RESULTADO'), {})
+        result_data = normalize_unified_document_model(
+            _json_loads(row.get('JSON_RESULTADO'), {}),
+            str(row.get('DOCINSTAMP') or ''),
+        )
         processing_meta = _json_loads(row.get('PROCESSING_META_JSON'), {})
         integrated_as_provisional = (
             str((processing_meta.get('phc_integration') or {}).get('type') or '').strip().lower()
@@ -7611,7 +8700,6 @@ def list_documents(filters: dict[str, Any] | None = None) -> dict[str, Any]:
             {'value': 'concrete', 'label': 'Betão'},
             {'value': 'material', 'label': 'Material'},
             {'value': 'services', 'label': 'Serviços'},
-            {'value': 'fuel_tolls', 'label': 'C&P'},
             {'value': 'unknown', 'label': '-'},
         ],
         'entities': [
@@ -8215,6 +9303,8 @@ def save_document_draft(
     result = payload.get('document')
     if not isinstance(result, dict):
         raise ValueError('Rascunho documental inválido.')
+    from services.document_ai_line_distribution_service import normalize_line_structures
+    result = normalize_unified_document_model(result, stamp)
     draft_view = _normalize_document_inbox_view(payload.get('view'))
     if draft_view == 'accounting':
         raise ValueError('O bloco Análise é apenas de consulta na Contabilidade.')
@@ -8246,6 +9336,7 @@ def save_document_draft(
     invoice_type = _normalize_invoice_type(result.get('invoice_type'))
     if document_type not in {'invoice', 'provisional_invoice', 'credit_note', 'debit_note'}:
         invoice_type = 'unknown'
+    result['invoice_type'] = invoice_type
 
     document.feid = _safe_int(customer.get('feid'), 0) or None
     if bool(result.get('supplier_explicitly_absent') or supplier.get('explicitly_absent')):
@@ -9300,6 +10391,7 @@ def _document_group_payload(batch_stamp: str, current_document_id: str = '') -> 
     items.sort(key=lambda item: (item.get('index') or 999999, item.get('file_name') or ''))
     current_index = next((index for index, item in enumerate(items) if item.get('id') == current_document_id), 0)
     return {
+        'audit_only': True,
         'grouped': len(items) > 0,
         'batch_id': str(batch_stamp or '').strip(),
         'count': len(items),
@@ -9380,7 +10472,6 @@ def split_extracted_pdf_into_inbox(
                 'start_page': part.get('start_page'),
                 'end_page': part.get('end_page'),
             }
-            unique_hash = hashlib.sha256(f'{batch_stamp}:{index}:{content_hash}'.encode('utf-8')).hexdigest()
             document = DocInbox(
                 docinstamp=_new_stamp(),
                 feid=supplier.get('feid') or customer.get('feid') or None,
@@ -9390,7 +10481,7 @@ def split_extracted_pdf_into_inbox(
                 file_path=stored['public_path'],
                 file_ext='.pdf',
                 mime_type='application/pdf',
-                file_hash=unique_hash,
+                file_hash=content_hash,
                 file_size=stored['size'],
                 extracted_text='',
                 extraction_method='split_pdf',
@@ -9470,7 +10561,7 @@ def split_extracted_pdf_into_inbox(
             f'{len(created_documents)} documentos separados e adicionados ao inbox.'
             + (f' {len(skipped_duplicates)} duplicado(s) ignorado(s).' if skipped_duplicates else '')
         ),
-        'group': group,
+        'batch_audit': group,
         'duplicates': skipped_duplicates,
     }
 

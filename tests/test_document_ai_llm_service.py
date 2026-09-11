@@ -48,6 +48,31 @@ class DocumentAiLlmServiceTests(unittest.TestCase):
         self.assertEqual(normalized['mail_title'], 'Mise en demeure avec')
         self.assertLessEqual(len(normalized['mail_title']), 25)
 
+    def test_public_classification_excludes_legacy_document_types(self):
+        schema_types = llm_service._document_classification_schema()['properties']['document_type']['enum']
+
+        self.assertNotIn('provisional_invoice', schema_types)
+        self.assertNotIn('proforma_invoice', schema_types)
+        self.assertNotIn('other', schema_types)
+
+    def test_ai_legacy_invoice_types_are_normalized_without_affecting_stored_history(self):
+        normalized = llm_service._normalize_full_extraction_line_origins({
+            'document_type': 'proforma_invoice',
+            'lines': [],
+            'document_batch': {
+                'documents': [
+                    {'document_type': 'provisional_invoice'},
+                    {'document_type': 'other'},
+                ],
+            },
+        })
+
+        self.assertEqual(normalized['document_type'], 'invoice')
+        self.assertEqual(
+            [item['document_type'] for item in normalized['document_batch']['documents']],
+            ['invoice', 'unknown'],
+        )
+
     def test_full_visual_extraction_enables_full_mode(self):
         captured = {}
 

@@ -308,7 +308,7 @@ def evaluate_required_info(
             unit_price = _number(item.get('unit_price'))
             line_total = _number(item.get('net_amount') if 'net_amount' in item else item.get('line_total'))
             if qty is not None and unit_price is not None and line_total is not None:
-                bad_line_total = bad_line_total or abs((qty * unit_price) - line_total) > 0.02
+                bad_line_total = bad_line_total or abs((qty * unit_price) - line_total) > 0.01
             group_code = str(item.get('article_group_code') or '').strip().upper()
             if not group_code:
                 continue
@@ -325,10 +325,15 @@ def evaluate_required_info(
         if invalid_group or any(group not in group_principals for group in group_associates):
             consistency_messages.append('Existem grupos de artigos inválidos ou sem linha principal.')
             consistency_targets.add('docAiExtractLinesSection')
+        from services.document_ai_line_distribution_service import line_workflow_errors
+        workflow_line_errors = line_workflow_errors(lines)
+        if workflow_line_errors:
+            consistency_messages.extend(workflow_line_errors)
+            consistency_targets.add('docAiExtractLinesSection')
         gross = _number(totals.get('gross_total'))
         tax = _number(totals.get('tax_total'))
         net = _number(totals.get('net_total'))
-        if gross is not None and tax is not None and net is not None and abs((net + tax) - gross) > 0.02:
+        if gross is not None and tax is not None and net is not None and abs((net + tax) - gross) > 0.01:
             consistency_messages.append('Os totais do documento não são coerentes: Total s/IVA + IVA deve corresponder ao Total.')
             consistency_targets.add('docAiExtractTotalsCard')
 

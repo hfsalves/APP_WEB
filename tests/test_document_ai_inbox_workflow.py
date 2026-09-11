@@ -32,7 +32,7 @@ class DocumentAiInboxWorkflowTests(unittest.TestCase):
         self.assertEqual(_normalize_invoice_type('Betão'), 'concrete')
         self.assertEqual(_normalize_invoice_type('Materiais'), 'material')
         self.assertEqual(_normalize_invoice_type('Serviços'), 'services')
-        self.assertEqual(_normalize_invoice_type('C&P'), 'fuel_tolls')
+        self.assertEqual(_normalize_invoice_type('C&P'), 'services')
         self.assertEqual(_normalize_invoice_type(''), 'unknown')
 
     def test_invoice_type_can_be_inferred_from_document_lines(self):
@@ -42,7 +42,7 @@ class DocumentAiInboxWorkflowTests(unittest.TestCase):
         )
         self.assertEqual(
             _infer_invoice_type({'lines': [{'description': 'Gasoil et péages autoroute'}]}),
-            'fuel_tolls',
+            'services',
         )
 
     def test_management_state_uses_the_same_business_requirements_as_validation(self):
@@ -139,7 +139,7 @@ class DocumentAiInboxWorkflowTests(unittest.TestCase):
     def test_main_details_sheet_places_editable_iva_after_total(self):
         template = Path('templates/document_ai_extract.html').read_text()
         extract_script = Path('static/js/document_ai_extract.js').read_text()
-        self.assertIn('<th>PT</th>\n                        <th>IVA</th>', template)
+        self.assertIn('<th rowspan="2">PT</th>\n                        <th rowspan="2">IVA</th>', template)
         self.assertIn('data-line-tax-rate=', extract_script)
         self.assertIn("markLineManualFields(line, 'tax_rate')", extract_script)
 
@@ -197,8 +197,9 @@ class DocumentAiInboxWorkflowTests(unittest.TestCase):
     def test_lines_are_grouped_visually_by_cost_center_and_registration(self):
         extract_script = Path('static/js/document_ai_extract.js').read_text()
         extract_css = Path('static/css/document_ai.css').read_text()
-        self.assertIn('const displayItems = items.map((line, lineIndex)', extract_script)
-        self.assertIn("groupKey: `${costCenter}\\u0000${registration}`", extract_script)
+        self.assertIn('const mappedItems = items.map((line, lineIndex)', extract_script)
+        self.assertIn("`${costCenter}\\u0000${registration}`", extract_script)
+        self.assertIn("items.some((line) => String(line.group_id || ''))", extract_script)
         self.assertIn('docai-extract-line-group-start', extract_script)
         self.assertIn('.docai-extract-line-group-start td', extract_css)
 

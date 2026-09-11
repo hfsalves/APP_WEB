@@ -12,7 +12,7 @@ class DocumentAiBusinessLabelsTests(unittest.TestCase):
         labels = {item['value']: item['label'] for item in DOC_AI_DOC_TYPES}
         self.assertEqual(labels['purchase_order'], 'Nota de Encomenda')
         self.assertEqual(labels['delivery_note'], 'Guia de Remessa')
-        self.assertEqual(labels['subcontract'], 'Contrato de SubEmpreitada')
+        self.assertEqual(labels['subcontract'], 'Contrato Sub.Emp.')
         self.assertEqual(labels['provisional_invoice'], 'Fatura Provisória')
 
     def test_integration_settings_use_business_labels(self):
@@ -26,8 +26,8 @@ class DocumentAiBusinessLabelsTests(unittest.TestCase):
         script = (ROOT / 'static/js/document_ai_extract.js').read_text(encoding='utf-8')
         self.assertIn('>NdE</th>', template)
         self.assertIn('>GdR</th>', template)
-        self.assertIn("'C Sub.Emp.'", script)
-        self.assertIn("'SdT Sub.Emp.'", script)
+        self.assertIn("'Contrato Sub.Emp.'", script)
+        self.assertIn("'SdTSub.Emp.'", script)
 
     def test_ged_prefixes_remain_unchanged(self):
         script = (ROOT / 'static/js/document_ai_extract.js').read_text(encoding='utf-8')

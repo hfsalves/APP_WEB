@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Any
+import hashlib
 import io
 import mimetypes
 import os
@@ -77,6 +78,10 @@ def _decimal(value: Any) -> Decimal:
 
 def _new_stamp() -> str:
     return uuid.uuid4().hex.upper()[:25]
+
+
+def _stable_operation_stamp(operation_key: Any) -> str:
+    return f"DOCSTSE{hashlib.sha1(_text_value(operation_key).encode()).hexdigest().upper()}"[:25]
 
 
 def _sql_identifier(name: str) -> str:
@@ -1167,13 +1172,48 @@ def create_measurement_auto(payload: dict[str, Any], user) -> dict[str, Any]:
     now_sql = datetime.now()
     hour = now_sql.strftime("%H:%M:%S")
     user_inis = _user_inis(user)
-    bostamp = _new_stamp()
+    operation_key = _text_value(payload.get('operation_key'))
+    bostamp = _stable_operation_stamp(operation_key) if operation_key else _new_stamp()
 
     conn_str = _phc_conn_str(company["phc_db"], company.get("phc_server") or "")
     with pyodbc.connect(conn_str, timeout=30) as conn:
         conn.autocommit = False
         cursor = conn.cursor()
         try:
+            if operation_key:
+                cursor.execute('SET TRANSACTION ISOLATION LEVEL SERIALIZABLE')
+                lock = cursor.execute("""
+                    DECLARE @result int;
+                    EXEC @result=sp_getapplock @Resource=?,@LockMode='Exclusive',
+                        @LockOwner='Transaction',@LockTimeout=15000;
+                    SELECT @result;
+                """, f'DOC_AI_STSE_{company["phc_db"]}_{bostamp}').fetchone()
+                if not lock or int(lock[0]) < 0:
+                    raise SubcontractorMeasurementsValidationError('Outra operação está a criar esta STSE. Tenta novamente.')
+                existing = _fetch_rows(cursor, """
+                    SELECT TOP 1 BO.BOSTAMP,BO.OBRANO,BO.BOANO,BO.NMDOS,BO.ETOTALDEB
+                    FROM dbo.BO BO WITH (UPDLOCK,HOLDLOCK)
+                    WHERE BO.BOSTAMP=? AND BO.NDOS=?
+                """, (bostamp, MEASUREMENT_NDOS))
+                if existing:
+                    existing_lines = _fetch_rows(cursor, """
+                        SELECT BISTAMP,OOBISTAMP,REF,QTT FROM dbo.BI WITH (NOLOCK)
+                        WHERE BOSTAMP=? ORDER BY LORDEM,BISTAMP
+                    """, (bostamp,))
+                    conn.commit()
+                    row = existing[0]
+                    return {
+                        'bostamp': bostamp, 'obrano': int(_number_value(row.get('OBRANO'))),
+                        'boano': int(_number_value(row.get('BOANO'))), 'autono': 0,
+                        'nmdos': _text_value(row.get('NMDOS')), 'total': _money(row.get('ETOTALDEB')),
+                        'line_count': len(existing_lines), 'company': company, 'duplicate': True,
+                        'line_stamps': [{
+                            'line_stamp': _text_value(item.get('BISTAMP')),
+                            'source_line_stamp': _text_value(item.get('OOBISTAMP')),
+                            'article_ref': _text_value(item.get('REF')),
+                            'quantity': _qty(item.get('QTT')),
+                        } for item in existing_lines],
+                    }
             header, source_lines, executed = _load_contract_for_insert(cursor, contract_bostamp)
             prepared_lines = _prepare_measurement_lines(source_lines, executed, payload_lines)
             tax_totals = _build_tax_totals(prepared_lines)
@@ -1408,4 +1448,11 @@ def create_measurement_auto(payload: dict[str, Any], user) -> dict[str, Any]:
         "total": _money(total_deb),
         "line_count": len(prepared_lines),
         "company": company,
+        "duplicate": False,
+        "line_stamps": [{
+            "line_stamp": line["bistamp"],
+            "source_line_stamp": line["source_bistamp"],
+            "article_ref": _text_value(line["source"].get("REF")),
+            "quantity": _qty(line["qty"]),
+        } for line in prepared_lines],
     }

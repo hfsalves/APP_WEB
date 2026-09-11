@@ -63,6 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
     originDetailEmpty: document.getElementById('docAiOriginDetailEmpty'),
     originDetailCloseTop: document.getElementById('docAiOriginDetailCloseTop'),
     originDetailClose: document.getElementById('docAiOriginDetailClose'),
+    originDetailValidate: document.getElementById('docAiOriginDetailValidate'),
     originMeta: document.getElementById('docAiExtractOriginMeta'),
     originAction: document.getElementById('docAiExtractOriginAction'),
     originLoading: document.getElementById('docAiExtractOriginLoading'),
@@ -71,6 +72,38 @@ document.addEventListener('DOMContentLoaded', () => {
     lineCount: document.getElementById('docAiExtractLineCount'),
     splitLineBtn: document.getElementById('docAiExtractSplitLineBtn'),
     linesBody: document.getElementById('docAiExtractLinesBody'),
+    groupDropzone: document.getElementById('docAiExtractGroupDropzone'),
+    lineDistributionModal: document.getElementById('docAiLineDistributionModal'),
+    lineDistributionTitle: document.getElementById('docAiLineDistributionTitle'),
+    lineDistributionContext: document.getElementById('docAiLineDistributionContext'),
+    lineDistributionMain: document.getElementById('docAiLineDistributionMain'),
+    lineDistributionSearchPane: document.getElementById('docAiLineDistributionSearchPane'),
+    lineDistributionSearchBack: document.getElementById('docAiLineDistributionSearchBack'),
+    lineDistributionSearchLabel: document.getElementById('docAiLineDistributionSearchLabel'),
+    lineDistributionSearchInput: document.getElementById('docAiLineDistributionSearchInput'),
+    lineDistributionSearchButton: document.getElementById('docAiLineDistributionSearchButton'),
+    lineDistributionSearchResults: document.getElementById('docAiLineDistributionSearchResults'),
+    lineDistributionQuantityBalance: document.getElementById('docAiLineDistributionQuantityBalance'),
+    lineDistributionTotalBalance: document.getElementById('docAiLineDistributionTotalBalance'),
+    lineDistributionTable: document.getElementById('docAiLineDistributionTable'),
+    lineDistributionHead: document.getElementById('docAiLineDistributionHead'),
+    lineDistributionBody: document.getElementById('docAiLineDistributionBody'),
+    lineDistributionAdd: document.getElementById('docAiLineDistributionAdd'),
+    lineDistributionError: document.getElementById('docAiLineDistributionError'),
+    lineDistributionCloseTop: document.getElementById('docAiLineDistributionCloseTop'),
+    lineDistributionClose: document.getElementById('docAiLineDistributionClose'),
+    lineDistributionSave: document.getElementById('docAiLineDistributionSave'),
+    lineCostsModal: document.getElementById('docAiLineCostsModal'),
+    lineCostsTitle: document.getElementById('docAiLineCostsTitle'),
+    lineCostsContext: document.getElementById('docAiLineCostsContext'),
+    lineCostsTabs: document.getElementById('docAiLineCostsTabs'),
+    lineCostsList: document.getElementById('docAiLineCostsList'),
+    lineCostsBody: document.getElementById('docAiLineCostsBody'),
+    lineCostsDetail: document.getElementById('docAiLineCostsDetail'),
+    lineCostsDetailFields: document.getElementById('docAiLineCostsDetailFields'),
+    lineCostsBack: document.getElementById('docAiLineCostsBack'),
+    lineCostsCloseTop: document.getElementById('docAiLineCostsCloseTop'),
+    lineCostsClose: document.getElementById('docAiLineCostsClose'),
     taxesBody: document.getElementById('docAiExtractTaxesBody'),
     netTotal: document.getElementById('docAiExtractNetTotal'),
     taxTotal: document.getElementById('docAiExtractTaxTotal'),
@@ -81,11 +114,6 @@ document.addEventListener('DOMContentLoaded', () => {
     batchMessage: document.getElementById('docAiExtractBatchMessage'),
     batchDocuments: document.getElementById('docAiExtractBatchDocuments'),
     splitBtn: document.getElementById('docAiExtractSplitBtn'),
-    groupNavigator: document.getElementById('docAiExtractGroupNavigator'),
-    groupPrevious: document.getElementById('docAiExtractGroupPrevious'),
-    groupNext: document.getElementById('docAiExtractGroupNext'),
-    groupPosition: document.getElementById('docAiExtractGroupPosition'),
-    groupFileName: document.getElementById('docAiExtractGroupFileName'),
     supplierModal: document.getElementById('docAiSupplierMatchModal'),
     supplierModalTitle: document.getElementById('docAiSupplierMatchTitle'),
     supplierModalContext: document.getElementById('docAiSupplierMatchContext'),
@@ -100,6 +128,7 @@ document.addEventListener('DOMContentLoaded', () => {
     projectSearch: document.getElementById('docAiProjectSearch'),
     projectSearchBtn: document.getElementById('docAiProjectSearchBtn'),
     projectList: document.getElementById('docAiProjectList'),
+    projectDistribute: document.getElementById('docAiProjectDistribute'),
     projectCloseTop: document.getElementById('docAiProjectCloseTop'),
     projectClose: document.getElementById('docAiProjectClose'),
     articleModal: document.getElementById('docAiArticleModal'),
@@ -114,6 +143,7 @@ document.addEventListener('DOMContentLoaded', () => {
     vehicleSearch: document.getElementById('docAiVehicleSearch'),
     vehicleSearchBtn: document.getElementById('docAiVehicleSearchBtn'),
     vehicleList: document.getElementById('docAiVehicleList'),
+    vehicleDistribute: document.getElementById('docAiVehicleDistribute'),
     vehicleRemove: document.getElementById('docAiVehicleRemove'),
     vehicleCloseTop: document.getElementById('docAiVehicleCloseTop'),
     vehicleClose: document.getElementById('docAiVehicleClose'),
@@ -168,12 +198,12 @@ document.addEventListener('DOMContentLoaded', () => {
     matching: {},
     supplierCandidates: [],
     currentDocumentId: '',
-    group: null,
-    groupIndex: 0,
     splitting: false,
     originSearchToken: 0,
     originPayload: null,
     originCandidates: [],
+    creditNoteCandidates: [],
+    creditNoteSelectedFo: '',
     activeOriginStage: '',
     consultedOriginStamp: '',
     selectedOrigins: [],
@@ -192,9 +222,12 @@ document.addEventListener('DOMContentLoaded', () => {
     deliveryNoteGroups: [],
     selectedDeliveryNoteGroups: new Set(),
     virtualDeliveryNotesActive: false,
+    deliveryNoteDistributionMode: false,
     originLineMatches: [],
     originLineReferenceLabel: '',
     originLineMatchByLine: new WeakMap(),
+    originLineageChanged: false,
+    originLineageSaveScheduled: false,
     selectedSplitLines: new Set(),
     entityCandidates: [],
     supplierSearchToken: 0,
@@ -232,6 +265,17 @@ document.addEventListener('DOMContentLoaded', () => {
     confirmInvoiceTypeRemoval: false,
     validationVisible: false,
     validationMissing: new Set(),
+    originOperation: null,
+    draggedLineId: '',
+    keyboardGroupLineId: '',
+    lineDistributionTargetIndex: null,
+    lineDistributionMode: 'project',
+    lineDistributionDraft: [],
+    lineDistributionSearchRow: null,
+    lineDistributionSearchField: '',
+    lineDistributionSearchItems: [],
+    lineCostsTargetIndex: null,
+    lineCostsType: '',
     readOnly,
     view: allowedViews.has(initialView) ? initialView : ([...allowedViews][0] || ''),
   };
@@ -241,7 +285,7 @@ document.addEventListener('DOMContentLoaded', () => {
     invoice: 'Fatura',
     credit_note: 'Nota de crédito',
     contract: 'Contrato',
-    subcontract: 'Contrato Sout-Traitant',
+    subcontract: 'Contrato Sub.Emp.',
     debit_note: 'Nota de débito',
     purchase_order: 'Nota de encomenda',
     delivery_note: 'Guia de remessa',
@@ -258,7 +302,6 @@ document.addEventListener('DOMContentLoaded', () => {
     concrete: 'Betão',
     material: 'Material',
     services: 'Serviços',
-    fuel_tolls: 'C&P',
   };
 
   function escapeHtml(value) {
@@ -363,6 +406,11 @@ document.addEventListener('DOMContentLoaded', () => {
     return new Intl.NumberFormat('pt-PT', { maximumFractionDigits }).format(number);
   }
 
+  function countLabel(value, singular, plural) {
+    const count = Number(value || 0);
+    return `${formatNumber(count, 0)} ${count === 1 ? singular : plural}`;
+  }
+
   function formatMoney(value, currency) {
     const number = Number(value || 0);
     const normalizedCurrency = String(currency || '').trim().toUpperCase();
@@ -396,45 +444,606 @@ document.addEventListener('DOMContentLoaded', () => {
     return Number.isFinite(parsed) ? parsed : 0;
   }
 
-  function normalizeLineGroupCode(value) {
-    return String(value || '').trim().toUpperCase();
+  function ensureLineIdentities(lines = state.documentData?.lines || []) {
+    (lines || []).forEach((line) => {
+      if (!line.line_id) line.line_id = window.crypto.randomUUID();
+      markLineManualFields(line, 'line_id');
+      (line.sub_lines || line.sublines || []).forEach((child) => {
+        if (!child.subline_id) child.subline_id = window.crypto.randomUUID();
+        child.parent_line_id = line.line_id;
+      });
+    });
+    return lines;
   }
 
-  function validateLineGroupChange(lines, lineIndex, nextCode) {
-    const items = Array.isArray(lines) ? lines : [];
-    const currentCode = normalizeLineGroupCode(items[lineIndex]?.article_group_code);
-    const normalized = normalizeLineGroupCode(nextCode);
-    if (normalized && !/^[PA][1-9]\d*$/.test(normalized)) {
-      return { ok: false, message: 'Usa um grupo como P1 ou A1.' };
-    }
-    const currentPrincipal = currentCode.match(/^P([1-9]\d*)$/)?.[1] || '';
-    const nextPrincipal = normalized.match(/^P([1-9]\d*)$/)?.[1] || '';
-    if (currentPrincipal && currentPrincipal !== nextPrincipal) {
-      const hasAssociates = items.some((line, index) => (
-        index !== lineIndex && normalizeLineGroupCode(line?.article_group_code) === `A${currentPrincipal}`
-      ));
-      if (hasAssociates) {
-        return { ok: false, message: `O grupo ${currentPrincipal} ainda tem linhas associadas.` };
+  function groupMembers(line) {
+    const groupId = String(line?.group_id || '');
+    return groupId ? (state.documentData?.lines || []).filter((item) => String(item.group_id || '') === groupId) : [line];
+  }
+
+  function lineDestinations(line, kind) {
+    const fields = kind === 'project' ? ['ccusto', 'project_ccusto'] : ['registration', 'matricula'];
+    const values = new Set(fields.map((field) => String(line?.[field] || '').trim()).filter(Boolean));
+    (line?.sub_lines || []).forEach((child) => fields.forEach((field) => {
+      const value = String(child?.[field] || '').trim();
+      if (value) values.add(value);
+    }));
+    return [...values];
+  }
+
+  function groupConflict(principal, associated) {
+    const checks = [
+      ['Artigo', principal.article_ref || principal.article, associated.article_ref || associated.article],
+      ['Origem', principal.phc_origin_stamp || principal.origin_stamp, associated.phc_origin_stamp || associated.origin_stamp],
+      ['Data', principal.date || principal.data, associated.date || associated.data],
+      ['IVA', principal.tax_rate, associated.tax_rate],
+    ];
+    for (const [label, left, right] of checks) {
+      if (String(left ?? '').trim() && String(right ?? '').trim() && String(left) !== String(right)) {
+        return `Impossível agrupar: ${label} diferente.`;
       }
     }
-    if (nextPrincipal) {
-      const duplicatePrincipal = items.some((line, index) => (
-        index !== lineIndex && normalizeLineGroupCode(line?.article_group_code) === `P${nextPrincipal}`
-      ));
-      if (duplicatePrincipal) {
-        return { ok: false, message: `O grupo ${nextPrincipal} já tem linha principal.` };
+    for (const [label, kind] of [['Centro de Custo', 'project'], ['Matrícula', 'vehicle']]) {
+      const left = lineDestinations(principal, kind);
+      const right = lineDestinations(associated, kind);
+      if (left.length && right.length && JSON.stringify(left.sort()) !== JSON.stringify(right.sort())) return `Impossível agrupar: ${label} diferente.`;
+    }
+    return '';
+  }
+
+  function inheritPrincipalFields(principal, associated) {
+    const aliases = [
+      ['article_ref', 'article'], ['ccusto', 'project_ccusto'],
+      ['phc_origin_stamp', 'origin_stamp', 'bostamp'],
+      ['phc_origin_line_stamp', 'origin_line_stamp', 'bistamp'],
+      ['date', 'data'], ['tax_rate'],
+      ['registration', 'matricula'],
+    ];
+    aliases.forEach((fields) => {
+      const value = fields.map((field) => principal[field]).find((item) => String(item ?? '').trim());
+      fields.forEach((field) => { associated[field] = value ?? ''; });
+    });
+  }
+
+  function applyPrincipalDistribution(principal, member) {
+    const sourceRows = Array.isArray(principal?.sub_lines) ? principal.sub_lines : [];
+    if (!sourceRows.length || !member) return;
+    const memberQuantity = Number(member.qty ?? member.quantity ?? 0);
+    const memberTotal = Number(member.net_amount ?? member.pt ?? 0);
+    member.sub_lines = sourceRows.map((row) => ({
+      subline_id: window.crypto.randomUUID(), parent_line_id: member.line_id,
+      ccusto: row.ccusto, project_ccusto: row.ccusto,
+      registration: row.registration, matricula: row.registration,
+      vehicle_stamp: row.vehicle_stamp || '', percentage: Number(row.percentage || 0),
+      qty: distributionRound(memberQuantity * Number(row.percentage || 0) / 100, 6),
+      net_amount: distributionRound(memberTotal * Number(row.percentage || 0) / 100, 2),
+      unit_price: Number(member.unit_price || 0), tax_rate: member.tax_rate ?? '',
+      unit: member.unit || '', date: member.date || member.data || '', article_ref: member.article_ref || member.article || '',
+    }));
+    const last = member.sub_lines[member.sub_lines.length - 1];
+    if (last) {
+      last.qty = distributionRound(memberQuantity - member.sub_lines.slice(0, -1).reduce((sum, row) => sum + Number(row.qty || 0), 0), 6);
+      last.net_amount = distributionRound(memberTotal - member.sub_lines.slice(0, -1).reduce((sum, row) => sum + Number(row.net_amount || 0), 0), 2);
+    }
+    const projects = [...new Set(member.sub_lines.map((row) => row.ccusto).filter(Boolean))];
+    const vehicles = [...new Set(member.sub_lines.map((row) => row.registration).filter(Boolean))];
+    member.ccusto = projects.length === 1 ? projects[0] : '';
+    member.project_ccusto = member.ccusto;
+    member.registration = vehicles.length === 1 ? vehicles[0] : '';
+    member.matricula = member.registration;
+    markLineManualFields(member, 'sub_lines', 'ccusto', 'project_ccusto', 'registration', 'matricula');
+  }
+
+  function detachAssociatedLine(line) {
+    if (!line?.group_id || line.group_role !== 'associated') return false;
+    const previousGroup = line.group_id;
+    line.group_id = '';
+    line.group_role = '';
+    markLineManualFields(line, 'group_id', 'group_role');
+    const remaining = (state.documentData?.lines || []).filter((item) => item.group_id === previousGroup);
+    if (remaining.length === 1) {
+      remaining[0].group_id = '';
+      remaining[0].group_role = '';
+      markLineManualFields(remaining[0], 'group_id', 'group_role');
+    }
+    showMessage('Linha desagrupada devido à alteração de um campo comum obrigatório.', 'info');
+    return true;
+  }
+
+  async function groupLineOnTarget(sourceId, targetId) {
+    if (!sourceId || !targetId || sourceId === targetId) return;
+    const lines = ensureLineIdentities();
+    const source = lines.find((line) => line.line_id === sourceId);
+    const target = lines.find((line) => line.line_id === targetId);
+    if (!source || !target) return;
+    if (source.group_role === 'principal' && source.group_id && target.group_id && source.group_id !== target.group_id) {
+      showMessage('Impossível fundir dois grupos existentes.', 'error');
+      return;
+    }
+    const previousSourceGroup = String(source.group_id || '');
+    const moving = source.group_role === 'principal' ? groupMembers(source) : [source];
+    const destination = groupMembers(target);
+    const combined = [...new Set([...destination, ...moving])];
+    for (const line of combined) {
+      if (line === target) continue;
+      const conflict = groupConflict(target, line);
+      if (conflict) {
+        showMessage(conflict, 'error');
+        setStatus(conflict, true);
+        return;
       }
     }
-    const nextAssociate = normalized.match(/^A([1-9]\d*)$/)?.[1] || '';
-    if (nextAssociate) {
-      const hasPrincipal = items.some((line, index) => (
-        index !== lineIndex && normalizeLineGroupCode(line?.article_group_code) === `P${nextAssociate}`
-      ));
-      if (!hasPrincipal) {
-        return { ok: false, message: `O grupo ${nextAssociate} não tem linha principal.` };
+    const groupId = String(target.group_id || `group-${window.crypto.randomUUID()}`);
+    combined.forEach((line) => {
+      line.group_id = groupId;
+      line.group_role = line === target ? 'principal' : 'associated';
+      inheritPrincipalFields(target, line);
+      if (line !== target) applyPrincipalDistribution(target, line);
+      markLineManualFields(line, 'group_id', 'group_role');
+    });
+    if (previousSourceGroup && previousSourceGroup !== groupId) {
+      const oldMembers = lines.filter((line) => line.group_id === previousSourceGroup);
+      if (oldMembers.length === 1) {
+        oldMembers[0].group_id = '';
+        oldMembers[0].group_role = '';
+        markLineManualFields(oldMembers[0], 'group_id', 'group_role');
       }
     }
-    return { ok: true, code: normalized };
+    const insertion = Math.max(0, lines.indexOf(target));
+    const remaining = lines.filter((line) => !combined.includes(line));
+    remaining.splice(Math.min(insertion, remaining.length), 0, target, ...combined.filter((line) => line !== target));
+    state.documentData.lines = remaining;
+    state.keyboardGroupLineId = '';
+    renderLines(remaining, state.documentData.currency || '');
+    await saveAdjustedLines(`Grupo guardado com ${combined.length} linhas.`);
+  }
+
+  async function ungroupLine(lineId) {
+    const lines = ensureLineIdentities();
+    const line = lines.find((item) => item.line_id === lineId);
+    if (!line?.group_id) return;
+    const previousGroup = line.group_id;
+    const affected = line.group_role === 'principal'
+      ? lines.filter((item) => item.group_id === previousGroup)
+      : [line];
+    affected.forEach((item) => {
+      item.group_id = '';
+      item.group_role = '';
+      markLineManualFields(item, 'group_id', 'group_role');
+    });
+    const remaining = lines.filter((item) => item.group_id === previousGroup);
+    if (remaining.length === 1) {
+      remaining[0].group_id = '';
+      remaining[0].group_role = '';
+      markLineManualFields(remaining[0], 'group_id', 'group_role');
+    }
+    state.keyboardGroupLineId = '';
+    renderLines(lines, state.documentData.currency || '');
+    await saveAdjustedLines('Linha desagrupada.');
+  }
+
+  function distributionOptionalNumber(value) {
+    if (value === null || value === undefined || String(value).trim() === '') return null;
+    const number = Number(String(value).trim().replace(/\s/g, '').replace(',', '.'));
+    return Number.isFinite(number) ? number : null;
+  }
+
+  function distributionRound(value, digits = 6) {
+    const factor = 10 ** digits;
+    return Math.round((Number(value || 0) + Number.EPSILON) * factor) / factor;
+  }
+
+  function distributionSourceLine() {
+    return state.documentData?.lines?.[state.lineDistributionTargetIndex] || null;
+  }
+
+  function distributionRowsFromLine(line) {
+    const lineQuantity = Number(line?.qty ?? line?.quantity ?? 0);
+    const lineTotal = Number(line?.net_amount ?? line?.pt ?? 0);
+    const sourceRows = Array.isArray(line?.sub_lines) && line.sub_lines.length
+      ? line.sub_lines
+      : [{
+          ccusto: line?.ccusto || line?.project_ccusto || '',
+          registration: line?.registration || line?.matricula || '',
+          qty: line?.qty ?? line?.quantity ?? '',
+          net_amount: line?.net_amount ?? line?.pt ?? '',
+          tax_rate: line?.tax_rate ?? '',
+          vehicle_stamp: line?.vehicle_stamp || '',
+        }];
+    const rows = sourceRows.map((source) => ({
+      ...source,
+      subline_id: source.subline_id || window.crypto.randomUUID(),
+      parent_line_id: line.line_id,
+      ccusto: String(source.ccusto || source.project_ccusto || '').trim(),
+      project_ccusto: String(source.ccusto || source.project_ccusto || '').trim(),
+      registration: String(source.registration || source.matricula || '').trim(),
+      matricula: String(source.registration || source.matricula || '').trim(),
+      qty: source.qty ?? source.quantity ?? '',
+      net_amount: source.net_amount ?? source.pt ?? '',
+      percentage: source.percentage ?? (lineTotal
+        ? distributionRound(Number(source.net_amount ?? source.pt ?? 0) * 100 / lineTotal, 6)
+        : (lineQuantity ? distributionRound(Number(source.qty ?? source.quantity ?? 0) * 100 / lineQuantity, 6) : 100)),
+      tax_rate: source.tax_rate ?? line.tax_rate ?? '',
+      unit_price: Number(line.unit_price || 0),
+      unit: line.unit || '',
+      date: line.date || line.data || '',
+      article_ref: line.article_ref || line.article || '',
+    }));
+    if (rows.length) rows[rows.length - 1].percentage = distributionRound(100 - rows.slice(0, -1).reduce((sum, row) => sum + Number(row.percentage || 0), 0), 6);
+    return rows;
+  }
+
+  function reconcileDistributionDraft(line, changedIndex = -1, changedField = '') {
+    const rows = state.lineDistributionDraft;
+    if (!rows.length) return;
+    const lineQuantity = Number(line?.qty ?? line?.quantity ?? 0);
+    const lineTotal = Number(line?.net_amount ?? line?.pt ?? 0);
+    const lastIndex = rows.length - 1;
+    if (changedIndex >= 0 && changedIndex < lastIndex) {
+      const row = rows[changedIndex];
+      const entered = distributionOptionalNumber(row[changedField]);
+      let percentage = distributionOptionalNumber(row.percentage) || 0;
+      if (changedField === 'qty' && lineQuantity) percentage = Number(entered || 0) * 100 / lineQuantity;
+      if (changedField === 'net_amount' && lineTotal) percentage = Number(entered || 0) * 100 / lineTotal;
+      row.percentage = distributionRound(percentage, 6);
+      row.qty = distributionRound(lineQuantity * percentage / 100, 6);
+      row.net_amount = distributionRound(lineTotal * percentage / 100, 2);
+    }
+    const last = rows[lastIndex];
+    const previous = rows.slice(0, lastIndex);
+    last.percentage = distributionRound(100 - previous.reduce((sum, row) => sum + (distributionOptionalNumber(row.percentage) || 0), 0), 6);
+    last.qty = distributionRound(lineQuantity - previous.reduce((sum, row) => sum + (distributionOptionalNumber(row.qty) || 0), 0), 6);
+    last.net_amount = distributionRound(lineTotal - previous.reduce((sum, row) => sum + (distributionOptionalNumber(row.net_amount) || 0), 0), 2);
+  }
+
+  function distributionDraftErrors(line, rows = state.lineDistributionDraft) {
+    const errors = [];
+    const lineQuantity = Number(line?.qty ?? line?.quantity ?? 0);
+    const lineTotal = Number(line?.net_amount ?? line?.pt ?? 0);
+    const unitPrice = Number(line?.unit_price || 0);
+    const combinations = new Set();
+    let quantity = 0;
+    let total = 0;
+    let percentage = 0;
+    rows.forEach((row) => {
+      const ccusto = String(row.ccusto || '').trim();
+      const registration = String(row.registration || '').trim();
+      const rowQuantity = distributionOptionalNumber(row.qty);
+      const rowTotal = distributionOptionalNumber(row.net_amount);
+      const taxRate = distributionOptionalNumber(row.tax_rate ?? line?.tax_rate);
+      const rowPercentage = distributionOptionalNumber(row.percentage);
+      if (!ccusto) errors.push(registration ? 'Matrícula s/Centro de Custo' : 'Falta Centro de Custo numa sublinha.');
+      if (line?.vehicle_required && !registration) errors.push('Falta Matrícula numa sublinha.');
+      if (rowQuantity === null || rowTotal === null || rowPercentage === null) errors.push('Falta distribuir %, Quantidade e PT numa sublinha.');
+      if (taxRate === null) errors.push('Falta IVA numa sublinha.');
+      if ((rowQuantity ?? 0) < 0 || (rowTotal ?? 0) < 0) errors.push('Quantidade e PT não podem ser negativos.');
+      const combination = `${ccusto.toLocaleLowerCase('pt')}\u0000${registration.toLocaleLowerCase('pt')}`;
+      if (combinations.has(combination)) errors.push('Existe uma combinação Centro de Custo/Matrícula duplicada.');
+      combinations.add(combination);
+      quantity += rowQuantity || 0;
+      total += rowTotal || 0;
+      percentage += rowPercentage || 0;
+      if (unitPrice && rowQuantity !== null && rowTotal !== null && Math.abs((rowQuantity * unitPrice) - rowTotal) > 0.01) {
+        errors.push('Quantidade × PU não corresponde ao PT numa sublinha.');
+      }
+    });
+    if (!unitPrice) errors.push('PU igual a zero: corrige explicitamente a linha antes de validar.');
+    if (quantity > lineQuantity + 0.01 || total > lineTotal + 0.01) errors.push('Uma sublinha excede o saldo por distribuir.');
+    if (Math.abs(quantity - lineQuantity) > 0.01) errors.push('A Quantidade distribuída não corresponde à linha.');
+    if (Math.abs(total - lineTotal) > 0.01) errors.push('O Valor distribuído não corresponde à linha.');
+    if (Math.abs(percentage - 100) > 0.0001) errors.push('A distribuição deve totalizar exatamente 100 %.');
+    return [...new Set(errors)];
+  }
+
+  function distributionBalanceLabel(label, distributed, expected) {
+    const balance = distributionRound(expected - distributed, 6);
+    return Math.abs(balance) <= 0.01
+      ? `${label} distribuída: ${formatNumber(expected, 2)}`
+      : `${label} distribuída: ${formatNumber(distributed, 2)} de ${formatNumber(expected, 2)} · <span aria-label="por distribuir">${formatNumber(balance, 2)}</span>`;
+  }
+
+  function renderLineDistribution() {
+    const line = distributionSourceLine();
+    if (!line) return;
+    const mode = state.lineDistributionMode;
+    const firstColumns = mode === 'vehicle'
+      ? [['registration', 'Matrícula'], ['ccusto', 'Centro de Custo']]
+      : [['ccusto', 'Centro de Custo'], ['registration', 'Matrícula']];
+    els.lineDistributionHead.innerHTML = `${firstColumns.map(([, label]) => `<th>${label}</th>`).join('')}<th>%</th><th>Quantidade</th><th>PU</th><th>PT</th><th>IVA</th><th aria-label="Ações"></th>`;
+    els.lineDistributionTable.dataset.mode = mode;
+    const unitPrice = Number(line.unit_price || 0);
+    els.lineDistributionBody.innerHTML = state.lineDistributionDraft.map((row, index) => {
+      const missingVehicleProject = String(row.registration || '').trim() && !String(row.ccusto || '').trim();
+      const destinationCells = firstColumns.map(([field, label]) => `<td><button type="button" class="docai-line-distribution-destination" data-distribution-search="${field}" data-distribution-row="${index}" aria-label="Associar ${label}">${escapeHtml(row[field] || 'Associar')}</button>${field === 'ccusto' && missingVehicleProject ? '<small class="docai-line-distribution-vehicle-warning">Matrícula s/Centro de Custo</small>' : ''}</td>`).join('');
+      return `<tr data-distribution-row-index="${index}">
+        ${destinationCells}
+        <td><span class="docai-line-distribution-percent"><input class="sz_input" inputmode="decimal" data-distribution-field="percentage" data-distribution-row="${index}" value="${escapeHtml(row.percentage ?? '')}" aria-label="Percentagem"><span>%</span></span></td>
+        <td><input class="sz_input" inputmode="decimal" data-distribution-field="qty" data-distribution-row="${index}" value="${escapeHtml(row.qty ?? '')}" aria-label="Quantidade"></td>
+        <td><input class="sz_input" value="${escapeHtml(formatEditableAmount(unitPrice))}" aria-label="PU" readonly tabindex="-1"></td>
+        <td><input class="sz_input" inputmode="decimal" data-distribution-field="net_amount" data-distribution-row="${index}" value="${escapeHtml(row.net_amount ?? '')}" aria-label="PT"></td>
+        <td><span class="docai-line-distribution-percent"><input class="sz_input" inputmode="decimal" data-distribution-field="tax_rate" data-distribution-row="${index}" value="${escapeHtml(row.tax_rate ?? '')}" aria-label="IVA"><span>%</span></span></td>
+        <td><button type="button" class="sz_icon_button" data-distribution-remove="${index}" aria-label="Remover destino"><i class="fa-solid fa-trash"></i></button></td>
+      </tr>`;
+    }).join('');
+    const distributedQuantity = state.lineDistributionDraft.reduce((sum, row) => sum + (distributionOptionalNumber(row.qty) || 0), 0);
+    const distributedTotal = state.lineDistributionDraft.reduce((sum, row) => sum + (distributionOptionalNumber(row.net_amount) || 0), 0);
+    els.lineDistributionQuantityBalance.innerHTML = distributionBalanceLabel('Quantidade', distributedQuantity, Number(line.qty ?? line.quantity ?? 0));
+    els.lineDistributionTotalBalance.innerHTML = distributionBalanceLabel('Valor', distributedTotal, Number(line.net_amount ?? line.pt ?? 0));
+    const errors = distributionDraftErrors(line);
+    els.lineDistributionError.textContent = errors[0] || '';
+    els.lineDistributionError.hidden = !errors.length;
+    els.lineDistributionSave.disabled = Boolean(errors.length);
+  }
+
+  function lineDistributionTitle() {
+    return state.lineDistributionMode === 'vehicle' ? 'Distribuir por Matrículas' : 'Distribuir por CdC';
+  }
+
+  function returnToLineDistribution() {
+    state.lineDistributionSearchRow = null;
+    state.lineDistributionSearchField = '';
+    state.lineDistributionSearchItems = [];
+    els.lineDistributionSearchPane.hidden = true;
+    els.lineDistributionMain.hidden = false;
+    els.lineDistributionSave.hidden = false;
+    els.lineDistributionTitle.textContent = lineDistributionTitle();
+    renderLineDistribution();
+  }
+
+  async function searchLineDistributionDestinations() {
+    const field = state.lineDistributionSearchField;
+    if (!field) return;
+    els.lineDistributionSearchButton.disabled = true;
+    els.lineDistributionSearchResults.innerHTML = '<div class="docai-empty-state">A pesquisar no PHC...</div>';
+    try {
+      const endpoint = field === 'registration' ? 'vehicles' : 'projects';
+      const payload = await fetchJson(`/api/document_ai/${endpoint}/search`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customer: state.documentData?.customer || {},
+          query: els.lineDistributionSearchInput.value.trim(),
+          limit: 30,
+        }),
+      });
+      state.lineDistributionSearchItems = payload.items || [];
+      const clearOption = field === 'registration'
+        ? '<button type="button" class="docai-supplier-match-option" data-distribution-search-index="-1"><span class="docai-supplier-match-main"><strong>Sem Matrícula</strong><span>Imputação direta ao Centro de Custo</span></span><span class="docai-supplier-match-score">Associar</span></button>'
+        : '';
+      els.lineDistributionSearchResults.innerHTML = clearOption + state.lineDistributionSearchItems.map((item, index) => {
+        const value = field === 'registration' ? item.registration : item.ccusto;
+        const detail = field === 'registration'
+          ? [item.brand, item.model, item.ccusto ? `CdC ${item.ccusto}` : 'Matrícula s/Centro de Custo'].filter(Boolean).join(' · ')
+          : [item.name, item.client, item.city].filter(Boolean).join(' · ');
+        return `<button type="button" class="docai-supplier-match-option" data-distribution-search-index="${index}">
+          <span class="docai-supplier-match-main"><strong>${escapeHtml(value || '--')}</strong><span>${escapeHtml(detail)}</span></span>
+          <span class="docai-supplier-match-score">Associar</span>
+        </button>`;
+      }).join('');
+      if (!clearOption && !state.lineDistributionSearchItems.length) {
+        els.lineDistributionSearchResults.innerHTML = '<div class="docai-empty-state">Sem resultados.</div>';
+      }
+    } catch (error) {
+      els.lineDistributionSearchResults.innerHTML = `<div class="docai-empty-state">${escapeHtml(error.message || 'Erro na pesquisa.')}</div>`;
+    } finally {
+      els.lineDistributionSearchButton.disabled = false;
+    }
+  }
+
+  function openLineDistributionSearch(rowIndex, field) {
+    state.lineDistributionSearchRow = Number(rowIndex);
+    state.lineDistributionSearchField = field;
+    const row = state.lineDistributionDraft[state.lineDistributionSearchRow];
+    if (!row) return;
+    const vehicle = field === 'registration';
+    els.lineDistributionTitle.textContent = vehicle ? 'Associar Matrícula' : 'Associar Centro de Custo';
+    els.lineDistributionSearchLabel.textContent = vehicle ? 'Matrícula, marca, modelo ou n.º de frota' : 'Código, nome, cliente, morada ou localidade';
+    els.lineDistributionSearchInput.value = row[field] || '';
+    els.lineDistributionMain.hidden = true;
+    els.lineDistributionSearchPane.hidden = false;
+    els.lineDistributionSave.hidden = true;
+    searchLineDistributionDestinations();
+    window.setTimeout(() => els.lineDistributionSearchInput.focus(), 50);
+  }
+
+  function selectLineDistributionDestination(index) {
+    const row = state.lineDistributionDraft[state.lineDistributionSearchRow];
+    if (!row) return;
+    if (index < 0 && state.lineDistributionSearchField === 'registration') {
+      row.registration = '';
+      row.matricula = '';
+      row.vehicle_stamp = '';
+    } else {
+      const item = state.lineDistributionSearchItems[index];
+      if (!item) return;
+      if (state.lineDistributionSearchField === 'registration') {
+        row.registration = item.registration || '';
+        row.matricula = row.registration;
+        row.vehicle_stamp = item.vehicle_stamp || '';
+        if (!String(row.ccusto || '').trim() && String(item.ccusto || '').trim()) {
+          row.ccusto = item.ccusto;
+          row.project_ccusto = item.ccusto;
+        }
+      } else {
+        row.ccusto = item.ccusto || '';
+        row.project_ccusto = row.ccusto;
+      }
+    }
+    returnToLineDistribution();
+  }
+
+  function closeLineDistributionModal() {
+    state.lineDistributionTargetIndex = null;
+    state.lineDistributionDraft = [];
+    state.lineDistributionSearchItems = [];
+    els.lineDistributionModal.classList.remove('sz_is_open');
+    els.lineDistributionModal.setAttribute('aria-hidden', 'true');
+  }
+
+  function openLineDistribution(lineIndex, mode = 'project') {
+    const line = state.documentData?.lines?.[Number(lineIndex)];
+    if (!line) return;
+    detachAssociatedLine(line);
+    closeProjectModal();
+    closeVehicleModal();
+    state.lineDistributionTargetIndex = Number(lineIndex);
+    state.lineDistributionMode = mode === 'vehicle' ? 'vehicle' : 'project';
+    state.lineDistributionDraft = distributionRowsFromLine(line);
+    els.lineDistributionTitle.textContent = lineDistributionTitle();
+    els.lineDistributionContext.textContent = `${line.article_ref || line.article || 'Linha'} · ${line.description || ''}`;
+    reconcileDistributionDraft(line);
+    renderLineDistribution();
+    els.lineDistributionMain.hidden = false;
+    els.lineDistributionSearchPane.hidden = true;
+    els.lineDistributionSave.hidden = false;
+    els.lineDistributionModal.classList.add('sz_is_open');
+    els.lineDistributionModal.setAttribute('aria-hidden', 'false');
+  }
+
+  function addLineDistributionRow() {
+    const line = distributionSourceLine();
+    if (!line) return;
+    state.lineDistributionDraft.push({
+      subline_id: window.crypto.randomUUID(), parent_line_id: line.line_id,
+      ccusto: '', project_ccusto: '', registration: '', matricula: '',
+      percentage: 0, qty: 0, net_amount: 0, unit_price: Number(line.unit_price || 0), tax_rate: line.tax_rate ?? '',
+      unit: line.unit || '', date: line.date || line.data || '', article_ref: line.article_ref || line.article || '',
+    });
+    reconcileDistributionDraft(line);
+    renderLineDistribution();
+  }
+
+  function updateLineDistributionField(input) {
+    const row = state.lineDistributionDraft[Number(input.dataset.distributionRow)];
+    const line = distributionSourceLine();
+    if (!row || !line) return;
+    const field = input.dataset.distributionField;
+    if (['ccusto', 'registration'].includes(field)) {
+      row[field] = input.value.trim();
+      if (field === 'ccusto') row.project_ccusto = row.ccusto;
+      if (field === 'registration') row.matricula = row.registration;
+    } else {
+      row[field] = input.value.trim();
+      const number = distributionOptionalNumber(row[field]);
+      if (['percentage', 'qty', 'net_amount'].includes(field) && number !== null) {
+        reconcileDistributionDraft(line, Number(input.dataset.distributionRow), field);
+      }
+    }
+    renderLineDistribution();
+    const selector = `[data-distribution-row="${input.dataset.distributionRow}"][data-distribution-field="${field}"]`;
+    const replacement = els.lineDistributionBody.querySelector(selector);
+    replacement?.focus();
+    replacement?.setSelectionRange?.(replacement.value.length, replacement.value.length);
+  }
+
+  async function saveLineDistribution() {
+    const line = distributionSourceLine();
+    if (!line) return;
+    const errors = distributionDraftErrors(line);
+    if (errors.length) {
+      els.lineDistributionError.textContent = errors[0];
+      els.lineDistributionError.hidden = false;
+      return;
+    }
+    line.sub_lines = state.lineDistributionDraft.map((row) => ({
+      ...row,
+      parent_line_id: line.line_id,
+      ccusto: String(row.ccusto || '').trim(), project_ccusto: String(row.ccusto || '').trim(),
+      registration: String(row.registration || '').trim(), matricula: String(row.registration || '').trim(),
+      qty: distributionOptionalNumber(row.qty), net_amount: distributionOptionalNumber(row.net_amount),
+      percentage: distributionOptionalNumber(row.percentage),
+      unit_price: Number(line.unit_price || 0), tax_rate: distributionOptionalNumber(row.tax_rate),
+      unit: line.unit || '', date: line.date || line.data || '', article_ref: line.article_ref || line.article || '',
+    }));
+    const distinctProjects = [...new Set(line.sub_lines.map((row) => row.ccusto).filter(Boolean))];
+    const distinctVehicles = [...new Set(line.sub_lines.map((row) => row.registration).filter(Boolean))];
+    line.ccusto = distinctProjects.length === 1 ? distinctProjects[0] : '';
+    line.project_ccusto = line.ccusto;
+    line.registration = distinctVehicles.length === 1 ? distinctVehicles[0] : '';
+    line.matricula = line.registration;
+    markLineManualFields(line, 'sub_lines', 'ccusto', 'project_ccusto', 'registration', 'matricula');
+    if (line.group_role === 'principal') {
+      groupMembers(line).forEach((member) => {
+        if (member === line) return;
+        applyPrincipalDistribution(line, member);
+      });
+    }
+    closeLineDistributionModal();
+    renderLines(state.documentData.lines || [], state.documentData.currency || '');
+    updateSubmitPhcButton();
+    await saveAdjustedLines('Distribuição guardada.');
+  }
+
+  function closeLineCostsModal() {
+    state.lineCostsTargetIndex = null;
+    state.lineCostsType = '';
+    els.lineCostsModal?.classList.remove('sz_is_open');
+    els.lineCostsModal?.setAttribute('aria-hidden', 'true');
+  }
+
+  function selectedLineCosts() {
+    const line = state.documentData?.lines?.[state.lineCostsTargetIndex];
+    const costs = Array.isArray(line?.detailed_costs) ? line.detailed_costs : [];
+    return state.lineCostsType ? costs.filter((row) => row.cost_type === state.lineCostsType) : costs;
+  }
+
+  function renderLineCosts() {
+    const rows = selectedLineCosts();
+    els.lineCostsList.hidden = false;
+    els.lineCostsDetail.hidden = true;
+    els.lineCostsTabs.querySelectorAll('[data-line-cost-type]').forEach((button) => {
+      button.classList.toggle('is-active', button.dataset.lineCostType === state.lineCostsType);
+      button.setAttribute('aria-selected', button.dataset.lineCostType === state.lineCostsType ? 'true' : 'false');
+    });
+    els.lineCostsBody.innerHTML = rows.map((row, index) => `<tr data-line-cost-detail="${index}" tabindex="0" title="Abrir detalhe do custo">
+      <td>${escapeHtml(row.description || row.product || row.produto || '')}</td>
+      <td>${escapeHtml(formatEditableAmount(row.quantity ?? row.qty))}</td>
+      <td>${escapeHtml(row.unit || row.unidade || '')}</td>
+      <td>${escapeHtml(formatEditableAmount(row.unit_price))}</td>
+      <td>${escapeHtml(formatEditableAmount(row.net_amount ?? row.pt))}</td>
+      <td>${escapeHtml(row.reference || row.transaction_id || '')}</td>
+      <td>${escapeHtml(String(row.date || row.data || '').slice(0, 10))}</td>
+    </tr>`).join('');
+  }
+
+  function openLineCosts(lineIndex) {
+    const line = state.documentData?.lines?.[Number(lineIndex)];
+    if (!line || !Array.isArray(line.detailed_costs) || !line.detailed_costs.length || !els.lineCostsModal) return;
+    state.lineCostsTargetIndex = Number(lineIndex);
+    const included = line.detailed_costs.filter((row) => row.cost_type === 'included').length;
+    const additional = line.detailed_costs.filter((row) => row.cost_type === 'additional').length;
+    state.lineCostsType = included && additional ? 'included' : (included ? 'included' : 'additional');
+    els.lineCostsTitle.textContent = line.description || 'Custos detalhados';
+    els.lineCostsContext.textContent = [
+      included ? `${included} Custos Incluídos` : '',
+      additional ? `${additional} Custos Adicionais` : '',
+    ].filter(Boolean).join(' · ');
+    els.lineCostsTabs.hidden = !(included && additional);
+    els.lineCostsTabs.innerHTML = included && additional
+      ? '<button type="button" role="tab" data-line-cost-type="included">Custos Incluídos</button><button type="button" role="tab" data-line-cost-type="additional">Custos Adicionais</button>'
+      : '';
+    renderLineCosts();
+    els.lineCostsModal.classList.add('sz_is_open');
+    els.lineCostsModal.setAttribute('aria-hidden', 'false');
+    window.setTimeout(() => els.lineCostsCloseTop?.focus(), 0);
+  }
+
+  function showLineCostDetail(index) {
+    const row = selectedLineCosts()[Number(index)];
+    if (!row) return;
+    const labels = {
+      transaction_id: 'ID estável', date: 'Data', data: 'Data', location: 'Local', local: 'Local',
+      product: 'Produto', produto: 'Produto', quantity: 'Quantidade', qty: 'Quantidade',
+      unit: 'Unidade', unidade: 'Unidade', unit_price: 'PU', net_amount: 'PT', pt: 'PT',
+      registration: 'Matrícula', matricula: 'Matrícula', ccusto: 'CdC', tax_rate: 'IVA',
+    };
+    const source = row.original && typeof row.original === 'object' ? {...row.original, ...row} : row;
+    els.lineCostsDetailFields.innerHTML = Object.entries(source)
+      .filter(([key, value]) => labels[key] && value !== null && value !== undefined && value !== '')
+      .map(([key, value]) => `<div><dt>${escapeHtml(labels[key])}</dt><dd>${escapeHtml(value)}</dd></div>`).join('');
+    els.lineCostsList.hidden = true;
+    els.lineCostsDetail.hidden = false;
+    els.lineCostsBack?.focus();
   }
 
   function formatBcLabel(origin) {
@@ -472,9 +1081,49 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function originDisplayStage(stageKey) {
     if (['purchase_order', 'contract', 'subcontract_contract'].includes(stageKey)) return stageKey;
+    if (stageKey === 'subcontract') return 'subcontract_contract';
     if (stageKey === 'delivery_note' || stageKey === 'virtual_delivery_note') return 'delivery_note';
     if (stageKey === 'subcontract_measurement') return 'work_situation';
     return stageKey;
+  }
+
+  function lineOriginLinks(line, family = '') {
+    const links = [];
+    const visit = (item) => {
+      (item?.phc_origin_links || []).forEach((link) => {
+        const linkFamily = String(link.origin_family || '');
+        if (!family || linkFamily === family) links.push(link);
+      });
+      if ((!family || family === 'bc') && (item?.bc_allocations || []).length) {
+        item.bc_allocations.forEach((allocation) => links.push({
+          origin_family: 'bc', bostamp: allocation.origin_stamp || '', bistamp: allocation.origin_line_stamp || '',
+          origin_number: allocation.origin_number || '',
+        }));
+      }
+      if ((!family || family === 'delivery_note') && String(item?.origin_delivery_note_number || '').trim()) {
+        links.push({ origin_family: 'delivery_note', origin_number: item.origin_delivery_note_number });
+      }
+      (item?.sub_lines || []).forEach(visit);
+    };
+    visit(line);
+    return links;
+  }
+
+  function originControlInfo(line, family, singular, plural) {
+    const links = lineOriginLinks(line, family);
+    const unique = new Set(links.map((link) => String(
+      link.bostamp || link.origin_stamp || link.origin_number || link.bistamp || link.origin_line_stamp || ''
+    )).filter(Boolean));
+    const count = unique.size;
+    return {
+      count,
+      tooltip: count ? `${count} ${count === 1 ? singular : plural}` : 'Associar Origem',
+    };
+  }
+
+  function compactOriginControl(line, lineIndex, family, singular, plural) {
+    const info = originControlInfo(line, family, singular, plural);
+    return `<button type="button" class="docai-origin-compact-control${info.count ? ' is-associated' : ''}" data-line-bc="${lineIndex}" title="${escapeHtml(info.tooltip)}" aria-label="${escapeHtml(info.tooltip)}"><i class="fa-solid ${info.count ? 'fa-link' : 'fa-link-slash'}"></i></button>`;
   }
 
   function formatDate(value) {
@@ -568,8 +1217,10 @@ document.addEventListener('DOMContentLoaded', () => {
     els.gedFolderControl.hidden = !isIntersol;
     if (!isIntersol) {
       els.gedFolderSelect.hidden = true;
+      els.gedFolderTrigger.hidden = false;
       return;
     }
+    els.gedFolderTrigger.hidden = false;
 
     const suggestion = suggestIntersolGedFolder(state.documentData);
     if (!state.gedFolderManuallySelected && suggestion) {
@@ -589,14 +1240,22 @@ document.addEventListener('DOMContentLoaded', () => {
     }));
     placeholder.selected = !selectedFolder;
     const selectedLabel = intersolGedFolders.find((option) => option.value === selectedFolder)?.label;
-    els.gedFolderTrigger.textContent = selectedLabel || 'Agência INTERSOL';
+    if (selectedLabel && els.customerName) els.customerName.textContent = selectedLabel;
+    els.gedFolderTrigger.innerHTML = selectedFolder
+      ? '<i class="fa-solid fa-pen"></i><span>Alterar agência</span>'
+      : 'Associar agência';
+    els.gedFolderTrigger.setAttribute('aria-label', selectedFolder
+      ? `Alterar agência ${selectedLabel}` : 'Associar agência INTERSOL');
     els.gedFolderHint.textContent = state.gedFolderManuallySelected
       ? 'Destino escolhido manualmente'
       : (customer.ged_folder_suggested_by || (selectedFolder ? 'Agência definida pela entidade' : 'Falta a agência.'));
   }
 
   function gedPeriodFolders() {
-    const now = new Date();
+    const sourceDate = String(state.documentData?.document_date || '').trim();
+    const now = /^\d{4}-\d{2}-\d{2}$/.test(sourceDate)
+      ? new Date(`${sourceDate}T12:00:00`)
+      : new Date();
     const months = ['JANV', 'FEV', 'MARS', 'AVR', 'MAI', 'JUIN', 'JUIL', 'AOUT', 'SEPT', 'OCT', 'NOV', 'DEC'];
     const month = now.getMonth() + 1;
     return { year: String(now.getFullYear()), month: `${month} ${months[month - 1]} ${String(now.getFullYear()).slice(-2)}` };
@@ -716,6 +1375,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const isProvisionalInvoice = ['invoice', 'provisional_invoice', 'credit_note'].includes(documentData.document_type);
     const canSubmitCorrespondence = isCorrespondence && els.submitPhcBtn?.dataset.canCorrespondence === '1';
     const canSubmitProvisionalInvoice = isProvisionalInvoice && els.submitPhcBtn?.dataset.canProvisionalInvoice === '1';
+    const incompleteDistribution = (documentData.lines || []).some((line) => (
+      Array.isArray(line.sub_lines) && line.sub_lines.length && distributionDraftErrors(line, line.sub_lines).length
+    ));
     if (els.workflowValidateBtn) {
       const viewLabel = workflowViewLabel();
       const currentAssignment = (state.workflow.assignments || []).find((assignment) => (
@@ -729,9 +1391,12 @@ document.addEventListener('DOMContentLoaded', () => {
         || Boolean(state.draftTimer)
         || Boolean(state.draftRequest)
         || state.draftError
+        || incompleteDistribution
         || isAccountingPending;
       els.workflowValidateBtn.dataset.view = state.view;
-      els.workflowValidateBtn.title = isAccountingPending
+      els.workflowValidateBtn.title = incompleteDistribution
+        ? 'Completa a distribuição das linhas antes de validar.'
+        : isAccountingPending
         ? 'Pendente: aguarda validação do Controlo de Gestão.'
         : `Validar ${viewLabel}`;
       els.workflowValidateBtn.setAttribute('aria-label', `Validar ${viewLabel}`);
@@ -753,7 +1418,7 @@ document.addEventListener('DOMContentLoaded', () => {
       && (isCorrespondence || (String(documentData.document_number || '').trim() && Array.isArray(documentData.lines) && documentData.lines.length))
     );
     if (els.controlOkBtn && isProvisionalInvoice) {
-      els.controlOkBtn.disabled = !ready || state.submittingControl || state.controlOk || state.integratedPhc;
+      els.controlOkBtn.disabled = !ready || incompleteDistribution || state.submittingControl || state.controlOk || state.integratedPhc;
       els.controlOkBtn.title = ready
         ? (state.controlOk ? 'Controlo OK concluído.' : 'Confirmar o controlo do documento.')
         : 'Identifica a sociedade, o fornecedor, o número e as linhas do documento.';
@@ -763,7 +1428,7 @@ document.addEventListener('DOMContentLoaded', () => {
           ? '<i class="fa-solid fa-circle-check"></i><span>Controlo OK</span>'
           : '<i class="fa-solid fa-clipboard-check"></i><span>Controlo OK</span>';
     }
-    els.submitPhcBtn.disabled = !ready || (isProvisionalInvoice && !state.controlOk) || state.submittingPhc || state.integratedPhc;
+    els.submitPhcBtn.disabled = !ready || incompleteDistribution || (isProvisionalInvoice && !state.controlOk) || state.submittingPhc || state.integratedPhc;
     els.submitPhcBtn.title = isProvisionalInvoice && !state.controlOk
       ? 'Efetua primeiro o Controlo OK.'
       : '';
@@ -795,7 +1460,8 @@ document.addEventListener('DOMContentLoaded', () => {
       ? `<button type="button" class="docai-header-editable" data-header-edit="${field}">${escapeHtml(value || fallback)}</button>`
       : escapeHtml(value || fallback);
     const editing = state.headerEditing;
-    const documentTypes = Object.entries(typeLabels).filter(([key]) => key !== 'unknown')
+    const forbiddenManualTypes = new Set(['unknown', 'proforma_invoice', 'provisional_invoice', 'other']);
+    const documentTypes = Object.entries(typeLabels).filter(([key]) => !forbiddenManualTypes.has(key))
       .map(([key, label]) => `<option value="${key}" ${documentData.document_type === key ? 'selected' : ''}>${escapeHtml(label)}</option>`).join('');
     const invoiceTypes = Object.entries(invoiceTypeLabels)
       .map(([key, label]) => `<option value="${key}" ${documentData.invoice_type === key ? 'selected' : ''}>${escapeHtml(label)}</option>`).join('');
@@ -808,7 +1474,10 @@ document.addEventListener('DOMContentLoaded', () => {
     ];
     els.documentSummary.innerHTML = parts.join('<span class="docai-header-separator"> · </span>');
     const editor = els.documentSummary.querySelector('[data-header-input]');
-    if (editor && editing === 'document_date' && window.flatpickr) window.flatpickr(editor, { dateFormat: 'd/m/Y', allowInput: true, defaultDate: documentData.document_date || null });
+    if (editor && editing === 'document_date' && window.flatpickr) window.flatpickr(editor, {
+      dateFormat: 'd/m/Y', allowInput: true, defaultDate: documentData.document_date || null,
+      locale: window.flatpickr.l10ns?.pt || { firstDayOfWeek: 1 },
+    });
     if (editor) window.setTimeout(() => editor.focus(), 0);
     if (state.correspondenceReference) {
       els.correspondenceReference.textContent = `Correspondência n.º ${state.correspondenceReference} · ${state.correspondenceYear}`;
@@ -834,6 +1503,7 @@ document.addEventListener('DOMContentLoaded', () => {
       data.document_type = value;
       if (leavingInvoice) data.invoice_type = 'unknown';
     } else data[field] = value;
+    data._manual_fields = [...new Set([...(data._manual_fields || []), field])];
     state.headerEditing = '';
     renderDocumentCard();
     renderGedDestination();
@@ -947,8 +1617,6 @@ document.addEventListener('DOMContentLoaded', () => {
     state.matching = {};
     state.supplierCandidates = [];
     state.currentDocumentId = '';
-    state.group = null;
-    state.groupIndex = 0;
     state.splitting = false;
     state.originSearchToken += 1;
     state.originPayload = null;
@@ -960,6 +1628,7 @@ document.addEventListener('DOMContentLoaded', () => {
     state.projectSuggestionDismissed = false;
     state.deliveryNoteGroups = [];
     state.virtualDeliveryNotesActive = false;
+    state.deliveryNoteDistributionMode = false;
     state.originLineMatches = [];
     state.originLineReferenceLabel = '';
     state.originLineMatchByLine = new WeakMap();
@@ -998,7 +1667,6 @@ document.addEventListener('DOMContentLoaded', () => {
     els.netTotal.textContent = '--';
     els.taxTotal.textContent = '--';
     els.grossTotal.textContent = '--';
-    els.groupNavigator.hidden = true;
     renderProjectCard();
     window.history.replaceState({}, '', extractUrl(''));
     setStatus('Pronto.');
@@ -1038,6 +1706,16 @@ document.addEventListener('DOMContentLoaded', () => {
   function captureManualOverrides(documentData = state.documentData) {
     if (!documentData) return null;
     const snapshot = { lines: [] };
+    const manualHeaderFields = Array.isArray(documentData._manual_fields) ? documentData._manual_fields : [];
+    if (manualHeaderFields.length) {
+      snapshot.header = Object.fromEntries(
+        manualHeaderFields.map((field) => [field, structuredClone(documentData[field])]),
+      );
+      snapshot.header_fields = [...manualHeaderFields];
+    }
+    if ((documentData.lines || []).some((line) => line?.group_id || (line?.sub_lines || []).length || (line?.detailed_costs || []).length)) {
+      snapshot.manual_line_layout = structuredClone(documentData.lines);
+    }
     if (documentData.customer?.manually_selected || documentData.customer?.ged_folder_manually_selected) {
       snapshot.customer = structuredClone(documentData.customer);
     }
@@ -1060,13 +1738,20 @@ document.addEventListener('DOMContentLoaded', () => {
         values: Object.fromEntries(fields.map((field) => [field, structuredClone(line[field])])),
       });
     });
-    return snapshot.customer || snapshot.supplier || snapshot.origin_project_manually_selected
-      || snapshot.origin_project_manually_cleared || snapshot.lines.length ? snapshot : null;
+    return snapshot.header || snapshot.customer || snapshot.supplier || snapshot.origin_project_manually_selected
+      || snapshot.origin_project_manually_cleared || snapshot.manual_line_layout || snapshot.lines.length ? snapshot : null;
   }
 
   function applyManualOverrides(documentData, snapshot) {
     if (!snapshot) return documentData;
     const merged = structuredClone(documentData || {});
+    if (snapshot.header) {
+      Object.assign(merged, structuredClone(snapshot.header));
+      merged._manual_fields = [...new Set([
+        ...(merged._manual_fields || []), ...(snapshot.header_fields || Object.keys(snapshot.header)),
+      ])];
+    }
+    if (snapshot.manual_line_layout) merged.lines = structuredClone(snapshot.manual_line_layout);
     if (snapshot.customer) merged.customer = structuredClone(snapshot.customer);
     if (snapshot.supplier) {
       merged.supplier = structuredClone(snapshot.supplier);
@@ -1379,6 +2064,7 @@ document.addEventListener('DOMContentLoaded', () => {
     state.projectSuggestionDismissed = false;
     state.deliveryNoteGroups = [];
     state.virtualDeliveryNotesActive = false;
+    state.deliveryNoteDistributionMode = false;
     state.originLineMatches = [];
     state.originLineReferenceLabel = '';
     state.originLineMatchByLine = new WeakMap();
@@ -1402,36 +2088,6 @@ document.addEventListener('DOMContentLoaded', () => {
     els.empty.querySelector('span').textContent = 'A leitura começa assim que o PDF ficar carregado.';
     els.resultMeta.textContent = 'A preparar o documento selecionado para leitura automática.';
     renderProjectCard();
-  }
-
-  function renderGroupNavigator() {
-    const documents = Array.isArray(state.group?.documents) ? state.group.documents : [];
-    const grouped = documents.length > 0;
-    els.groupNavigator.hidden = !grouped;
-    if (!grouped) return;
-    state.groupIndex = Math.max(0, Math.min(state.groupIndex, documents.length - 1));
-    const current = documents[state.groupIndex] || {};
-    els.groupPosition.textContent = `Documento ${state.groupIndex + 1} de ${documents.length}`;
-    els.groupFileName.textContent = current.file_name || '';
-    els.groupPrevious.disabled = state.groupIndex <= 0;
-    els.groupNext.disabled = state.groupIndex >= documents.length - 1;
-  }
-
-  function applyDocumentGroup(group, currentDocumentId = '') {
-    const documents = Array.isArray(group?.documents) ? group.documents : [];
-    state.group = documents.length ? group : null;
-    const currentIndex = documents.findIndex((item) => item.id === currentDocumentId);
-    state.groupIndex = currentIndex >= 0 ? currentIndex : Number(group?.current_index || 0);
-    renderGroupNavigator();
-  }
-
-  async function loadDocumentGroup(documentId) {
-    try {
-      const group = await fetchJson(`/api/document_ai/documents/${encodeURIComponent(documentId)}/group`);
-      applyDocumentGroup(group, documentId);
-    } catch (error) {
-      console.warn('Não foi possível carregar o grupo documental.', error);
-    }
   }
 
   async function loadInboxDocument(documentId, options = {}) {
@@ -1479,10 +2135,7 @@ document.addEventListener('DOMContentLoaded', () => {
           processing_status: detail.status || '',
           phc_integration: detail.processing_meta?.phc_integration || cached.phc_integration || {},
         });
-      } else if (!options.skipGroup) {
-        await loadDocumentGroup(documentId);
       }
-      renderGroupNavigator();
     } catch (error) {
       console.error(error);
       els.loading.hidden = true;
@@ -1496,24 +2149,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  async function openGroupDocument(index) {
-    const documents = Array.isArray(state.group?.documents) ? state.group.documents : [];
-    const nextIndex = Math.max(0, Math.min(Number(index || 0), documents.length - 1));
-    const target = documents[nextIndex];
-    if (!target || target.id === state.currentDocumentId) {
-      state.groupIndex = nextIndex;
-      renderGroupNavigator();
-      return;
-    }
-    state.groupIndex = nextIndex;
-    clearCurrentAnalysis();
-    renderGroupNavigator();
-    await loadInboxDocument(target.id, { skipGroup: true });
-    renderGroupNavigator();
-  }
-
   function renderLines(lines, currency) {
-    const items = Array.isArray(lines) ? lines : [];
+    const items = ensureLineIdentities(Array.isArray(lines) ? lines : []);
+    const createdDeliveryNumbers = new Set(
+      state.selectedOrigins
+        .filter((origin) => (
+          String(origin.origin_family || origin.document_type || '').trim() === 'delivery_note'
+          && String(origin.delivery_note_number || '').trim()
+        ))
+        .map((origin) => String(origin.delivery_note_number).trim()),
+    );
     const deliveryNoteMap = new Map();
     items.forEach((line) => {
       const number = String(line.origin_delivery_note_number || '').trim();
@@ -1536,13 +2181,18 @@ document.addEventListener('DOMContentLoaded', () => {
       base_quantity: group.base_quantity,
       unit: group.units.size === 1 ? Array.from(group.units)[0] : '',
       net_total: group.net_total,
+      created: createdDeliveryNumbers.has(group.number),
     }));
-    const availableDeliveryNotes = new Set(state.deliveryNoteGroups.map((group) => group.number));
+    const availableDeliveryNotes = new Set(
+      state.deliveryNoteGroups.filter((group) => !group.created).map((group) => group.number),
+    );
     state.selectedDeliveryNoteGroups = new Set(
       [...state.selectedDeliveryNoteGroups].filter((number) => availableDeliveryNotes.has(number)),
     );
     if (!state.selectedDeliveryNoteGroups.size) {
-      state.deliveryNoteGroups.forEach((group) => state.selectedDeliveryNoteGroups.add(group.number));
+      state.deliveryNoteGroups
+        .filter((group) => !group.created)
+        .forEach((group) => state.selectedDeliveryNoteGroups.add(group.number));
     }
     state.virtualDeliveryNotesActive = state.deliveryNoteGroups.length > 0;
     Array.from(state.selectedSplitLines).forEach((line) => {
@@ -1558,25 +2208,29 @@ document.addEventListener('DOMContentLoaded', () => {
     const hasWorkSituationColumn = primaryFamilies.has('subcontract');
     const primaryHead = document.getElementById('docAiExtractPrimaryOriginHead');
     const secondaryHead = document.getElementById('docAiExtractSecondaryOriginHead');
-    if (primaryHead) primaryHead.textContent = hasMixedPrimaryFamilies ? 'Origem' : (primaryFamily === 'contract' ? 'Contrato' : (primaryFamily === 'subcontract' ? 'C Sub.Emp.' : 'NdE'));
+    if (primaryHead) primaryHead.textContent = hasMixedPrimaryFamilies ? 'Origem' : (primaryFamily === 'contract' ? 'Contrato' : (primaryFamily === 'subcontract' ? 'Contrato Sub.Emp.' : 'NdE'));
     if (secondaryHead) {
-      secondaryHead.textContent = hasDeliveryNoteColumn && hasWorkSituationColumn ? 'GdR / SdT' : (hasWorkSituationColumn ? 'SdT Sub.Emp.' : 'GdR');
-      secondaryHead.hidden = !hasDeliveryNoteColumn && !hasWorkSituationColumn;
+      secondaryHead.textContent = hasDeliveryNoteColumn && hasWorkSituationColumn ? 'GdR / SdTSub.Emp.' : (hasWorkSituationColumn ? 'SdTSub.Emp.' : 'GdR');
+      secondaryHead.classList.toggle('is-empty', !hasDeliveryNoteColumn && !hasWorkSituationColumn);
     }
     const canDistributeDeliveryNotes = state.virtualDeliveryNotesActive && proportionalGroups.length > 0;
     els.splitLineBtn.hidden = !canDistributeDeliveryNotes;
-    els.splitLineBtn.disabled = !canDistributeDeliveryNotes || state.selectedSplitLines.size === 0;
-    els.splitLineBtn.innerHTML = `<i class="fa-solid fa-code-branch"></i><span>${proportionalGroups.length === 1 ? 'Distribuir Guia de Remessa' : `Distribuir ${proportionalGroups.length} Guias de Remessa`}</span>`;
-    els.lineCount.textContent = `${items.length} linha(s)`;
+    els.splitLineBtn.disabled = !canDistributeDeliveryNotes || (state.deliveryNoteDistributionMode && state.selectedSplitLines.size === 0);
+    els.splitLineBtn.innerHTML = state.deliveryNoteDistributionMode
+      ? '<i class="fa-solid fa-floppy-disk"></i><span>Guardar distribuição GdR</span>'
+      : `<i class="fa-solid fa-code-branch"></i><span>${proportionalGroups.length === 1 ? 'Distribuir Guia de Remessa' : `Distribuir ${proportionalGroups.length} Guias de Remessa`}</span>`;
+    els.lineCount.textContent = countLabel(items.length, 'linha', 'linhas');
     if (!items.length) {
       els.linesBody.innerHTML = '<tr><td colspan="12" class="sz_text_muted">Não foram encontradas linhas comerciais visíveis.</td></tr>';
       return;
     }
-    const displayItems = items.map((line, lineIndex) => {
+    const mappedItems = items.map((line, lineIndex) => {
       const costCenter = String(line.ccusto || line.project_ccusto || state.selectedProject?.ccusto || '').trim();
       const registration = String(line.registration || line.matricula || '').trim();
-      return { line, lineIndex, costCenter, registration, groupKey: `${costCenter}\u0000${registration}` };
-    }).sort((left, right) => (
+      const groupKey = String(line.group_id || '') || `${costCenter}\u0000${registration}`;
+      return { line, lineIndex, costCenter, registration, groupKey };
+    });
+    const displayItems = items.some((line) => String(line.group_id || '')) ? mappedItems : mappedItems.sort((left, right) => (
       left.costCenter.localeCompare(right.costCenter, 'pt', { sensitivity: 'base' })
       || left.registration.localeCompare(right.registration, 'pt', { sensitivity: 'base' })
       || left.lineIndex - right.lineIndex
@@ -1586,12 +2240,19 @@ document.addEventListener('DOMContentLoaded', () => {
     els.linesBody.innerHTML = displayItems.map(({ line, lineIndex, groupKey }, displayIndex) => {
       const groupStart = displayIndex === 0 || displayItems[displayIndex - 1].groupKey !== groupKey;
       const selectedForSplit = state.selectedSplitLines.has(line);
-      const project = String(line.ccusto || line.project_ccusto || state.selectedProject?.ccusto || '').trim();
-      const groupCode = normalizeLineGroupCode(line.article_group_code);
-      const registration = String(line.registration || line.matricula || '').trim();
+      const subLines = Array.isArray(line.sub_lines) ? line.sub_lines : [];
+      const distinctProjects = [...new Set(subLines.map((row) => String(row.ccusto || row.project_ccusto || '').trim()).filter(Boolean))];
+      const distinctVehicles = [...new Set(subLines.map((row) => String(row.registration || row.matricula || '').trim()).filter(Boolean))];
+      const detailedCosts = Array.isArray(line.detailed_costs) ? line.detailed_costs : [];
+      const directProject = String(line.ccusto || line.project_ccusto || state.selectedProject?.ccusto || '').trim();
+      const project = distinctProjects.length > 1 ? `${distinctProjects.length} CdC` : (distinctProjects[0] || directProject);
+      const groupRole = String(line.group_role || '');
+      const memberCount = groupMembers(line).length;
+      const registration = distinctVehicles.length === 1 ? distinctVehicles[0] : String(line.registration || line.matricula || '').trim();
       const vehicleInvalid = Boolean(registration) && Boolean(
         line.vehicle_not_found || line.vehicle_invalid || line.registration_valid === false
       );
+      const effectivePrimaryFamily = primaryFamily || 'bc';
       const validation = state.validationVisible ? {
         article: state.validationMissing.has('article') && !String(line.article_ref || line.article || '').trim(),
         description: state.validationMissing.has('description') && !String(line.description || '').trim(),
@@ -1599,61 +2260,49 @@ document.addEventListener('DOMContentLoaded', () => {
         unitPrice: state.validationMissing.has('unit_price') && (line.unit_price === null || line.unit_price === undefined || line.unit_price === ''),
         total: state.validationMissing.has('line_total') && (line.net_amount === null || line.net_amount === undefined || line.net_amount === ''),
         value: Number.isFinite(Number(line.qty)) && Number.isFinite(Number(line.unit_price)) && Number.isFinite(Number(line.net_amount))
-          && Math.abs((Number(line.qty) * Number(line.unit_price)) - Number(line.net_amount)) > 0.02,
+          && Math.abs((Number(line.qty) * Number(line.unit_price)) - Number(line.net_amount)) > 0.01,
         project: state.validationMissing.has('project') && !project,
         vehicle: (state.validationMissing.has('vehicle') && Boolean(line.vehicle_required) && !registration) || vehicleInvalid,
         date: state.validationMissing.has('date') && !String(line.date || line.data || state.documentData?.document_date || '').trim(),
         distribution: state.validationMissing.has('delivery_note') && !String(line.origin_delivery_note_number || '').trim(),
       } : {};
       const lineError = Object.values(validation).some(Boolean);
-      const validationTone = groupCode.startsWith('A') || line._virtual_split_allocation
+      const originIncomplete = selectedPrimaryOriginFamilies().size > 0
+        && lineOriginLinks(line, effectivePrimaryFamily).length === 0;
+      const validationTone = groupRole === 'associated' || line._virtual_split_allocation
         ? 'docai-validation-subline-error'
         : 'docai-validation-primary-line-error';
-      const vehicleCell = registration
-        ? `<button type="button" class="docai-extract-vehicle-btn is-selected" data-line-vehicle="${lineIndex}" title="${vehicleInvalid ? canonicalValidationTooltips.invalidRegistration : canonicalValidationTooltips.vehicleAssociated}" aria-label="${canonicalValidationTooltips.vehicleAssociated}: ${escapeHtml(registration)}"><i class="fa-solid fa-car"></i></button>`
+      const vehicleTooltip = distinctVehicles.length > 1 ? `${distinctVehicles.length} Matrículas` : (vehicleInvalid ? canonicalValidationTooltips.invalidRegistration : canonicalValidationTooltips.vehicleAssociated);
+      const vehicleCell = registration || distinctVehicles.length
+        ? `<button type="button" class="docai-extract-vehicle-btn is-selected" data-line-vehicle="${lineIndex}" title="${escapeHtml(vehicleTooltip)}" aria-label="${escapeHtml(vehicleTooltip)}"><i class="fa-solid fa-car"></i></button>`
         : `<button type="button" class="docai-extract-vehicle-btn is-empty" data-line-vehicle="${lineIndex}" title="${canonicalValidationTooltips.vehicleToAssociate}" aria-label="${canonicalValidationTooltips.vehicleToAssociate}"></button>`;
       const lineDate = String(line.date || line.data || '').trim().slice(0, 10);
       const currencyCode = String(currency || '').trim().toUpperCase();
       const currencySuffix = /^[A-Z]{3}$/.test(currencyCode)
         ? `<span class="docai-extract-line-currency">${escapeHtml(currencyCode)}</span>`
         : '';
-      const bcAllocations = Array.isArray(line.bc_allocations) ? line.bc_allocations : [];
-      const uniqueBc = new Map();
-      bcAllocations.forEach((allocation) => {
-        const key = String(allocation.origin_stamp || `${allocation.origin_number || ''}:${allocation.origin_year || ''}`);
-        if (!uniqueBc.has(key)) uniqueBc.set(key, allocation);
-      });
-      const bcSummary = uniqueBc.size > 1
-        ? `${uniqueBc.size} NdE`
-        : uniqueBc.size === 1
-          ? formatBcLabel(Array.from(uniqueBc.values())[0])
-          : 'Associar';
-      const hasDistribution = bcAllocations.length > 1;
-      const distributionButton = hasDistribution
-        ? `<button type="button" class="docai-extract-bc-distribution-toggle" data-line-bc-toggle="${lineIndex}" aria-expanded="${state.expandedBcLines.has(lineIndex) ? 'true' : 'false'}" aria-label="${state.expandedBcLines.has(lineIndex) ? 'Ocultar distribuição por Nota de Encomenda' : 'Mostrar distribuição por Nota de Encomenda'}">${state.expandedBcLines.has(lineIndex) ? '−' : '+'}</button>`
-        : '';
-      const bcRows = primaryFamily === 'bc' && hasDistribution && state.expandedBcLines.has(lineIndex)
-        ? bcAllocations.map((allocation) => `<tr class="docai-extract-bc-allocation-row">
-            <td></td><td></td><td></td>
-            <td class="docai-extract-number">${escapeHtml(formatNumber(allocation.quantity))}</td>
-            <td class="docai-extract-number">${escapeHtml(formatMoney(allocation.unit_price, currency))}</td>
-            <td class="docai-extract-number">${escapeHtml(formatMoney(allocation.total, currency))}</td>
-            <td></td><td></td><td></td><td></td><td hidden></td>
-            <td><span class="docai-extract-bc-ref">${escapeHtml(formatBcLabel(allocation))}${allocation.origin_line_order ? ` · Linha ${escapeHtml(formatNumber(allocation.origin_line_order))}` : ''}</span></td>${hasDeliveryNoteColumn ? '<td></td>' : ''}
-          </tr>`).join('')
-        : '';
-      const primaryOrigin = state.selectedOrigins.find((origin) => originFamily(origin) === primaryFamily);
-      const primaryReference = primaryFamily === 'bc'
-        ? `<button type="button" class="docai-extract-cell-link" data-line-bc="${lineIndex}" title="Associar Nota de Encomenda à linha">${escapeHtml(bcSummary)}</button>${distributionButton}`
-        : `<span class="docai-extract-bc-ref">${escapeHtml(primaryOrigin ? `${primaryFamily === 'subcontract' ? 'Contrato de SubEmpreitada' : 'Contrato'} N.º ${primaryOrigin.number || '--'}${primaryOrigin.year ? ` · ${primaryOrigin.year}` : ''}` : '--')}</span>`;
-      const workSituation = state.selectedOrigins.find((origin) => originFamily(origin) === 'work_situation');
-      const secondaryCell = hasDeliveryNoteColumn
+      const primaryNames = effectivePrimaryFamily === 'contract'
+        ? ['Contrato', 'Contratos']
+        : effectivePrimaryFamily === 'subcontract'
+          ? ['Contrato Sub.Emp.', 'Contratos Sub.Emp.']
+          : ['NdE', 'NdE'];
+      const primaryReference = compactOriginControl(line, lineIndex, effectivePrimaryFamily, ...primaryNames);
+      const secondaryFamily = hasWorkSituationColumn ? 'work_situation' : 'delivery_note';
+      const secondaryNames = secondaryFamily === 'work_situation' ? ['SdTSub.Emp.', 'SdTSub.Emp.'] : ['GdR', 'GdR'];
+      const secondaryCell = state.deliveryNoteDistributionMode && hasDeliveryNoteColumn
         ? `<td class="docai-extract-line-picker-cell"><input type="checkbox" class="docai-extract-bl-selector" data-line-select="${lineIndex}" role="checkbox" aria-label="Selecionar para distribuir por Guia de Remessa" aria-checked="${selectedForSplit ? 'true' : 'false'}" ${selectedForSplit ? 'checked' : ''} ${line._virtual_split_allocation ? 'disabled' : ''}></td>`
-        : hasWorkSituationColumn
-          ? `<td><span class="docai-extract-bc-ref">${escapeHtml(workSituation ? `N.º ${workSituation.number || '--'}${workSituation.year ? ` · ${workSituation.year}` : ''}` : '--')}</span></td>`
-          : '';
-      return `<tr data-line-index="${lineIndex}" class="${line._virtual_split_allocation ? 'is-split-allocation ' : ''}${groupStart ? 'docai-extract-line-group-start ' : ''}${lineError ? `docai-validation-line-error ${validationTone}` : ''}"${validationTitle(lineError || line.informative || line.is_informative, lineError ? (validation.value || validation.total ? 'Valor não Conforme' : validation.article ? 'Artigo não Conforme' : validation.vehicle ? 'Falta Matrícula' : validation.project ? 'Falta Centro de Custo' : validation.distribution ? 'Falta Distribuição' : 'Valor não Conforme') : 'Linha Ignorada')}>
-        <td><input class="sz_input docai-extract-line-group-input" data-line-group="${lineIndex}" value="${escapeHtml(groupCode)}" title="P = Principal · A = Associado" aria-label="Grupo de artigo"></td>
+        : `<td class="docai-origin-secondary-cell">${hasDeliveryNoteColumn || hasWorkSituationColumn ? compactOriginControl(line, lineIndex, secondaryFamily, ...secondaryNames) : ''}</td>`;
+      const includedCount = detailedCosts.filter((cost) => cost.cost_type === 'included').length;
+      const additionalCount = detailedCosts.filter((cost) => cost.cost_type === 'additional').length;
+      const costTooltip = [
+        includedCount ? `${includedCount} Custos Incluídos` : '',
+        additionalCount ? `${additionalCount} Custos Adicionais` : '',
+      ].filter(Boolean).join(' · ');
+      const costInfoCell = detailedCosts.length
+        ? `<button type="button" class="docai-line-costs-trigger" data-line-costs="${lineIndex}" title="${escapeHtml(costTooltip)}" aria-label="${escapeHtml(costTooltip)}"><i class="fa-solid fa-circle-info"></i></button>`
+        : '';
+      return `<tr draggable="false" data-line-index="${lineIndex}" data-line-id="${escapeHtml(line.line_id)}" data-group-role="${escapeHtml(groupRole)}" class="${line._virtual_split_allocation ? 'is-split-allocation ' : ''}${groupRole ? `docai-line-group-${groupRole} ` : ''}${groupStart ? 'docai-extract-line-group-start ' : ''}${originIncomplete ? 'docai-origin-line-incomplete ' : ''}${lineError ? `docai-validation-line-error ${validationTone}` : ''}"${validationTitle(lineError || originIncomplete || line.informative || line.is_informative, lineError ? (validation.value || validation.total ? 'Valor não Conforme' : validation.article ? 'Artigo não Conforme' : validation.vehicle ? 'Falta Matrícula' : validation.project ? 'Falta Centro de Custo' : validation.distribution ? 'Falta Distribuição' : 'Valor não Conforme') : originIncomplete ? 'Confirma o dossier, a linha PHC e a quantidade de origem.' : 'Linha Ignorada')}>
+        <td class="docai-line-group-zone"><button type="button" class="docai-line-group-handle${state.keyboardGroupLineId === line.line_id ? ' is-armed' : ''}" draggable="true" data-line-group-handle="${escapeHtml(line.line_id)}" title="Agrupar linha" aria-label="Agrupar linha">?</button>${groupRole === 'principal' ? `<span class="docai-line-group-count">${memberCount} linhas</span>` : ''}</td>
         <td><button type="button" class="docai-extract-cell-link${validationClass(validation.article)}" data-line-article="${lineIndex}" title="${validation.article ? 'Artigo não Conforme' : 'Associar Artigo'}">${escapeHtml(line.article_ref || line.article || 'Associar')}</button></td>
         <td><input class="sz_input docai-extract-line-description-input${validationClass(validation.description)}" data-line-description="${lineIndex}" value="${escapeHtml(line.description || '')}" aria-label="Designação da linha"${validationTitle(validation.description, 'Valor não Conforme')}></td>
         <td><input class="sz_input docai-extract-line-number-input${validationClass(validation.quantity)}" inputmode="decimal" data-line-qty="${lineIndex}" value="${escapeHtml(formatEditableAmount(line.qty))}" aria-label="Quantidade"${validationTitle(validation.quantity, 'Valor não Conforme')}></td>
@@ -1662,11 +2311,11 @@ document.addEventListener('DOMContentLoaded', () => {
         <td><input class="sz_input docai-extract-line-number-input" inputmode="decimal" data-line-tax-rate="${lineIndex}" value="${escapeHtml(formatEditableAmount(line.tax_rate))}" aria-label="Taxa de IVA"></td>
         <td><button type="button" class="docai-extract-cell-link${validationClass(validation.project)}" data-line-project="${lineIndex}" title="${validation.project ? 'Falta Centro de Custo' : 'Associar Centro de Custo'}">${escapeHtml(project || 'Associar')}</button></td>
         <td><input type="date" class="sz_input docai-extract-line-date-input${validationClass(validation.date)}" data-line-date="${lineIndex}" value="${escapeHtml(lineDate)}" aria-label="Data da linha"${validationTitle(validation.date, 'Valor não Conforme')}></td>
-        <td class="docai-extract-vehicle-cell${validationClass(validation.vehicle)}"${validationTitle(validation.vehicle, 'Falta Matrícula')}>${vehicleCell}</td>
-        <td class="docai-extract-line-distribution" hidden></td>
         <td class="docai-extract-bc-ref-cell">${primaryReference}</td>
         ${secondaryCell}
-      </tr>${bcRows}`;
+        <td class="docai-line-costs-cell">${costInfoCell}</td>
+        <td class="docai-extract-vehicle-cell${validationClass(validation.vehicle)}"${validationTitle(validation.vehicle, 'Falta Matrícula')}>${vehicleCell}</td>
+      </tr>`;
     }).join('');
     window.setTimeout(refreshValidationHighlights, 0);
   }
@@ -1976,7 +2625,7 @@ document.addEventListener('DOMContentLoaded', () => {
       els.originTabs.hidden = true;
       els.originTabs.innerHTML = '';
       els.originMeta.textContent = virtualStageHtml
-        ? `${state.deliveryNoteGroups.length} Guia(s) de Remessa identificada(s) na fatura, ainda por criar no PHC.`
+        ? `${countLabel(state.deliveryNoteGroups.length, 'Guia de Remessa identificada', 'Guias de Remessa identificadas')} na fatura, ainda por criar no PHC.`
         : payload.message || 'Não foi possível procurar origens no PHC.';
       const unavailableHtml = `<div class="docai-extract-origin-unavailable"><i class="fa-solid fa-circle-info"></i><span>${escapeHtml(payload.message || 'Pesquisa PHC indisponível.')}</span></div>`;
       els.originFlow.innerHTML = `${virtualStageHtml}${unavailableHtml}`;
@@ -2027,7 +2676,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const dateLabel = candidate.date ? formatDate(candidate.date) : '';
         const hasTotal = candidate.total !== null && candidate.total !== undefined && candidate.total !== '';
         const totalLabel = hasTotal ? formatMoney(candidate.total, state.documentData?.currency) : '';
-        const canAssociate = originDisplayStage(String(stage.key || '')) !== 'proforma_invoice';
+        const canAssociate = originDisplayStage(String(stage.key || '')) !== 'proforma_invoice'
+          && candidate.available_balance !== false;
+        const candidateContext = [candidate.ccusto, candidate.project_machine, ...(candidate.reasons || [])]
+          .filter(Boolean).join(' · ');
         return `
           <article class="docai-extract-origin-candidate${consulted ? ' is-selected' : ''}${associated ? ' is-associated' : ''}" data-origin-index="${candidateIndex}" role="button" tabindex="0" aria-label="Consultar ${escapeHtml(stage.label || 'origem')} ${escapeHtml(candidate.number || '')}">
             <span class="docai-extract-origin-candidate-top">
@@ -2037,6 +2689,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <strong class="docai-origin-card-score">${escapeHtml(scoreLabel) || '&nbsp;'}</strong>
             <span>${escapeHtml(dateLabel) || '&nbsp;'}</span>
             <strong class="docai-origin-card-total">${escapeHtml(totalLabel) || '&nbsp;'}</strong>
+            <small>${associated ? 'Dossier associado · confirma linha e quantidade' : candidate.available_balance === false ? 'Dossier PHC encontrado · fechado ou sem saldo disponível' : escapeHtml(candidateContext) || 'Abrir dossier para consultar'}</small>
           </article>`;
       }).join('');
       const count = candidates.length;
@@ -2077,21 +2730,35 @@ document.addEventListener('DOMContentLoaded', () => {
         ? { key: 'correct_purchase_order', label: 'Corrigir Nota de Encomenda', origin: selected }
         : { key: 'create_purchase_order', label: 'Criar Nota de Encomenda' };
     }
-    if (stage === 'contract') return { key: 'create_contract', label: 'Criar Contrato' };
-    if (stage === 'subcontract_contract') return { key: 'create_subcontract', label: 'Criar Contrato Sub.Emp.' };
+    if (stage === 'contract') return selected
+      ? { key: 'correct_contract', label: 'Corrigir Contrato', origin: selected }
+      : { key: 'create_contract', label: 'Criar Contrato' };
+    if (stage === 'subcontract_contract') return selected
+      ? { key: 'correct_subcontract', label: 'Corrigir Contrato Sub.Emp.', origin: selected }
+      : { key: 'create_subcontract', label: 'Criar Contrato Sub.Emp.' };
     if (stage === 'delivery_note') {
       return state.selectedDeliveryNoteGroups.size > 1
         ? { key: 'distribute_delivery_note', label: 'Distribuir GdR' }
-        : { key: 'create_delivery_note', label: 'Criar GdR' };
+        : state.selectedDeliveryNoteGroups.size === 1
+          ? { key: 'create_delivery_note', label: 'Criar GdR' }
+          : null;
     }
-    if (stage === 'work_situation') return { key: 'create_work_situation', label: 'Criar STSE' };
+    if (stage === 'work_situation') return {
+      key: 'create_work_situation', label: 'Criar STSE',
+      contract: state.selectedOrigins.find((origin) => String(origin.origin_family || '') === 'subcontract'),
+    };
     return null;
   }
 
   function renderOriginContextAction() {
     if (!els.originAction) return;
     const action = originContextAction();
-    const available = Boolean(action && !state.readOnly && originActionHandlers.has(action.key));
+    const allowedByIntegration = action?.key !== 'create_delivery_note'
+      || els.originAction.dataset.canDeliveryNote === '1';
+    const available = Boolean(
+      action && allowedByIntegration && state.view === 'management'
+      && !state.readOnly && originActionHandlers.has(action.key)
+    );
     els.originAction.hidden = !available;
     els.originAction.textContent = available ? action.label : '';
     els.originAction.dataset.originAction = available ? action.key : '';
@@ -2136,19 +2803,20 @@ document.addEventListener('DOMContentLoaded', () => {
   function applyOriginLineReferences(payload = {}) {
     const candidatePool = (Array.isArray(payload.stages) ? payload.stages : [])
       .flatMap((stage) => Array.isArray(stage.candidates) ? stage.candidates : []);
-    const selected = state.selectedOrigins.length
-      ? state.selectedOrigins
-      : (payload.suggested_origin ? [payload.suggested_origin] : []);
-    const purchaseOrders = selected.map((origin) => {
+    // Candidates and their line matches are proposals only. A user must first
+    // associate the dossier and then explicitly confirm each PHC line/quantity.
+    const selected = state.selectedOrigins;
+    const selectedCandidates = selected.map((origin) => {
       const candidate = candidatePool.find((item) => item.stamp === origin.stamp);
       return candidate || origin;
-    }).filter((origin) => origin?.document_type === 'purchase_order' || Number(origin?.ndos || 0) === 102);
-    const matches = purchaseOrders.flatMap((origin) => (Array.isArray(origin.line_matches) ? origin.line_matches : []).map((match) => ({
+    });
+    const matches = selectedCandidates.flatMap((origin) => (Array.isArray(origin.line_matches) ? origin.line_matches : []).map((match) => ({
       ...match,
       origin_stamp: origin.stamp || '',
       origin_number: origin.number || '',
       origin_year: origin.year || null,
-      origin_reference_label: `NdE ${origin.number || ''}${origin.year ? ` / ${origin.year}` : ''}`.trim(),
+      origin_family: originFamily(origin),
+      origin_reference_label: `${origin.stage_label || 'Origem'} ${origin.number || ''}${origin.year ? ` / ${origin.year}` : ''}`.trim(),
     })));
     state.originLineMatches = matches;
     state.originLineMatchByLine = new WeakMap();
@@ -2160,7 +2828,8 @@ document.addEventListener('DOMContentLoaded', () => {
         state.originLineMatchByLine.set(line, lineMatches);
       }
     });
-    state.originLineReferenceLabel = purchaseOrders.map((origin) => `NdE ${origin.number || ''}`).join(', ');
+    state.originLineageChanged = false;
+    state.originLineReferenceLabel = selectedCandidates.map((origin) => `${origin.stage_label || 'Origem'} ${origin.number || ''}`).join(', ');
     if (state.documentData?.lines) renderLines(state.documentData.lines, state.documentData.currency || '');
   }
 
@@ -2169,16 +2838,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const cards = state.deliveryNoteGroups.map((group) => {
       const checked = state.selectedDeliveryNoteGroups.has(group.number);
       return `
-        <label class="docai-extract-origin-proposal">
-          <input type="checkbox" data-virtual-bl="${escapeHtml(group.number)}" ${checked ? 'checked' : ''}>
+        <label class="docai-extract-origin-proposal${group.created ? ' is-linked' : ''}">
+          <input type="checkbox" data-virtual-bl="${escapeHtml(group.number)}" ${checked ? 'checked' : ''} ${group.created ? 'disabled' : ''}>
           <strong>GdR ${escapeHtml(group.number)}</strong>
-          <span>${escapeHtml(group.line_count)} linha(s)</span>
+          <span>${group.created ? 'Criada no PHC' : escapeHtml(countLabel(group.line_count, 'linha', 'linhas'))}</span>
         </label>`;
     }).join('');
+    const pendingCount = state.deliveryNoteGroups.filter((group) => !group.created).length;
     return `
       <article class="docai-extract-origin-stage is-virtual-stage" data-origin-stage="delivery_note">
         <div class="docai-extract-origin-stage-title">
-          <strong>${state.deliveryNoteGroups.length} ${state.deliveryNoteGroups.length === 1 ? 'Guia de Remessa a criar' : 'Guias de Remessa a criar'}</strong>
+          <strong>${pendingCount ? `${pendingCount} ${pendingCount === 1 ? 'Guia de Remessa a criar' : 'Guias de Remessa a criar'}` : 'Guias de Remessa criadas'}</strong>
         </div>
         <div class="docai-extract-origin-proposals">${cards}</div>
       </article>`;
@@ -2244,12 +2914,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     state.documentData.lines = remainingLines;
     state.selectedSplitLines = new Set();
+    state.deliveryNoteDistributionMode = false;
     renderLines(state.documentData.lines, state.documentData.currency || '');
     if (state.originPayload && state.virtualDeliveryNotesActive) {
       renderOriginCandidates(state.originPayload, { skipLineMapping: true });
     }
     els.splitLineBtn.disabled = true;
-    setStatus(`A guardar ${selectedLines.length} linha(s) distribuída(s) por ${targetGroups.length} Guia(s) de Remessa...`);
+    setStatus(`A guardar ${countLabel(selectedLines.length, 'linha', 'linhas')} por ${countLabel(targetGroups.length, 'Guia de Remessa', 'Guias de Remessa')}...`);
     if (state.currentDocumentId) {
       try {
         const payload = await fetchJson(`/api/document_ai/documents/${encodeURIComponent(state.currentDocumentId)}/lines`, {
@@ -2262,6 +2933,7 @@ document.addEventListener('DOMContentLoaded', () => {
       } catch (error) {
         state.documentData.lines = originalLines;
         state.selectedSplitLines = new Set(selectedLines);
+        state.deliveryNoteDistributionMode = true;
         renderLines(state.documentData.lines, state.documentData.currency || '');
         if (state.originPayload && state.virtualDeliveryNotesActive) {
           renderOriginCandidates(state.originPayload, { skipLineMapping: true });
@@ -2274,8 +2946,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const allocationSummary = createdLines
       .map((line) => `GdR ${line.origin_delivery_note_number}: ${formatNumber(line.qty)}`)
       .join(' · ');
-    setStatus(`${selectedLines.length} linha(s) repartida(s) proporcionalmente. ${allocationSummary}`);
-    showMessage(`${selectedLines.length} linha(s) distribuída(s) por ${targetGroups.length} Guia(s) de Remessa sem alterar os totais.`, 'success');
+    setStatus(`${countLabel(selectedLines.length, 'linha repartida', 'linhas repartidas')} proporcionalmente. ${allocationSummary}`);
+    showMessage(`${countLabel(selectedLines.length, 'linha distribuída', 'linhas distribuídas')} por ${countLabel(targetGroups.length, 'Guia de Remessa', 'Guias de Remessa')} sem alterar os totais.`, 'success');
+  }
+
+  function toggleDeliveryNoteDistribution() {
+    if (!state.deliveryNoteDistributionMode) {
+      state.deliveryNoteDistributionMode = true;
+      state.selectedSplitLines = new Set();
+      renderLines(state.documentData?.lines || [], state.documentData?.currency || '');
+      setStatus('Seleciona as linhas pelos círculos e guarda a distribuição GdR.');
+      return;
+    }
+    distributeSelectedLinesAcrossDeliveryNotes();
   }
 
   async function loadOriginCandidates(documentData) {
@@ -2288,6 +2971,15 @@ document.addEventListener('DOMContentLoaded', () => {
     if (els.originAction) els.originAction.hidden = true;
     els.originMeta.textContent = 'A procurar documentos anteriores no PHC...';
     try {
+      if (documentData?.document_type === 'credit_note' && state.view === 'accounting' && state.currentDocumentId) {
+        const payload = await fetchJson(`/api/document_ai/documents/${encodeURIComponent(state.currentDocumentId)}/credit-note/origins?view=accounting`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ document: documentData || {} }),
+        });
+        if (token !== state.originSearchToken) return;
+        renderCreditNoteOrigins(payload);
+        return;
+      }
       const payload = await fetchJson('/api/document_ai/origins/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2307,6 +2999,71 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (error) {
       if (token !== state.originSearchToken) return;
       renderOriginCandidates({ available: false, message: error.message || 'Erro ao consultar o PHC.' });
+    }
+  }
+
+  function effectiveCreditLines() {
+    const rows = [];
+    ensureLineIdentities();
+    (state.documentData?.lines || []).forEach((line) => {
+      const children = Array.isArray(line.sub_lines) && line.sub_lines.length ? line.sub_lines
+        : (Array.isArray(line.sublines) && line.sublines.length ? line.sublines : null);
+      if (children) children.forEach((child) => rows.push(child));
+      else rows.push(line);
+    });
+    return rows;
+  }
+
+  function renderCreditNoteOrigins(payload = {}) {
+    state.creditNoteCandidates = Array.isArray(payload.candidates) ? payload.candidates : [];
+    const storedFo = String(payload.mapping?.original_fostamp || '');
+    state.creditNoteSelectedFo = storedFo || state.creditNoteSelectedFo;
+    els.originLoading.hidden = true;
+    els.originFlow.hidden = false;
+    els.originTabs.hidden = true;
+    els.originMeta.hidden = false;
+    els.originMeta.textContent = 'Seleciona manualmente a FO original e uma FN para cada linha. Nenhuma proposta é aplicada automaticamente.';
+    if (!state.creditNoteCandidates.length) {
+      els.originFlow.innerHTML = '<div class="docai-extract-origin-unavailable"><span>Não foram encontradas compras anteriores deste fornecedor.</span></div>';
+      return;
+    }
+    const lines = effectiveCreditLines();
+    els.originFlow.innerHTML = state.creditNoteCandidates.map((candidate, candidateIndex) => {
+      const selected = candidate.fostamp === state.creditNoteSelectedFo;
+      const mappings = selected ? lines.map((line, index) => {
+        const lineId = String(line.subline_id || line.line_id || line.id || `line-${index + 1}`);
+        const selectedFn = String(line.credit_origin_fnstamp || '');
+        const options = (candidate.lines || []).map((originLine) => `<option value="${escapeHtml(originLine.fnstamp)}" ${originLine.fnstamp === selectedFn ? 'selected' : ''}>${escapeHtml(originLine.ref || 'Sem artigo')} · ${escapeHtml(originLine.design || '')} · ${escapeHtml(formatEditableAmount(Math.abs(Number(originLine.etiliquido || 0))))}</option>`).join('');
+        return `<label class="docai-extract-origin-proposal"><span>${escapeHtml(line.description || `Linha ${index + 1}`)}</span><select data-credit-line="${escapeHtml(lineId)}"><option value="">Selecionar FN original…</option>${options}</select></label>`;
+      }).join('') : '';
+      return `<article class="docai-extract-origin-candidate${selected ? ' is-selected' : ''}">
+        <label><input type="radio" name="credit-original-fo" data-credit-fo="${candidateIndex}" ${selected ? 'checked' : ''}> <strong>${escapeHtml(candidate.docnome || 'Compra')} ${escapeHtml(candidate.adoc || '')}</strong> · ${escapeHtml(String(candidate.docdata || ''))}</label>
+        ${selected ? `<div class="docai-extract-origin-proposals">${mappings}<button type="button" class="sz_button sz_button_primary" data-credit-save>Guardar associação</button></div>` : ''}
+      </article>`;
+    }).join('');
+  }
+
+  async function saveCreditNoteMapping() {
+    const candidate = state.creditNoteCandidates.find((item) => item.fostamp === state.creditNoteSelectedFo);
+    if (!candidate) return;
+    const mappings = [...els.originFlow.querySelectorAll('[data-credit-line]')].map((select) => ({
+      portal_line_id: select.dataset.creditLine, fnstamp: select.value,
+    }));
+    if (mappings.some((item) => !item.fnstamp)) {
+      showMessage('Seleciona uma FN original para cada linha da Nota de Crédito.', 'warning');
+      return;
+    }
+    try {
+      const payload = await fetchJson(`/api/document_ai/documents/${encodeURIComponent(state.currentDocumentId)}/credit-note/mapping?view=accounting`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ original_fostamp: candidate.fostamp, mappings }),
+      });
+      state.documentData = payload.document || state.documentData;
+      state.draftVersion = String(payload.version || state.draftVersion || '');
+      showMessage(payload.message || 'Origem guardada.', 'success');
+      await loadOriginCandidates(state.documentData);
+    } catch (error) {
+      showMessage(error.message || 'Não foi possível guardar a origem.', 'error');
     }
   }
 
@@ -2350,13 +3107,17 @@ document.addEventListener('DOMContentLoaded', () => {
       state.draftVersion = String(payload.version || state.draftVersion || '');
       state.selectedOrigins = Array.isArray(payload.origins) ? payload.origins : (alreadySelected ? previousOrigins.filter((origin) => origin.stamp !== selected.stamp) : [...previousOrigins, payload.origin || selected]);
       renderOriginCandidates({ ...(state.originPayload || {}), selected_origins: state.selectedOrigins });
+      if (state.originLineageChanged) {
+        await saveAdjustedLines('Filiação PHC das linhas guardada.');
+        state.originLineageChanged = false;
+      }
       await pruneLineBcAllocations();
       renderLines(state.documentData?.lines || [], state.documentData?.currency || '');
       renderProjectCard();
       const mappedLineCount = new Set(state.originLineMatches.map((match) => Number(match.document_line_index))).size;
       setStatus(isPurchaseOrder
-        ? `${payload.message || 'Seleção de origem atualizada.'} ${mappedLineCount} linha(s) têm referências dos BCs selecionados.`
-        : payload.message || 'Seleção de origem atualizada.');
+        ? `${payload.message || 'Seleção de origem atualizada.'} ${countLabel(mappedLineCount, 'linha tem proposta', 'linhas têm propostas')}; confirma o dossier, a linha PHC e a quantidade em cada linha.`
+        : `${payload.message || 'Seleção de origem atualizada.'} Confirma a linha PHC e a quantidade em cada linha.`);
       showMessage(payload.message || 'Seleção de origem atualizada.', 'success');
     } catch (error) {
       state.selectedOrigins = previousOrigins;
@@ -2371,17 +3132,28 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function closeOriginDetailModal() {
+    state.originOperation = null;
+    if (els.originDetailValidate) {
+      els.originDetailValidate.hidden = true;
+      els.originDetailValidate.disabled = false;
+    }
     els.originDetailModal?.classList.remove('sz_is_open');
+    els.originDetailModal?.querySelector('.docai-origin-detail-modal')?.classList.remove('is-purchase-order-operation');
     els.originDetailModal?.setAttribute('aria-hidden', 'true');
+    if (els.originDetailClose) els.originDetailClose.textContent = 'Fechar';
   }
 
   async function openOriginDetail(index) {
     const candidate = state.originCandidates[Number(index)];
     if (!candidate || !state.currentDocumentId || !els.originDetailModal) return;
     state.consultedOriginStamp = candidate.stamp || '';
+    els.originDetailModal?.querySelector('.docai-origin-detail-modal')?.classList.remove('is-purchase-order-operation');
+    state.originOperation = null;
+    if (els.originDetailClose) els.originDetailClose.textContent = 'Fechar';
+    if (els.originDetailValidate) els.originDetailValidate.hidden = true;
     renderOriginCandidates({ ...(state.originPayload || {}), selected_origins: state.selectedOrigins }, { skipLineMapping: true });
-    const number = `n.º ${candidate.number || '--'}${candidate.year ? ` · ${candidate.year}` : ''}`;
-    els.originDetailTitle.textContent = `${candidate.stage_label || 'Origem'} ${number}`;
+    const number = candidate.number ? ` n.º ${candidate.number}${candidate.year ? ` · ${candidate.year}` : ''}` : '';
+    els.originDetailTitle.textContent = `${candidate.stage_label || 'Origem'}${number}`;
     els.originDetailTitle.title = els.originDetailTitle.textContent;
     if (els.originDetailSubtitle) {
       els.originDetailSubtitle.hidden = true;
@@ -2398,6 +3170,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const rows = Array.isArray(payload.lines) ? payload.lines : [];
       const origin = payload.origin || candidate;
       const totals = payload.totals || {};
+      const lineTotals = payload.line_totals || totals;
       const detailNumber = String(origin.number || '').trim();
       const detailYear = String(origin.year || '').trim();
       els.originDetailTitle.textContent = `${origin.stage_label || candidate.stage_label || 'Origem'}${detailNumber ? ` n.º ${detailNumber}` : ''}${detailYear ? ` · ${detailYear}` : ''}`;
@@ -2405,12 +3178,16 @@ document.addEventListener('DOMContentLoaded', () => {
       if (els.originDetailSubtitle) {
         const subtitleParts = [
           origin.date ? formatDate(origin.date) : '',
-          totals.net_total !== null && totals.net_total !== undefined ? `Total s/IVA ${formatMoney(totals.net_total, state.documentData?.currency)}` : '',
-          totals.tax_total !== null && totals.tax_total !== undefined ? `IVA ${formatMoney(totals.tax_total, state.documentData?.currency)}` : '',
-          totals.gross_total !== null && totals.gross_total !== undefined ? `Total c/IVA ${formatMoney(totals.gross_total, state.documentData?.currency)}` : '',
+          lineTotals.net_total !== null && lineTotals.net_total !== undefined ? `Total s/IVA ${formatMoney(lineTotals.net_total, state.documentData?.currency)}` : '',
+          lineTotals.tax_total !== null && lineTotals.tax_total !== undefined ? `IVA ${formatMoney(lineTotals.tax_total, state.documentData?.currency)}` : '',
+          lineTotals.gross_total !== null && lineTotals.gross_total !== undefined ? `Total c/IVA ${formatMoney(lineTotals.gross_total, state.documentData?.currency)}` : '',
         ].filter(Boolean);
         els.originDetailSubtitle.textContent = subtitleParts.join(' · ');
-        els.originDetailSubtitle.title = els.originDetailSubtitle.textContent;
+        els.originDetailSubtitle.classList.toggle('is-warning', payload.totals_reconciled === false);
+        const totalsWarning = payload.totals_reconciled === false
+          ? `Totais globais PHC (não reconciliados com estas linhas): s/IVA ${formatMoney(totals.net_total, state.documentData?.currency)} · IVA ${formatMoney(totals.tax_total, state.documentData?.currency)} · c/IVA ${formatMoney(totals.gross_total, state.documentData?.currency)}`
+          : '';
+        els.originDetailSubtitle.title = [els.originDetailSubtitle.textContent, totalsWarning].filter(Boolean).join(' — ');
         els.originDetailSubtitle.hidden = !subtitleParts.length;
       }
       els.originDetailHead.innerHTML = '<th>Artigo</th><th>Designação</th><th>Quantidade</th><th title="Preço unitário">PU</th><th title="Preço total">PT</th><th>IVA</th><th title="Centro de Custo">CdC</th><th>Data</th><th>Matrícula</th>';
@@ -2419,11 +3196,304 @@ document.addEventListener('DOMContentLoaded', () => {
       els.originDetailTable.hidden = !rows.length;
       els.originDetailEmpty.hidden = Boolean(rows.length);
     } catch (error) {
+      els.originDetailSubtitle?.classList.remove('is-warning');
       els.originDetailLoading.hidden = true;
       els.originDetailEmpty.hidden = false;
       els.originDetailEmpty.textContent = error.message || 'Não foi possível consultar a origem no PHC.';
     }
   }
+
+  function purchaseOrderComparisonRows(preview) {
+    const current = Array.isArray(preview.current?.lines) ? preview.current.lines : [];
+    const proposed = Array.isArray(preview.proposal?.lines) ? preview.proposal.lines : [];
+    const fields = ['article', 'description', 'quantity', 'unit', 'unit_price', 'line_total', 'tax_rate', 'project', 'date'];
+    const row = (item, source, changed = false) => `<tr class="${changed ? 'docai-origin-comparison-changed' : ''}" title="${escapeHtml(source)}" aria-label="${escapeHtml(source)}">
+      <td>${escapeHtml(item.article || '')}</td>
+      <td title="${escapeHtml(item.description || '')}">${escapeHtml(item.description || '')}</td>
+      <td>${escapeHtml(formatNumber(item.quantity))}</td>
+      <td>${escapeHtml(formatMoney(item.unit_price, preview.currency))}</td>
+      <td>${escapeHtml(formatMoney(item.line_total, preview.currency))}</td>
+      <td>${item.tax_rate === null || item.tax_rate === undefined ? '' : `${escapeHtml(formatNumber(item.tax_rate, 2))}%`}</td>
+      <td>${escapeHtml(item.project || '')}</td>
+      <td>${item.date ? escapeHtml(formatDate(item.date)) : ''}</td>
+      <td>${escapeHtml(item.registration || '')}</td>
+    </tr>`;
+    if (preview.mode !== 'correct') return proposed.map((item) => row(item, 'Proposto')).join('');
+    const output = [];
+    const count = Math.max(current.length, proposed.length);
+    for (let index = 0; index < count; index += 1) {
+      const before = current[index] || {};
+      const after = proposed[index] || {};
+      const changed = fields.some((field) => String(before[field] ?? '') !== String(after[field] ?? ''));
+      if (current[index]) output.push(row(before, 'PHC', changed));
+      if (proposed[index]) output.push(row(after, 'Proposto', changed));
+    }
+    return output.join('');
+  }
+
+  async function openPurchaseOrderOperation(action) {
+    if (!state.currentDocumentId || !state.documentData || !els.originDetailModal) return;
+    if (!await flushAnalysisSave()) {
+      showMessage('Guarda primeiro os dados da Análise.', 'error');
+      return;
+    }
+    const family = action?.key?.includes('subcontract') ? 'subcontract'
+      : action?.key?.includes('contract') ? 'contract' : 'purchase_order';
+    const familyLabel = family === 'subcontract' ? 'Contrato Sub.Emp.'
+      : family === 'contract' ? 'Contrato' : 'Nota de Encomenda';
+    const originStamp = String(action?.origin?.stamp || '');
+    state.originOperation = null;
+    if (els.originDetailClose) els.originDetailClose.textContent = 'Cancelar';
+    els.originDetailModal.querySelector('.docai-origin-detail-modal')?.classList.add('is-purchase-order-operation');
+    els.originDetailTitle.textContent = `${originStamp ? 'Corrigir' : 'Criar'} ${familyLabel}`;
+    els.originDetailSubtitle.hidden = true;
+    els.originDetailLoading.hidden = false;
+    els.originDetailTable.hidden = true;
+    els.originDetailEmpty.hidden = true;
+    els.originDetailValidate.hidden = true;
+    els.originDetailModal.classList.add('sz_is_open');
+    els.originDetailModal.setAttribute('aria-hidden', 'false');
+    try {
+      const previewPath = family === 'purchase_order' ? 'purchase-order/preview' : 'phc-source/preview';
+      const preview = await fetchJson(`/api/document_ai/documents/${encodeURIComponent(state.currentDocumentId)}/${previewPath}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ view: state.view, origin_stamp: originStamp, family }),
+      });
+      state.originOperation = { kind: family, originStamp, snapshot: preview.snapshot || '', submitting: false };
+      const currentOrigin = preview.current?.origin || {};
+      els.originDetailTitle.textContent = `${familyLabel}${currentOrigin.number ? ` n.º ${currentOrigin.number}${currentOrigin.year ? ` · ${currentOrigin.year}` : ''}` : ''}`;
+      els.originDetailTitle.title = els.originDetailTitle.textContent;
+      const proposal = preview.proposal || {};
+      const parts = [
+        state.documentData?.document_date ? formatDate(state.documentData.document_date) : '',
+        proposal.net_total !== null && proposal.net_total !== undefined ? `Total s/IVA ${formatMoney(proposal.net_total, preview.currency)}` : '',
+        proposal.tax_total !== null && proposal.tax_total !== undefined ? `IVA ${formatMoney(proposal.tax_total, preview.currency)}` : '',
+        proposal.gross_total !== null && proposal.gross_total !== undefined ? `Total c/IVA ${formatMoney(proposal.gross_total, preview.currency)}` : '',
+      ].filter(Boolean);
+      els.originDetailSubtitle.textContent = parts.join(' · ');
+      els.originDetailSubtitle.title = els.originDetailSubtitle.textContent;
+      els.originDetailSubtitle.hidden = false;
+      els.originDetailHead.innerHTML = '<th>Artigo</th><th>Designação</th><th>Quantidade</th><th title="Preço unitário">PU</th><th title="Preço total">PT</th><th>IVA</th><th title="Centro de Custo">CdC</th><th>Data</th><th>Matrícula</th>';
+      els.originDetailBody.innerHTML = purchaseOrderComparisonRows(preview);
+      els.originDetailLoading.hidden = true;
+      els.originDetailTable.hidden = false;
+      els.originDetailValidate.hidden = false;
+    } catch (error) {
+      state.originOperation = null;
+      els.originDetailLoading.hidden = true;
+      els.originDetailEmpty.hidden = false;
+      els.originDetailEmpty.textContent = error.message || `Não foi possível preparar ${familyLabel}.`;
+    }
+  }
+
+  async function validatePurchaseOrderOperation() {
+    const operation = state.originOperation;
+    if (!operation || operation.submitting) return;
+    const familyLabel = operation.kind === 'subcontract' ? 'Contrato Sub.Emp.'
+      : operation.kind === 'contract' ? 'Contrato' : 'Nota de Encomenda';
+    operation.submitting = true;
+    els.originDetailValidate.disabled = true;
+    try {
+      const validatePath = operation.kind === 'purchase_order' ? 'purchase-order/validate' : 'phc-source/validate';
+      const payload = await fetchJson(`/api/document_ai/documents/${encodeURIComponent(state.currentDocumentId)}/${validatePath}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          view: state.view,
+          origin_stamp: operation.originStamp,
+          expected_snapshot: operation.snapshot,
+          family: operation.kind,
+        }),
+      });
+      closeOriginDetailModal();
+      showMessage(payload.message || `${familyLabel} atualizado no PHC.`, 'success');
+      setStatus(payload.message || `${familyLabel} atualizado no PHC.`);
+      await loadInboxDocument(state.currentDocumentId, { skipGroup: true });
+    } catch (error) {
+      operation.submitting = false;
+      els.originDetailValidate.disabled = false;
+      showMessage(error.message || `Não foi possível atualizar ${familyLabel}.`, 'error');
+    }
+  }
+
+  async function openDeliveryNoteOperation() {
+    if (!state.currentDocumentId || !state.documentData || !els.originDetailModal) return;
+    const selectedNumbers = [...state.selectedDeliveryNoteGroups].filter(Boolean);
+    if (selectedNumbers.length !== 1) {
+      showMessage('Seleciona exatamente uma GdR para criar.', 'error');
+      return;
+    }
+    if (!await flushAnalysisSave()) {
+      showMessage('Guarda primeiro os dados da Análise.', 'error');
+      return;
+    }
+    const deliveryNumber = selectedNumbers[0];
+    state.originOperation = null;
+    if (els.originDetailClose) els.originDetailClose.textContent = 'Cancelar';
+    els.originDetailModal.querySelector('.docai-origin-detail-modal')?.classList.add('is-purchase-order-operation');
+    els.originDetailTitle.textContent = 'GdR';
+    els.originDetailSubtitle.hidden = true;
+    els.originDetailLoading.hidden = false;
+    els.originDetailTable.hidden = true;
+    els.originDetailEmpty.hidden = true;
+    els.originDetailValidate.hidden = true;
+    els.originDetailModal.classList.add('sz_is_open');
+    els.originDetailModal.setAttribute('aria-hidden', 'false');
+    try {
+      const preview = await fetchJson(`/api/document_ai/documents/${encodeURIComponent(state.currentDocumentId)}/delivery-note/preview`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ view: state.view, delivery_note_number: deliveryNumber }),
+      });
+      state.originOperation = {
+        kind: 'delivery_note',
+        deliveryNumber: preview.delivery_note_number || deliveryNumber,
+        submitting: false,
+      };
+      els.originDetailTitle.textContent = 'GdR';
+      els.originDetailTitle.title = els.originDetailTitle.textContent;
+      const parts = [
+        state.documentData?.document_date ? formatDate(state.documentData.document_date) : '',
+      ].filter(Boolean);
+      els.originDetailSubtitle.textContent = parts.join(' · ');
+      els.originDetailSubtitle.title = els.originDetailSubtitle.textContent;
+      els.originDetailSubtitle.hidden = false;
+      els.originDetailHead.innerHTML = '<th>Artigo</th><th>Designação</th><th>Quantidade</th><th title="Preço unitário">PU</th><th title="Preço total">PT</th><th>IVA</th><th title="Centro de Custo">CdC</th><th>Data</th><th>Matrícula</th>';
+      els.originDetailBody.innerHTML = (preview.lines || []).map((line) => `
+        <tr>
+          <td>${escapeHtml(line.article || '')}</td>
+          <td title="${escapeHtml(line.description || '')}">${escapeHtml(line.description || '')}</td>
+          <td title="Saldo Contrato: ${escapeHtml(formatNumber(line.available_quantity))}">${escapeHtml(formatNumber(line.quantity))}</td>
+          <td></td><td></td><td></td><td>${escapeHtml(line.project || '')}</td><td></td><td></td>
+        </tr>`).join('');
+      els.originDetailLoading.hidden = true;
+      els.originDetailTable.hidden = false;
+      els.originDetailValidate.hidden = false;
+    } catch (error) {
+      state.originOperation = null;
+      els.originDetailLoading.hidden = true;
+      els.originDetailEmpty.hidden = false;
+      els.originDetailEmpty.textContent = error.message || 'Não foi possível preparar a GdR.';
+    }
+  }
+
+  async function validateDeliveryNoteOperation() {
+    const operation = state.originOperation;
+    if (!operation || operation.kind !== 'delivery_note' || operation.submitting) return;
+    operation.submitting = true;
+    els.originDetailValidate.disabled = true;
+    try {
+      const payload = await fetchJson(`/api/document_ai/documents/${encodeURIComponent(state.currentDocumentId)}/delivery-note/validate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          view: state.view,
+          delivery_note_number: operation.deliveryNumber,
+        }),
+      });
+      closeOriginDetailModal();
+      showMessage(payload.message || 'GdR criada no PHC.', 'success');
+      setStatus(payload.message || 'GdR criada no PHC.');
+      await loadInboxDocument(state.currentDocumentId, { skipGroup: true });
+    } catch (error) {
+      operation.submitting = false;
+      els.originDetailValidate.disabled = false;
+      showMessage(error.message || 'Não foi possível criar a GdR.', 'error');
+    }
+  }
+
+  async function openWorkSituationOperation(action) {
+    if (!state.currentDocumentId || !state.documentData || !els.originDetailModal) return;
+    const contractStamp = String(action?.contract?.stamp || '');
+    if (!contractStamp) {
+      showMessage('Associa primeiro um Contrato Sub.Emp.', 'error');
+      return;
+    }
+    if (!await flushAnalysisSave()) {
+      showMessage('Guarda primeiro os dados da Análise.', 'error');
+      return;
+    }
+    state.originOperation = null;
+    if (els.originDetailClose) els.originDetailClose.textContent = 'Cancelar';
+    els.originDetailTitle.textContent = 'SdTSub.Emp.';
+    els.originDetailSubtitle.hidden = true;
+    els.originDetailLoading.hidden = false;
+    els.originDetailTable.hidden = true;
+    els.originDetailEmpty.hidden = true;
+    els.originDetailValidate.hidden = true;
+    els.originDetailModal.classList.add('sz_is_open');
+    els.originDetailModal.setAttribute('aria-hidden', 'false');
+    try {
+      const preview = await fetchJson(`/api/document_ai/documents/${encodeURIComponent(state.currentDocumentId)}/work-situation/preview`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ view: state.view, contract_stamp: contractStamp }),
+      });
+      state.originOperation = { kind: 'work_situation', contractStamp, submitting: false };
+      const contract = preview.contract || {};
+      const proposalLines = preview.proposal?.lines || [];
+      const net = proposalLines.reduce((sum, line) => sum + Number(line.line_total || 0), 0);
+      const tax = proposalLines.reduce((sum, line) => sum + Number(line.line_total || 0) * Number(line.tax_rate || 0) / 100, 0);
+      els.originDetailSubtitle.textContent = [
+        state.documentData?.document_date ? formatDate(state.documentData.document_date) : '',
+        `Total s/IVA ${formatMoney(net, state.documentData?.currency)}`,
+        `IVA ${formatMoney(tax, state.documentData?.currency)}`,
+        `Total c/IVA ${formatMoney(net + tax, state.documentData?.currency)}`,
+      ].filter(Boolean).join(' · ');
+      els.originDetailSubtitle.title = els.originDetailSubtitle.textContent;
+      els.originDetailSubtitle.hidden = !els.originDetailSubtitle.textContent;
+      els.originDetailHead.innerHTML = '<th>Artigo</th><th>Designação</th><th>Quantidade</th><th title="Preço unitário">PU</th><th title="Preço total">PT</th><th>IVA</th><th title="Centro de Custo">CdC</th><th>Data</th><th>Matrícula</th>';
+      els.originDetailBody.innerHTML = (preview.proposal?.lines || []).map((line) => `<tr>
+        <td>${escapeHtml(line.article || '')}</td><td title="${escapeHtml(line.description || '')}">${escapeHtml(line.description || '')}</td>
+        <td>${escapeHtml(formatNumber(line.quantity))}</td><td>${escapeHtml(formatMoney(line.unit_price, state.documentData?.currency))}</td>
+        <td>${escapeHtml(formatMoney(line.line_total, state.documentData?.currency))}</td><td>${escapeHtml(formatNumber(line.tax_rate, 2))}%</td>
+        <td>${escapeHtml(line.project || '')}</td><td>${line.date ? escapeHtml(formatDate(line.date)) : ''}</td><td></td></tr>`).join('');
+      els.originDetailLoading.hidden = true;
+      els.originDetailTable.hidden = false;
+      els.originDetailValidate.hidden = false;
+    } catch (error) {
+      state.originOperation = null;
+      els.originDetailLoading.hidden = true;
+      els.originDetailEmpty.hidden = false;
+      els.originDetailEmpty.textContent = error.message || 'Não foi possível preparar a STSE.';
+    }
+  }
+
+  async function validateWorkSituationOperation() {
+    const operation = state.originOperation;
+    if (!operation || operation.kind !== 'work_situation' || operation.submitting) return;
+    operation.submitting = true;
+    els.originDetailValidate.disabled = true;
+    try {
+      const payload = await fetchJson(`/api/document_ai/documents/${encodeURIComponent(state.currentDocumentId)}/work-situation/validate`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ view: state.view, contract_stamp: operation.contractStamp }),
+      });
+      closeOriginDetailModal();
+      showMessage(payload.message || 'STSE criada no PHC.', 'success');
+      await loadInboxDocument(state.currentDocumentId, { skipGroup: true });
+    } catch (error) {
+      operation.submitting = false;
+      els.originDetailValidate.disabled = false;
+      showMessage(error.message || 'Não foi possível criar a STSE.', 'error');
+    }
+  }
+
+  function validateOriginOperation() {
+    if (state.originOperation?.kind === 'delivery_note') return validateDeliveryNoteOperation();
+    if (state.originOperation?.kind === 'work_situation') return validateWorkSituationOperation();
+    return validatePurchaseOrderOperation();
+  }
+
+  window.registerDocumentAiOriginAction('create_purchase_order', openPurchaseOrderOperation);
+  window.registerDocumentAiOriginAction('correct_purchase_order', openPurchaseOrderOperation);
+  window.registerDocumentAiOriginAction('create_contract', openPurchaseOrderOperation);
+  window.registerDocumentAiOriginAction('correct_contract', openPurchaseOrderOperation);
+  window.registerDocumentAiOriginAction('create_subcontract', openPurchaseOrderOperation);
+  window.registerDocumentAiOriginAction('correct_subcontract', openPurchaseOrderOperation);
+  window.registerDocumentAiOriginAction('create_delivery_note', openDeliveryNoteOperation);
+  window.registerDocumentAiOriginAction('distribute_delivery_note', toggleDeliveryNoteDistribution);
+  window.registerDocumentAiOriginAction('create_work_situation', openWorkSituationOperation);
 
   function renderDocumentBatch(batch = {}) {
     const documents = Array.isArray(batch.documents) ? batch.documents : [];
@@ -2463,7 +3533,7 @@ document.addEventListener('DOMContentLoaded', () => {
     els.splitBtn.disabled = true;
     els.runBtn.disabled = true;
     if (els.resetBtn) els.resetBtn.disabled = true;
-    setStatus(`A separar ${documents.length} documentos e a criar o grupo no inbox...`);
+    setStatus(`A separar ${documents.length} documentos independentes no inbox...`);
     const formData = new FormData();
     formData.append('file', state.file);
     formData.append('document_batch', JSON.stringify(batch));
@@ -2471,11 +3541,13 @@ document.addEventListener('DOMContentLoaded', () => {
     formData.append('source_document_id', state.currentDocumentId || '');
     try {
       const payload = await fetchJson('/api/document_ai/extract/split', { method: 'POST', body: formData });
-      const group = payload.group || {};
-      applyDocumentGroup(group);
       setStatus(payload.message || 'Documentos separados e adicionados ao inbox.');
       showMessage(payload.message || 'Documentos separados com sucesso.', 'success');
-      await openGroupDocument(0);
+      const firstDocument = (payload.batch_audit?.documents || [])[0];
+      if (firstDocument?.id) {
+        clearCurrentAnalysis();
+        await loadInboxDocument(firstDocument.id, { skipGroup: true });
+      }
     } catch (error) {
       console.error(error);
       setStatus(error.message || 'Não foi possível separar o PDF.', true);
@@ -2560,6 +3632,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function closeProjectModal() {
     state.projectTargetLineIndex = null;
+    els.projectDistribute.hidden = true;
     els.projectModal.classList.remove('sz_is_open');
     els.projectModal.setAttribute('aria-hidden', 'true');
   }
@@ -2593,6 +3666,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <strong>${escapeHtml(project.ccusto || '--')}</strong>
           <span>${escapeHtml([project.name, project.client, [project.address, project.city].filter(Boolean).join(' · ')].filter(Boolean).join(' · '))}</span>
         </span>
+        <span class="docai-supplier-match-score">Associar</span>
       </button>
     `).join('');
   }
@@ -2626,6 +3700,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     els.projectSearch.value = state.selectedProject?.ccusto || '';
+    els.projectDistribute.hidden = true;
     els.projectContext.textContent = `Centros de Custo de ${state.documentData.customer?.name || 'Entidade'}`;
     els.projectModal.classList.add('sz_is_open');
     els.projectModal.setAttribute('aria-hidden', 'false');
@@ -2639,6 +3714,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const line = state.documentData?.lines?.[Number(lineIndex)];
     if (!line) return;
     state.projectTargetLineIndex = Number(lineIndex);
+    els.projectDistribute.hidden = false;
     els.projectSearch.value = String(line.ccusto || line.project_ccusto || '').trim();
     els.projectContext.textContent = `Centros de Custo de ${state.documentData.customer?.name || 'Entidade'}`;
     els.projectModal.classList.add('sz_is_open');
@@ -2655,11 +3731,24 @@ document.addEventListener('DOMContentLoaded', () => {
     if (state.projectTargetLineIndex !== null) {
       const line = state.documentData.lines?.[state.projectTargetLineIndex];
       if (!line) return;
+      detachAssociatedLine(line);
       line.ccusto = selected.ccusto || '';
       line.project_ccusto = selected.ccusto || '';
       line.project_machine = selected.machine || '';
       line.project_location = selected.location || '';
       markLineManualFields(line, 'ccusto', 'project_ccusto', 'project_machine', 'project_location');
+      if (line.group_role === 'principal') groupMembers(line).forEach((member) => {
+        if (member === line) return;
+        member.ccusto = line.ccusto;
+        member.project_ccusto = line.project_ccusto;
+        member.project_machine = line.project_machine;
+        member.project_location = line.project_location;
+        (member.sub_lines || []).forEach((child) => {
+          child.ccusto = line.ccusto;
+          child.project_ccusto = line.project_ccusto;
+        });
+        markLineManualFields(member, 'ccusto', 'project_ccusto', 'project_machine', 'project_location');
+      });
       state.projectTargetLineIndex = null;
       closeProjectModal();
       renderLines(state.documentData.lines || [], state.documentData.currency || '');
@@ -2772,31 +3861,31 @@ document.addEventListener('DOMContentLoaded', () => {
     const article = state.articleCandidates[Number(index)];
     const line = state.documentData?.lines?.[state.articleTargetLineIndex];
     if (!article || !line) return;
-    const groupCode = normalizeLineGroupCode(line.article_group_code);
-    const groupedLines = groupCode
-      ? (state.documentData?.lines || []).filter((candidate) => {
-          const candidateCode = normalizeLineGroupCode(candidate?.article_group_code);
-          return candidateCode && candidateCode.slice(1) === groupCode.slice(1);
-        })
-      : [line];
+    detachAssociatedLine(line);
+    const groupedLines = line.group_role === 'principal' ? groupMembers(line) : [line];
     groupedLines.forEach((candidate) => {
       if (!candidate.source_ref) candidate.source_ref = candidate.extracted_ref || candidate.ref || '';
       candidate.article_ref = article.ref || '';
       candidate.article_family = article.family || candidate.article_family || '';
-      if (article.unit) candidate.unit = article.unit;
+      if (candidate === line && article.unit) candidate.unit = article.unit;
+      (candidate.sub_lines || []).forEach((child) => {
+        child.article_ref = candidate.article_ref;
+        child.article_family = candidate.article_family;
+      });
       candidate.article_selection = 'manual';
-      markLineManualFields(candidate, 'article_ref', 'article_family', 'unit', 'article_selection');
+      markLineManualFields(candidate, 'article_ref', 'article_family', ...(candidate === line ? ['unit'] : []), 'article_selection');
     });
     state.articleTargetLineIndex = null;
     closeArticleModal();
     renderLines(state.documentData.lines || [], state.documentData.currency || '');
-    await saveAdjustedLines(groupCode
-      ? `Artigo ${article.ref} guardado no grupo ${groupCode.slice(1)}.`
+    await saveAdjustedLines(line.group_id
+      ? `Artigo ${article.ref} guardado no grupo.`
       : `Artigo ${article.ref} guardado na linha.`);
   }
 
   function closeVehicleModal() {
     state.vehicleTargetLineIndex = null;
+    els.vehicleDistribute.hidden = true;
     els.vehicleModal.classList.remove('sz_is_open');
     els.vehicleModal.setAttribute('aria-hidden', 'true');
   }
@@ -2813,7 +3902,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <strong>${escapeHtml(vehicle.registration || '--')}</strong>
           <span>${escapeHtml([vehicle.brand, vehicle.model].filter(Boolean).join(' · ') || 'Sem descrição')}</span>
         </span>
-        <span class="docai-supplier-match-score">${escapeHtml(vehicle.fleet_number || '')}</span>
+        <span class="docai-supplier-match-score">${escapeHtml([vehicle.fleet_number, 'Associar'].filter(Boolean).join(' · '))}</span>
       </button>
     `).join('');
   }
@@ -2849,6 +3938,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     state.vehicleTargetLineIndex = Number(lineIndex);
+    els.vehicleDistribute.hidden = false;
     els.vehicleSearch.value = String(line.registration || line.matricula || '').trim();
     els.vehicleRemove.hidden = !els.vehicleSearch.value;
     els.vehicleModal.classList.add('sz_is_open');
@@ -2863,11 +3953,29 @@ document.addEventListener('DOMContentLoaded', () => {
     const vehicle = state.vehicleCandidates[Number(index)];
     const line = state.documentData?.lines?.[state.vehicleTargetLineIndex];
     if (!vehicle || !line) return;
+    detachAssociatedLine(line);
     line.registration = vehicle.registration || '';
     line.matricula = vehicle.registration || '';
     line.vehicle_stamp = vehicle.vehicle_stamp || '';
     line.vehicle_source = 'V_ALL_VA';
-    markLineManualFields(line, 'registration', 'matricula', 'vehicle_stamp', 'vehicle_source');
+    if (!String(line.ccusto || line.project_ccusto || '').trim() && String(vehicle.ccusto || '').trim()) {
+      line.ccusto = vehicle.ccusto;
+      line.project_ccusto = vehicle.ccusto;
+    }
+    markLineManualFields(line, 'registration', 'matricula', 'vehicle_stamp', 'vehicle_source', 'ccusto', 'project_ccusto');
+    if (line.group_role === 'principal') groupMembers(line).forEach((member) => {
+      if (member === line) return;
+      member.registration = line.registration;
+      member.matricula = line.matricula;
+      member.vehicle_stamp = line.vehicle_stamp;
+      member.vehicle_source = line.vehicle_source;
+      (member.sub_lines || []).forEach((child) => {
+        child.registration = line.registration;
+        child.matricula = line.matricula;
+        child.vehicle_stamp = line.vehicle_stamp;
+      });
+      markLineManualFields(member, 'registration', 'matricula', 'vehicle_stamp', 'vehicle_source');
+    });
     closeVehicleModal();
     renderLines(state.documentData.lines || [], state.documentData.currency || '');
     await saveAdjustedLines(`Viatura ${vehicle.registration} guardada na linha.`);
@@ -2876,11 +3984,24 @@ document.addEventListener('DOMContentLoaded', () => {
   async function removeVehicle() {
     const line = state.documentData?.lines?.[state.vehicleTargetLineIndex];
     if (!line) return;
+    detachAssociatedLine(line);
     line.registration = '';
     line.matricula = '';
     line.vehicle_stamp = '';
     line.vehicle_source = '';
     markLineManualFields(line, 'registration', 'matricula', 'vehicle_stamp', 'vehicle_source');
+    if (line.group_role === 'principal') groupMembers(line).forEach((member) => {
+      member.registration = '';
+      member.matricula = '';
+      member.vehicle_stamp = '';
+      member.vehicle_source = '';
+      (member.sub_lines || []).forEach((child) => {
+        child.registration = '';
+        child.matricula = '';
+        child.vehicle_stamp = '';
+      });
+      markLineManualFields(member, 'registration', 'matricula', 'vehicle_stamp', 'vehicle_source');
+    });
     closeVehicleModal();
     renderLines(state.documentData.lines || [], state.documentData.currency || '');
     await saveAdjustedLines('Associação à viatura removida.');
@@ -2891,6 +4012,23 @@ document.addEventListener('DOMContentLoaded', () => {
     state.bcSelectedStamps = new Set();
     els.bcModal.classList.remove('sz_is_open');
     els.bcModal.setAttribute('aria-hidden', 'true');
+  }
+
+  function allocatedOriginQuantityElsewhere(originStamp, lineStamp, currentLine) {
+    let total = 0;
+    const visit = (item) => {
+      if (item !== currentLine) {
+        (item.bc_allocations || []).forEach((allocation) => {
+          if (String(allocation.origin_stamp || '') === originStamp
+              && String(allocation.origin_line_stamp || '') === lineStamp) {
+            total += Number(allocation.quantity || 0);
+          }
+        });
+      }
+      (item.sub_lines || item.sublines || []).forEach(visit);
+    };
+    (state.documentData?.lines || []).forEach(visit);
+    return total;
   }
 
   function renderBcAssignments() {
@@ -2909,14 +4047,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const lineStamp = String(sourceLine.line_stamp || '');
         if (!lineStamp) return '';
         const saved = (line.bc_allocations || []).find((part) => part.origin_line_stamp === lineStamp && part.origin_stamp === stamp);
-        const available = Number(sourceLine.pending_qty ?? sourceLine.qty ?? 0);
+        const phcBalance = Number(sourceLine.pending_qty ?? sourceLine.qty ?? 0);
+        const allocatedElsewhere = allocatedOriginQuantityElsewhere(stamp, lineStamp, line);
+        const available = Math.max(0, phcBalance - allocatedElsewhere);
         return `<label class="docai-bc-assignment-option">
-          <span><strong>${escapeHtml(label)}</strong>
-            <small>${escapeHtml(sourceLine.ref || '')} · ${escapeHtml(sourceLine.description || '')}</small>
-            <small>${escapeHtml(origin.ccusto || '')} · ${escapeHtml(available)} ${escapeHtml(sourceLine.unit || '')}</small>
+          <span><strong>Dossier: ${escapeHtml(label)}</strong>
+            <small>Linha PHC: ${escapeHtml(sourceLine.ref || 'sem referência')} · ${escapeHtml(sourceLine.description || '')}</small>
+            <small>${escapeHtml(origin.ccusto || 'Sem CdC')} · Quantidade origem: ${escapeHtml(formatNumber(sourceLine.qty ?? phcBalance))} ${escapeHtml(sourceLine.unit || '')} · Saldo disponível: ${escapeHtml(formatNumber(available))} ${escapeHtml(sourceLine.unit || '')}</small>
           </span>
           <input type="number" min="0" max="${escapeHtml(available)}" step="0.0001"
-            class="sz_input docai-origin-quantity" aria-label="Quantidade ${escapeHtml(label)}"
+            class="sz_input docai-origin-quantity" aria-label="Quantidade a distribuir do ${escapeHtml(label)}"
             data-bc-origin-stamp="${escapeHtml(stamp)}" data-bc-line-stamp="${escapeHtml(lineStamp)}"
             value="${escapeHtml(saved?.quantity ?? 0)}">
         </label>`;
@@ -2956,13 +4096,62 @@ document.addEventListener('DOMContentLoaded', () => {
         line_total: match.origin_total || 0,
       }));
     }
-    return selected;
+    return selected.length ? selected : officialLines;
+  }
+
+  function bindBcLineage(target, allocations) {
+    const exact = (allocations || []).filter((allocation) => (
+      String(allocation.origin_stamp || '').trim() && String(allocation.origin_line_stamp || '').trim()
+    ));
+    if (!target || !exact.length) return;
+    const nonBc = (target.phc_origin_links || []).filter((link) => String(link.origin_family || '') !== 'bc');
+    const links = exact.map((allocation) => ({
+      origin_family: 'bc', bostamp: allocation.origin_stamp, bistamp: allocation.origin_line_stamp,
+      origin_stamp: allocation.origin_stamp, origin_line_stamp: allocation.origin_line_stamp,
+      origin_number: allocation.origin_number || '', origin_year: allocation.origin_year || null,
+      origin_line_order: Number(allocation.origin_line_order || 0),
+    }));
+    target.phc_origin_links = [...nonBc, ...links];
+    target.phc_origin_stamp = links[0].bostamp;
+    target.phc_origin_line_stamp = links[0].bistamp;
+    target.bostamp = links[0].bostamp;
+    target.bistamp = links[0].bistamp;
+  }
+
+  function applyBcAllocationLineage(line, allocations) {
+    const children = Array.isArray(line.sub_lines) ? line.sub_lines : [];
+    const clearBc = (target) => {
+      const previous = target.phc_origin_links || [];
+      const oldBcStamps = new Set(previous.filter((link) => String(link.origin_family || '') === 'bc').map((link) => String(link.bostamp || link.origin_stamp || '')));
+      const links = previous.filter((link) => String(link.origin_family || '') !== 'bc');
+      target.phc_origin_links = links;
+      if (oldBcStamps.has(String(target.phc_origin_stamp || ''))) {
+        target.phc_origin_stamp = '';
+        target.phc_origin_line_stamp = '';
+        target.bostamp = '';
+        target.bistamp = '';
+      }
+    };
+    clearBc(line);
+    children.forEach(clearBc);
+    if (!children.length) {
+      bindBcLineage(line, allocations);
+      return;
+    }
+    const unused = [...allocations];
+    children.forEach((child) => {
+      const quantity = Number(child.qty ?? child.quantity ?? 0);
+      let index = unused.findIndex((allocation) => Math.abs(Number(allocation.quantity || 0) - quantity) <= 0.00001);
+      if (index < 0 && unused.length) index = 0;
+      if (index >= 0) bindBcLineage(child, [unused.splice(index, 1)[0]]);
+    });
   }
 
   async function saveBcAssignments() {
     const lineIndex = state.bcTargetLineIndex;
     const line = state.documentData?.lines?.[lineIndex];
     if (!line) return;
+    detachAssociatedLine(line);
     const origins = associatedBcOrigins();
     const allocations = [];
     const inputs = [...els.bcList.querySelectorAll('[data-bc-line-stamp]')];
@@ -2994,7 +4183,13 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     line.bc_allocations = allocations;
-    markLineManualFields(line, 'bc_allocations');
+    applyBcAllocationLineage(line, allocations);
+    markLineManualFields(line, 'bc_allocations', 'phc_origin_links', 'phc_origin_stamp', 'phc_origin_line_stamp', 'bostamp', 'bistamp', 'sub_lines');
+    if (line.group_role === 'principal') groupMembers(line).forEach((member) => {
+      if (member === line) return;
+      inheritPrincipalFields(line, member);
+      markLineManualFields(member, 'phc_origin_stamp', 'phc_origin_line_stamp', 'bostamp', 'bistamp');
+    });
     if (allocations.length < 2) state.expandedBcLines.delete(lineIndex);
     closeBcModal();
     renderLines(state.documentData.lines || [], state.documentData.currency || '');
@@ -3188,6 +4383,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderResult(payload) {
     const documentData = applyManualOverrides(payload.document || {}, state.pendingManualOverrides);
+    ensureLineIdentities(documentData.lines || []);
     payload.document = documentData;
     state.pendingManualOverrides = null;
     const serverFingerprint = draftFingerprint(documentData);
@@ -3290,6 +4486,7 @@ document.addEventListener('DOMContentLoaded', () => {
     state.projectSuggestionDismissed = false;
     state.deliveryNoteGroups = [];
     state.virtualDeliveryNotesActive = false;
+    state.deliveryNoteDistributionMode = false;
     state.originLineMatches = [];
     state.originLineReferenceLabel = '';
     state.originLineMatchByLine = new WeakMap();
@@ -3302,7 +4499,6 @@ document.addEventListener('DOMContentLoaded', () => {
     els.originFlow.innerHTML = '';
     els.originFlow.hidden = true;
     els.originLoading.hidden = false;
-    els.originSource.hidden = true;
     closeProjectModal();
     closeSupplierModal();
     renderProjectCard();
@@ -3356,6 +4552,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     } catch (error) {
       console.error(error);
+      if (options.force) state.pendingManualOverrides = null;
       els.loading.hidden = true;
       els.empty.hidden = hadPreviousResult;
       els.results.hidden = !hadPreviousResult;
@@ -3671,11 +4868,18 @@ document.addEventListener('DOMContentLoaded', () => {
     renderModeCard();
   });
   els.gedFolderTrigger?.addEventListener('click', () => {
+    if (els.customerName) els.customerName.textContent = 'INTERSOL';
+    els.gedFolderTrigger.hidden = true;
     els.gedFolderSelect.hidden = false;
     els.gedFolderSelect.focus();
   });
   els.gedFolderSelect?.addEventListener('change', async () => {
     if (!state.documentData?.customer) return;
+    const previous = {
+      folder: state.documentData.customer.ged_folder,
+      manual: state.documentData.customer.ged_folder_manually_selected,
+      suggested: state.documentData.customer.ged_folder_suggested_by,
+    };
     state.gedFolderManuallySelected = true;
     state.documentData.customer.ged_folder = els.gedFolderSelect.value;
     state.documentData.customer.ged_folder_manually_selected = true;
@@ -3686,10 +4890,24 @@ document.addEventListener('DOMContentLoaded', () => {
     setStatus(els.gedFolderSelect.value ? `Agência INTERSOL alterada para ${agency}.` : 'Falta a agência.', !els.gedFolderSelect.value);
     if (!state.currentDocumentId) return;
     try {
-      await scheduleAnalysisSave({ immediate: true });
+      const saved = await scheduleAnalysisSave({ immediate: true });
+      if (!saved) throw new Error('save_failed');
       setStatus(`Agência INTERSOL ${agency} guardada.`);
     } catch (error) {
+      state.documentData.customer.ged_folder = previous.folder;
+      state.documentData.customer.ged_folder_manually_selected = previous.manual;
+      state.documentData.customer.ged_folder_suggested_by = previous.suggested;
+      state.gedFolderManuallySelected = Boolean(previous.manual);
+      renderGedDestination();
       setStatus('Não foi possível guardar a agência INTERSOL.', true);
+    }
+  });
+  els.gedFolderSelect?.addEventListener('click', (event) => event.stopPropagation());
+  els.gedFolderTrigger?.addEventListener('click', (event) => event.stopPropagation());
+  els.gedFolderSelect?.addEventListener('blur', () => {
+    if (!els.gedFolderSelect.hidden) {
+      els.gedFolderSelect.hidden = true;
+      configureGedFolderControl();
     }
   });
   els.accessCloseTop?.addEventListener('click', closeAccessModal);
@@ -3795,8 +5013,25 @@ document.addEventListener('DOMContentLoaded', () => {
     if (pdfUrl) window.open(pdfUrl, '_blank', 'noopener,noreferrer');
   });
   els.splitBtn?.addEventListener('click', splitDocumentBatch);
-  els.splitLineBtn?.addEventListener('click', distributeSelectedLinesAcrossDeliveryNotes);
+  els.splitLineBtn?.addEventListener('click', toggleDeliveryNoteDistribution);
   els.linesBody?.addEventListener('click', (event) => {
+    const lineCosts = event.target.closest('[data-line-costs]');
+    if (lineCosts) {
+      openLineCosts(Number(lineCosts.dataset.lineCosts));
+      return;
+    }
+    const groupHandle = event.target.closest('[data-line-group-handle]');
+    if (groupHandle) {
+      const lineId = groupHandle.dataset.lineGroupHandle;
+      if (state.keyboardGroupLineId && state.keyboardGroupLineId !== lineId) groupLineOnTarget(state.keyboardGroupLineId, lineId);
+      else {
+        state.keyboardGroupLineId = state.keyboardGroupLineId === lineId ? '' : lineId;
+        els.linesBody.querySelectorAll('[data-line-group-handle].is-armed').forEach((item) => item.classList.remove('is-armed'));
+        groupHandle.classList.toggle('is-armed', Boolean(state.keyboardGroupLineId));
+        if (state.keyboardGroupLineId) setStatus('Seleciona a linha de destino para agrupar. Delete desagrupa a linha atual.');
+      }
+      return;
+    }
     const vehicle = event.target.closest('[data-line-vehicle]');
     if (vehicle) {
       openVehicleModal(Number(vehicle.dataset.lineVehicle));
@@ -3828,6 +5063,51 @@ document.addEventListener('DOMContentLoaded', () => {
     const picker = event.target.closest('[data-line-select]');
     if (picker) selectLineForSplit(Number(picker.dataset.lineSelect));
   });
+  els.linesBody?.addEventListener('keydown', (event) => {
+    const handle = event.target.closest('[data-line-group-handle]');
+    if (!handle) return;
+    if (['Delete', 'Backspace'].includes(event.key)) {
+      event.preventDefault();
+      ungroupLine(handle.dataset.lineGroupHandle);
+    } else if (event.key === 'Escape') {
+      state.keyboardGroupLineId = '';
+      handle.classList.remove('is-armed');
+    }
+  });
+  els.linesBody?.addEventListener('dragstart', (event) => {
+    const handle = event.target.closest('[data-line-group-handle]');
+    if (!handle) { event.preventDefault(); return; }
+    state.draggedLineId = handle.dataset.lineGroupHandle;
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', state.draggedLineId);
+    els.groupDropzone.hidden = false;
+  });
+  els.linesBody?.addEventListener('dragover', (event) => {
+    if (!state.draggedLineId || !event.target.closest('tr[data-line-id]')) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+  });
+  els.linesBody?.addEventListener('drop', (event) => {
+    const target = event.target.closest('tr[data-line-id]');
+    if (!target || !state.draggedLineId) return;
+    event.preventDefault();
+    const sourceId = state.draggedLineId;
+    state.draggedLineId = '';
+    els.groupDropzone.hidden = true;
+    groupLineOnTarget(sourceId, target.dataset.lineId);
+  });
+  els.linesBody?.addEventListener('dragend', () => {
+    state.draggedLineId = '';
+    if (els.groupDropzone) els.groupDropzone.hidden = true;
+  });
+  els.groupDropzone?.addEventListener('dragover', (event) => event.preventDefault());
+  els.groupDropzone?.addEventListener('drop', (event) => {
+    event.preventDefault();
+    const lineId = state.draggedLineId || event.dataTransfer.getData('text/plain');
+    state.draggedLineId = '';
+    els.groupDropzone.hidden = true;
+    ungroupLine(lineId);
+  });
   els.documentSummary?.addEventListener('click', (event) => {
     const field = event.target.closest('[data-header-edit]')?.dataset.headerEdit;
     if (!field) return;
@@ -3844,27 +5124,25 @@ document.addEventListener('DOMContentLoaded', () => {
     if (event.key === 'Escape') { state.headerEditing = ''; renderDocumentCard(); }
     if (event.key === 'Enter') { event.preventDefault(); saveHeaderField(input.dataset.headerInput, input.value); }
   });
-  els.linesBody?.addEventListener('change', async (event) => {
-    const input = event.target.closest('[data-line-group], [data-line-description], [data-line-qty], [data-line-unit-price], [data-line-total], [data-line-tax-rate], [data-line-date]');
+  els.documentSummary?.addEventListener('focusout', (event) => {
+    const input = event.target.closest('[data-header-input]');
     if (!input) return;
-    const lineIndex = Number(input.dataset.lineGroup ?? input.dataset.lineDescription ?? input.dataset.lineQty ?? input.dataset.lineUnitPrice ?? input.dataset.lineTotal ?? input.dataset.lineTaxRate ?? input.dataset.lineDate);
+    window.setTimeout(() => {
+      if (state.headerEditing === input.dataset.headerInput) {
+        saveHeaderField(input.dataset.headerInput, input.value);
+      }
+    }, 0);
+  });
+  els.linesBody?.addEventListener('change', async (event) => {
+    const input = event.target.closest('[data-line-description], [data-line-qty], [data-line-unit-price], [data-line-total], [data-line-tax-rate], [data-line-date]');
+    if (!input) return;
+    const lineIndex = Number(input.dataset.lineDescription ?? input.dataset.lineQty ?? input.dataset.lineUnitPrice ?? input.dataset.lineTotal ?? input.dataset.lineTaxRate ?? input.dataset.lineDate);
     const line = state.documentData?.lines?.[lineIndex];
     if (!line) return;
+    const isCommonField = input.matches('[data-line-tax-rate], [data-line-date]');
+    if (isCommonField) detachAssociatedLine(line);
     let message = 'Linha guardada.';
-    if (input.matches('[data-line-group]')) {
-      const validation = validateLineGroupChange(state.documentData.lines || [], lineIndex, input.value);
-      if (!validation.ok) {
-        input.value = normalizeLineGroupCode(line.article_group_code);
-        input.classList.add('is-invalid');
-        window.setTimeout(() => input.classList.remove('is-invalid'), 1800);
-        setStatus(validation.message, true);
-        showMessage(validation.message, 'error');
-        return;
-      }
-      line.article_group_code = validation.code;
-      markLineManualFields(line, 'article_group_code');
-      message = validation.code ? `Grupo ${validation.code} guardado.` : 'Grupo removido.';
-    } else if (input.matches('[data-line-description]')) {
+    if (input.matches('[data-line-description]')) {
       line.description = input.value.trim();
       markLineManualFields(line, 'description');
       message = 'Designação guardada.';
@@ -3887,19 +5165,27 @@ document.addEventListener('DOMContentLoaded', () => {
       markLineManualFields(line, input.matches('[data-line-qty]') ? 'qty' : 'unit_price', 'net_amount');
       message = 'Quantidade e valores guardados.';
     }
+    if (line.group_role === 'principal') {
+      const commonField = input.matches('[data-line-tax-rate]') ? 'tax_rate'
+        : input.matches('[data-line-date]') ? 'date' : '';
+      if (commonField) groupMembers(line).forEach((member) => {
+        if (member === line) return;
+        member[commonField] = line[commonField];
+        (member.sub_lines || []).forEach((child) => { child[commonField] = line[commonField]; });
+        markLineManualFields(member, commonField);
+      });
+    }
     renderLines(state.documentData.lines || [], state.documentData.currency || '');
     scheduleAnalysisSave();
   });
-  els.groupPrevious?.addEventListener('click', () => {
-    if (!state.loading && !state.splitting) openGroupDocument(state.groupIndex - 1);
-  });
-  els.groupNext?.addEventListener('click', () => {
-    if (!state.loading && !state.splitting) openGroupDocument(state.groupIndex + 1);
-  });
   els.supplierCard?.addEventListener('click', openSupplierModal);
-  els.customerCard?.addEventListener('click', openEntityModal);
+  els.customerCard?.addEventListener('click', (event) => {
+    if (!event.target.closest('[data-agency-control]')) openEntityModal();
+  });
   els.customerCard?.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openEntityModal(); }
+    if (!event.target.closest('[data-agency-control]') && (event.key === 'Enter' || event.key === ' ')) {
+      event.preventDefault(); openEntityModal();
+    }
   });
   els.supplierCard?.addEventListener('keydown', (event) => {
     if (event.key === 'Enter' || event.key === ' ') {
@@ -3956,6 +5242,7 @@ document.addEventListener('DOMContentLoaded', () => {
     selectSupplier(Number(option.dataset.supplierIndex));
   });
   els.projectSearchBtn?.addEventListener('click', searchProjectCandidates);
+  els.projectDistribute?.addEventListener('click', () => openLineDistribution(state.projectTargetLineIndex, 'project'));
   els.projectSearch?.addEventListener('keydown', (event) => {
     if (event.key === 'Enter') searchProjectCandidates();
   });
@@ -3982,6 +5269,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (option) selectArticle(Number(option.dataset.articleIndex));
   });
   els.vehicleSearchBtn?.addEventListener('click', searchVehicleCandidates);
+  els.vehicleDistribute?.addEventListener('click', () => openLineDistribution(state.vehicleTargetLineIndex, 'vehicle'));
   els.vehicleSearch?.addEventListener('keydown', (event) => {
     if (event.key === 'Enter') searchVehicleCandidates();
   });
@@ -3995,6 +5283,59 @@ document.addEventListener('DOMContentLoaded', () => {
     const option = event.target.closest('[data-vehicle-index]');
     if (option) selectVehicle(Number(option.dataset.vehicleIndex));
   });
+  els.lineDistributionAdd?.addEventListener('click', addLineDistributionRow);
+  els.lineDistributionCloseTop?.addEventListener('click', closeLineDistributionModal);
+  els.lineDistributionClose?.addEventListener('click', closeLineDistributionModal);
+  els.lineDistributionSave?.addEventListener('click', saveLineDistribution);
+  els.lineDistributionSearchBack?.addEventListener('click', returnToLineDistribution);
+  els.lineDistributionSearchButton?.addEventListener('click', searchLineDistributionDestinations);
+  els.lineDistributionSearchInput?.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') searchLineDistributionDestinations();
+  });
+  els.lineDistributionSearchResults?.addEventListener('click', (event) => {
+    const option = event.target.closest('[data-distribution-search-index]');
+    if (option) selectLineDistributionDestination(Number(option.dataset.distributionSearchIndex));
+  });
+  els.lineDistributionModal?.addEventListener('click', (event) => {
+    if (event.target === els.lineDistributionModal) closeLineDistributionModal();
+  });
+  els.lineDistributionBody?.addEventListener('input', (event) => {
+    const input = event.target.closest('[data-distribution-field]');
+    if (input) updateLineDistributionField(input);
+  });
+  els.lineDistributionBody?.addEventListener('click', (event) => {
+    const search = event.target.closest('[data-distribution-search]');
+    if (search) {
+      openLineDistributionSearch(search.dataset.distributionRow, search.dataset.distributionSearch);
+      return;
+    }
+    const remove = event.target.closest('[data-distribution-remove]');
+    if (!remove) return;
+    state.lineDistributionDraft.splice(Number(remove.dataset.distributionRemove), 1);
+    if (!state.lineDistributionDraft.length) addLineDistributionRow();
+    else renderLineDistribution();
+  });
+  els.lineCostsCloseTop?.addEventListener('click', closeLineCostsModal);
+  els.lineCostsClose?.addEventListener('click', closeLineCostsModal);
+  els.lineCostsBack?.addEventListener('click', renderLineCosts);
+  els.lineCostsTabs?.addEventListener('click', (event) => {
+    const type = event.target.closest('[data-line-cost-type]')?.dataset.lineCostType;
+    if (type) { state.lineCostsType = type; renderLineCosts(); }
+  });
+  els.lineCostsModal?.addEventListener('click', (event) => {
+    if (event.target === els.lineCostsModal) closeLineCostsModal();
+  });
+  els.lineCostsBody?.addEventListener('click', (event) => {
+    const detail = event.target.closest('[data-line-cost-detail]');
+    if (detail) showLineCostDetail(Number(detail.dataset.lineCostDetail));
+  });
+  els.lineCostsBody?.addEventListener('keydown', (event) => {
+    const detail = event.target.closest('[data-line-cost-detail]');
+    if (detail && ['Enter', ' '].includes(event.key)) {
+      event.preventDefault();
+      showLineCostDetail(Number(detail.dataset.lineCostDetail));
+    }
+  });
   els.bcCloseTop?.addEventListener('click', closeBcModal);
   els.bcClose?.addEventListener('click', closeBcModal);
   els.bcSave?.addEventListener('click', saveBcAssignments);
@@ -4002,6 +5343,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (event.target === els.bcModal) closeBcModal();
   });
   els.originFlow?.addEventListener('click', (event) => {
+    if (event.target.closest('[data-credit-save]')) {
+      event.preventDefault();
+      saveCreditNoteMapping();
+      return;
+    }
     const linkButton = event.target.closest('[data-origin-link]');
     if (linkButton) {
       event.preventDefault();
@@ -4013,6 +5359,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (option) openOriginDetail(option.dataset.originIndex);
   });
   els.originFlow?.addEventListener('change', (event) => {
+    const creditFo = event.target.closest('[data-credit-fo]');
+    if (creditFo) {
+      state.creditNoteSelectedFo = state.creditNoteCandidates[Number(creditFo.dataset.creditFo)]?.fostamp || '';
+      renderCreditNoteOrigins({ candidates: state.creditNoteCandidates, mapping: { original_fostamp: state.creditNoteSelectedFo } });
+      return;
+    }
     const input = event.target.closest('[data-virtual-bl]');
     if (!input) return;
     if (input.checked) state.selectedDeliveryNoteGroups.add(input.dataset.virtualBl);
@@ -4033,6 +5385,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   els.originDetailCloseTop?.addEventListener('click', closeOriginDetailModal);
   els.originDetailClose?.addEventListener('click', closeOriginDetailModal);
+  els.originDetailValidate?.addEventListener('click', validateOriginOperation);
   els.originDetailModal?.addEventListener('click', (event) => {
     if (event.target === els.originDetailModal) closeOriginDetailModal();
   });
@@ -4052,6 +5405,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (event.key === 'Escape' && els.projectModal?.classList.contains('sz_is_open')) closeProjectModal();
     if (event.key === 'Escape' && els.articleModal?.classList.contains('sz_is_open')) closeArticleModal();
     if (event.key === 'Escape' && els.vehicleModal?.classList.contains('sz_is_open')) closeVehicleModal();
+    if (event.key === 'Escape' && els.lineDistributionModal?.classList.contains('sz_is_open')) closeLineDistributionModal();
+    if (event.key === 'Escape' && els.lineCostsModal?.classList.contains('sz_is_open')) closeLineCostsModal();
     if (event.key === 'Escape' && els.bcModal?.classList.contains('sz_is_open')) closeBcModal();
     if (event.key === 'Escape' && els.originDetailModal?.classList.contains('sz_is_open')) closeOriginDetailModal();
   });

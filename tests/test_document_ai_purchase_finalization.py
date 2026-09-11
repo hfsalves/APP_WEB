@@ -5,6 +5,8 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from services.document_ai_service import (
+    _assert_final_purchase_lineage,
+    _effective_portal_lines,
     _has_complete_purchase_finalization,
     _integrate_accounting_purchase,
 )
@@ -49,6 +51,21 @@ class DocumentAiPurchaseFinalizationTests(unittest.TestCase):
             'proforma_stamps': [],
             'final_line_count': 0,
         }))
+
+    def test_finalization_requires_one_distinct_preinvoice_line_per_effective_child(self):
+        effective = _effective_portal_lines([{
+            'line_id': 'SUMMARY', 'qty': 2, 'sub_lines': [
+                {'subline_id': 'S1', 'qty': 1, 'phc_origin_links': [
+                    {'origin_family': 'proforma_invoice', 'bistamp': 'BI-PF-1'}]},
+                {'subline_id': 'S2', 'qty': 1, 'phc_origin_links': [
+                    {'origin_family': 'proforma_invoice', 'bistamp': 'BI-PF-2'}]},
+            ],
+        }])
+        _assert_final_purchase_lineage(effective, ['BI-PF-1', 'BI-PF-2'])
+        with self.assertRaisesRegex(ValueError, 'exatamente uma linha PHC'):
+            _assert_final_purchase_lineage(effective, ['BI-PF-1'])
+        with self.assertRaisesRegex(ValueError, 'não coincide'):
+            _assert_final_purchase_lineage(effective, ['BI-PF-1', 'BI-OTHER'])
 
     def test_credit_note_is_left_for_its_dedicated_workflow(self):
         document, payload = self.document('credit_note')

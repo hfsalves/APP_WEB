@@ -25,10 +25,72 @@ def _clean(value):
     return str(value or '').strip()
 
 
+def _preinvoice_agency(document):
+    customer = dict(document.get('customer') or {})
+    if _clean(customer.get('phc_database')).upper() != 'INTERSOL':
+        return ''
+    return {
+        'HSOLS_INTERSOL_AL': 'INTERSOL ALSACE',
+        'HSOLS_INTERSOL_LOR': 'INTERSOL LORRAINE',
+        'HSOLS_INTERSOL_CH': 'INTERSOL CHAMPAGNE',
+    }.get(_clean(customer.get('ged_folder')).upper(), '')
+
+
+def _output_rows(planned, source_lines):
+    """Keep contiguous descriptive PHC rows immediately before each article."""
+    ordered = sorted(source_lines, key=lambda row: (
+        _clean(row.get('bostamp')), _decimal(row.get('lordem') or 0), _clean(row.get('bistamp')),
+    ))
+    positions = {_clean(row.get('bistamp')): index for index, row in enumerate(ordered)}
+    emitted = set()
+    output = []
+    for part in planned:
+        origin = part['source']
+        position = positions.get(_clean(origin.get('bistamp')), -1)
+        context = []
+        cursor = position - 1
+        while cursor >= 0:
+            row = ordered[cursor]
+            if _clean(row.get('bostamp')) != _clean(origin.get('bostamp')):
+                break
+            if _clean(row.get('ref')) or abs(_decimal(row.get('qtt') or 0)) > Decimal('0.0001'):
+                break
+            context.append(row)
+            cursor -= 1
+        for row in reversed(context):
+            key = _clean(row.get('bistamp'))
+            if key and key not in emitted:
+                emitted.add(key)
+                output.append({'context': True, 'source': row})
+        output.append({'context': False, 'part': part, 'source': origin})
+    return output
+
+
 def payload_fingerprint(document, origins):
     fields = ('document_type', 'document_number', 'document_date', 'currency',
               'customer', 'supplier', 'lines', 'totals', 'taxes', 'origin_project')
-    content = {'document': {key: document.get(key) for key in fields}, 'origins': sorted(_clean(o.get('stamp')) for o in origins
+    controlled = {key: document.get(key) for key in fields}
+
+    def without_generated_preinvoice_links(items):
+        output = []
+        for source in items or []:
+            if not isinstance(source, dict):
+                continue
+            item = dict(source)
+            item['phc_origin_links'] = [
+                link for link in (item.get('phc_origin_links') or [])
+                if not isinstance(link, dict) or _clean(link.get('origin_family')) != 'proforma_invoice'
+            ]
+            if not item['phc_origin_links']:
+                item.pop('phc_origin_links', None)
+            for key in ('sub_lines', 'sublines'):
+                if isinstance(item.get(key), list):
+                    item[key] = without_generated_preinvoice_links(item[key])
+            output.append(item)
+        return output
+
+    controlled['lines'] = without_generated_preinvoice_links(controlled.get('lines') or [])
+    content = {'document': controlled, 'origins': sorted(_clean(o.get('stamp')) for o in origins
                                                      if o.get('document_type') != 'proforma_invoice')}
     return hashlib.sha256(json.dumps(content, sort_keys=True, default=str,
                                     separators=(',', ':')).encode()).hexdigest()
@@ -36,11 +98,11 @@ def payload_fingerprint(document, origins):
 
 def plan_preinvoice(document, source_lines, headers):
     """Return explicit, quantity-limited BI allocations; never guess an ambiguous source."""
-    from services.document_ai_service import _effective_portal_lines
+    from services.document_ai_service import _assert_effective_portal_lines
 
-    lines = _effective_portal_lines(document.get('lines') or [])
-    if not lines:
-        raise ValueError('Confirma as linhas antes de criar a Pre-Fatura.')
+    lines = _assert_effective_portal_lines(
+        document.get('lines') or [], require_origin=True, require_cost_center=False,
+    )
     sources = {_clean(row['bistamp']): row for row in source_lines}
     consumed = defaultdict(Decimal)
     planned = []
@@ -57,17 +119,15 @@ def plan_preinvoice(document, source_lines, headers):
         if not allocations:
             header_stamp = _clean(line.get('phc_origin_stamp'))
             line_stamp = _clean(line.get('phc_origin_line_stamp'))
-            candidates = [row for row in source_lines
-                          if _clean(row.get('ref')) == reference
-                          and (not header_stamp or _clean(row['bostamp']) == header_stamp)
-                          and (not line_stamp or _clean(row['bistamp']) == line_stamp)]
-            # A selected GdR/STSE supersedes its ancestor for this same source line.
-            predecessors = {_clean(row.get('obistamp')) for row in candidates}
-            candidates = [row for row in candidates if _clean(row['bistamp']) not in predecessors]
-            if len(candidates) != 1:
-                raise ValueError(f'Linha {index}: associa a linha de origem imediata e distribui as quantidades.')
-            allocations = [{'origin_stamp': candidates[0]['bostamp'],
-                            'origin_line_stamp': candidates[0]['bistamp'], 'quantity': quantity}]
+            allocations = [{
+                'origin_stamp': header_stamp,
+                'origin_line_stamp': line_stamp,
+                'quantity': quantity,
+            }]
+        if len(allocations) != 1:
+            raise ValueError(
+                f'Linha {index}: uma linha Portal efetiva deve corresponder a uma única linha PHC; cria sublinhas para distribuir origens.'
+            )
         if sum((_decimal(part.get('quantity')) for part in allocations), Decimal(0)) != quantity:
             raise ValueError(f'Linha {index}: a quantidade distribuida nao coincide com a linha.')
         net = _money(line.get('net_amount'))
@@ -111,8 +171,12 @@ def plan_preinvoice(document, source_lines, headers):
                 expected *= 1 - _decimal(source.get(field) or 0) / 100
             if abs(_money(expected) - part_net) > Decimal('0.02'):
                 raise ValueError(f'Linha {index}: corrige o preco/descontos da origem antes de validar.')
-            planned.append({'source': source, 'quantity': qty, 'net': part_net,
-                            'tax': _money(part_net * rate / 100), 'rate': rate, 'ccusto': ccusto})
+            planned.append({
+                'source': source, 'quantity': qty, 'net': part_net,
+                'tax': _money(part_net * rate / 100), 'rate': rate, 'ccusto': ccusto,
+                'portal_line_index': index - 1,
+                'portal_line_id': _clean(line.get('portal_line_id')),
+            })
     totals = document.get('totals') or {}
     net = sum((p['net'] for p in planned), Decimal(0))
     tax = sum((p['tax'] for p in planned), Decimal(0))
@@ -139,6 +203,12 @@ def create_preinvoice(document, origins, reception, document_stamp, file_bytes, 
         raise ValueError('A Entidade nao coincide com a Compra criada na Rececao.')
     if not file_bytes or not _clean(reception.get('fostamp')):
         raise ValueError('Falta confirmar a Compra e o PDF original da Rececao.')
+    if not document.get('document_date'):
+        raise ValueError('Confirma a data da fatura.')
+    try:
+        requested_doc_date = datetime.fromisoformat(str(document['document_date'])[:10])
+    except ValueError as exc:
+        raise ValueError('A data da fatura nao e valida.') from exc
     currency = _clean(document.get('currency')).upper()
     if currency not in {'EUR', 'EURO'}:
         raise ValueError('A criacao de Pre-Fatura nesta moeda requer validacao do cambio PHC.')
@@ -165,7 +235,8 @@ def create_preinvoice(document, origins, reception, document_stamp, file_bytes, 
         if not lock or lock[0] < 0:
             raise ValueError('Outra validacao esta em curso. Tenta novamente.')
         existing = _rows(cursor, """
-            SELECT B.BOSTAMP,B.NDOS,B.NMDOS,B.OBRANO,B.BOANO,A.ANEXOSSTAMP,A.FULLNAME,A.DESCRICAO
+            SELECT B.BOSTAMP,B.NDOS,B.NMDOS,B.OBRANO,B.BOANO,B.APROVADO,B.FECHADA,
+                A.ANEXOSSTAMP,A.FULLNAME,A.DESCRICAO
             FROM ANEXOS A WITH (UPDLOCK,HOLDLOCK) JOIN BO B ON B.BOSTAMP=A.RECSTAMP
             WHERE A.ORITABLE='BO' AND A.UNIQUEID=?
         """, marker)
@@ -176,8 +247,26 @@ def create_preinvoice(document, origins, reception, document_stamp, file_bytes, 
             if not svc._document_ai_pdf_is_confirmed({'unc_path': header['fullname'],
                     'write_path': header['fullname'], 'storage': 'local' if svc.os.name == 'nt' else 'smb'}, file_bytes):
                 raise ValueError('O PDF da Pre-Fatura existente nao pode ser confirmado no GED.')
-            connection.rollback()
-            return _result(header, database, fingerprint, True)
+            recovered_lines = _rows(cursor, """
+                SELECT BISTAMP,LORDEM FROM BI WITH (UPDLOCK,HOLDLOCK)
+                WHERE BOSTAMP=? ORDER BY LORDEM,BISTAMP
+            """, header['bostamp'])
+            effective_date = svc._phc_provisional_effective_datetime(
+                cursor, database, requested_doc_date, datetime.now(),
+            )
+            agency = _preinvoice_agency(document)
+            cursor.execute("""UPDATE BO SET APROVADO=1,FECHADA=1,DATAOBRA=?,DATAOPEN=?,DATAFINAL=?,
+                DATAFECHO=CASE WHEN DATAFECHO IS NULL OR DATAFECHO<'19010102' THEN GETDATE() ELSE DATAFECHO END,
+                TECNICO='',TECNNM='',FREF='',MAQUINA=CASE WHEN ?<>'' THEN ? ELSE MAQUINA END
+                WHERE BOSTAMP=?""", effective_date, effective_date, effective_date, agency, agency, header['bostamp'])
+            cursor.execute("""UPDATE BI SET QTT2=QTT,FECHADA=1,DATAOBRA=?,DATAOPEN=?,DATAFINAL=?,
+                DATAFECHO=CASE WHEN DATAFECHO IS NULL OR DATAFECHO<'19010102' THEN GETDATE() ELSE DATAFECHO END
+                WHERE BOSTAMP=?""", effective_date, effective_date, effective_date, header['bostamp'])
+            connection.commit()
+            return _result({**header, 'aprovado': 1, 'fechada': 1,
+                            'dataobra': effective_date, 'maquina': agency,
+                            'tecnico': '', 'tecnnm': ''},
+                           database, fingerprint, True, recovered_lines)
 
         if any(o.get('document_type') == 'proforma_invoice' for o in origins):
             raise ValueError('Ja existe uma Pre-Fatura associada. Reconcilia-a antes de criar outro documento.')
@@ -209,7 +298,7 @@ def create_preinvoice(document, origins, reception, document_stamp, file_bytes, 
         if any(int(h['no']) != supplier['no'] or int(h.get('estab') or 0) != supplier['estab']
                or _clean(h.get('moeda')).upper() not in {'EUR', 'EURO'} for h in rows):
             raise ValueError('Fornecedor, estabelecimento ou moeda das origens nao coincidem com a fatura.')
-        source_lines = _rows(cursor, f'SELECT * FROM BI WITH (UPDLOCK,HOLDLOCK) WHERE BOSTAMP IN ({placeholders}) ORDER BY BISTAMP', *stamps)
+        source_lines = _rows(cursor, f'SELECT * FROM BI WITH (UPDLOCK,HOLDLOCK) WHERE BOSTAMP IN ({placeholders}) ORDER BY BOSTAMP,LORDEM,BISTAMP', *stamps)
         for row in source_lines:
             row['reused_qty'] = cursor.execute("""
                 SELECT ISNULL(SUM(I.QTT),0) FROM BI I WITH (UPDLOCK,HOLDLOCK)
@@ -243,13 +332,7 @@ def create_preinvoice(document, origins, reception, document_stamp, file_bytes, 
             if by_code.get(int(part['source']['tabiva'])) != part['rate']:
                 raise ValueError('A tabela de IVA da origem mudou; confirma o IVA no PHC.')
         now = datetime.now()
-        if not document.get('document_date'):
-            raise ValueError('Confirma a data da fatura.')
-        try:
-            doc_date = datetime.fromisoformat(str(document['document_date'])[:10])
-        except ValueError as exc:
-            raise ValueError('A data da fatura nao e valida.') from exc
-        doc_date = svc._phc_provisional_effective_datetime(cursor, database, doc_date, now)
+        doc_date = svc._phc_provisional_effective_datetime(cursor, database, requested_doc_date, now)
         number = int(cursor.execute('SELECT ISNULL(MAX(OBRANO),0)+1 FROM BO WITH (UPDLOCK,HOLDLOCK) WHERE NDOS=? AND BOANO=?', ndos, doc_date.year).fetchone()[0])
         factor = svc._phc_base_currency_per_euro(cursor)
         def local(value):
@@ -266,12 +349,13 @@ def create_preinvoice(document, origins, reception, document_stamp, file_bytes, 
             values = taxes[int(part['source']['tabiva'])]
             values[0] += part['net']; values[1] += part['tax']
         header = {'bostamp': stamp, 'ndos': ndos, 'nmdos': name, 'obrano': number, 'boano': doc_date.year,
-                  'dataobra': doc_date, 'dataopen': doc_date, 'datafecho': datetime(1900,1,1),
+                  'dataobra': doc_date, 'dataopen': doc_date, 'datafinal': doc_date, 'datafecho': now,
                   'no': supplier['no'], 'estab': supplier['estab'], 'nome': supplier['name'],
                   'ncont': supplier['tax_id'], 'morada': supplier['address'], 'local': supplier['city'],
                   'codpost': supplier['postal_code'], 'moeda': purchase[0]['moeda'],
                   'ccusto': planned[0]['ccusto'] if len({p['ccusto'] for p in planned}) == 1 else '',
-                  'fref': _clean(document.get('document_number'))[:20], 'fechada': 0,
+                  'fref': '', 'tecnico': '', 'tecnnm': '', 'maquina': _preinvoice_agency(document),
+                  'fechada': 1, 'aprovado': 1,
                   'etotaldeb': net, 'totaldeb': local(net), 'etotal': net+tax, 'total': local(net+tax), **audit}
         for code, (base, vat) in taxes.items():
             for suffix in ('1', '2'):
@@ -279,28 +363,52 @@ def create_preinvoice(document, origins, reception, document_stamp, file_bytes, 
                                f'ebo{code}{suffix}_iva': vat, f'bo{code}{suffix}_iva': local(vat)})
         svc._phc_insert_values(cursor, 'BO', header)
         svc._phc_insert_values(cursor, 'BO2', {'bo2stamp': stamp, 'anulado': 0, **audit})
-        svc._phc_insert_values(cursor, 'BO3', {'bo3stamp': stamp, **audit})
+        svc._phc_insert_values(cursor, 'BO3', {
+            'bo3stamp': stamp, 'u_aprovdat': now, 'u_aprovusr': initials, **audit,
+        })
         for code, (base, vat) in taxes.items():
             svc._phc_insert_values(cursor, 'BOT', {'botstamp': svc._new_stamp(), 'bostamp': stamp,
                 'codigo': code, 'taxa': by_code[code], 'ebaseinc': base, 'baseinc': local(base),
                 'evalor': vat, 'valor': local(vat), **audit})
         quantities = defaultdict(Decimal)
-        for index, part in enumerate(planned, 1):
-            origin = part['source']
+        result_lines = []
+        article_index = 0
+        physical_index = 0
+        for output in _output_rows(planned, source_lines):
+            physical_index += 1
+            part = output.get('part') or {}
+            origin = output['source']
+            is_context = bool(output['context'])
             bi_stamp = svc._new_stamp()
             values = {key: origin.get(key) for key in ('ref','design','unidade','edebito','debito','pu',
                 'iva','tabiva','ivaincl','armazem','stipo','familia','pcusto','epcusto','prorc',
                 'desconto','desc2','desc3','desc4','desc5','desc6','lobs','lobs2') if origin.get(key) is not None}
+            quantity = Decimal('0') if is_context else part['quantity']
+            line_net = Decimal('0') if is_context else part['net']
+            lineage = {
+                'obistamp': origin['bistamp'], 'oobistamp': origin['bistamp'],
+                'oobostamp': _clean(origin.get('oobostamp')),
+            }
             values.update({'bistamp': bi_stamp, 'bostamp': stamp, 'ndos': ndos, 'nmdos': name,
                 'obrano': number, 'boano': doc_date.year, 'dataobra': doc_date, 'no': supplier['no'],
-                'nome': supplier['name'], 'qtt': part['quantity'], 'qtt2': 0, 'fechada': 0,
-                'ettdeb': part['net'], 'ttdeb': local(part['net']), 'ccusto': part['ccusto'],
-                'lordem': index*1000, 'obistamp': origin['bistamp'], 'oobistamp': origin['bistamp'],
+                'dataopen': doc_date, 'datafinal': doc_date, 'datafecho': now,
+                'nome': supplier['name'], 'qtt': quantity, 'qtt2': quantity, 'fechada': 1,
+                'ettdeb': line_net, 'ttdeb': local(line_net),
+                'ccusto': _clean(origin.get('ccusto')) if is_context else part['ccusto'],
+                'lordem': physical_index*1000,
                 'ndoc': purchase_config['doccode'], 'nmdoc': purchase_config['docname'], 'fno': 0,
-                # Native PHC preserves the inherited contract/order header here.
-                'oobostamp': _clean(origin.get('oobostamp')), **audit})
+                **lineage, **audit})
             svc._phc_insert_values(cursor, 'BI', values)
             svc._phc_insert_values(cursor, 'BI2', {'bi2stamp': bi_stamp, 'bostamp': stamp, **audit})
+            if is_context:
+                continue
+            article_index += 1
+            result_lines.append({
+                'portal_line_index': int(part['portal_line_index']),
+                'portal_line_id': part['portal_line_id'],
+                'line_stamp': bi_stamp,
+                'line_order': physical_index * 1000,
+            })
             quantities[_clean(origin['bistamp'])] += part['quantity']
         for source_stamp, qty in quantities.items():
             original = next(row for row in source_lines if _clean(row['bistamp']) == source_stamp)
@@ -323,7 +431,10 @@ def create_preinvoice(document, origins, reception, document_stamp, file_bytes, 
                 'resumo': 'Origem', 'descricao': _clean(source_attachment['recstamp']),
                 'tipo': 2, 'tpdoc': ndos, 'bdados': pyodbc.Binary(b''), **audit})
         connection.commit()
-        return _result({**header, 'anexosstamp': attachment, 'fullname': pdf[0]['fullname']}, database, fingerprint, False)
+        return _result(
+            {**header, 'anexosstamp': attachment, 'fullname': pdf[0]['fullname']},
+            database, fingerprint, False, result_lines,
+        )
     except Exception:
         connection.rollback()
         raise
@@ -331,9 +442,23 @@ def create_preinvoice(document, origins, reception, document_stamp, file_bytes, 
         connection.close()
 
 
-def _result(header, database, fingerprint, duplicate):
+def _result(header, database, fingerprint, duplicate, line_stamps=None):
+    public_lines = []
+    for index, item in enumerate(line_stamps or []):
+        public_lines.append({
+            'portal_line_index': int(item.get('portal_line_index', index)),
+            'portal_line_id': _clean(item.get('portal_line_id')),
+            'line_stamp': _clean(item.get('line_stamp') or item.get('bistamp')),
+            'line_order': int(item.get('line_order') or item.get('lordem') or ((index + 1) * 1000)),
+        })
     return {'bostamp': _clean(header['bostamp']), 'ndos': int(header['ndos']),
             'document_type': 'proforma_invoice', 'document_name': _clean(header['nmdos']),
             'number': int(header['obrano']), 'year': int(header['boano']), 'phc_database': database,
             'anexosstamp': _clean(header['anexosstamp']), 'ged_path': _clean(header['fullname']),
-            'ged_confirmed': True, 'payload_fingerprint': fingerprint, 'duplicate': duplicate}
+            'ged_confirmed': True, 'payload_fingerprint': fingerprint, 'duplicate': duplicate,
+            'approved': bool(header.get('aprovado')), 'validated': bool(header.get('fechada')),
+            'team': _clean(header.get('tecnico') or header.get('tecnnm')),
+            'agency_origin': _clean(header.get('maquina')),
+            'effective_date': header.get('dataobra').date().isoformat()
+                if isinstance(header.get('dataobra'), datetime) else _clean(header.get('dataobra'))[:10],
+            'line_stamps': public_lines}

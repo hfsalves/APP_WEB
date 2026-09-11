@@ -533,3 +533,27 @@ BEGIN
         'system'
     );
 END
+GO
+
+-- TP065: C&P deixou de ser um tipo funcional. Esta migração altera apenas a
+-- classificação persistida e o JSON canónico; não toca em estados, filas,
+-- validações, ficheiros ou referências PHC/GED.
+IF OBJECT_ID('dbo.DOC_INBOX', 'U') IS NOT NULL
+BEGIN
+    UPDATE dbo.DOC_INBOX
+       SET INVOICE_TYPE = 'services',
+           JSON_RESULTADO = CASE WHEN ISJSON(JSON_RESULTADO) = 1 THEN
+               JSON_MODIFY(
+                   JSON_MODIFY(JSON_RESULTADO, '$.invoice_type', 'services'),
+                   '$.legacy_invoice_type_migration',
+                   JSON_QUERY('{"from":"fuel_tolls","to":"services","rule":"TP065"}')
+               ) ELSE JSON_RESULTADO END,
+           PROCESSING_META_JSON = CASE WHEN ISJSON(PROCESSING_META_JSON) = 1 THEN
+               JSON_MODIFY(PROCESSING_META_JSON, '$.llm_full_extraction.document.invoice_type', 'services')
+               ELSE PROCESSING_META_JSON END
+     WHERE LOWER(LTRIM(RTRIM(ISNULL(INVOICE_TYPE, '')))) IN
+           ('fuel_tolls', 'c&p', 'c_p', 'cp', 'combustiveis_e_portagens', 'combustibles_y_peajes', 'carburants_et_peages')
+        OR (ISJSON(JSON_RESULTADO) = 1 AND LOWER(ISNULL(JSON_VALUE(JSON_RESULTADO, '$.invoice_type'), '')) IN
+           ('fuel_tolls', 'c&p', 'c_p', 'cp', 'combustiveis_e_portagens', 'combustibles_y_peajes', 'carburants_et_peages'));
+END
+GO

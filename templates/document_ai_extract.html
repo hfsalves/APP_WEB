@@ -96,21 +96,6 @@
             </div>
           </div>
 
-          <nav id="docAiExtractGroupNavigator" class="docai-extract-group-nav" aria-label="Navegação no grupo de documentos" hidden>
-            <button id="docAiExtractGroupPrevious" type="button" class="sz_button sz_button_secondary" aria-label="Documento anterior">
-              <i class="fa-solid fa-chevron-left"></i>
-              <span>Anterior</span>
-            </button>
-            <div class="docai-extract-group-current">
-              <strong id="docAiExtractGroupPosition">Documento 1 de 1</strong>
-              <span id="docAiExtractGroupFileName" class="sz_text_muted"></span>
-            </div>
-            <button id="docAiExtractGroupNext" type="button" class="sz_button sz_button_secondary" aria-label="Documento seguinte">
-              <span>Seguinte</span>
-              <i class="fa-solid fa-chevron-right"></i>
-            </button>
-          </nav>
-
           <div id="docAiExtractEmpty" class="docai-extract-empty">
             <i class="fa-solid fa-file-invoice"></i>
             <strong>Nenhum documento analisado</strong>
@@ -147,6 +132,13 @@
                 <h4 id="docAiExtractCustomerLabel">Entidade</h4>
                 <strong id="docAiExtractCustomerName">--</strong>
                 <span id="docAiExtractCustomerTax" class="sz_text_muted">--</span>
+                <div id="docAiExtractGedFolderControl" class="docai-classification-agency" data-agency-control hidden>
+                  <button id="docAiExtractGedFolderTrigger" type="button" class="docai-classification-agency-trigger">Agência INTERSOL</button>
+                  <select id="docAiExtractGedFolderSelect" class="sz_input" hidden aria-label="Agência INTERSOL">
+                    <option value="">Associar</option>
+                  </select>
+                  <span id="docAiExtractGedFolderHint" hidden></span>
+                </div>
                 <span id="docAiExtractCustomerHint" class="docai-extract-card-hint" hidden><i class="fa-solid fa-hand-pointer"></i> Associar Entidade</span>
               </article>
               <article id="docAiExtractSupplierCard" class="docai-info-card docai-extract-supplier-card" tabindex="0" role="button" aria-label="Associar Fornecedor">
@@ -159,13 +151,6 @@
               <article id="docAiExtractModeCard" class="docai-info-card docai-classification-card">
                 <h4>Classificação</h4>
                 <div id="docAiExtractGedDestination" class="docai-classification-ged">
-                  <div id="docAiExtractGedFolderControl" class="docai-classification-agency" hidden>
-                    <button id="docAiExtractGedFolderTrigger" type="button" class="docai-classification-agency-trigger">Agência INTERSOL</button>
-                    <select id="docAiExtractGedFolderSelect" class="sz_input" hidden aria-label="Agência INTERSOL">
-                      <option value="">Associar</option>
-                    </select>
-                    <span id="docAiExtractGedFolderHint" hidden></span>
-                  </div>
                   <span id="docAiExtractGedStatus" hidden aria-hidden="true"></span>
                   <span id="docAiExtractLegalBadge" class="docai-extract-legal-badge" hidden></span>
                   <div id="docAiExtractGedFileRow" class="docai-classification-file" hidden>
@@ -197,7 +182,8 @@
                   <h4>Origem</h4>
                   <span id="docAiExtractOriginMeta" class="sz_text_muted">A procurar documentos anteriores no PHC...</span>
                 </div>
-                <button id="docAiExtractOriginAction" type="button" class="sz_button sz_button_secondary docai-extract-origin-action" hidden></button>
+                <button id="docAiExtractOriginAction" type="button" class="sz_button sz_button_secondary docai-extract-origin-action"
+                  data-can-delivery-note="{{ '1' if can_submit_delivery_note else '0' }}" hidden></button>
               </div>
               <div id="docAiExtractOriginTabs" class="docai-extract-origin-tabs" role="tablist" aria-label="Tipos de origem" hidden></div>
               <div id="docAiExtractOriginLoading" class="docai-extract-origin-loading">
@@ -230,32 +216,37 @@
                       <col style="width: 7%">
                       <col style="width: 5%">
                       <col style="width: 7%">
-                      <col style="width: 11%">
-                      <col style="width: 4%">
+                      <col style="width: 9%">
+                      <col style="width: 5%">
+                      <col style="width: 5%">
                       <col style="width: 3%">
-                      <col style="width: 14%">
-                      <col style="width: 4%">
+                      <col style="width: 3%">
                     </colgroup>
                     <thead class="sz_table_head">
                       <tr>
-                        <th aria-label="Grupo de artigo"></th>
-                        <th>Artigo</th>
-                        <th>Designação</th>
-                        <th>Quantidade</th>
-                        <th>PU</th>
-                        <th>PT</th>
-                        <th>IVA</th>
-                        <th>CdC</th>
-                        <th>Data</th>
-                        <th aria-label="Matrícula"></th>
-                        <th id="docAiExtractDistributionHead" aria-label="Distribuição" hidden></th>
+                        <th rowspan="2" aria-label="Agrupar linha"></th>
+                        <th rowspan="2">Artigo</th>
+                        <th rowspan="2">Designação</th>
+                        <th rowspan="2">Quantidade</th>
+                        <th rowspan="2">PU</th>
+                        <th rowspan="2">PT</th>
+                        <th rowspan="2">IVA</th>
+                        <th rowspan="2">CdC</th>
+                        <th rowspan="2">Data</th>
+                        <th colspan="2" scope="colgroup" class="docai-origin-group-head">Origem</th>
+                        <th colspan="2" scope="colgroup" class="docai-origin-group-head">Ação</th>
+                      </tr>
+                      <tr class="docai-origin-subheads">
                         <th id="docAiExtractPrimaryOriginHead">NdE</th>
                         <th id="docAiExtractSecondaryOriginHead">GdR</th>
+                        <th aria-label="Custos detalhados">Info</th>
+                        <th>Matrícula</th>
                       </tr>
                     </thead>
                     <tbody id="docAiExtractLinesBody"></tbody>
                   </table>
                 </div>
+                <div id="docAiExtractGroupDropzone" class="docai-line-ungroup-zone" hidden tabindex="0" aria-label="Desagrupar linha">Desagrupar linha</div>
               </div>
             </section>
 
@@ -298,6 +289,83 @@
     </div>
   </div>
 
+  <div id="docAiLineDistributionModal" class="sz_modal docai-line-distribution-modal" aria-hidden="true">
+    <div class="sz_panel docai-line-distribution-panel" role="dialog" aria-modal="true" aria-labelledby="docAiLineDistributionTitle">
+      <div class="sz_modal_header">
+        <div>
+          <h3 id="docAiLineDistributionTitle" class="sz_h4 sz_modal_title">Distribuir por CdC</h3>
+          <p id="docAiLineDistributionContext" class="sz_text_muted"></p>
+        </div>
+        <button id="docAiLineDistributionCloseTop" type="button" class="sz_icon_button" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="sz_modal_body">
+        <div id="docAiLineDistributionMain">
+          <div class="docai-line-distribution-summary" aria-live="polite">
+          <span>Saldo Quantidade: <strong id="docAiLineDistributionQuantityBalance">0</strong></span>
+          <span>Saldo PT: <strong id="docAiLineDistributionTotalBalance">0</strong></span>
+          </div>
+          <div class="sz_table_host"><div class="sz_table_wrap">
+            <table id="docAiLineDistributionTable" class="sz_table sz_table_compact docai-line-distribution-table">
+              <thead class="sz_table_head"><tr id="docAiLineDistributionHead"></tr></thead>
+              <tbody id="docAiLineDistributionBody"></tbody>
+            </table>
+          </div></div>
+          <button id="docAiLineDistributionAdd" type="button" class="sz_button sz_button_secondary docai-line-distribution-add">
+            <i class="fa-solid fa-plus"></i><span>Adicionar</span>
+          </button>
+          <p id="docAiLineDistributionError" class="docai-line-distribution-error" role="alert" hidden></p>
+        </div>
+        <div id="docAiLineDistributionSearchPane" class="docai-line-distribution-search" hidden>
+          <div class="docai-supplier-match-search">
+            <button id="docAiLineDistributionSearchBack" type="button" class="sz_icon_button" aria-label="Voltar à distribuição"><i class="fa-solid fa-arrow-left"></i></button>
+            <div class="sz_field">
+              <label id="docAiLineDistributionSearchLabel" class="sz_label" for="docAiLineDistributionSearchInput">Pesquisar</label>
+              <input id="docAiLineDistributionSearchInput" class="sz_input" type="search">
+            </div>
+            <button id="docAiLineDistributionSearchButton" type="button" class="sz_button sz_button_secondary"><i class="fa-solid fa-magnifying-glass"></i><span>Pesquisar</span></button>
+          </div>
+          <div id="docAiLineDistributionSearchResults" class="docai-supplier-match-list"></div>
+        </div>
+      </div>
+      <div class="sz_modal_footer">
+        <button id="docAiLineDistributionClose" type="button" class="sz_button sz_button_secondary">Fechar</button>
+        <button id="docAiLineDistributionSave" type="button" class="sz_button sz_button_primary">
+          <i class="fa-solid fa-check"></i><span>Guardar distribuição</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="docAiLineCostsModal" class="sz_modal" aria-hidden="true">
+    <div class="sz_panel docai-line-costs-panel" role="dialog" aria-modal="true" aria-labelledby="docAiLineCostsTitle">
+      <div class="sz_modal_header">
+        <div class="docai-line-costs-heading">
+          <h3 id="docAiLineCostsTitle" class="sz_h4 sz_modal_title">Custos detalhados</h3>
+          <p id="docAiLineCostsContext" class="sz_text_muted"></p>
+        </div>
+        <button id="docAiLineCostsCloseTop" type="button" class="sz_icon_button" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="sz_modal_body">
+        <div id="docAiLineCostsTabs" class="docai-line-costs-tabs" role="tablist" aria-label="Tipos de custos" hidden></div>
+        <div id="docAiLineCostsList">
+          <div class="sz_table_host"><div class="sz_table_wrap">
+            <table class="sz_table sz_table_compact docai-line-costs-table">
+              <thead class="sz_table_head"><tr><th>Designação</th><th>Quantidade</th><th>Unidade</th><th>PU</th><th>PT</th><th>Referência</th><th>Data</th></tr></thead>
+              <tbody id="docAiLineCostsBody"></tbody>
+            </table>
+          </div></div>
+        </div>
+        <div id="docAiLineCostsDetail" hidden>
+          <button id="docAiLineCostsBack" type="button" class="sz_button sz_button_ghost"><i class="fa-solid fa-arrow-left"></i><span>Voltar aos custos</span></button>
+          <dl id="docAiLineCostsDetailFields" class="docai-line-costs-detail"></dl>
+        </div>
+      </div>
+      <div class="sz_modal_footer">
+        <button id="docAiLineCostsClose" type="button" class="sz_button sz_button_secondary">Fechar</button>
+      </div>
+    </div>
+  </div>
+
   <div id="docAiOriginDetailModal" class="sz_modal" aria-hidden="true">
     <div class="sz_modal_dialog docai-origin-detail-modal" role="dialog" aria-modal="true" aria-labelledby="docAiOriginDetailTitle">
       <div class="sz_modal_header">
@@ -319,7 +387,12 @@
         </div></div>
         <div id="docAiOriginDetailEmpty" class="docai-empty-state" hidden>Sem linhas disponíveis no PHC.</div>
       </div>
-      <div class="sz_modal_footer"><button id="docAiOriginDetailClose" type="button" class="sz_button sz_button_secondary">Fechar</button></div>
+      <div class="sz_modal_footer">
+        <button id="docAiOriginDetailClose" type="button" class="sz_button sz_button_secondary">Fechar</button>
+        <button id="docAiOriginDetailValidate" type="button" class="sz_button sz_button_primary" hidden>
+          <i class="fa-solid fa-check"></i><span>Validar</span>
+        </button>
+      </div>
     </div>
   </div>
 </div>
@@ -513,6 +586,9 @@
       <div id="docAiProjectList" class="docai-supplier-match-list"></div>
     </div>
     <div class="sz_modal_footer">
+      <button id="docAiProjectDistribute" type="button" class="sz_button sz_button_primary" hidden>
+        <i class="fa-solid fa-code-branch"></i><span>Distribuir</span>
+      </button>
       <button id="docAiProjectClose" type="button" class="sz_button sz_button_secondary">Fechar</button>
     </div>
   </div>
@@ -552,7 +628,7 @@
   <div class="sz_panel docai-supplier-match-panel">
     <div class="sz_modal_header">
       <div>
-        <h3 id="docAiVehicleTitle" class="sz_h4 sz_modal_title">Associar veículo</h3>
+        <h3 id="docAiVehicleTitle" class="sz_h4 sz_modal_title">Associar Matrícula</h3>
         <p id="docAiVehicleContext" class="sz_text_muted">Pesquisa nas viaturas PHC da entidade.</p>
       </div>
       <button id="docAiVehicleCloseTop" type="button" class="sz_button sz_button_ghost" aria-label="Fechar">
@@ -573,6 +649,9 @@
       <div id="docAiVehicleList" class="docai-supplier-match-list"></div>
     </div>
     <div class="sz_modal_footer">
+      <button id="docAiVehicleDistribute" type="button" class="sz_button sz_button_primary" hidden>
+        <i class="fa-solid fa-code-branch"></i><span>Distribuir</span>
+      </button>
       <button id="docAiVehicleRemove" type="button" class="sz_button sz_button_danger" hidden>
         <i class="fa-solid fa-link-slash"></i>
         <span>Remover associação</span>
@@ -586,7 +665,7 @@
   <div class="sz_panel docai-supplier-match-panel">
     <div class="sz_modal_header">
       <div>
-        <h3 id="docAiBcTitle" class="sz_h4 sz_modal_title">Origem da linha</h3>
+        <h3 id="docAiBcTitle" class="sz_h4 sz_modal_title">Associar dossier, linha e quantidade</h3>
       </div>
       <button id="docAiBcCloseTop" type="button" class="sz_button sz_button_ghost" aria-label="Fechar">
         <i class="fa-solid fa-xmark"></i>

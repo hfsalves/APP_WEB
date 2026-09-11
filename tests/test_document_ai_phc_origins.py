@@ -44,6 +44,7 @@ from services.document_ai_service import (
     _ensure_phc_provisional_article,
     _is_provisional_purchase_source_type,
     _write_document_ai_pdf,
+    _write_confirmed_ged_targets,
     _split_phc_line_design,
     _expand_phc_invoice_lines,
     _phc_base_currency_per_euro,
@@ -132,6 +133,31 @@ class DocumentAiPhcOriginTests(unittest.TestCase):
         self.assertEqual(document.fornecedor_no, 42)
         self.assertEqual(result['version'], moment.isoformat(timespec='microseconds'))
         commit.assert_called_once()
+
+    def test_cached_document_preserves_manually_selected_intersol_agency_across_views(self):
+        moment = datetime(2026, 9, 1, 10, 30, 0)
+        document = SimpleNamespace(
+            docinstamp='DOC-3118', dtalt=moment, dtcri=moment,
+            processing_meta_json=json.dumps({'llm_full_extraction': {
+                'version': 4,
+                'document': {'customer': {
+                    'feid': 2, 'name': 'INTERSOL',
+                    'ged_folder': 'HSOLS_INTERSOL_LOR',
+                    'ged_folder_manually_selected': True,
+                }},
+            }}),
+            processing_status='parsed_ok', reception_validated=True,
+            management_validated=False, accounting_validated=False,
+        )
+        with patch.object(document_ai_service.db.session, 'get', return_value=document), patch.object(
+            document_ai_service, '_fe_entity_by_id', return_value={
+                'feid': 2, 'phc_database': 'INTERSOL', 'ged_folder': 'HSOLS_INTERSOL_AL',
+            }
+        ):
+            cached = get_cached_llm_extraction('DOC-3118')
+
+        self.assertEqual(cached['document']['customer']['ged_folder'], 'HSOLS_INTERSOL_LOR')
+        self.assertEqual(cached['document']['customer']['phc_database'], 'INTERSOL')
 
     def test_document_draft_detects_an_optimistic_lock_conflict(self):
         current = datetime(2026, 9, 1, 10, 31, 0)
@@ -393,6 +419,26 @@ class DocumentAiPhcOriginTests(unittest.TestCase):
         handle.write.assert_called_once_with(b'%PDF-test')
         replace.assert_called_once()
 
+    def test_ged_links_are_only_available_after_every_copy_is_confirmed(self):
+        targets = [
+            {'write_path': '/ged/correspondence.pdf'},
+            {'write_path': '/ged/purchase.pdf'},
+        ]
+        with patch.object(document_ai_service, '_write_document_ai_pdf', side_effect=[True, False]), patch.object(
+            document_ai_service, '_remove_document_ai_pdf',
+        ) as remove:
+            with self.assertRaisesRegex(RuntimeError, 'todos os destinos'):
+                _write_confirmed_ged_targets(targets, b'%PDF')
+        remove.assert_called_once_with(targets[0])
+
+        with patch.object(document_ai_service, '_write_document_ai_pdf', return_value=True), patch.object(
+            document_ai_service, '_document_ai_pdf_is_confirmed', return_value=True,
+        ):
+            self.assertEqual(
+                _write_confirmed_ged_targets(targets, b'%PDF'),
+                ['/ged/correspondence.pdf', '/ged/purchase.pdf'],
+            )
+
     def test_long_fn_design_is_split_on_words_and_ordered_by_lordem(self):
         description = (
             'Nos interventions en matière comptable relatives au suivi courant '
@@ -471,7 +517,7 @@ class DocumentAiPhcOriginTests(unittest.TestCase):
 
         self.assertEqual([stage['ndos'] for stage in stages], [119, 128])
         self.assertEqual([stage['document_type'] for stage in stages], ['contract', 'contract'])
-        self.assertEqual(stages[0]['label'], 'Contrat')
+        self.assertEqual(stages[0]['label'], 'Contrato')
 
     def test_next_correspondence_reference_uses_company_and_year(self):
         cursor = MagicMock()

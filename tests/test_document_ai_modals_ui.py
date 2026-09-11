@@ -9,10 +9,14 @@ class DocumentAiModalsUiTests(unittest.TestCase):
     def test_tax_modal_uses_requested_title_and_total_row(self):
         template = (ROOT / 'templates' / 'document_ai_extract.html').read_text(encoding='utf-8')
         script = (ROOT / 'static' / 'js' / 'document_ai_extract.js').read_text(encoding='utf-8')
+        css = (ROOT / 'static' / 'css' / 'document_ai.css').read_text(encoding='utf-8')
 
         self.assertIn('Detalhe IVA', template)
         self.assertNotIn('Detalhe dos totais', template)
         self.assertIn('docai-tax-total-row', script)
+        self.assertIn('id="docAiTotalsCloseTop" type="button" class="sz_icon_button"', template)
+        self.assertIn('.docai-totals-modal .sz_table_wrap', css)
+        self.assertIn('overflow-x: visible;', css)
 
     def test_origin_detail_always_keeps_registration_column(self):
         script = (ROOT / 'static' / 'js' / 'document_ai_extract.js').read_text(encoding='utf-8')
@@ -29,6 +33,20 @@ class DocumentAiModalsUiTests(unittest.TestCase):
         self.assertIn("if (displayStage === 'proforma_invoice')", script)
         self.assertIn('Total s/IVA', script)
         self.assertIn('Total c/IVA', script)
+        self.assertIn('Totais globais PHC (não reconciliados com estas linhas)', script)
+        service = (ROOT / 'services' / 'document_ai_service.py').read_text(encoding='utf-8')
+        self.assertIn("'totals_reconciled': totals_reconciled", service)
+        self.assertIn('Não é possível associar o Contrato: os totais PHC', service)
+
+    def test_origin_modal_keeps_only_its_sheet_scrollable(self):
+        css = (ROOT / 'static' / 'css' / 'document_ai.css').read_text(encoding='utf-8')
+        script = (ROOT / 'static' / 'js' / 'document_ai_extract.js').read_text(encoding='utf-8')
+
+        self.assertIn('.docai-origin-detail-modal .sz_modal_body {\n  min-height: 0;\n  display: flex;\n  overflow: hidden;', css)
+        self.assertIn('.docai-origin-detail-modal .sz_table_wrap {\n  max-height: 100%;\n  overflow: auto;', css)
+        self.assertNotIn("candidate.number || '--'", script)
+        self.assertIn('`Total s/IVA ${formatMoney', script)
+        self.assertIn('`Total c/IVA ${formatMoney', script)
 
     def test_secondary_settings_modals_close_with_escape(self):
         required = (ROOT / 'static' / 'js' / 'document_ai_required_info.js').read_text(encoding='utf-8')

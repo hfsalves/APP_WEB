@@ -21,7 +21,7 @@ class DocumentAiAnalysisHeaderTests(unittest.TestCase):
         template = (ROOT / 'templates/document_ai_extract.html').read_text(encoding='utf-8')
         source = (ROOT / 'static/js/document_ai_extract.js').read_text(encoding='utf-8')
         header_start = template.index('<section class="sz_panel docai-extract-result-panel">')
-        header_end = template.index('<nav id="docAiExtractGroupNavigator"', header_start)
+        header_end = template.index('<div id="docAiExtractEmpty"', header_start)
         self.assertIn('id="docAiExtractWorkflowValidateBtn"', template[header_start:header_end])
         self.assertIn("home: 'Receção'", source)
         self.assertIn("management: 'Controlo'", source)

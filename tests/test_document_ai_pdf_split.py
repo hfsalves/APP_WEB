@@ -1,5 +1,6 @@
 import io
 import unittest
+from pathlib import Path
 
 from pypdf import PdfReader, PdfWriter
 
@@ -43,6 +44,27 @@ class DocumentAiPdfSplitTests(unittest.TestCase):
         self.assertEqual(_split_document_prefix('delivery_note'), 'BL')
         self.assertEqual(_split_document_prefix('invoice'), 'FAC')
         self.assertEqual(_safe_split_file_part('Vicat S.A. / France', 'FORNECEDOR'), 'Vicat_S_A_France')
+
+    def test_children_keep_real_pdf_hash_and_batch_is_audit_only(self):
+        service = Path('services/document_ai_service.py').read_text(encoding='utf-8')
+        split_block = service.split('def split_extracted_pdf_into_inbox(', 1)[1].split(
+            'def _create_inbox_document_from_stored_file(', 1
+        )[0]
+
+        self.assertIn('file_hash=content_hash', split_block)
+        self.assertNotIn('unique_hash', split_block)
+        self.assertIn("'batch_audit': group", split_block)
+        self.assertIn("'audit_only': True", service)
+
+    def test_frontend_has_no_batch_document_navigator(self):
+        template = Path('templates/document_ai_extract.html').read_text(encoding='utf-8')
+        script = Path('static/js/document_ai_extract.js').read_text(encoding='utf-8')
+
+        self.assertNotIn('docAiExtractGroupNavigator', template)
+        self.assertNotIn('Documento 1 de 1', template)
+        self.assertNotIn('renderGroupNavigator', script)
+        self.assertNotIn('/group`', script)
+        self.assertIn('payload.batch_audit?.documents', script)
 
 
 if __name__ == '__main__':

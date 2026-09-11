@@ -16,21 +16,38 @@ class DocumentAiExtractSummaryFrontendTests(unittest.TestCase):
         self.assertNotIn('docAiExtractClassificationValue', self.template)
         self.assertNotIn('docAiExtractClassificationMeta', self.template)
 
-    def test_ged_destination_is_inside_the_classification_card(self):
-        card = self.template.split('id="docAiExtractModeCard"', 1)[1].split('</article>', 1)[0]
-        self.assertIn('id="docAiExtractGedDestination"', card)
-        self.assertIn('id="docAiExtractGedFileName"', card)
-        self.assertIn('id="docAiExtractGedPath"', card)
-        self.assertIn('id="docAiExtractGedFolderSelect"', card)
+    def test_agency_is_inside_entity_and_ged_destination_stays_in_classification(self):
+        entity_card = self.template.split('id="docAiExtractCustomerCard"', 1)[1].split('</article>', 1)[0]
+        classification_card = self.template.split('id="docAiExtractModeCard"', 1)[1].split('</article>', 1)[0]
+        self.assertIn('id="docAiExtractGedFolderControl"', entity_card)
+        self.assertIn('id="docAiExtractGedFolderSelect"', entity_card)
+        self.assertNotIn('id="docAiExtractGedFolderControl"', classification_card)
+        self.assertIn('id="docAiExtractGedDestination"', classification_card)
+        self.assertIn('id="docAiExtractGedFileName"', classification_card)
+        self.assertIn('id="docAiExtractGedPath"', classification_card)
         self.assertIn('function renderClassificationCard()', self.script)
 
     def test_classification_card_only_exposes_business_destination_content(self):
         card = self.template.split('id="docAiExtractModeCard"', 1)[1].split('</article>', 1)[0]
         self.assertNotIn('Nome GED', card)
         self.assertIn('id="docAiExtractGedStatus" hidden', card)
-        self.assertIn('id="docAiExtractGedFolderTrigger"', card)
-        self.assertIn('>Agência INTERSOL</button>', card)
-        self.assertIn('id="docAiExtractGedFolderSelect" class="sz_input" hidden', card)
+        self.assertNotIn('id="docAiExtractGedFolderTrigger"', card)
+        self.assertNotIn('id="docAiExtractGedFolderSelect"', card)
+
+    def test_tp064_b_header_agency_and_business_classification_behaviour(self):
+        self.assertIn("forbiddenManualTypes = new Set(['unknown', 'proforma_invoice', 'provisional_invoice', 'other'])", self.script)
+        self.assertIn("provisional_invoice: 'Fatura provisória'", self.script)
+        self.assertIn("subcontract: 'Contrato Sub.Emp.'", self.script)
+        self.assertIn("locale: window.flatpickr.l10ns?.pt || { firstDayOfWeek: 1 }", self.script)
+        self.assertIn("const sourceDate = String(state.documentData?.document_date || '').trim();", self.script)
+        self.assertIn("data._manual_fields = [...new Set([...(data._manual_fields || []), field])]", self.script)
+        self.assertIn("els.documentSummary?.addEventListener('focusout'", self.script)
+        self.assertIn("if (event.key === 'Escape')", self.script)
+        self.assertIn("if (event.key === 'Enter')", self.script)
+        self.assertIn("if (!event.target.closest('[data-agency-control]')) openEntityModal();", self.script)
+        self.assertIn("data[field] = previousValue", self.script)
+        self.assertIn("state.documentData.customer.ged_folder = previous.folder", self.script)
+        self.assertIn("'<i class=\"fa-solid fa-pen\"></i><span>Alterar agência</span>'", self.script)
 
     def test_missing_header_values_use_business_prompts(self):
         self.assertIn("normalizedDocumentType !== 'unknown'", self.script)
@@ -80,8 +97,10 @@ class DocumentAiExtractSummaryFrontendTests(unittest.TestCase):
         self.assertIn('aria-label="Associar Centro de Custo"', self.template)
 
     def test_line_headers_use_cdc_and_hide_the_vehicle_caption(self):
-        self.assertIn('<th>CdC</th>', self.template)
-        self.assertIn('<th aria-label="Matrícula"></th>', self.template)
+        self.assertIn('<th rowspan="2">CdC</th>', self.template)
+        self.assertIn('>Ação</th>', self.template)
+        self.assertIn('<th aria-label="Custos detalhados">Info</th>', self.template)
+        self.assertIn('<th>Matrícula</th>', self.template)
         self.assertIn('<th title="Centro de Custo">CdC</th><th>Data</th><th>Matrícula</th>', self.script)
 
     def test_project_search_exposes_distinguishing_phc_fields(self):
