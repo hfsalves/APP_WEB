@@ -3750,8 +3750,21 @@ def _attention_day_payload(day_value):
 @login_required
 def pricing_api_attention_now():
     ensure_pricing_schema(db.session)
-    start_date = date.today()
-    end_date = start_date + timedelta(days=19)
+    today = date.today()
+    period_filter = str(request.args.get("period") or "").strip()
+    if period_filter:
+        try:
+            selected_month = datetime.strptime(period_filter, "%Y-%m").date()
+        except ValueError:
+            return jsonify({"error": "Período inválido. Use o formato AAAA-MM."}), 400
+        start_date = selected_month.replace(day=1)
+        if start_date.month == 12:
+            end_date = start_date.replace(year=start_date.year + 1, month=1) - timedelta(days=1)
+        else:
+            end_date = start_date.replace(month=start_date.month + 1) - timedelta(days=1)
+    else:
+        start_date = today
+        end_date = start_date + timedelta(days=19)
     end_exclusive = end_date + timedelta(days=1)
     regime_filter = str(request.args.get("regime") or "").strip().upper()
     if regime_filter not in {"", "TODOS", "EXPLORACAO", "GESTAO"}:
@@ -3823,7 +3836,10 @@ def pricing_api_attention_now():
         return jsonify({
             "start": start_date.isoformat(),
             "end": end_date.isoformat(),
-            "dates": [_attention_day_payload(start_date + timedelta(days=i)) for i in range(20)],
+            "dates": [
+                _attention_day_payload(start_date + timedelta(days=i))
+                for i in range((end_date - start_date).days + 1)
+            ],
             "rows": [],
         })
 
@@ -3919,7 +3935,7 @@ def pricing_api_attention_now():
             occupied[(alojamento, cursor)] = reservation
             cursor += timedelta(days=1)
 
-    dates = [start_date + timedelta(days=i) for i in range(20)]
+    dates = [start_date + timedelta(days=i) for i in range((end_date - start_date).days + 1)]
     rows = []
     for aloj_row in aloj_rows:
         alojamento = aloj_row.get("ALOJAMENTO")

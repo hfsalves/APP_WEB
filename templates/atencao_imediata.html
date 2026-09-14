@@ -83,8 +83,8 @@
     --attention-lodge-width: 13.5rem;
     --attention-day-width: 4.35rem;
     display: grid;
-    grid-template-columns: var(--attention-lodge-width) repeat(20, var(--attention-day-width));
-    min-width: calc(var(--attention-lodge-width) + 20 * var(--attention-day-width));
+    grid-template-columns: var(--attention-lodge-width) repeat(var(--attention-days, 20), var(--attention-day-width));
+    min-width: max-content;
   }
 
   .attention-head {
@@ -386,6 +386,12 @@
         <div class="attention-kpi"><span>Noites vazias</span><strong id="attentionKpiNights">0</strong></div>
         <div class="attention-kpi"><span>Potencial</span><strong id="attentionKpiPotential">0</strong></div>
         <div class="attention-kpi attention-kpi-warning"><span>Por sincronizar</span><strong id="attentionKpiUnsynced">0</strong></div>
+        <label class="sz_field" for="attentionPeriod">
+          <span class="sz_label">Período</span>
+          <select id="attentionPeriod" class="sz_select">
+            <option value="">Próximos 20 dias</option>
+          </select>
+        </label>
         <label class="sz_field" for="attentionRegime">
           <span class="sz_label">Regime</span>
           <select id="attentionRegime" class="sz_select">
@@ -404,7 +410,7 @@
     <main class="attention-body">
       <div class="attention-scroll">
         <div id="attentionGrid" class="attention-grid"></div>
-        <div id="attentionEmpty" class="attention-empty" hidden>Sem buracos vend&aacute;veis nos pr&oacute;ximos 20 dias.</div>
+        <div id="attentionEmpty" class="attention-empty" hidden>Sem buracos vend&aacute;veis neste per&iacute;odo.</div>
       </div>
     </main>
   </div>

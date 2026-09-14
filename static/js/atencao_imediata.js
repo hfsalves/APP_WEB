@@ -4,6 +4,7 @@
   const els = {
     grid: document.getElementById('attentionGrid'),
     empty: document.getElementById('attentionEmpty'),
+    period: document.getElementById('attentionPeriod'),
     regime: document.getElementById('attentionRegime'),
     refresh: document.getElementById('attentionRefresh'),
     kpiAloj: document.getElementById('attentionKpiAloj'),
@@ -35,6 +36,21 @@
     minimumFractionDigits: 0,
     maximumFractionDigits: 0
   });
+
+  function populatePeriodOptions() {
+    if (!els.period) return;
+    const formatter = new Intl.DateTimeFormat('pt-PT', { month: 'long', year: 'numeric' });
+    const today = new Date();
+    const firstMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    for (let offset = 0; offset < 12; offset += 1) {
+      const month = new Date(firstMonth.getFullYear(), firstMonth.getMonth() + offset, 1);
+      const value = `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, '0')}`;
+      const option = document.createElement('option');
+      option.value = value;
+      option.textContent = formatter.format(month).replace(/^\w/, (letter) => letter.toUpperCase());
+      els.period.appendChild(option);
+    }
+  }
 
   function parseMoneyValue(value) {
     if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
@@ -304,6 +320,7 @@
     els.grid.innerHTML = '';
     const dates = payload.dates || [];
     const rows = payload.rows || [];
+    els.grid.style.setProperty('--attention-days', String(dates.length || 20));
     els.empty.hidden = rows.length > 0;
     els.grid.hidden = rows.length === 0;
     if (!rows.length) return;
@@ -318,6 +335,7 @@
     els.grid.innerHTML = '<div class="attention-empty">A carregar...</div>';
     try {
       const query = new URLSearchParams();
+      if (els.period?.value) query.set('period', els.period.value);
       if (els.regime?.value) query.set('regime', els.regime.value);
       const response = await fetch(`/pricing/api/atencao-imediata?${query.toString()}`, {
         credentials: 'same-origin'
@@ -378,7 +396,9 @@
   }
 
   els.refresh?.addEventListener('click', load);
+  els.period?.addEventListener('change', load);
   els.regime?.addEventListener('change', load);
   els.form?.addEventListener('submit', savePrice);
+  populatePeriodOptions();
   load();
 })();
