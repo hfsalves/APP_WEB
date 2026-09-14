@@ -61,12 +61,9 @@ from services import document_ai_service
 
 
 class DocumentAiPhcOriginTests(unittest.TestCase):
-    def test_provisional_date_moves_to_day_after_phc_closing_date(self):
+    def test_provisional_date_moves_to_first_day_of_first_open_month(self):
         cursor = MagicMock()
-        cursor.execute.return_value.fetchone.return_value = (
-            datetime(2026, 8, 17, 0, 0, 0),
-            datetime(2026, 7, 31, 0, 0, 0),
-        )
+        cursor.execute.return_value.fetchone.return_value = ('17.08.2026',)
 
         effective_at = _phc_provisional_effective_datetime(
             cursor,
@@ -75,14 +72,11 @@ class DocumentAiPhcOriginTests(unittest.TestCase):
             datetime(2026, 9, 1, 14, 23, 45, 123456),
         )
 
-        self.assertEqual(effective_at, datetime(2026, 8, 18, 14, 23, 45, 123456))
+        self.assertEqual(effective_at, datetime(2026, 9, 1, 14, 23, 45, 123456))
 
     def test_provisional_date_after_year_end_closing_uses_next_calendar_day(self):
         cursor = MagicMock()
-        cursor.execute.return_value.fetchone.return_value = (
-            datetime(2026, 12, 31, 0, 0, 0),
-            None,
-        )
+        cursor.execute.return_value.fetchone.return_value = ('31.12.2026',)
 
         effective_at = _phc_provisional_effective_datetime(
             cursor,

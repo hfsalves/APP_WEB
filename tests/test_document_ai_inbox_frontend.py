@@ -36,8 +36,8 @@ class DocumentAiInboxFrontendTests(unittest.TestCase):
 
     def test_invoice_type_counts_only_invoices_and_hides_empty_unknown(self):
         self.assertIn("filterName !== 'invoice_type' || String(item.document_type || 'unknown') === 'invoice'", self.source)
-        self.assertIn("value !== 'unknown' || data.count > 0", self.source)
-        self.assertIn("options.map((option) => [String(option.value), { count: 0", self.source)
+        self.assertIn('.filter(([, data]) => data.count > 0)', self.source)
+        self.assertIn('const counts = new Map();', self.source)
 
     def test_each_view_has_the_expected_counter_groups(self):
         self.assertIn("const documentTypeGroup = counterGroup('Tipo de documento'", self.source)
@@ -53,6 +53,9 @@ class DocumentAiInboxFrontendTests(unittest.TestCase):
     def test_archive_rows_open_the_read_only_analysis_route(self):
         self.assertIn("if (state.archived) params.set('archive', '1')", self.source)
         self.assertIn("state.archived ? state.permissions.consult : state.permissions.analyze", self.source)
+
+    def test_archive_hides_new_document_even_with_create_permission(self):
+        self.assertIn('els.uploadBtn.hidden = state.archived || !state.permissions.create;', self.source)
 
 
 if __name__ == '__main__':

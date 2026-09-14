@@ -4,7 +4,7 @@
   const permissions = config.permissions || {};
   const companies = Array.isArray(config.companies) ? config.companies : [];
   const fallbackUsers = Array.isArray(config.users) ? config.users : [];
-  const state = { rows: [], active: '', selected: new Set(), timers: new Map(), saves: new Map(), rates: new Map(), resources: new Map(), returning: '' };
+  const state = { rows: [], active: '', selected: new Set(), timers: new Map(), saves: new Map(), saveErrors: new Set(), rates: new Map(), resources: new Map(), returning: '', lookup: null };
   const el = {
     from: document.getElementById('expDateFrom'), to: document.getElementById('expDateTo'),
     user: document.getElementById('expUser'), refresh: document.getElementById('expRefresh'),
@@ -14,7 +14,10 @@
     deletePdf: document.getElementById('expDeletePdf'), ai: document.getElementById('expRunAi'),
     drop: document.getElementById('expDropZone'), input: document.getElementById('expPdfInput'),
     modal: document.getElementById('expReturnModal'), returnMeta: document.getElementById('expReturnMeta'),
-    returnObs: document.getElementById('expReturnObservation'), returnConfirm: document.getElementById('expReturnConfirm')
+    returnObs: document.getElementById('expReturnObservation'), returnConfirm: document.getElementById('expReturnConfirm'),
+    lookupModal: document.getElementById('expLookupModal'), lookupTitle: document.getElementById('expLookupTitle'),
+    lookupSearch: document.getElementById('expLookupSearch'), lookupSearchButton: document.getElementById('expLookupSearchButton'),
+    lookupResults: document.getElementById('expLookupResults')
   };
   const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
   const money = (value, currency='EUR') => `${Number(value || 0).toLocaleString('pt-PT',{minimumFractionDigits:2,maximumFractionDigits:2})} ${currency || 'EUR'}`;
@@ -39,13 +42,14 @@
     el.summary.textContent = archive
       ? `Arquivo · ${state.rows.length}`
       : `Despesas a analisar · ${state.rows.length}${selected.length ? ` | ${selected.length} selecionada${selected.length===1?'':'s'} · ${money(total, selected[0]?.moeda)}` : ''}`;
-    if (el.launch) el.launch.disabled = !selected.length;
+    if (el.launch) el.launch.disabled = !selected.length || selected.some(item => state.saveErrors.has(item.stamp));
     const base = selected[0];
     document.querySelectorAll('.expense-card').forEach(card => {
       const item = findRow(card.dataset.stamp);
       const disabled = base && !state.selected.has(item.stamp) && !compatible(base, item);
       card.classList.toggle('is-incompatible', Boolean(disabled));
       const checkbox = card.querySelector('[data-select]');
+      card.classList.toggle('is-selected', state.selected.has(item.stamp));
       if (checkbox) {
         checkbox.disabled = Boolean(disabled);
         checkbox.title = disabled ? 'Seleciona despesas da mesma empresa, colaborador e moeda.' : '';
@@ -55,17 +59,20 @@
 
   function accountingLineHtml(line, index, count, currency) {
     const amounts = vatParts(line.total_com_iva, line.taxaiva);
+    const locked = archive || !permissions.editar;
+    const disabled = locked ? 'disabled' : '';
     return `<div class="expense-line" data-accounting-line data-line-stamp="${esc(line.stamp||'')}" data-origins="${esc(JSON.stringify(line.origins||{}))}">
-      <label><span class="sz_label">Artigo${origin(line,'artigo_ref')}</span><input class="expense-input" data-field="artigo_ref" value="${esc(line.artigo_ref)}" placeholder="Referência PHC" autocomplete="off"></label>
-      <label><span class="sz_label">Referência${origin(line,'referencia')}</span><input class="expense-input" data-field="referencia" value="${esc(line.referencia)}"></label>
-      <label><span class="sz_label">Designação${origin(line,'design')}</span><input class="expense-input" data-field="design" value="${esc(line.design)}"></label>
-      <label><span class="sz_label">Centro de custo${origin(line,'ccusto')}</span><input class="expense-input" data-field="ccusto" value="${esc(line.ccusto)}"></label>
-      <label><span class="sz_label">Matrícula${origin(line,'matricula')}</span><input class="expense-input" data-field="matricula" value="${esc(line.matricula)}" autocomplete="off"></label>
-      <label><span class="sz_label">IVA${origin(line,'tabiva')}</span><select class="expense-select" data-field="tabiva" data-rate="${esc(line.taxaiva)}"><option value="${esc(line.tabiva)}">${esc(line.taxaiva)}%</option></select></label>
-      <label><span class="sz_label">Sem IVA</span><span class="expense-calculated" data-net>${money(amounts.net,currency)}</span></label>
-      <label><span class="sz_label">IVA</span><span class="expense-calculated" data-vat>${money(amounts.vat,currency)}</span></label>
-      <label><span class="sz_label">Com IVA${origin(line,'total_com_iva')}</span><input class="expense-input expense-money" data-field="total_com_iva" type="number" min="0" step="0.01" value="${amounts.gross.toFixed(2)}"></label>
-      <button class="sz_icon_button danger expense-remove-line" type="button" data-remove-line title="${index===0?'A primeira linha não pode ser removida':'Remover linha'}" aria-label="Remover linha" ${index===0?'disabled':''}><i class="fa-solid fa-minus"></i></button>
+      <div class="expense-line-main">
+      <div class="expense-line-actions"><button class="sz_icon_button" type="button" data-add-line title="Adicionar linha" aria-label="Adicionar linha" ${disabled}><i class="fa-solid fa-plus"></i></button><button class="sz_icon_button expense-remove-line" type="button" data-remove-line title="${index===0?'A primeira linha não pode ser removida':'Remover linha'}" aria-label="Remover linha" ${locked||index===0?'disabled':''}><i class="fa-solid fa-minus"></i></button></div>
+      <label><span class="sz_label">Artigo${origin(line,'artigo_ref')}</span><button class="expense-lookup" type="button" data-lookup="article" data-value="${esc(line.artigo_ref)}" ${disabled}><strong>${esc(line.artigo_ref||'Escolher')}</strong><small data-article-design>${esc(line.design||'Selecionar artigo PHC')}</small></button><input type="hidden" data-field="artigo_ref" value="${esc(line.artigo_ref)}"><input type="hidden" data-field="design" value="${esc(line.design)}"></label>
+      <label><span class="sz_label">Referência${origin(line,'referencia')}</span><input class="expense-input" data-field="referencia" value="${esc(line.referencia)}" ${disabled}></label>
+      <label><span class="sz_label">Centro de Custo${origin(line,'ccusto')}</span><button class="expense-lookup" type="button" data-lookup="ccusto" data-value="${esc(line.ccusto)}" ${disabled}><strong>${esc(line.ccusto||'Escolher')}</strong></button><input type="hidden" data-field="ccusto" value="${esc(line.ccusto)}"></label>
+      <label><span class="sz_label">Matrícula${origin(line,'matricula')}</span><button class="expense-lookup" type="button" data-lookup="vehicle" data-value="${esc(line.matricula)}" ${disabled}><strong>${esc(line.matricula||'Escolher')}</strong></button><input type="hidden" data-field="matricula" value="${esc(line.matricula)}"></label>
+      </div><div class="expense-line-values">
+      <label><span class="sz_label">Total s/IVA</span><span class="expense-calculated" data-net data-value="${amounts.net.toFixed(2)}">${money(amounts.net,currency)}</span></label>
+      <label><span class="sz_label">IVA${origin(line,'tabiva')}</span><select class="expense-select" data-field="tabiva" data-rate="${esc(line.taxaiva)}" ${disabled}><option value="${esc(line.tabiva)}">${esc(line.taxaiva)}%</option></select><span data-vat data-value="${amounts.vat.toFixed(2)}" hidden>${money(amounts.vat,currency)}</span></label>
+      <label><span class="sz_label">Total c/IVA${origin(line,'total_com_iva')}</span><input class="expense-input expense-money" data-field="total_com_iva" type="number" min="0" step="0.01" value="${amounts.gross.toFixed(2)}" ${disabled}></label>
+      </div>
     </div>`;
   }
 
@@ -79,20 +86,19 @@
     const badge = status === 'DEVOLVIDA' ? '<span class="expense-archive-badge returned">Devolvida</span>'
       : status === 'ELIMINADA' ? '<span class="expense-archive-badge deleted">Eliminada</span>'
       : item.phc_bostamp ? `<span class="expense-archive-badge posted">${esc(item.phc_nmdos||'PHC')} n.º ${esc(item.phc_obrano||'')}</span>` : '';
-    return `<article class="expense-card ${item.stamp===state.active?'is-active':''}" data-stamp="${esc(item.stamp)}" data-version="${esc(item.version||1)}">
+    return `<article class="expense-card ${item.stamp===state.active?'is-active':''} ${state.selected.has(item.stamp)?'is-selected':''}" data-stamp="${esc(item.stamp)}" data-version="${esc(item.version||1)}">
       <div class="expense-card-head">
         ${archive ? badge : `<input class="expense-check" data-select type="checkbox" ${state.selected.has(item.stamp)?'checked':''}>`}
-        <label><span class="sz_label">Data</span><input class="expense-input" data-expense-field="data_despesa" type="date" value="${esc(item.data_despesa)}" ${archive?'disabled':''}></label>
-        <div class="expense-card-user"><strong>${esc(item.penome||item.login||'-')}</strong><small>${esc(item.peno?`N.º ${item.peno}`:item.login||'')}</small></div>
-        <label><span class="sz_label">Empresa</span><select class="expense-select" data-expense-field="feid" ${archive?'disabled':''}>${companyOptions(item.feid)}</select></label>
         <div class="expense-card-actions"><span class="expense-save" data-save-state></span>
-          ${!archive&&permissions.eliminar?'<button class="sz_icon_button" type="button" data-return title="Devolver ao colaborador" aria-label="Devolver ao colaborador"><i class="fa-solid fa-arrow-rotate-left"></i></button><button class="sz_icon_button danger" type="button" data-delete title="Eliminar despesa" aria-label="Eliminar despesa"><i class="fa-solid fa-trash"></i></button>':''}
+          ${!archive&&permissions.eliminar?'<button class="sz_icon_button expense-return" type="button" data-return title="Devolver" aria-label="Devolver"><i class="fa-solid fa-arrow-rotate-left"></i></button><button class="sz_icon_button expense-delete" type="button" data-delete title="Eliminar" aria-label="Eliminar"><i class="fa-solid fa-trash"></i></button>':''}
           ${archive&&permissions.eliminar&&!item.phc_bostamp?'<button class="sz_icon_button danger" type="button" data-delete-permanent title="Eliminar definitivamente" aria-label="Eliminar definitivamente"><i class="fa-solid fa-trash"></i></button>':''}
         </div>
       </div>
-      <label class="expense-card-comment"><span class="sz_label">Comentário</span><input class="expense-input" data-expense-field="obs" maxlength="100" value="${esc(item.obs)}" ${archive?'disabled':''}></label>
-      <div class="expense-accounting"><div class="expense-accounting-head"><span>Linhas contabilísticas</span>${!archive&&permissions.editar?'<button class="sz_icon_button" type="button" data-add-line title="Adicionar linha" aria-label="Adicionar linha"><i class="fa-solid fa-plus"></i></button>':''}</div><div class="expense-lines">${lines.map((line,i)=>accountingLineHtml(line,i,lines.length,item.moeda)).join('')}</div></div>
-      <footer class="expense-card-foot"><div class="expense-totals"><span>Despesa <strong>${money(item.valor,item.moeda)}</strong></span><span>Sem IVA <strong data-total-net>${money(item.linhas_total_sem_iva,item.moeda)}</strong></span><span>IVA <strong data-total-vat>${money(item.linhas_total_iva,item.moeda)}</strong></span><span>Linhas <strong data-total-gross>${money(item.linhas_total_com_iva,item.moeda)}</strong></span><span class="expense-difference ${Math.abs(Number(item.diferenca||0))>.009?'has-difference':''}" data-difference>Diferença ${money(item.diferenca,item.moeda)}</span></div><small>${esc(item.tipo||'')}</small></footer>
+      <div class="expense-card-facts"><div class="expense-card-user"><span class="sz_label">Nome do colaborador</span><strong>${esc(item.penome||item.login||'-')}</strong></div><div><span class="sz_label">Tipo de despesa</span><strong>${esc(item.tipo||'-')}</strong></div><label><span class="sz_label">Data da despesa</span><input class="expense-input" data-expense-field="data_despesa" type="date" value="${esc(item.data_despesa)}" ${archive||!permissions.editar?'disabled':''}></label><div><span class="sz_label">Total c/IVA</span><strong>${money(item.valor,item.moeda)}</strong></div></div>
+      <label class="expense-card-company"><span class="sz_label">Empresa</span><select class="expense-select" data-expense-field="feid" ${archive||!permissions.editar?'disabled':''}>${companyOptions(item.feid)}</select></label>
+      <div class="expense-accounting"><div class="expense-accounting-head"><span>Linhas contabilísticas</span></div><div class="expense-lines">${lines.map((line,i)=>accountingLineHtml(line,i,lines.length,item.moeda)).join('')}</div></div>
+      <footer class="expense-card-foot"><div class="expense-totals"><span>Total da despesa <strong>${money(item.valor,item.moeda)}</strong></span><span>Total das linhas <strong data-total-gross>${money(item.linhas_total_com_iva,item.moeda)}</strong></span><span class="expense-difference ${Math.abs(Number(item.diferenca||0))>.009?'has-difference':'is-zero'}" data-difference>Diferença ${money(item.diferenca,item.moeda)}</span><span data-total-net hidden>${money(item.linhas_total_sem_iva,item.moeda)}</span><span data-total-vat hidden>${money(item.linhas_total_iva,item.moeda)}</span></div></footer>
+      <div class="expense-card-comment"><span class="sz_label">Comentário do colaborador</span><p>${esc(item.obs||'Sem comentário.')}</p></div>
     </article>`;
   }
 
@@ -116,43 +122,35 @@
   function hydrateCard(card) {
     const item = findRow(card.dataset.stamp);
     card.querySelectorAll('[data-field="tabiva"]').forEach(select => loadRates(select, item.feid));
-    loadCostCenters(card, item.feid);
-    prepareLookups(card);
     recalculate(card);
   }
 
-  function bindDatalist(input, key, values) {
-    let list=document.getElementById(key);
-    if(!list){list=document.createElement('datalist');list.id=key;document.body.appendChild(list);}
-    list.innerHTML=values.map(value=>`<option value="${esc(value)}"></option>`).join('');
-    input.setAttribute('list',key);
+  function closeLookup() { state.lookup=null; el.lookupModal.hidden=true; el.lookupResults.innerHTML=''; }
+  function openLookup(button,card) {
+    const kind=button.dataset.lookup, names={article:'Selecionar artigo',ccusto:'Selecionar Centro de Custo',vehicle:'Selecionar matrícula'};
+    state.lookup={kind,button,card,rows:[]}; el.lookupTitle.textContent=names[kind]||'Selecionar';
+    el.lookupSearch.value=button.dataset.value||''; el.lookupModal.hidden=false; el.lookupSearch.focus();
+    searchLookupOptions();
   }
-  async function loadCostCenters(card,feid) {
-    const key=`ccusto-${feid||0}`;
-    if(!state.resources.has(key)) state.resources.set(key,fetch(`/api/colaborador/despesas/processamento/centros-custo?feid=${encodeURIComponent(feid||0)}`,{credentials:'same-origin'}).then(r=>r.json()).then(r=>r.rows||[]));
-    const values=await state.resources.get(key);
-    card.querySelectorAll('[data-field="ccusto"]').forEach((input,index)=>bindDatalist(input,`expense-ccusto-${card.dataset.stamp}-${index}`,values));
+  async function searchLookupOptions() {
+    const target=state.lookup;if(!target)return;const item=findRow(target.card.dataset.stamp);const feid=target.card.querySelector('[data-expense-field="feid"]')?.value||item.feid||0;
+    const query=el.lookupSearch.value.trim();
+    if(target.kind!=='ccusto'&&!query){el.lookupResults.innerHTML='<div class="expense-state">Escreve para pesquisar.</div>';return;}
+    const endpoint=target.kind==='article'?'artigos':target.kind==='vehicle'?'viaturas':'centros-custo';
+    el.lookupResults.innerHTML='<div class="expense-state"><i class="fa-solid fa-circle-notch fa-spin"></i><span>A pesquisar...</span></div>';
+    const response=await fetch(`/api/colaborador/despesas/processamento/${endpoint}?feid=${encodeURIComponent(feid)}&q=${encodeURIComponent(query)}`,{credentials:'same-origin'});
+    const result=await response.json().catch(()=>({}));if(!response.ok||!result.ok){el.lookupResults.innerHTML=`<div class="expense-state">${esc(result.error||'Erro na pesquisa.')}</div>`;return;}
+    target.rows=result.rows||[];
+    el.lookupResults.innerHTML=target.rows.map((row,index)=>{const value=typeof row==='string'?row:(target.kind==='article'?row.ref:target.kind==='ccusto'?row.ccusto:row.matricula);const detail=typeof row==='string'?'':(target.kind==='article'?row.design:target.kind==='ccusto'?row.design:[row.marca,row.modelo,row.nofrota].filter(Boolean).join(' · '));return `<button type="button" data-lookup-index="${index}"><strong>${esc(value)}</strong><small>${esc(detail)}</small></button>`;}).join('')||'<div class="expense-state">Nenhum resultado válido.</div>';
   }
-  function prepareLookups(card) {
-    card.querySelectorAll('[data-accounting-line]').forEach((line,index)=>{
-      const article=line.querySelector('[data-field="artigo_ref"]'), plate=line.querySelector('[data-field="matricula"]');
-      bindDatalist(article,`expense-article-${card.dataset.stamp}-${index}`,[]);
-      bindDatalist(plate,`expense-plate-${card.dataset.stamp}-${index}`,[]);
-    });
-  }
-  async function searchLookup(input,card) {
-    const query=input.value.trim();if(!query)return;
-    const item=findRow(card.dataset.stamp);
-    if(input.dataset.field==='artigo_ref'){
-      const response=await fetch(`/api/colaborador/despesas/processamento/artigos?feid=${encodeURIComponent(item.feid||0)}&q=${encodeURIComponent(query)}`,{credentials:'same-origin'});
-      const result=await response.json().catch(()=>({})), rows=result.rows||[];
-      bindDatalist(input,input.getAttribute('list'),rows.map(value=>value.ref));
-      input._expenseOptions=rows;
-    }else if(input.dataset.field==='matricula'){
-      const response=await fetch(`/api/colaborador/despesas/processamento/viaturas?feid=${encodeURIComponent(item.feid||0)}&q=${encodeURIComponent(query)}`,{credentials:'same-origin'});
-      const result=await response.json().catch(()=>({}));
-      bindDatalist(input,input.getAttribute('list'),(result.rows||[]).map(value=>value.matricula));
-    }
+  function selectLookup(index) {
+    const target=state.lookup,row=target?.rows?.[Number(index)];if(!target||row===undefined)return;
+    const line=target.button.closest('[data-accounting-line]');const value=typeof row==='string'?row:(target.kind==='article'?row.ref:target.kind==='ccusto'?row.ccusto:row.matricula);
+    const field=target.kind==='article'?'artigo_ref':target.kind==='vehicle'?'matricula':'ccusto';
+    line.querySelector(`[data-field="${field}"]`).value=value||'';target.button.dataset.value=value||'';target.button.querySelector('strong').textContent=value||'Escolher';target.button.classList.remove('is-unverified');
+    if(target.kind==='article'){line.querySelector('[data-field="design"]').value=row.design||'';line.querySelector('[data-article-design]').textContent=row.design||'Artigo PHC';}
+    let origins={};try{origins=JSON.parse(line.dataset.origins||'{}');}catch(_error){}origins[field]='manual';line.dataset.origins=JSON.stringify(origins);
+    const card=target.card;closeLookup();recalculate(card);schedule(card);
   }
 
   function collect(card) {
@@ -161,7 +159,7 @@
       stamp:item.stamp, version:Number(card.dataset.version||item.version||1),
       data_despesa:card.querySelector('[data-expense-field="data_despesa"]')?.value||'',
       feid:card.querySelector('[data-expense-field="feid"]')?.value||'', moeda:item.moeda||'EUR',
-      valor:item.valor, obs:card.querySelector('[data-expense-field="obs"]')?.value||'',
+      valor:item.valor,
       accounting_lines:[...card.querySelectorAll('[data-accounting-line]')].map(line => {
         const select = line.querySelector('[data-field="tabiva"]');
         return {
@@ -171,6 +169,8 @@
           ccusto:line.querySelector('[data-field="ccusto"]')?.value||'',
           matricula:line.querySelector('[data-field="matricula"]')?.value||'',
           tabiva:select?.value||'', taxaiva:select?.selectedOptions?.[0]?.dataset.rate||select?.dataset.rate||0,
+          total_sem_iva:line.querySelector('[data-net]')?.dataset.value||0,
+          valor_iva:line.querySelector('[data-vat]')?.dataset.value||0,
           total_com_iva:line.querySelector('[data-field="total_com_iva"]')?.value||0,
           origens:(()=>{try{return JSON.parse(line.dataset.origins||'{}');}catch(_error){return {};}})()
         };
@@ -185,7 +185,9 @@
       const amounts = vatParts(payload.accounting_lines[index].total_com_iva, payload.accounting_lines[index].taxaiva);
       net += amounts.net; vat += amounts.vat; gross += amounts.gross;
       line.querySelector('[data-net]').textContent = money(amounts.net,item.moeda);
+      line.querySelector('[data-net]').dataset.value = amounts.net.toFixed(2);
       line.querySelector('[data-vat]').textContent = money(amounts.vat,item.moeda);
+      line.querySelector('[data-vat]').dataset.value = amounts.vat.toFixed(2);
     });
     const difference = Math.round((Number(item.valor||0)-gross+Number.EPSILON)*100)/100;
     card.querySelector('[data-total-net]').textContent=money(net,item.moeda);
@@ -194,12 +196,13 @@
     const differenceNode=card.querySelector('[data-difference]');
     differenceNode.textContent=`Diferença ${money(difference,item.moeda)}`;
     differenceNode.classList.toggle('has-difference',Math.abs(difference)>.009);
+    differenceNode.classList.toggle('is-zero',Math.abs(difference)<=.009);
   }
 
   function setSave(card,status,message='') {
     const node=card.querySelector('[data-save-state]'); if(!node)return;
     node.className=`expense-save ${status==='ok'?'is-ok':status==='error'?'is-error':''}`; node.title=message;
-    node.innerHTML=status==='saving'?'<i class="fa-solid fa-circle-notch fa-spin"></i>':status==='ok'?'<i class="fa-solid fa-check"></i>':status==='error'?'<i class="fa-solid fa-triangle-exclamation"></i>':'';
+    node.innerHTML=status==='saving'?'<i class="fa-solid fa-circle-notch fa-spin"></i> A guardar...':status==='ok'?'<i class="fa-solid fa-check"></i> Guardado':status==='error'?'<i class="fa-solid fa-triangle-exclamation"></i> Erro ao guardar':'';
   }
   function schedule(card) {
     if(archive||!permissions.editar)return;
@@ -216,9 +219,9 @@
     }).then(async response=>{const result=await response.json().catch(()=>({}));if(!response.ok||!result.ok){const error=new Error(result.error||'Erro ao gravar.');error.conflict=response.status===409;throw error;}return result;});
     state.saves.set(stamp,promise);
     try {
-      const result=await promise; Object.assign(findRow(stamp),result.line); card.dataset.version=result.line.version; setSave(card,'ok'); return true;
+      const result=await promise; Object.assign(findRow(stamp),result.line); card.dataset.version=result.line.version; state.saveErrors.delete(stamp); setSave(card,'ok'); updateSummary(); return true;
     } catch(error) {
-      setSave(card,'error',error.message);
+      state.saveErrors.add(stamp); setSave(card,'error',error.message); updateSummary();
       if(error.conflict&&confirm(`${error.message}\n\nAtualizar agora?`))await load();
       return false;
     } finally { state.saves.delete(stamp); }
@@ -237,7 +240,7 @@
 
   function renderPreview() {
     const item=activeRow(), path=item?.file_url||'';
-    el.meta.textContent=item?`${item.penome||item.login||''} · ${item.data_despesa||''}`:'Seleciona uma despesa.';
+    el.meta.textContent=item?`${item.penome||item.login||''} · ${item.data_despesa||''} · ${item.tipo||''} · ${money(item.valor,item.moeda)}`:'Seleciona uma despesa.';
     el.open.setAttribute('aria-disabled',path?'false':'true'); el.open.href=path||'#';
     el.deletePdf.disabled=!path||archive||!permissions.editar; el.ai.disabled=!path||archive||!permissions.editar;
     if(!path){el.preview.className='expense-preview-empty';el.preview.innerHTML='<i class="fa-solid fa-file-arrow-up"></i><span>Esta despesa não tem PDF</span><small>Larga aqui um PDF até 50 MB</small>';return;}
@@ -279,10 +282,11 @@
     const card=event.target.closest('.expense-card');
     if(!card){if(event.target.closest('[data-retry]'))load();return;}
     activate(card); const item=findRow(card.dataset.stamp);
+    const lookup=event.target.closest('[data-lookup]');if(lookup){openLookup(lookup,card);return;}
     if(event.target.closest('[data-add-line]')){
       const lines=card.querySelector('.expense-lines');
       lines.insertAdjacentHTML('beforeend',accountingLineHtml({stamp:'',origens:{}},lines.children.length,lines.children.length+1,item.moeda));
-      loadRates(lines.lastElementChild.querySelector('[data-field="tabiva"]'),item.feid);prepareLookups(card);loadCostCenters(card,item.feid);recalculate(card);schedule(card);return;
+      loadRates(lines.lastElementChild.querySelector('[data-field="tabiva"]'),item.feid);recalculate(card);schedule(card);return;
     }
     if(event.target.closest('[data-remove-line]')){
       const lines=card.querySelector('.expense-lines');if(lines.children.length<=1)return;
@@ -310,22 +314,14 @@
       updateSummary();return;
     }
     if(event.target.matches('[data-expense-field="feid"]')){
+      const item=findRow(card.dataset.stamp);item.feid=Number(event.target.value||0);state.resources.clear();state.rates.delete(String(item.feid));
       card.querySelectorAll('[data-field="tabiva"]').forEach(select=>{select.value='';loadRates(select,event.target.value);});
-      card.querySelectorAll('[data-field="ccusto"],[data-field="matricula"]').forEach(input=>input.value='');
-      loadCostCenters(card,event.target.value);
-    }
-    if(event.target.matches('[data-field="artigo_ref"]')){
-      const selected=(event.target._expenseOptions||[]).find(option=>option.ref===event.target.value);
-      const design=event.target.closest('[data-accounting-line]')?.querySelector('[data-field="design"]');
-      if(selected&&design&&!design.value)design.value=selected.design||'';
+      card.querySelectorAll('[data-lookup]').forEach(button=>{if(button.dataset.value){button.classList.add('is-unverified');button.title='Confirmar valor para a nova Empresa.';}});
     }
     recalculate(card);schedule(card);
   });
   el.rows.addEventListener('input',event=>{
     const card=event.target.closest('.expense-card');if(!card)return;
-    if(event.target.matches('[data-field="artigo_ref"],[data-field="matricula"]')){
-      clearTimeout(event.target._lookupTimer);event.target._lookupTimer=setTimeout(()=>searchLookup(event.target,card),250);
-    }
     const accountingLine=event.target.closest('[data-accounting-line]');
     if(accountingLine&&event.target.dataset.field){
       let origins={};try{origins=JSON.parse(accountingLine.dataset.origins||'{}');}catch(_error){}
@@ -368,6 +364,10 @@
     const result=await response.json().catch(()=>({}));if(!response.ok||!result.ok)return alert(result.error||'Erro ao devolver.');el.modal.hidden=true;await load();
   });
   document.querySelectorAll('[data-modal-close]').forEach(button=>button.addEventListener('click',()=>el.modal.hidden=true));
+  document.querySelectorAll('[data-lookup-close]').forEach(button=>button.addEventListener('click',closeLookup));
+  el.lookupSearchButton?.addEventListener('click',searchLookupOptions);
+  el.lookupSearch?.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();searchLookupOptions();}if(event.key==='Escape')closeLookup();});
+  el.lookupResults?.addEventListener('click',event=>{const option=event.target.closest('[data-lookup-index]');if(option)selectLookup(option.dataset.lookupIndex);});
   [el.from,el.to,el.user].forEach(input=>input.addEventListener('change',()=>{saveFilters();load();}));
   el.refresh.addEventListener('click',load);updateUsers(fallbackUsers);restoreFilters();load();
 })();

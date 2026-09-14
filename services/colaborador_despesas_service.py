@@ -788,7 +788,7 @@ def list_expense_vat_rates(feid: int) -> list[dict[str, Any]]:
     return rates
 
 
-def list_expense_cost_centers(limit: int = 500, feid: int = 0) -> list[str]:
+def list_expense_cost_centers(limit: int = 500, feid: int = 0, with_description: bool = False) -> list[Any]:
     ensure_colaborador_despesas_schema()
     if not db.session.execute(text("SELECT OBJECT_ID('dbo.V_CCT', 'V')")).scalar():
         return []
@@ -803,14 +803,22 @@ def list_expense_cost_centers(limit: int = 500, feid: int = 0) -> list[str]:
     company = _expense_company_by_feid(_safe_int(feid)) if _safe_int(feid) else {}
     origin = str(company.get('phc_db') or '').strip()
     origin_filter = "AND UPPER(LTRIM(RTRIM(ISNULL(ORIGEM,''))))=UPPER(:origin)" if origin and 'ORIGEM' in columns else ""
+    description_select = "LTRIM(RTRIM(ISNULL(DESCRICAO, ''))) AS DESCRICAO," if 'DESCRICAO' in columns else "CAST('' AS varchar(200)) AS DESCRICAO,"
     rows = db.session.execute(text("""
         SELECT DISTINCT TOP """ + str(safe_limit) + """
-            LTRIM(RTRIM(ISNULL(CCUSTO, ''))) AS CCUSTO
+            LTRIM(RTRIM(ISNULL(CCUSTO, ''))) AS CCUSTO,
+            """ + description_select + """
+            LTRIM(RTRIM(ISNULL(ORIGEM, ''))) AS ORIGEM
         FROM dbo.V_CCT
         WHERE LTRIM(RTRIM(ISNULL(CCUSTO, ''))) <> ''
         """ + origin_filter + """
         ORDER BY LTRIM(RTRIM(ISNULL(CCUSTO, '')))
     """), {'origin': origin}).mappings().all()
+    if with_description:
+        return [
+            {'ccusto': str(row.get('CCUSTO') or '').strip(), 'design': str(row.get('DESCRICAO') or '').strip()}
+            for row in rows if str(row.get('CCUSTO') or '').strip()
+        ]
     return [str(row.get('CCUSTO') or '').strip() for row in rows if str(row.get('CCUSTO') or '').strip()]
 
 
@@ -821,6 +829,8 @@ def search_expense_articles(feid: int, term: str, limit: int = 12) -> list[dict[
         return []
     safe_limit = max(1, min(int(limit or 12), 30))
     unidade_select = "LTRIM(RTRIM(ISNULL(S.UNIDADE, ''))) AS UNIDADE," if _column_exists('ST', 'UNIDADE') else "CAST('' AS varchar(20)) AS UNIDADE,"
+    inactive_column = 'INACTIVO' if _column_exists('ST', 'INACTIVO') else ('INATIVO' if _column_exists('ST', 'INATIVO') else '')
+    inactive_filter = f"AND ISNULL(S.{inactive_column}, 0) = 0" if inactive_column else ""
     base_sql = f"""
         SELECT TOP {safe_limit}
             LTRIM(RTRIM(ISNULL(S.REF, ''))) AS REF,
@@ -832,6 +842,7 @@ def search_expense_articles(feid: int, term: str, limit: int = 12) -> list[dict[
             LTRIM(RTRIM(ISNULL(S.REF, ''))) LIKE :term
             OR LTRIM(RTRIM(ISNULL(S.DESIGN, ''))) LIKE :term
         )
+        {inactive_filter}
         {{feid_filter}}
         ORDER BY LTRIM(RTRIM(ISNULL(S.REF, '')))
     """
@@ -841,7 +852,7 @@ def search_expense_articles(feid: int, term: str, limit: int = 12) -> list[dict[
     if clean_feid:
         scoped_params = {**params, 'feid': clean_feid}
         rows = db.session.execute(text(base_sql.replace('{feid_filter}', 'AND ISNULL(S.FEID, 0) = :feid')), scoped_params).mappings().all()
-    if not rows:
+    if not rows and not clean_feid:
         rows = db.session.execute(text(base_sql.replace('{feid_filter}', '')), params).mappings().all()
     return [
         {
@@ -1527,13 +1538,16 @@ def update_expense_processing_classification(line_stamp: str, payload: dict[str,
     login = str(getattr(user, 'LOGIN', '') or getattr(user, 'login', '') or '').strip()
     expense_date = str(payload.get('data_despesa') or current.get('DATA_DESPESA') or '').strip()[:10] or None
     currency = _expense_company_currency(company, payload.get('moeda') or current.get('MOEDA'))[:10]
-    comment = str(payload.get('obs') if 'obs' in payload else current.get('OBS') or '').strip()[:100]
+    # OBS belongs to the collaborator and is immutable in CdG.
+    comment = str(current.get('OBS') or '').strip()[:100]
     lines = payload.get('accounting_lines')
     if not isinstance(lines, list) or not lines:
         raise ValueError('A despesa tem de ter pelo menos uma linha contabilística.')
 
     normalized: list[dict[str, Any]] = []
     seen: set[str] = set()
+    valid_cost_centers = {value.casefold(): value for value in list_expense_cost_centers(feid=feid)}
+    valid_rates = {str(value.get('tabiva') or '').strip(): value for value in list_expense_vat_rates(feid)}
     for index, raw in enumerate(lines, start=1):
         raw = raw if isinstance(raw, dict) else {}
         line_id = str(raw.get('stamp') or '').strip()[:25]
@@ -1545,17 +1559,41 @@ def update_expense_processing_classification(line_stamp: str, payload: dict[str,
         if gross < 0 and not bool(getattr(user, 'ADMIN', False)):
             raise ValueError('Os valores negativos não estão autorizados neste ecrã.')
         net, vat = _vat_amounts_from_gross(gross, rate)
+        submitted_net = _safe_decimal(raw.get('total_sem_iva'))
+        submitted_vat = _safe_decimal(raw.get('valor_iva'))
+        if ('total_sem_iva' in raw and abs(submitted_net - net) > Decimal('0.01')) or (
+            'valor_iva' in raw and abs(submitted_vat - vat) > Decimal('0.01')
+        ):
+            raise ValueError('Totais incoerentes.')
+        article_ref = str(raw.get('artigo_ref') or '').strip()
+        if not article_ref:
+            raise ValueError('Escolhe um Artigo.')
+        article_matches = search_expense_articles(feid, article_ref, limit=30)
+        article = next((value for value in article_matches if str(value.get('ref') or '').strip().casefold() == article_ref.casefold()), None)
+        if not article:
+            raise ValueError('Artigo não encontrado.')
+        ccusto = str(raw.get('ccusto') or '').strip()
+        if ccusto and ccusto.casefold() not in valid_cost_centers:
+            raise ValueError('Centro de Custo não encontrado.')
+        plate = str(raw.get('matricula') or '').strip()
+        if plate:
+            vehicles = search_expense_vehicles(plate, limit=30, feid=feid)
+            if not any(str(value.get('matricula') or '').strip().casefold() == plate.casefold() for value in vehicles):
+                raise ValueError('Matrícula não encontrada.')
+        tabiva = str(raw.get('tabiva') or '').strip()
+        if tabiva not in valid_rates or abs(_safe_decimal(valid_rates[tabiva].get('taxaiva')) - rate) > Decimal('0.0001'):
+            raise ValueError('Taxa de IVA não encontrada para a Empresa.')
         origins = raw.get('origens') if isinstance(raw.get('origens'), dict) else {}
         normalized.append({
             'stamp': line_id,
             'expense_stamp': stamp,
             'order': index * 10,
-            'article': str(raw.get('artigo_ref') or '').strip()[:50],
-            'design': str(raw.get('design') or '').strip()[:200],
+            'article': str(article.get('ref') or '').strip()[:50],
+            'design': str(article.get('design') or '').strip()[:200],
             'reference': str(raw.get('referencia') or '').strip()[:160],
-            'ccusto': str(raw.get('ccusto') or '').strip()[:80],
-            'plate': str(raw.get('matricula') or '').strip()[:50],
-            'tabiva': _safe_int(raw.get('tabiva')),
+            'ccusto': valid_cost_centers.get(ccusto.casefold(), ccusto)[:80],
+            'plate': plate[:50],
+            'tabiva': _safe_int(tabiva),
             'taxaiva': rate,
             'net': net,
             'vat': vat,
@@ -2261,6 +2299,11 @@ def launch_expenses_to_phc(stamps: list[str], user) -> dict[str, Any]:
                 validation_errors.append(f"{row.get('DATA_DESPESA') or 'Despesa'}, linha {index}: artigo em falta")
             if _safe_decimal(accounting_line.get('total_com_iva')) < 0:
                 validation_errors.append(f"{row.get('DATA_DESPESA') or 'Despesa'}, linha {index}: valor negativo não autorizado")
+            net = _safe_decimal(accounting_line.get('total_sem_iva'))
+            vat = _safe_decimal(accounting_line.get('valor_iva'))
+            gross = _safe_decimal(accounting_line.get('total_com_iva'))
+            if abs((net + vat) - gross) > Decimal('0.01'):
+                validation_errors.append(f"{row.get('DATA_DESPESA') or 'Despesa'}, linha {index}: Totais incoerentes.")
     if validation_errors:
         raise ValueError('Não foi possível lançar:\n' + '\n'.join(validation_errors))
 

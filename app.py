@@ -26810,7 +26810,9 @@ def create_app():
         if not _expense_processing_has_permission('consultar'):
             return jsonify({'ok': False, 'rows': [], 'error': 'Sem permissão.'}), 403
         try:
-            return jsonify({'ok': True, 'rows': list_expense_cost_centers(feid=_to_int(request.args.get('feid'), 0))})
+            return jsonify({'ok': True, 'rows': list_expense_cost_centers(
+                feid=_to_int(request.args.get('feid'), 0), with_description=True,
+            )})
         except Exception:
             db.session.rollback()
             app.logger.exception('Erro ao listar centros de custo para despesas.')

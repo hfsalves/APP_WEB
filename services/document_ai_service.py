@@ -59,6 +59,13 @@ DOC_AI_DOC_TYPES = [
     {'value': 'unknown', 'label': 'Desconhecido'},
 ]
 
+# TP068 keeps legacy classifications readable without exposing workflow or
+# source-system values as filter choices in Inbox/Archive.
+DOC_AI_INBOX_DOC_TYPES = [
+    item for item in DOC_AI_DOC_TYPES
+    if item['value'] not in {'provisional_invoice', 'proforma_invoice', 'other', 'debit_note'}
+]
+
 DOC_AI_DOC_TYPE_ALIASES = {
     'contrat': 'contract',
     'contract': 'contract',
@@ -79,6 +86,15 @@ DOC_AI_DOC_TYPE_ALIASES = {
     'avoir': 'credit_note',
     'credit_note': 'credit_note',
     'nota_de_credito': 'credit_note',
+    'lettre': 'mail',
+    'mahnung': 'mail',
+    'carta': 'mail',
+    'aviso': 'mail',
+    'notificacao': 'mail',
+    'notification': 'mail',
+    'correio': 'mail',
+    'courrier': 'mail',
+    'mail': 'mail',
 }
 
 
@@ -86,6 +102,16 @@ def normalize_document_type(value: Any) -> str:
     """Return the public canonical type without leaking source-system aliases."""
     normalized = _normalize_text(value or 'unknown').replace(' ', '_').replace('-', '_')
     return DOC_AI_DOC_TYPE_ALIASES.get(normalized, normalized or 'unknown')
+
+
+def _normalize_inbox_document_type(value: Any) -> str:
+    normalized = normalize_document_type(value)
+    if normalized in {'provisional_invoice', 'proforma_invoice'}:
+        return 'invoice'
+    if normalized in {'other', 'debit_note'}:
+        return 'unknown'
+    return normalized
+
 
 DOC_AI_PURCHASE_INVOICE_CORRESPONDENCE_TYPE = 'FAC'
 DOC_AI_PURCHASE_CREDIT_NOTE_CORRESPONDENCE_TYPE = 'NC'
@@ -2103,8 +2129,8 @@ def submit_correspondence_to_phc(
     import pyodbc
     from services.phc_user_import_service import _phc_conn_str
 
-    document = dict(document_data or {})
-    correspondence_type = str(document.get('document_type') or '').strip().lower()
+    document = normalize_unified_document_model(document_data)
+    correspondence_type = normalize_document_type(document.get('document_type'))
     if correspondence_type not in {'mail', 'bank_statement'}:
         raise ValueError('Este circuito de submissão aceita apenas correspondência e relevés bancários.')
     if not file_bytes or not str(original_file_name or '').lower().endswith('.pdf'):
@@ -2327,73 +2353,57 @@ def _phc_provisional_purchase_doc_config(cursor, database_name: str, document_ty
 
 
 def _phc_provisional_effective_datetime(cursor, database_name: str, document_date: datetime, received_at: datetime) -> datetime:
-    """Data operacional da compra provisória: data do documento, salvo período PHC fechado.
+    """Resolve one operational date from the target PHC company's GE_FECHO.
 
-    Primeiro tenta respeitar a data de fecho registada na empresa PHC. Quando
-    essa data não existe/não é útil, pode ser indicada por configuração. Sem
-    configuração, mantém-se a data do documento, evitando arquivar Julho em
-    Agosto só porque o processamento ocorreu em Agosto.
+    A blank GE_FECHO means no accounting close is currently configured. A
+    missing, unreadable or invalid parameter is an integration error: silently
+    using the invoice date could write FO/GED records into a closed period.
     """
-    closed_row = None
     try:
         closed_row = cursor.execute("""
-            SELECT
-                MAX(CASE WHEN ISNULL(DATAFECHO, '19000101') > '19000101' THEN DATAFECHO ELSE NULL END),
-                MAX(CASE WHEN ISNULL(U_DTFECHO, '19000101') > '19000101' THEN U_DTFECHO ELSE NULL END)
-            FROM dbo.E1 WITH (NOLOCK)
+            SELECT TOP 1 LTRIM(RTRIM(ISNULL(VALOR, '')))
+            FROM dbo.PARA1 WITH (NOLOCK)
+            WHERE UPPER(LTRIM(RTRIM(ISNULL(DESCRICAO, '')))) = 'GE_FECHO'
         """).fetchone()
-    except Exception:
-        closed_row = None
-    closed_dates = [
-        value for value in (closed_row or [])
-        if isinstance(value, datetime) and value.date() > date(1900, 1, 1)
-    ]
-    if closed_dates:
-        closed_until = max(closed_dates)
-        if document_date.date() <= closed_until.date():
-            open_date = closed_until + timedelta(days=1)
-            return open_date.replace(
-                hour=received_at.hour,
-                minute=received_at.minute,
-                second=received_at.second,
-                microsecond=received_at.microsecond,
-            )
+    except Exception as exc:
+        raise RuntimeError(
+            f'Não foi possível consultar o período contabilístico aberto no PHC {database_name}.'
+        ) from exc
+    if not closed_row:
+        raise ValueError(f'O parâmetro PHC GE_FECHO não está configurado em {database_name}.')
 
-    clean_database = str(database_name or '').strip().upper()
-    setting_names = [
-        f'DOCUMENT_AI_PHC_OPEN_MONTH_{clean_database}',
-        'DOCUMENT_AI_PHC_OPEN_MONTH',
-    ]
-    configured = ''
-    for name in setting_names:
-        configured = str(current_app.config.get(name) or os.environ.get(name) or '').strip()
-        if configured:
-            break
-    open_month = re.match(r'^(\d{4})-(\d{1,2})$', configured)
-    if not open_month:
-        return document_date.replace(
-            hour=received_at.hour,
-            minute=received_at.minute,
-            second=received_at.second,
-            microsecond=received_at.microsecond,
-        )
-    open_year = _safe_int(open_month.group(1), document_date.year)
-    open_month_number = max(1, min(_safe_int(open_month.group(2), document_date.month), 12))
-    open_date = datetime(open_year, open_month_number, 1)
-    current_month = datetime(document_date.year, document_date.month, 1)
-    if current_month < open_date:
-        return open_date.replace(
-            hour=received_at.hour,
-            minute=received_at.minute,
-            second=received_at.second,
-            microsecond=received_at.microsecond,
-        )
-    return document_date.replace(
+    raw_value = closed_row[0]
+    closed_until: date | None = None
+    if isinstance(raw_value, datetime):
+        closed_until = raw_value.date()
+    elif isinstance(raw_value, date):
+        closed_until = raw_value
+    else:
+        clean_value = str(raw_value or '').strip()
+        if clean_value:
+            for pattern in ('%d.%m.%Y', '%d/%m/%Y', '%Y-%m-%d'):
+                try:
+                    closed_until = datetime.strptime(clean_value, pattern).date()
+                    break
+                except ValueError:
+                    continue
+            if closed_until is None:
+                raise ValueError(
+                    f'A data de fecho PHC GE_FECHO de {database_name} é inválida.'
+                )
+
+    original = document_date.replace(
         hour=received_at.hour,
         minute=received_at.minute,
         second=received_at.second,
         microsecond=received_at.microsecond,
     )
+    if closed_until is None or document_date.date() > closed_until:
+        return original
+    if closed_until.year >= 9999:
+        raise ValueError(f'Não existe um período contabilístico aberto posterior em {database_name}.')
+    next_month = (closed_until.replace(day=28) + timedelta(days=4)).replace(day=1)
+    return datetime.combine(next_month, received_at.time())
 
 
 def _phc_money(value: Any) -> Decimal:
@@ -2439,6 +2449,7 @@ def normalize_unified_document_model(
     from services.document_ai_line_distribution_service import normalize_line_structures
 
     result = dict(document_data or {})
+    result['document_type'] = normalize_document_type(result.get('document_type'))
     result['line_model_version'] = 'TP065'
     legacy_type = _normalize_text(result.get('invoice_type')).replace(' ', '_')
     if legacy_type in {
@@ -3077,7 +3088,7 @@ def submit_provisional_invoice_to_phc(
 
         supplier = _phc_provisional_supplier(cursor, dict(document.get('supplier') or {}))
         duplicate = cursor.execute("""
-            SELECT TOP 1 F.FOSTAMP, F.ADOC, A.FULLNAME, A.ANEXOSSTAMP
+            SELECT TOP 1 F.FOSTAMP, F.ADOC, A.FULLNAME, A.ANEXOSSTAMP, F.DATA, F.DOCDATA
             FROM dbo.FO F WITH (UPDLOCK, HOLDLOCK)
             LEFT JOIN dbo.ANEXOS A ON A.RECSTAMP = F.FOSTAMP AND A.ORITABLE = 'FO'
             WHERE F.DOCCODE = ? AND F.NO = ?
@@ -3101,6 +3112,13 @@ def submit_provisional_invoice_to_phc(
                 'storage': 'local' if os.name == 'nt' else 'smb',
             }, file_bytes) for path in existing_paths)
             connection.rollback()
+            if duplicate[4] in (None, '') or duplicate[5] in (None, ''):
+                raise ValueError(
+                    'O documento provisório já existe no PHC, mas não tem as datas '
+                    'operacional e original necessárias para auditar a receção.'
+                )
+            duplicate_operational_date = _document_date_value(duplicate[4]).date().isoformat()
+            duplicate_original_date = _document_date_value(duplicate[5]).date().isoformat()
             return {
                 'ok': True,
                 'duplicate': True,
@@ -3121,6 +3139,9 @@ def submit_provisional_invoice_to_phc(
                     str(duplicate[3] or '').strip(),
                 ],
                 'ged_confirmed': ged_confirmed,
+                'original_date': duplicate_original_date,
+                'operational_date': duplicate_operational_date,
+                'effective_date': duplicate_operational_date,
             }
 
         reference_row = cursor.execute("""
@@ -3132,7 +3153,7 @@ def submit_provisional_invoice_to_phc(
         user = _phc_correspondence_user(cursor, requested_by)
         article = _ensure_phc_provisional_article(cursor, requested_by, received_at)
         tax_by_code, tax_by_rate = _phc_tax_configuration(cursor)
-        ged_targets = _provisional_invoice_ged_paths(document, source, supplier, reference, document_date, doc_config['file_prefix'])
+        ged_targets = _provisional_invoice_ged_paths(document, source, supplier, reference, effective_at, doc_config['file_prefix'])
         created_paths = _write_confirmed_ged_targets(ged_targets, file_bytes)
 
         normalized_lines = []
@@ -3319,6 +3340,8 @@ def submit_provisional_invoice_to_phc(
             'article_ref': DOC_AI_PROVISIONAL_ARTICLE_REF,
             'doccode': doc_config['doccode'],
             'docname': docname,
+            'original_date': document_date.date().isoformat(),
+            'operational_date': effective_at.date().isoformat(),
             'effective_date': effective_at.date().isoformat(),
             'source_line_count': len(normalized_lines),
             'phc_line_count': len(physical_lines),
@@ -3361,11 +3384,172 @@ def _assert_final_purchase_lineage(
         raise ValueError('A filiação das linhas Portal não coincide com as linhas da Pré-Fatura PHC.')
 
 
+def _accounting_block(message: str, department: str = 'Controlo de Gestão') -> ValueError:
+    """Return a workflow error that identifies who must correct the persisted source."""
+    return ValueError(f'Contabilidade bloqueada — {message} Responsável: {department}.')
+
+
+def _accounting_persisted_document(
+    persisted_document: dict[str, Any] | None,
+    submitted_document: dict[str, Any] | None,
+    document_stamp: str,
+) -> dict[str, Any]:
+    """Return only the persisted CdG result and reject a modified accounting payload."""
+    persisted = normalize_unified_document_model(dict(persisted_document or {}), document_stamp)
+    if submitted_document:
+        submitted = normalize_unified_document_model(dict(submitted_document), document_stamp)
+        if submitted != persisted:
+            raise _accounting_block(
+                'a Contabilidade recebeu alterações a dados validados no CdG; nenhuma alteração foi guardada.'
+            )
+    return persisted
+
+
+def _assert_document_draft_mutable(document: Any, draft_view: str) -> None:
+    if draft_view == 'accounting':
+        raise ValueError('O bloco Análise é apenas de consulta na Contabilidade.')
+    if bool(getattr(document, 'management_validated', False)):
+        raise _accounting_block(
+            'o documento já foi validado no CdG e o respetivo rascunho está imutável.'
+        )
+
+
+def _assert_document_field_ownership(
+    before: dict[str, Any], after: dict[str, Any], draft_view: str,
+) -> None:
+    """Enforce the Receção/CdG ownership matrix independently of the UI."""
+    reception_fields = ('document_type', 'invoice_type', 'document_number', 'document_date', 'customer', 'supplier', 'totals')
+    management_fields = ('lines', 'taxes', 'origin_project')
+    protected = management_fields if draft_view == 'home' else reception_fields
+    changed = [field for field in protected if before.get(field) != after.get(field)]
+    if not changed:
+        return
+    owner = 'Controlo de Gestão' if draft_view == 'home' else 'Receção'
+    raise ValueError(
+        f"Campo sem permissão nesta etapa ({', '.join(changed)}). Responsável: {owner}."
+    )
+
+
+def _assert_exact_purchase_attachment(
+    attachment: Any,
+    expected_file_hash: str = '',
+    expected_attachment_stamp: str = '',
+) -> None:
+    if not attachment:
+        raise _accounting_block('o anexo PDF exato da Receção não está ligado à Compra.', 'Receção')
+    expected_hash = str(expected_file_hash or '').strip().lower()
+    expected_uniqueid = f'DOC_AI:{expected_hash}:FO' if expected_hash else ''
+    actual_stamp = str(attachment[0] or '').strip()
+    actual_uniqueid = str(attachment[1] or '').strip().lower()
+    if expected_uniqueid and actual_uniqueid != expected_uniqueid.lower():
+        raise _accounting_block('o hash do anexo da Compra não corresponde ao documento Portal.', 'Receção')
+    clean_expected_stamp = str(expected_attachment_stamp or '').strip()
+    if clean_expected_stamp and actual_stamp != clean_expected_stamp:
+        raise _accounting_block('o ANEXOSSTAMP da Compra não corresponde ao documento Portal.', 'Receção')
+
+
+def _assert_final_purchase_content(
+    document: dict[str, Any],
+    effective_portal_lines: list[dict[str, Any]],
+    preinvoice_rows: list[Any],
+    preinvoice_header: Any,
+    purchase_header: Any,
+) -> None:
+    """Compare the immutable Management result with the exact PHC rows to be posted."""
+    by_stamp = {str(row[0] or '').strip(): row for row in preinvoice_rows}
+    for position, portal_line in enumerate(effective_portal_lines, start=1):
+        links = [
+            item for item in (portal_line.get('phc_origin_links') or [])
+            if isinstance(item, dict) and str(item.get('origin_family') or '') == 'proforma_invoice'
+        ]
+        line_stamp = str((links[0] if links else {}).get('bistamp') or (links[0] if links else {}).get('origin_line_stamp') or '').strip()
+        row = by_stamp.get(line_stamp)
+        if not row:
+            raise _accounting_block(f'Linha {position}: a filiação BISTAMP da Pré-Fatura mudou.')
+
+        portal_article = str(portal_line.get('article_ref') or portal_line.get('article') or portal_line.get('ref') or '').strip()
+        portal_unit = str(portal_line.get('unit') or '').strip()
+        portal_ccusto = str(portal_line.get('ccusto') or portal_line.get('project_ccusto') or portal_line.get('cost_center') or '').strip()
+        comparisons = (
+            ('Artigo', portal_article.casefold(), str(row[2] or '').strip().casefold()),
+            ('Unidade', portal_unit.casefold(), str(row[14] or '').strip().casefold()),
+            ('Centro de Custo', portal_ccusto.casefold(), str(row[15] or '').strip().casefold()),
+        )
+        for field, portal_value, phc_value in comparisons:
+            if portal_value != phc_value:
+                raise _accounting_block(f'Linha {position}: {field} diverge da Pré-Fatura PHC.')
+
+        try:
+            portal_qty = Decimal(str(portal_line.get('quantity') if portal_line.get('quantity') is not None else portal_line.get('qty')))
+            portal_unit_price = Decimal(str(portal_line.get('unit_price')))
+            portal_total = Decimal(str(portal_line.get('net_amount') if portal_line.get('net_amount') is not None else portal_line.get('pt')))
+            portal_tax = Decimal(str(portal_line.get('tax_rate')))
+            phc_qty = Decimal(str(row[4] or 0))
+            phc_total = Decimal(str(row[9] or 0))
+            phc_tax = Decimal(str(row[10] or 0))
+            phc_effective_unit_price = phc_total / phc_qty if phc_qty else Decimal('0')
+        except Exception as exc:
+            raise _accounting_block(f'Linha {position}: Quantidade, PU, PT ou IVA inválidos.') from exc
+        numeric_checks = (
+            ('Quantidade', portal_qty, phc_qty, Decimal('0.0001')),
+            ('PT', portal_total, phc_total, Decimal('0.01')),
+            ('PU', portal_unit_price, phc_effective_unit_price, Decimal('0.01')),
+            ('IVA', portal_tax, phc_tax, Decimal('0.0001')),
+        )
+        for field, portal_value, phc_value, tolerance in numeric_checks:
+            if abs(portal_value - phc_value) > tolerance:
+                raise _accounting_block(f'Linha {position}: {field} diverge da Pré-Fatura PHC.')
+
+    supplier = dict(document.get('supplier') or {})
+    supplier_no = _safe_int(supplier.get('supplier_no') or supplier.get('no'), 0)
+    supplier_estab = _safe_int(supplier.get('estab'), 0)
+    if supplier_no and (supplier_no != _safe_int(preinvoice_header[2], 0) or supplier_no != _safe_int(purchase_header[4], 0)):
+        raise _accounting_block('o fornecedor diverge entre Portal, Pré-Fatura e Compra.', 'Receção')
+    if supplier_estab and (supplier_estab != _safe_int(preinvoice_header[5], 0) or supplier_estab != _safe_int(purchase_header[5], 0)):
+        raise _accounting_block('o estabelecimento do fornecedor diverge entre Portal, Pré-Fatura e Compra.', 'Receção')
+
+    currency = str(document.get('currency') or '').strip().upper()
+    currency = 'EURO' if currency in {'EUR', '€'} else currency
+    phc_currencies = {str(preinvoice_header[6] or '').strip().upper(), str(purchase_header[7] or '').strip().upper()}
+    phc_currencies = {'EURO' if value in {'EUR', '€'} else value for value in phc_currencies}
+    if currency and phc_currencies != {currency}:
+        raise _accounting_block('a moeda diverge entre Portal, Pré-Fatura e Compra.', 'Controlo de Gestão')
+
+    totals = dict(document.get('totals') or {})
+    try:
+        portal_net = Decimal(str(totals.get('net_total')))
+        portal_gross = Decimal(str(totals.get('gross_total')))
+        phc_net = Decimal(str(preinvoice_header[7] or 0))
+        phc_gross = Decimal(str(preinvoice_header[8] or 0))
+        purchase_net = Decimal(str(purchase_header[9] or 0))
+        purchase_gross = Decimal(str(purchase_header[10] or 0))
+    except Exception as exc:
+        raise _accounting_block('os totais persistidos são inválidos.') from exc
+    if any(abs(left - right) > Decimal('0.01') for left, right in (
+        (portal_net, phc_net), (portal_gross, phc_gross),
+        (portal_net, purchase_net), (portal_gross, purchase_gross),
+    )):
+        raise _accounting_block('os totais divergem entre Portal, Pré-Fatura e Compra.')
+
+    portal_date = str(document.get('document_date') or '')[:10]
+    purchase_date_value = purchase_header[11]
+    purchase_date = (
+        purchase_date_value.date().isoformat()
+        if isinstance(purchase_date_value, datetime)
+        else str(purchase_date_value or '')[:10]
+    )
+    if portal_date and portal_date != purchase_date:
+        raise _accounting_block('a data documental diverge da Compra criada na Receção.', 'Receção')
+
+
 def finalize_purchase_on_existing_fo(
     document_data: dict[str, Any] | None,
     reception_integration: dict[str, Any] | None,
     origins: list[dict[str, Any]] | None,
     requested_by: str,
+    *,
+    expected_file_hash: str = '',
+    expected_attachment_stamp: str = '',
 ) -> dict[str, Any]:
     """Replace only the Document AI provisional lines on the existing purchase FO.
 
@@ -3419,7 +3603,8 @@ def finalize_purchase_on_existing_fo(
             SELECT TOP 1 FOSTAMP, CAST(ISNULL(DOCCODE, 0) AS int),
                 LTRIM(RTRIM(ISNULL(DOCNOME, ''))), LTRIM(RTRIM(ISNULL(ADOC, ''))),
                 CAST(ISNULL(NO, 0) AS int), CAST(ISNULL(ESTAB, 0) AS int),
-                DATA, LTRIM(RTRIM(ISNULL(MOEDA, ''))), LTRIM(RTRIM(ISNULL(OBS, ''))
+                DATA, LTRIM(RTRIM(ISNULL(MOEDA, ''))), LTRIM(RTRIM(ISNULL(OBS, ''))),
+                ISNULL(ETTILIQ, 0), ISNULL(ETOTAL, 0), DOCDATA
             FROM dbo.FO WITH (UPDLOCK, HOLDLOCK)
             WHERE FOSTAMP = ?
         """, fostamp).fetchone()
@@ -3432,7 +3617,9 @@ def finalize_purchase_on_existing_fo(
         header_rows = cursor.execute(f"""
             SELECT BO.BOSTAMP, CAST(ISNULL(BO.NDOS, 0) AS int),
                 CAST(ISNULL(BO.NO, 0) AS int), CAST(ISNULL(BO.FECHADA, 0) AS bit),
-                CAST(ISNULL(BO2.ANULADO, 0) AS bit)
+                CAST(ISNULL(BO2.ANULADO, 0) AS bit), CAST(ISNULL(BO.ESTAB, 0) AS int),
+                LTRIM(RTRIM(ISNULL(BO.MOEDA, ''))), ISNULL(BO.ETOTALDEB, 0),
+                ISNULL(BO.ETOTAL, 0), CAST(ISNULL(BO.APROVADO, 0) AS bit)
             FROM dbo.BO BO WITH (UPDLOCK, HOLDLOCK)
             LEFT JOIN dbo.BO2 BO2 WITH (UPDLOCK, HOLDLOCK) ON BO2.BO2STAMP = BO.BOSTAMP
             WHERE BO.BOSTAMP IN ({placeholders})
@@ -3441,8 +3628,12 @@ def finalize_purchase_on_existing_fo(
             raise ValueError('A Pré-Fatura selecionada já não existe ou não pertence à série PHC esperada.')
         if any(bool(row[4]) for row in header_rows):
             raise ValueError('A Pré-Fatura selecionada está anulada no PHC.')
+        if any(not bool(row[3]) or not bool(row[9]) for row in header_rows):
+            raise _accounting_block('a Pré-Fatura deixou de estar validada e aprovada.')
         if any(_safe_int(row[2], 0) != _safe_int(fo[4], 0) for row in header_rows):
             raise ValueError('A Pré-Fatura e a Compra não pertencem ao mesmo fornecedor.')
+        if any(_safe_int(row[5], 0) != _safe_int(fo[5], 0) for row in header_rows):
+            raise _accounting_block('o estabelecimento diverge entre Pré-Fatura e Compra.', 'Receção')
 
         line_rows = cursor.execute(f"""
             SELECT BI.BISTAMP, BI.BOSTAMP,
@@ -3465,6 +3656,7 @@ def finalize_purchase_on_existing_fo(
         target_line_stamps = [str(row[0] or '').strip() for row in line_rows]
         target_set = set(target_line_stamps)
         _assert_final_purchase_lineage(effective_portal_lines, target_line_stamps)
+        _assert_final_purchase_content(document, effective_portal_lines, line_rows, header_rows[0], fo)
 
         current_fn = cursor.execute("""
             SELECT FNSTAMP, LTRIM(RTRIM(ISNULL(BISTAMP, ''))),
@@ -3492,11 +3684,17 @@ def finalize_purchase_on_existing_fo(
             raise ValueError('A Compra já contém linhas PHC finais diferentes da Pré-Fatura selecionada.')
         if not current_fn:
             raise ValueError('A Compra da Receção não contém as linhas provisórias esperadas.')
+        expected_hash = str(expected_file_hash or '').strip().lower()
+        expected_uniqueid = f'DOC_AI:{expected_hash}:FO' if expected_hash else ''
         portal_attachment = cursor.execute("""
-            SELECT TOP 1 ANEXOSSTAMP
+            SELECT TOP 1 ANEXOSSTAMP, LTRIM(RTRIM(ISNULL(UNIQUEID, '')))
             FROM dbo.ANEXOS WITH (UPDLOCK, HOLDLOCK)
-            WHERE RECSTAMP = ? AND ORITABLE = 'FO' AND UNIQUEID LIKE 'DOC_AI:%:FO'
-        """, fostamp).fetchone()
+            WHERE RECSTAMP = ? AND ORITABLE = 'FO'
+              AND ((? <> '' AND UNIQUEID = ?) OR (? = '' AND UNIQUEID LIKE 'DOC_AI:%:FO'))
+        """, fostamp, expected_uniqueid, expected_uniqueid, expected_uniqueid).fetchone()
+        _assert_exact_purchase_attachment(
+            portal_attachment, expected_file_hash, expected_attachment_stamp,
+        )
         created_by_portal = bool(portal_attachment) or 'leitura inteligente' in _normalize_text(fo[8])
         provisional_rows_are_intact = all(
             str(row[2] or '').strip() in {'', DOC_AI_PROVISIONAL_ARTICLE_REF}
@@ -4456,6 +4654,15 @@ def search_phc_document_origins(document_data: dict[str, Any] | None, limit_per_
             document.get('lines') or [],
             lines_by_stamp.get(stamp) or [],
         )
+        eligibility_reason = ''
+        if candidate['closed']:
+            eligibility_reason = 'Origem fechada.'
+        elif candidate['pending_quantity'] <= 0:
+            eligibility_reason = 'Origem satisfeita: sem saldo disponível.'
+        elif (document.get('lines') or []) and not candidate['line_matches']:
+            eligibility_reason = 'Origem incompatível com as linhas do documento.'
+        candidate['selectable'] = not bool(eligibility_reason)
+        candidate['eligibility_reason'] = eligibility_reason
         candidate['date'] = candidate['date'].date().isoformat() if isinstance(candidate['date'], datetime) else str(candidate['date'] or '')[:10]
         candidates.append(candidate)
     candidates.sort(key=lambda item: (
@@ -4495,9 +4702,14 @@ def search_phc_document_origins(document_data: dict[str, Any] | None, limit_per_
         'current_document_number': str(document.get('document_number') or ''),
         'detected_origins': explicit_origins,
         'selected_project': selected_project if project_ccusto else None,
-        'suggested_origin': next((item for item in candidates if item.get('available_balance')), None),
+        'suggested_origin': next((item for item in candidates if item.get('selectable')), None),
         'stages': stages,
         'candidate_count': sum(len(stage.get('candidates') or []) for stage in stages),
+        'no_selectable_reason': (
+            'Nenhuma origem com saldo disponível'
+            if candidates and not any(item.get('available_balance') for item in candidates)
+            else ''
+        ),
     }
 
 
@@ -5195,8 +5407,8 @@ def save_document_phc_origin(
     selected = valid_candidates.get(str(candidate.get('stamp') or '').strip())
     if not selected:
         raise ValueError('A origem selecionada já não está disponível entre os candidatos deste fornecedor.')
-    if selected.get('available_balance') is False:
-        raise ValueError('O dossier PHC selecionado está fechado ou não tem saldo disponível.')
+    if selected.get('selectable') is False or selected.get('available_balance') is False:
+        raise ValueError(str(selected.get('eligibility_reason') or 'O dossier PHC selecionado não está elegível.'))
     meta = _json_loads(document.processing_meta_json, {})
     selected_origin = {
         **selected,
@@ -5648,13 +5860,20 @@ def preflight_document_inbox_stage(
     if not document:
         raise ValueError('Documento do inbox não encontrado.')
     stage = _normalize_document_inbox_view(view)
-    result = dict(reviewed_document or {}) or _json_loads(document.json_resultado, {})
+    result = normalize_unified_document_model(
+        dict(reviewed_document or {}) or _json_loads(document.json_resultado, {}),
+        document.docinstamp,
+    )
     result = _enrich_supplier_classification(result, document.feid)
-    document_type = str(result.get('document_type') or document.doc_type_detected or 'unknown').strip().lower()
+    document_type = normalize_document_type(
+        result.get('document_type') or document.doc_type_detected or 'unknown'
+    )
     result.setdefault('document_type', document_type)
     result.setdefault('invoice_type', _normalize_invoice_type(document.invoice_type))
     financial_consistency = validate_document_financial_consistency(result)
-    if document_type in {'invoice', 'provisional_invoice', 'credit_note'} and not financial_consistency['ok']:
+    # Receção records the source totals and may expose a warning, but only CdG
+    # and Accounting are allowed to block the workflow on a financial divergence.
+    if stage != 'home' and document_type in {'invoice', 'provisional_invoice', 'credit_note'} and not financial_consistency['ok']:
         return {
             'ok': False,
             'view': stage,
@@ -5829,7 +6048,8 @@ def _has_complete_reception_integration(
     if _is_provisional_purchase_source_type(clean_type):
         attachment_stamps = [str(value or '').strip() for value in (payload.get('anexosstamps') or [])]
         return bool(payload.get('fostamp') and payload.get('crstamp') and len(attachment_stamps) >= 2
-                    and all(attachment_stamps[:2]) and ged_confirmed)
+                    and all(attachment_stamps[:2]) and ged_confirmed
+                    and payload.get('original_date') and payload.get('operational_date'))
     return False
 
 
@@ -5844,7 +6064,7 @@ def _integrate_reception_document(
 
     meta = _json_loads(document.processing_meta_json, {})
     existing = dict(meta.get('phc_integration') or {})
-    document_type = str(document_data.get('document_type') or '').strip().lower()
+    document_type = normalize_document_type(document_data.get('document_type'))
     if _has_complete_reception_integration(existing, document_type):
         return existing
     is_correspondence = document_type in {'mail', 'bank_statement'}
@@ -5894,7 +6114,8 @@ def _integrate_reception_document(
         result_fields=(
             'crstamp', 'fostamp', 'reference', 'year', 'document_number',
             'phc_database', 'file_name', 'ged_path', 'ged_paths', 'anexosstamp',
-            'anexosstamps', 'ged_confirmed', 'duplicate',
+            'anexosstamps', 'ged_confirmed', 'duplicate', 'original_date',
+            'operational_date', 'effective_date',
         ),
         operation_context={
             'document_id': str(getattr(document, 'docinstamp', '') or ''),
@@ -5978,6 +6199,7 @@ def _integrate_accounting_purchase(
 ) -> dict[str, Any]:
     """Finalize the purchase lines on the FO created during Reception."""
     from services.document_ai_phc_operation_service import run_document_phc_operation
+    from services.document_ai_preinvoice_service import payload_fingerprint
 
     document_type = str(document_data.get('document_type') or '').strip().lower()
     if document_type not in {'invoice', 'provisional_invoice'}:
@@ -5991,6 +6213,20 @@ def _integrate_accounting_purchase(
         or {}
     )
     origins = get_phc_origins_from_meta(meta)
+    preinvoice = dict(
+        dict(meta.get('phc_operations') or {}).get('preinvoice')
+        or meta.get('phc_preinvoice')
+        or {}
+    )
+    if not _has_complete_preinvoice(preinvoice):
+        raise _accounting_block('falta confirmar a Pré-Fatura validada no PHC.')
+    current_fingerprint = payload_fingerprint(document_data, origins)
+    if str(preinvoice.get('payload_fingerprint') or '') != current_fingerprint:
+        raise _accounting_block('os dados persistidos já não coincidem com o estado validado no CdG.')
+    attachment_stamps = [
+        str(value or '').strip() for value in (reception.get('anexosstamps') or [])
+        if str(value or '').strip()
+    ]
 
     return run_document_phc_operation(
         document,
@@ -6001,6 +6237,8 @@ def _integrate_accounting_purchase(
             reception,
             origins,
             requested_by,
+            expected_file_hash=str(getattr(document, 'file_hash', '') or ''),
+            expected_attachment_stamp=attachment_stamps[-1] if attachment_stamps else '',
         ),
         is_complete=_has_complete_purchase_finalization,
         result_fields=(
@@ -6180,9 +6418,9 @@ def validate_document_inbox_stage(
             _json_loads(getattr(document, 'processing_meta_json', ''), {}).get('phc_integration') or {}
         )
         existing_result = _json_loads(getattr(document, 'json_resultado', ''), {})
-        existing_type = str(
+        existing_type = normalize_document_type(
             existing_result.get('document_type') or getattr(document, 'doc_type_detected', '') or ''
-        ).strip().lower()
+        )
         if stage == 'management' and existing_type in {'invoice', 'provisional_invoice'}:
             meta = _json_loads(getattr(document, 'processing_meta_json', ''), {})
             if not _has_complete_preinvoice(dict(meta.get('phc_preinvoice') or {})):
@@ -6225,8 +6463,16 @@ def validate_document_inbox_stage(
     already_completed = completed_payload()
     if already_completed:
         return already_completed
-    result = dict(reviewed_document or {}) or _json_loads(document.json_resultado, {})
-    if reviewed_document:
+    persisted_source = _json_loads(document.json_resultado, {})
+    if stage == 'accounting':
+        result = _accounting_persisted_document(
+            persisted_source, reviewed_document, document.docinstamp,
+        )
+    else:
+        result = normalize_unified_document_model(
+            dict(reviewed_document or {}) or persisted_source, document.docinstamp,
+        )
+    if reviewed_document and stage != 'accounting':
         customer = dict(result.get('customer') or {})
         supplier = dict(result.get('supplier') or {})
         document.json_resultado = _json_dumps(result)
@@ -6235,7 +6481,9 @@ def validate_document_inbox_stage(
         document.fornecedor_nome_detetado = str(supplier.get('name') or supplier.get('llm_name') or '')[:120]
         document.fornecedor_nif_detetado = str(supplier.get('tax_id') or '')[:40]
         document.doc_type_detected = str(result.get('document_type') or document.doc_type_detected or 'unknown')[:30]
-    document_type = str(result.get('document_type') or document.doc_type_detected or 'unknown').strip().lower()
+    document_type = normalize_document_type(
+        result.get('document_type') or document.doc_type_detected or 'unknown'
+    )
     invoice_type = _normalize_invoice_type(result.get('invoice_type') or document.invoice_type)
     if invoice_type == 'unknown':
         invoice_type = _infer_invoice_type(result, document.extracted_text)
@@ -6307,6 +6555,10 @@ def validate_document_inbox_stage(
             'preflight': True,
             'phc_integration': str((integration or {}).get('status') or '') if stage == 'home' else 'not_applicable',
             'distribution': bool(distribution.get('ok')),
+        },
+        'document_dates': {
+            'original': str((integration or {}).get('original_date') or '') if stage == 'home' else '',
+            'operational': str((integration or {}).get('operational_date') or '') if stage == 'home' else '',
         },
     })
     db.session.commit()
@@ -8004,10 +8256,10 @@ def assess_document_reception(
     processing_status: Any = '',
 ) -> dict[str, Any]:
     """Return the canonical Receção completeness state and its separate reasons."""
-    result = dict(document_data or {})
+    result = normalize_unified_document_model(document_data)
     customer = dict(result.get('customer') or {})
     supplier = dict(result.get('supplier') or {})
-    raw_type = _normalize_text(result.get('document_type') or 'unknown').replace(' ', '_')
+    raw_type = normalize_document_type(result.get('document_type') or 'unknown')
     document_type = {
         'publicidade': 'advertising',
         'publicity': 'advertising',
@@ -8076,8 +8328,9 @@ def validate_document_financial_consistency(document_data: dict[str, Any] | None
     result = dict(document_data or {})
     totals = dict(result.get('totals') or {})
     taxes = [dict(item or {}) for item in (result.get('taxes') or []) if isinstance(item, dict)]
-    # TP065 accepts a demonstrated source rounding of at most one cent.
-    tolerance = Decimal('0.01')
+    # A one-cent document divergence is not rounding: it must remain visible and
+    # block CdG/Accounting. Line-level demonstrated rounding has its own 0.01 rule.
+    tolerance = Decimal('0.009')
     net_total = _phc_money(totals.get('net_total'))
     tax_total = _phc_money(totals.get('tax_total'))
     gross_total = _phc_money(totals.get('gross_total'))
@@ -8568,7 +8821,7 @@ def list_documents(filters: dict[str, Any] | None = None) -> dict[str, Any]:
                     break
         document_number = str(result_data.get('document_number') or '').strip()
         document_date = str(result_data.get('document_date') or '').strip()
-        document_type = normalize_document_type(
+        document_type = _normalize_inbox_document_type(
             result_data.get('document_type') or row.get('DOC_TYPE_DETECTED') or 'unknown'
         )
         invoice_type = _normalize_invoice_type(result_data.get('invoice_type') or row.get('INVOICE_TYPE'))
@@ -8695,7 +8948,7 @@ def list_documents(filters: dict[str, Any] | None = None) -> dict[str, Any]:
         'views': DOC_AI_INBOX_VIEWS,
         'counts': counts,
         'statuses': DOC_AI_STATUSES,
-        'doc_types': list(DOC_AI_DOC_TYPES),
+        'doc_types': list(DOC_AI_INBOX_DOC_TYPES),
         'invoice_types': [
             {'value': 'concrete', 'label': 'Betão'},
             {'value': 'material', 'label': 'Material'},
@@ -9306,10 +9559,11 @@ def save_document_draft(
     from services.document_ai_line_distribution_service import normalize_line_structures
     result = normalize_unified_document_model(result, stamp)
     draft_view = _normalize_document_inbox_view(payload.get('view'))
-    if draft_view == 'accounting':
-        raise ValueError('O bloco Análise é apenas de consulta na Contabilidade.')
+    _assert_document_draft_mutable(document, draft_view)
 
     previous_result = _json_loads(document.json_resultado, {})
+    previous_model = normalize_unified_document_model(previous_result, stamp)
+    _assert_document_field_ownership(previous_model, result, draft_view)
     financial_changes = _document_financial_changes(previous_result, result)
     header_fields = ('document_type', 'invoice_type', 'document_number', 'document_date')
     header_changes = {

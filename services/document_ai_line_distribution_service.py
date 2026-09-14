@@ -270,10 +270,25 @@ def line_workflow_errors(lines: list[dict[str, Any]] | None) -> list[str]:
         if len(principals) != 1:
             errors.append('Existe um grupo sem uma única linha principal.')
             continue
+        principal = principals[0]
+        required_common = (
+            ('Artigo', [_text(principal.get('article_ref') or principal.get('article'))]),
+            ('IVA', [_text(principal.get('tax_rate'))]),
+            ('Origem', sorted({
+                _text(link.get('bostamp') or link.get('origin_stamp'))
+                for link in (principal.get('phc_origin_links') or []) if isinstance(link, dict)
+            } or {_text(principal.get('phc_origin_stamp') or principal.get('origin_stamp'))})),
+            ('Centro de Custo', _destinations(principal, 'ccusto')),
+            ('Data', [_text(principal.get('date') or principal.get('data'))]),
+            ('Matrícula', _destinations(principal, 'registration')),
+        )
+        for label, values in required_common:
+            if not any(value not in ('', None) for value in values):
+                errors.append(f'Grupo inválido: falta definir {label} como campo comum obrigatório.')
         for associated in members:
-            if associated is principals[0]:
+            if associated is principal:
                 continue
-            conflict = validate_group_pair(principals[0], associated)
+            conflict = validate_group_pair(principal, associated)
             if conflict:
                 errors.append(conflict)
     return list(dict.fromkeys(errors))

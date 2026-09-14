@@ -7,10 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
     archiveBtn: document.getElementById('docAiArchiveBtn'),
     contextDomain: document.getElementById('docAiContextDomain'),
     viewTabs: document.getElementById('docAiViewTabs'),
-    dateFrom: document.getElementById('docAiDocumentDateFrom'),
     dateTo: document.getElementById('docAiDocumentDateTo'),
-    valueMin: document.getElementById('docAiValueMin'),
-    valueMax: document.getElementById('docAiValueMax'),
     tableScroller: document.querySelector('.docai-inbox-table-panel .sz_table_wrap'),
   };
 
@@ -78,12 +75,6 @@ document.addEventListener('DOMContentLoaded', () => {
     return String(mapping[field] || '').trim();
   }
 
-  function numberOrNull(value) {
-    if (value == null || String(value).trim() === '') return null;
-    const parsed = Number(String(value).replace(',', '.'));
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-
   function matchesFilters(item, excludedField = '') {
     if (excludedField !== 'state' && state.stateFilters.size && !state.stateFilters.has(String(item.business_state || ''))) return false;
     if (excludedField !== 'document_type' && state.typeFilters.size && !state.typeFilters.has(String(item.document_type || 'unknown'))) return false;
@@ -97,13 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (selected.size && !selected.has(fieldValue(item, field))) return false;
     }
     const date = String(item.document_date || '');
-    if (els.dateFrom?.value && (!date || date < els.dateFrom.value)) return false;
     if (els.dateTo?.value && (!date || date > els.dateTo.value)) return false;
-    const amount = Number(item.document_value || 0);
-    const minimum = numberOrNull(els.valueMin?.value);
-    const maximum = numberOrNull(els.valueMax?.value);
-    if (minimum !== null && amount < minimum) return false;
-    if (maximum !== null && amount > maximum) return false;
     return true;
   }
 
@@ -183,9 +168,7 @@ document.addEventListener('DOMContentLoaded', () => {
     state.typeFilters.clear();
     state.invoiceTypeFilters.clear();
     filterFields.forEach((field) => state.filters[field].clear());
-    [els.dateFrom, els.dateTo, els.valueMin, els.valueMax].forEach((input) => {
-      if (input) input.value = '';
-    });
+    if (els.dateTo) els.dateTo.value = '';
     closeColumnFilters();
   }
 
@@ -235,8 +218,7 @@ document.addEventListener('DOMContentLoaded', () => {
       typeFilters: [...state.typeFilters],
       invoiceTypeFilters: [...state.invoiceTypeFilters],
       filters: Object.fromEntries(filterFields.map((field) => [field, [...state.filters[field]]])),
-      dateFrom: els.dateFrom?.value || '', dateTo: els.dateTo?.value || '',
-      valueMin: els.valueMin?.value || '', valueMax: els.valueMax?.value || '',
+      dateTo: els.dateTo?.value || '',
       scrollTop: els.tableScroller?.scrollTop || 0,
       scrollLeft: els.tableScroller?.scrollLeft || 0,
     };
@@ -254,10 +236,7 @@ document.addEventListener('DOMContentLoaded', () => {
     state.typeFilters = new Set(payload.typeFilters || []);
     state.invoiceTypeFilters = new Set(payload.invoiceTypeFilters || []);
     filterFields.forEach((field) => { state.filters[field] = new Set(payload.filters?.[field] || []); });
-    if (els.dateFrom) els.dateFrom.value = payload.dateFrom || '';
     if (els.dateTo) els.dateTo.value = payload.dateTo || '';
-    if (els.valueMin) els.valueMin.value = payload.valueMin || '';
-    if (els.valueMax) els.valueMax.value = payload.valueMax || '';
     window.requestAnimationFrame(() => {
       if (!els.tableScroller) return;
       els.tableScroller.scrollTop = Number(payload.scrollTop || 0);
@@ -341,14 +320,15 @@ document.addEventListener('DOMContentLoaded', () => {
         matchesFilters(item, filterName)
         && (filterName !== 'invoice_type' || String(item.document_type || 'unknown') === 'invoice')
       ));
-      const counts = new Map(options.map((option) => [String(option.value), { count: 0, label: option.label }]));
+      const labels = new Map(options.map((option) => [String(option.value), option.label]));
+      const counts = new Map();
       population.forEach((item) => {
         const value = String(item[property] || 'unknown');
-        const current = counts.get(value) || { count: 0, label: value || '-' };
+        const current = counts.get(value) || { count: 0, label: labels.get(value) || value || '-' };
         counts.set(value, { ...current, count: current.count + 1 });
       });
       const ordered = [...counts.entries()]
-        .filter(([value, data]) => value !== 'unknown' || data.count > 0)
+        .filter(([, data]) => data.count > 0)
         .sort((left, right) => String(left[1].label).localeCompare(String(right[1].label), 'pt', { sensitivity: 'base' }));
       return `<div class="docai-business-count-group" aria-label="Filtros de ${escapeHtml(title.toLowerCase())}">
         <span class="docai-business-count-title">${escapeHtml(title)}</span>
@@ -366,12 +346,12 @@ document.addEventListener('DOMContentLoaded', () => {
     els.counts.classList.toggle('has-invoice-type', Boolean(invoiceTypeGroup));
     els.counts.innerHTML = `
       <div class="docai-business-count-group docai-business-count-states" aria-label="Filtros de estados">
-        <span class="docai-business-count-title">Estados</span>
+        <span class="docai-business-count-title">Estado</span>
         <div class="docai-business-count-options">
           ${[...stateCounts.entries()].map(([value, count]) => `
             <button type="button" class="docai-business-count-chip ${state.stateFilters.has(value) ? 'is-active' : ''}"
                     data-state="${escapeHtml(String(value).toLowerCase())}" data-count-filter="state" data-value="${escapeHtml(value)}"
-                    title="${count} ${escapeHtml(value)}" aria-label="${count} ${escapeHtml(value)}">
+                    title="${escapeHtml(value)}" aria-label="${escapeHtml(value)}">
               <strong>${count}</strong><span>${escapeHtml(value)}</span>
             </button>
           `).join('') || '<span class="sz_text_muted">Sem estados</span>'}
@@ -462,7 +442,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const icon = els.archiveBtn.querySelector('i');
       if (icon) icon.className = state.archived ? 'fa-solid fa-inbox' : 'fa-solid fa-box-archive';
     }
-    if (els.uploadBtn) els.uploadBtn.hidden = !state.permissions.create;
+    if (els.uploadBtn) els.uploadBtn.hidden = state.archived || !state.permissions.create;
   }
 
   async function loadInbox() {
@@ -588,7 +568,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   els.tableScroller?.addEventListener('scroll', () => closeColumnFilters());
   window.addEventListener('resize', () => closeColumnFilters());
-  [els.dateFrom, els.dateTo, els.valueMin, els.valueMax].forEach((input) => input?.addEventListener('input', applyFilters));
+  els.dateTo?.addEventListener('input', applyFilters);
   els.counts?.addEventListener('click', (event) => {
     if (event.target.closest('[data-action="reset-filters"]')) {
       resetFilters();

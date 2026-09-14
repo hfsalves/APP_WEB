@@ -19,6 +19,7 @@ class DocumentAiArchiveReadonlyFrontendTests(unittest.TestCase):
     def test_read_only_mode_never_autosaves_and_returns_to_archive(self):
         self.assertIn("if (state.readOnly || state.view === 'accounting') return Promise.resolve(true);", self.source)
         self.assertIn("if (state.readOnly) params.set('archived', '1')", self.source)
+        self.assertIn("{{ 'Voltar ao Arquivo' if document_ai_read_only else 'Voltar ao Inbox' }}", self.template)
 
     def test_accounting_analysis_is_read_only_but_keeps_workflow_actions(self):
         self.assertIn("const analysisReadOnly = state.readOnly || state.view === 'accounting';", self.source)

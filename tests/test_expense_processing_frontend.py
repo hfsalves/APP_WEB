@@ -63,6 +63,53 @@ class ExpenseProcessingFrontendTests(unittest.TestCase):
         self.assertIn("_expense_processing_has_permission('editar')", self.app)
         self.assertIn("_expense_processing_has_permission('eliminar')", self.app)
 
+    def test_tp072_card_hierarchy_and_read_only_comment(self):
+        for label in ('Nome do colaborador', 'Tipo de despesa', 'Data da despesa', 'Total c/IVA', 'Empresa'):
+            self.assertIn(label, self.script)
+        self.assertIn('Comentário do colaborador', self.script)
+        self.assertNotIn('data-expense-field="obs"', self.script)
+        self.assertNotIn("obs:card.querySelector", self.script)
+        self.assertIn("comment = str(current.get('OBS')", self.service)
+
+    def test_accounting_line_is_two_rows_without_horizontal_scroll(self):
+        self.assertIn('expense-line-main', self.script)
+        self.assertIn('expense-line-values', self.script)
+        self.assertNotIn('overflow-x:auto}.expense-line', self.styles)
+        self.assertIn('expense-line-actions', self.script)
+        self.assertLess(self.script.index('data-add-line'), self.script.index('data-remove-line'))
+        self.assertIn('grid-template-columns:repeat(3,minmax(6rem,1fr))', self.styles)
+        self.assertIn('.expense-rows,.expense-columns{overflow-x:hidden}', self.styles)
+
+    def test_phc_values_use_server_validated_search_selectors(self):
+        self.assertIn('id="expLookupModal"', self.template)
+        self.assertIn('data-lookup="article"', self.script)
+        self.assertIn('data-lookup="ccusto"', self.script)
+        self.assertIn('data-lookup="vehicle"', self.script)
+        self.assertNotIn('datalist', self.script)
+        for message in ('Artigo não encontrado.', 'Centro de Custo não encontrado.', 'Matrícula não encontrada.'):
+            self.assertIn(message, self.service)
+        self.assertIn("'ccusto': str(row.get('CCUSTO')", self.service)
+        self.assertIn("'design': str(row.get('DESCRICAO')", self.service)
+        self.assertIn("('INATIVO' if _column_exists('ST', 'INATIVO')", self.service)
+
+    def test_save_state_buttons_and_totals_match_tp072(self):
+        for text in ('A guardar...', 'Guardado', 'Erro ao guardar'):
+            self.assertIn(text, self.script)
+        self.assertIn('title="Devolver" aria-label="Devolver"', self.script)
+        self.assertIn('title="Eliminar" aria-label="Eliminar"', self.script)
+        self.assertIn('.expense-return:hover:not(:disabled)', self.styles)
+        self.assertIn('.expense-delete:hover:not(:disabled)', self.styles)
+        self.assertIn('.expense-difference.is-zero', self.styles)
+        self.assertIn("raise ValueError('Totais incoerentes.')", self.service)
+
+    def test_company_change_preserves_and_flags_manual_values(self):
+        self.assertIn("button.classList.add('is-unverified')", self.script)
+        self.assertNotIn("querySelectorAll('[data-field=\"ccusto\"],[data-field=\"matricula\"]')", self.script)
+
+    def test_document_identity_includes_required_expense_fields(self):
+        self.assertIn("item.tipo||''", self.script)
+        self.assertIn('money(item.valor,item.moeda)', self.script)
+
 
 if __name__ == '__main__':
     unittest.main()

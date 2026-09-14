@@ -27,7 +27,7 @@
       <div class="sz_contextbar_right docai-contextbar-right">
         <button id="docAiExtractBackBtn" type="button" class="sz_button sz_button_secondary">
           <i class="fa-solid fa-arrow-left"></i>
-          <span>Voltar ao inbox</span>
+          <span>{{ 'Voltar ao Arquivo' if document_ai_read_only else 'Voltar ao Inbox' }}</span>
         </button>
       </div>
     </header>
@@ -159,7 +159,7 @@
                   <div id="docAiExtractGedPath" class="docai-classification-destinations"></div>
                 </div>
               </article>
-              <article id="docAiExtractProjectCard" class="docai-info-card docai-extract-project-card" tabindex="0" role="button" aria-label="Associar Centro de Custo">
+              <article id="docAiExtractProjectCard" class="docai-info-card docai-extract-project-card" tabindex="0" role="button" aria-label="Selecionar CdC">
                 <h4>Centro de Custo</h4>
                 <strong id="docAiExtractProjectName">-</strong>
                 <span id="docAiExtractProjectMeta" class="sz_text_muted">-</span>
@@ -246,7 +246,7 @@
                     <tbody id="docAiExtractLinesBody"></tbody>
                   </table>
                 </div>
-                <div id="docAiExtractGroupDropzone" class="docai-line-ungroup-zone" hidden tabindex="0" aria-label="Desagrupar linha">Desagrupar linha</div>
+                <div id="docAiExtractGroupDropzone" class="docai-line-ungroup-zone" hidden tabindex="0" aria-label="Retirar linha do grupo">Retirar linha do grupo</div>
               </div>
             </section>
 
@@ -565,7 +565,7 @@
   <div class="sz_panel docai-supplier-match-panel">
     <div class="sz_modal_header">
       <div>
-        <h3 id="docAiProjectTitle" class="sz_h4 sz_modal_title">Associar Centro de Custo</h3>
+        <h3 id="docAiProjectTitle" class="sz_h4 sz_modal_title">Selecionar CdC</h3>
         <p id="docAiProjectContext" class="sz_text_muted">Pesquisa Centros de Custo na Entidade identificada.</p>
       </div>
       <button id="docAiProjectCloseTop" type="button" class="sz_button sz_button_ghost" aria-label="Fechar">
@@ -598,7 +598,7 @@
   <div class="sz_panel docai-supplier-match-panel">
     <div class="sz_modal_header">
       <div>
-        <h3 id="docAiArticleTitle" class="sz_h4 sz_modal_title">Associar Artigo</h3>
+        <h3 id="docAiArticleTitle" class="sz_h4 sz_modal_title">Selecionar artigo</h3>
         <p id="docAiArticleContext" class="sz_text_muted">Pesquisa nos artigos PHC da entidade.</p>
       </div>
       <button id="docAiArticleCloseTop" type="button" class="sz_button sz_button_ghost" aria-label="Fermer">
@@ -628,7 +628,7 @@
   <div class="sz_panel docai-supplier-match-panel">
     <div class="sz_modal_header">
       <div>
-        <h3 id="docAiVehicleTitle" class="sz_h4 sz_modal_title">Associar Matrícula</h3>
+        <h3 id="docAiVehicleTitle" class="sz_h4 sz_modal_title">Selecionar matrícula</h3>
         <p id="docAiVehicleContext" class="sz_text_muted">Pesquisa nas viaturas PHC da entidade.</p>
       </div>
       <button id="docAiVehicleCloseTop" type="button" class="sz_button sz_button_ghost" aria-label="Fechar">

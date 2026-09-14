@@ -665,7 +665,7 @@
 
 .docai-range-filter {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.3rem;
 }
 
@@ -683,7 +683,7 @@
 }
 
 .docai-date-filter {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .docai-business-state {
@@ -869,11 +869,23 @@
 
 .docai-inbox-table-panel .sz_table th:last-child,
 .docai-inbox-table-panel .sz_table td:last-child {
+  position: sticky;
+  right: 0;
   width: 5%;
   min-width: 0;
   padding-inline: 0.35rem;
   white-space: nowrap;
   text-align: right;
+  background: var(--sz-color-surface);
+}
+
+.docai-inbox-table-panel .sz_table th:last-child {
+  z-index: 10;
+  background: var(--sz-color-surface-alt);
+}
+
+.docai-inbox-table-panel .sz_table td:last-child {
+  z-index: 4;
 }
 
 @media (max-width: 900px) {
@@ -2853,7 +2865,7 @@
 
 #docAiExtractLinesSection table {
   width: 100%;
-  min-width: 68rem;
+  min-width: 0;
   table-layout: fixed;
 }
 
@@ -2879,7 +2891,7 @@
 #docAiExtractLinesSection .sz_table_wrap {
   width: 100%;
   max-width: 100%;
-  overflow-x: auto;
+  overflow-x: hidden;
   overflow-y: visible;
 }
 
@@ -2915,6 +2927,25 @@
 
 .docai-line-group-handle:active { cursor: grabbing; }
 .docai-line-group-handle.is-armed { color: var(--sz-color-primary); outline: 2px solid var(--sz-color-primary); }
+
+#docAiExtractLinesSection tr.is-group-drop-target > td {
+  box-shadow: inset 0 2px 0 var(--sz-color-primary), inset 0 -2px 0 var(--sz-color-primary);
+}
+
+.docai-calendar-actions {
+  display: flex;
+  justify-content: space-between;
+  padding: .35rem .5rem;
+  border-top: 1px solid var(--sz-color-border);
+}
+
+.docai-calendar-actions button {
+  border: 0;
+  background: transparent;
+  color: var(--sz-color-primary);
+  cursor: pointer;
+  font: inherit;
+}
 
 .docai-line-group-count {
   position: absolute;

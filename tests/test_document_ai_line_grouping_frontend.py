@@ -14,7 +14,8 @@ class DocumentAiLineGroupingFrontendTests(unittest.TestCase):
 
     def test_first_column_is_only_the_group_handle(self):
         self.assertIn('data-line-group-handle=', self.script)
-        self.assertIn('title="Agrupar linha" aria-label="Agrupar linha"', self.script)
+        self.assertIn('title="Arrastar para agrupar" aria-label="Arrastar para agrupar"', self.script)
+        self.assertIn('fa-grip-vertical', self.script)
         self.assertNotIn('docai-extract-line-group-input', self.script)
         self.assertNotIn('P = Principal', self.script)
 
@@ -23,7 +24,9 @@ class DocumentAiLineGroupingFrontendTests(unittest.TestCase):
         self.assertIn("addEventListener('drop'", self.script)
         self.assertIn("['Delete', 'Backspace']", self.script)
         self.assertIn('keyboardGroupLineId', self.script)
-        self.assertIn('Desagrupar linha', self.template)
+        self.assertIn('Retirar linha do grupo', self.template)
+        self.assertIn('Desfazer grupo', self.script)
+        self.assertIn('is-group-drop-target', self.script)
 
     def test_conflict_messages_are_exact(self):
         self.assertIn('Impossível agrupar: ${label} diferente.', self.script)
@@ -62,7 +65,9 @@ class DocumentAiLineGroupingFrontendTests(unittest.TestCase):
         self.assertIn('<th>%</th><th>Quantidade</th><th>PU</th><th>PT</th>', self.script)
         self.assertIn('last.percentage = distributionRound(100 -', self.script)
         self.assertIn('readonly tabindex="-1"', self.script)
-        self.assertIn('aria-label="por distribuir"', self.script)
+        self.assertIn('Distribuído:', self.script)
+        self.assertIn('Por distribuir:', self.script)
+        self.assertIn('formatDistributionInput', self.script)
         self.assertIn('PU igual a zero: corrige explicitamente a linha antes de validar.', self.script)
         self.assertIn('|| incompleteDistribution', self.script)
         self.assertIn('Completa a distribuição das linhas antes de validar.', self.script)

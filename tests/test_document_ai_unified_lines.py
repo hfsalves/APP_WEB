@@ -91,7 +91,7 @@ class UnifiedDocumentLinesTests(unittest.TestCase):
         for value in ('C&P', 'fuel_tolls', 'cp', 'combustiveis_e_portagens'):
             self.assertEqual(_normalize_invoice_type(value), 'services')
 
-    def test_total_reference_case_has_eight_visible_and_36_effective_lines(self):
+    def test_generic_distribution_has_eight_visible_and_36_effective_lines(self):
         labels = (
             'Gazole Premier', 'Super 98 Sans Plomb', 'SP95 E10', 'AdBlue Bidon',
             'Accessoires', 'Télépéage Liber-t', 'Liber-T Abonnement', 'Frais de Gestion',
@@ -108,7 +108,7 @@ class UnifiedDocumentLinesTests(unittest.TestCase):
         self.assertEqual(len(_effective_portal_lines(lines)), 36)
         self.assertFalse(any(item.get('portal_line_id') == 'L0' for item in _effective_portal_lines(lines)))
 
-    def test_fehr_reference_rounding_accepts_one_cent_and_blocks_more(self):
+    def test_demonstrated_line_rounding_accepts_one_cent_and_blocks_more(self):
         line = {
             'article_ref': 'BETON', 'unit': 'M3', 'ccusto': 'C1', 'tax_rate': 20,
             'qty': 18, 'unit_price': 4.65, 'net_amount': 83.71,
@@ -117,7 +117,7 @@ class UnifiedDocumentLinesTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'Quantidade × PU'):
             _assert_effective_portal_lines([{**line, 'net_amount': 83.72}])
 
-    def test_cibomat_reference_costs_do_not_double_count(self):
+    def test_generic_detailed_costs_do_not_double_count(self):
         lines = [
             {'line_id': f'L{index}', 'description': f'Produto {index}', 'net_amount': 0}
             for index in range(13)
@@ -126,7 +126,7 @@ class UnifiedDocumentLinesTests(unittest.TestCase):
         lines.append({'line_id': 'L13', 'description': 'Frais de gestion', 'net_amount': 6.25})
         lines[0]['detailed_costs'] = [{'cost_type': 'included', 'description': 'PMCB', 'net_amount': 0.20}]
         lines[1]['detailed_costs'] = [{'cost_type': 'included', 'description': 'PMCB', 'net_amount': 0.20}]
-        normalized = normalize_line_structures(lines, 'CIBOMAT')
+        normalized = normalize_line_structures(lines, 'GENERIC')
         self.assertEqual(len(normalized), 14)
         self.assertAlmostEqual(sum(float(line['net_amount']) for line in normalized), 539.36)
         self.assertAlmostEqual(sum(float(cost['net_amount']) for line in normalized for cost in line.get('detailed_costs', [])), 0.40)

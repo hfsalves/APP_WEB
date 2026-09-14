@@ -89,6 +89,26 @@ class DocumentAiLineDistributionTests(unittest.TestCase):
         ]
         self.assertIn('Impossível agrupar: Artigo diferente.', line_workflow_errors(lines))
 
+    def test_group_requires_every_common_mandatory_field(self):
+        complete = {
+            'article_ref': 'A', 'tax_rate': 23, 'phc_origin_stamp': 'BO1', 'phc_origin_line_stamp': 'BI1',
+            'ccusto': 'C1', 'date': '2026-09-14', 'registration': 'AA-00-AA',
+        }
+        lines = [
+            {**complete, 'group_id': 'G', 'group_role': 'principal'},
+            {**complete, 'group_id': 'G', 'group_role': 'associated'},
+        ]
+        self.assertEqual(line_workflow_errors(lines), [])
+        for field, label in (
+            ('article_ref', 'Artigo'), ('tax_rate', 'IVA'), ('phc_origin_stamp', 'Origem'),
+            ('ccusto', 'Centro de Custo'), ('date', 'Data'), ('registration', 'Matrícula'),
+        ):
+            with self.subTest(field=field):
+                incomplete = [dict(item) for item in lines]
+                incomplete[0][field] = ''
+                incomplete[1][field] = ''
+                self.assertTrue(any(label in error for error in line_workflow_errors(incomplete)))
+
 
 if __name__ == '__main__':
     unittest.main()

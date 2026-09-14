@@ -45,8 +45,9 @@ class DocumentAiExtractSummaryFrontendTests(unittest.TestCase):
         self.assertIn("if (event.key === 'Escape')", self.script)
         self.assertIn("if (event.key === 'Enter')", self.script)
         self.assertIn("if (!event.target.closest('[data-agency-control]')) openEntityModal();", self.script)
-        self.assertIn("data[field] = previousValue", self.script)
-        self.assertIn("state.documentData.customer.ged_folder = previous.folder", self.script)
+        self.assertIn("state.headerEditing = field", self.script)
+        self.assertIn("setStatus('Erro ao guardar', true)", self.script)
+        self.assertNotIn("state.documentData.customer.ged_folder = previous.folder", self.script)
         self.assertIn("'<i class=\"fa-solid fa-pen\"></i><span>Alterar agência</span>'", self.script)
 
     def test_missing_header_values_use_business_prompts(self):
@@ -54,11 +55,11 @@ class DocumentAiExtractSummaryFrontendTests(unittest.TestCase):
         for label in ('Tipo de documento', 'Tipo de fatura', 'Nº do documento', 'Data do documento'):
             self.assertIn(label, self.script)
 
-    def test_failed_header_save_restores_previous_value(self):
+    def test_failed_header_save_keeps_the_visible_edit(self):
         save_header = self.script.split('async function saveHeaderField', 1)[1].split('async function refreshHeaderDependencies', 1)[0]
-        self.assertIn('const previousValue = data[field]', save_header)
-        self.assertIn('data[field] = previousValue', save_header)
-        self.assertIn('O valor anterior foi reposto', save_header)
+        self.assertIn('state.headerEditing = field', save_header)
+        self.assertNotIn('data[field] = previousValue', save_header)
+        self.assertIn('A edição foi mantida', save_header)
 
     def test_missing_project_and_totals_are_not_rendered_as_false_values(self):
         self.assertIn("els.projectName.textContent = selected ? project.ccusto : '-';", self.script)
@@ -81,7 +82,7 @@ class DocumentAiExtractSummaryFrontendTests(unittest.TestCase):
         self.assertIn('{% block title %}Análise de Documentos{% endblock %}', self.template)
         header = self.template.split('<header', 1)[1].split('</header>', 1)[0]
         self.assertNotIn('docAiIntegrationAccessBtn', header)
-        self.assertIn('Voltar ao inbox', header)
+        self.assertIn('Voltar ao Inbox', header)
         self.assertNotIn('docAiExtractWorkflowValidateBtn', header)
         analysis_header = self.template.split('<section class="sz_panel docai-extract-result-panel">', 1)[1].split('<nav', 1)[0]
         self.assertIn('docAiExtractWorkflowValidateBtn', analysis_header)
@@ -94,7 +95,7 @@ class DocumentAiExtractSummaryFrontendTests(unittest.TestCase):
 
     def test_project_card_uses_centro_de_custo_label(self):
         self.assertIn('<h4>Centro de Custo</h4>', self.template)
-        self.assertIn('aria-label="Associar Centro de Custo"', self.template)
+        self.assertIn('aria-label="Selecionar CdC"', self.template)
 
     def test_line_headers_use_cdc_and_hide_the_vehicle_caption(self):
         self.assertIn('<th rowspan="2">CdC</th>', self.template)
@@ -120,8 +121,8 @@ class DocumentAiExtractSummaryFrontendTests(unittest.TestCase):
         self.assertNotIn('Escolher fornecedor', business_source.lower())
         self.assertNotIn('Escolher entidade', business_source.lower())
         self.assertNotIn('Escolher artigo', business_source.lower())
-        self.assertIn('Associar Centro de Custo', self.template)
-        self.assertIn("line.article_ref || line.article || 'Associar'", self.script)
+        self.assertIn('Selecionar CdC', self.template)
+        self.assertIn("line.article_ref || line.article || 'Selecionar artigo'", self.script)
 
     def test_validation_error_uses_a_single_message_channel(self):
         validation = self.script.split('async function validateWorkflowStage', 1)[1].split("els.backBtn?.addEventListener", 1)[0]

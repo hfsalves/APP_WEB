@@ -387,12 +387,27 @@ document.addEventListener('DOMContentLoaded', () => {
       : 'A aguardar leitura';
   }
 
-  function selectView(view, { updateHistory = true } = {}) {
+  async function selectView(view, { updateHistory = true } = {}) {
     if (!allowedViews.has(view) || view === state.view) return;
+    const targetLabel = workflowViewLabel(view);
+    if (state.currentDocumentId && view === 'management' && !state.workflow?.reception_validated) {
+      showMessage(`O documento ainda não chegou ao ${targetLabel}: falta validar na Receção.`, 'warning');
+      return;
+    }
+    if (state.currentDocumentId && view === 'accounting' && !state.workflow?.management_validated) {
+      showMessage(`O documento ainda não chegou à ${targetLabel}: falta validar no Controlo de Gestão.`, 'warning');
+      return;
+    }
+    if (!await flushAnalysisSave()) {
+      showMessage('Erro ao guardar. Resolve a gravação antes de mudar de departamento.', 'error');
+      return;
+    }
     state.view = view;
-    renderViewTabs();
-    renderModeCard();
-    if (updateHistory) window.history.pushState({ documentAiView: view }, '', extractUrl());
+    if (updateHistory) window.location.href = extractUrl();
+    else {
+      renderViewTabs();
+      renderModeCard();
+    }
   }
 
   function formatFileSize(bytes) {
@@ -633,6 +648,11 @@ document.addEventListener('DOMContentLoaded', () => {
     return Math.round((Number(value || 0) + Number.EPSILON) * factor) / factor;
   }
 
+  function formatDistributionInput(value) {
+    if (value === null || value === undefined || value === '') return '';
+    return String(value).replace('.', ',');
+  }
+
   function distributionSourceLine() {
     return state.documentData?.lines?.[state.lineDistributionTargetIndex] || null;
   }
@@ -737,9 +757,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function distributionBalanceLabel(label, distributed, expected) {
     const balance = distributionRound(expected - distributed, 6);
-    return Math.abs(balance) <= 0.01
-      ? `${label} distribuída: ${formatNumber(expected, 2)}`
-      : `${label} distribuída: ${formatNumber(distributed, 2)} de ${formatNumber(expected, 2)} · <span aria-label="por distribuir">${formatNumber(balance, 2)}</span>`;
+    return `${label} Distribuído: ${formatNumber(distributed, 2)} · Por distribuir: ${formatNumber(Math.abs(balance) <= 0.01 ? 0 : balance, 2)}`;
   }
 
   function renderLineDistribution() {
@@ -754,14 +772,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const unitPrice = Number(line.unit_price || 0);
     els.lineDistributionBody.innerHTML = state.lineDistributionDraft.map((row, index) => {
       const missingVehicleProject = String(row.registration || '').trim() && !String(row.ccusto || '').trim();
-      const destinationCells = firstColumns.map(([field, label]) => `<td><button type="button" class="docai-line-distribution-destination" data-distribution-search="${field}" data-distribution-row="${index}" aria-label="Associar ${label}">${escapeHtml(row[field] || 'Associar')}</button>${field === 'ccusto' && missingVehicleProject ? '<small class="docai-line-distribution-vehicle-warning">Matrícula s/Centro de Custo</small>' : ''}</td>`).join('');
+      const destinationCells = firstColumns.map(([field, label]) => `<td><button type="button" class="docai-line-distribution-destination" data-distribution-search="${field}" data-distribution-row="${index}" aria-label="Selecionar ${label}">${escapeHtml(row[field] || `Selecionar ${label}`)}</button>${field === 'ccusto' && missingVehicleProject ? '<small class="docai-line-distribution-vehicle-warning">Matrícula s/Centro de Custo</small>' : ''}</td>`).join('');
       return `<tr data-distribution-row-index="${index}">
         ${destinationCells}
-        <td><span class="docai-line-distribution-percent"><input class="sz_input" inputmode="decimal" data-distribution-field="percentage" data-distribution-row="${index}" value="${escapeHtml(row.percentage ?? '')}" aria-label="Percentagem"><span>%</span></span></td>
-        <td><input class="sz_input" inputmode="decimal" data-distribution-field="qty" data-distribution-row="${index}" value="${escapeHtml(row.qty ?? '')}" aria-label="Quantidade"></td>
+        <td><span class="docai-line-distribution-percent"><input class="sz_input" inputmode="decimal" data-distribution-field="percentage" data-distribution-row="${index}" value="${escapeHtml(formatDistributionInput(row.percentage))}" aria-label="Percentagem"><span>%</span></span></td>
+        <td><input class="sz_input" inputmode="decimal" data-distribution-field="qty" data-distribution-row="${index}" value="${escapeHtml(formatDistributionInput(row.qty))}" aria-label="Quantidade"></td>
         <td><input class="sz_input" value="${escapeHtml(formatEditableAmount(unitPrice))}" aria-label="PU" readonly tabindex="-1"></td>
-        <td><input class="sz_input" inputmode="decimal" data-distribution-field="net_amount" data-distribution-row="${index}" value="${escapeHtml(row.net_amount ?? '')}" aria-label="PT"></td>
-        <td><span class="docai-line-distribution-percent"><input class="sz_input" inputmode="decimal" data-distribution-field="tax_rate" data-distribution-row="${index}" value="${escapeHtml(row.tax_rate ?? '')}" aria-label="IVA"><span>%</span></span></td>
+        <td><input class="sz_input" inputmode="decimal" data-distribution-field="net_amount" data-distribution-row="${index}" value="${escapeHtml(formatDistributionInput(row.net_amount))}" aria-label="PT"></td>
+        <td><span class="docai-line-distribution-percent"><input class="sz_input" inputmode="decimal" data-distribution-field="tax_rate" data-distribution-row="${index}" value="${escapeHtml(formatDistributionInput(row.tax_rate))}" aria-label="IVA"><span>%</span></span></td>
         <td><button type="button" class="sz_icon_button" data-distribution-remove="${index}" aria-label="Remover destino"><i class="fa-solid fa-trash"></i></button></td>
       </tr>`;
     }).join('');
@@ -808,7 +826,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       state.lineDistributionSearchItems = payload.items || [];
       const clearOption = field === 'registration'
-        ? '<button type="button" class="docai-supplier-match-option" data-distribution-search-index="-1"><span class="docai-supplier-match-main"><strong>Sem Matrícula</strong><span>Imputação direta ao Centro de Custo</span></span><span class="docai-supplier-match-score">Associar</span></button>'
+        ? '<button type="button" class="docai-supplier-match-option" data-distribution-search-index="-1"><span class="docai-supplier-match-main"><strong>Sem Matrícula</strong><span>Imputação direta ao Centro de Custo</span></span><span class="docai-supplier-match-score">Selecionar</span></button>'
         : '';
       els.lineDistributionSearchResults.innerHTML = clearOption + state.lineDistributionSearchItems.map((item, index) => {
         const value = field === 'registration' ? item.registration : item.ccusto;
@@ -817,7 +835,7 @@ document.addEventListener('DOMContentLoaded', () => {
           : [item.name, item.client, item.city].filter(Boolean).join(' · ');
         return `<button type="button" class="docai-supplier-match-option" data-distribution-search-index="${index}">
           <span class="docai-supplier-match-main"><strong>${escapeHtml(value || '--')}</strong><span>${escapeHtml(detail)}</span></span>
-          <span class="docai-supplier-match-score">Associar</span>
+          <span class="docai-supplier-match-score">Selecionar</span>
         </button>`;
       }).join('');
       if (!clearOption && !state.lineDistributionSearchItems.length) {
@@ -836,7 +854,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const row = state.lineDistributionDraft[state.lineDistributionSearchRow];
     if (!row) return;
     const vehicle = field === 'registration';
-    els.lineDistributionTitle.textContent = vehicle ? 'Associar Matrícula' : 'Associar Centro de Custo';
+    els.lineDistributionTitle.textContent = vehicle ? 'Selecionar matrícula' : 'Selecionar CdC';
     els.lineDistributionSearchLabel.textContent = vehicle ? 'Matrícula, marca, modelo ou n.º de frota' : 'Código, nome, cliente, morada ou localidade';
     els.lineDistributionSearchInput.value = row[field] || '';
     els.lineDistributionMain.hidden = true;
@@ -989,6 +1007,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderLineCosts() {
     const rows = selectedLineCosts();
+    const line = state.documentData?.lines?.[state.lineCostsTargetIndex] || {};
+    const sum = rows.reduce((total, row) => total + Number(row.net_amount ?? row.pt ?? 0), 0);
+    const expected = Number(line.net_amount ?? line.pt ?? 0);
+    const family = state.lineCostsType === 'included' ? 'Custos Incluídos' : 'Custos Adicionais';
+    els.lineCostsContext.textContent = `${family}: ${formatMoney(sum, state.documentData?.currency)} · Total da linha: ${formatMoney(expected, state.documentData?.currency)} · Diferença: ${formatMoney(expected - sum, state.documentData?.currency)}`;
     els.lineCostsList.hidden = false;
     els.lineCostsDetail.hidden = true;
     els.lineCostsTabs.querySelectorAll('[data-line-cost-type]').forEach((button) => {
@@ -1455,7 +1478,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const invoiceType = ['invoice', 'provisional_invoice'].includes(documentData.document_type)
       ? invoiceTypeLabels[String(documentData.invoice_type || '').toLowerCase()]
       : '';
-    const editable = !state.readOnly && ['home', 'management'].includes(state.view) && !state.workflow?.management_validated;
+    const editable = !state.readOnly && state.view === 'home' && !state.workflow?.reception_validated;
     const text = (field, value, fallback) => editable
       ? `<button type="button" class="docai-header-editable" data-header-edit="${field}">${escapeHtml(value || fallback)}</button>`
       : escapeHtml(value || fallback);
@@ -1477,6 +1500,19 @@ document.addEventListener('DOMContentLoaded', () => {
     if (editor && editing === 'document_date' && window.flatpickr) window.flatpickr(editor, {
       dateFormat: 'd/m/Y', allowInput: true, defaultDate: documentData.document_date || null,
       locale: window.flatpickr.l10ns?.pt || { firstDayOfWeek: 1 },
+      onReady: (_, __, instance) => {
+        if (instance.calendarContainer.querySelector('.docai-calendar-actions')) return;
+        const actions = document.createElement('div');
+        actions.className = 'docai-calendar-actions';
+        const clear = document.createElement('button');
+        clear.type = 'button'; clear.textContent = 'Limpar';
+        clear.addEventListener('click', () => { instance.clear(); editor.value = ''; });
+        const today = document.createElement('button');
+        today.type = 'button'; today.textContent = 'Hoje';
+        today.addEventListener('click', () => { instance.setDate(new Date(), true, 'd/m/Y'); });
+        actions.append(clear, today);
+        instance.calendarContainer.append(actions);
+      },
     });
     if (editor) window.setTimeout(() => editor.focus(), 0);
     if (state.correspondenceReference) {
@@ -1489,8 +1525,6 @@ document.addEventListener('DOMContentLoaded', () => {
   async function saveHeaderField(field, value) {
     const data = state.documentData;
     if (!data) return;
-    const previousValue = data[field];
-    const previousInvoiceType = data.invoice_type;
     if (field === 'document_date') {
       const match = String(value || '').trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
       if (!match) return showMessage('Indica a data no formato DD/MM/AAAA.', 'error');
@@ -1510,11 +1544,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const saved = await scheduleAnalysisSave({ immediate: true });
     state.confirmInvoiceTypeRemoval = false;
     if (!saved) {
-      data[field] = previousValue;
-      data.invoice_type = previousInvoiceType;
+      state.headerEditing = field;
       renderDocumentCard();
       renderGedDestination();
-      showMessage('Não foi possível guardar a correção. O valor anterior foi reposto.', 'error');
+      setStatus('Erro ao guardar', true);
+      showMessage('Erro ao guardar. A edição foi mantida para repetires a gravação.', 'error');
       return;
     }
     await refreshHeaderDependencies();
@@ -1795,7 +1829,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (els.saveRetryBtn) els.saveRetryBtn.hidden = !state.draftError || state.draftConflict;
     if (status === 'saving') setStatus('A guardar...');
     else if (status === 'saved') setStatus('Guardado');
-    else if (status === 'error') setStatus('Não foi possível guardar as alterações.', true);
+    else if (status === 'error') setStatus('Erro ao guardar', true);
     else if (status === 'conflict') setStatus('Documento alterado por outro utilizador.', true);
     updateSubmitPhcButton();
   }
@@ -2302,14 +2336,14 @@ document.addEventListener('DOMContentLoaded', () => {
         ? `<button type="button" class="docai-line-costs-trigger" data-line-costs="${lineIndex}" title="${escapeHtml(costTooltip)}" aria-label="${escapeHtml(costTooltip)}"><i class="fa-solid fa-circle-info"></i></button>`
         : '';
       return `<tr draggable="false" data-line-index="${lineIndex}" data-line-id="${escapeHtml(line.line_id)}" data-group-role="${escapeHtml(groupRole)}" class="${line._virtual_split_allocation ? 'is-split-allocation ' : ''}${groupRole ? `docai-line-group-${groupRole} ` : ''}${groupStart ? 'docai-extract-line-group-start ' : ''}${originIncomplete ? 'docai-origin-line-incomplete ' : ''}${lineError ? `docai-validation-line-error ${validationTone}` : ''}"${validationTitle(lineError || originIncomplete || line.informative || line.is_informative, lineError ? (validation.value || validation.total ? 'Valor não Conforme' : validation.article ? 'Artigo não Conforme' : validation.vehicle ? 'Falta Matrícula' : validation.project ? 'Falta Centro de Custo' : validation.distribution ? 'Falta Distribuição' : 'Valor não Conforme') : originIncomplete ? 'Confirma o dossier, a linha PHC e a quantidade de origem.' : 'Linha Ignorada')}>
-        <td class="docai-line-group-zone"><button type="button" class="docai-line-group-handle${state.keyboardGroupLineId === line.line_id ? ' is-armed' : ''}" draggable="true" data-line-group-handle="${escapeHtml(line.line_id)}" title="Agrupar linha" aria-label="Agrupar linha">?</button>${groupRole === 'principal' ? `<span class="docai-line-group-count">${memberCount} linhas</span>` : ''}</td>
-        <td><button type="button" class="docai-extract-cell-link${validationClass(validation.article)}" data-line-article="${lineIndex}" title="${validation.article ? 'Artigo não Conforme' : 'Associar Artigo'}">${escapeHtml(line.article_ref || line.article || 'Associar')}</button></td>
+        <td class="docai-line-group-zone"><button type="button" class="docai-line-group-handle${state.keyboardGroupLineId === line.line_id ? ' is-armed' : ''}" draggable="true" data-line-group-handle="${escapeHtml(line.line_id)}" title="Arrastar para agrupar" aria-label="Arrastar para agrupar"><i class="fa-solid fa-grip-vertical" aria-hidden="true"></i></button>${groupRole === 'principal' ? `<span class="docai-line-group-count">${memberCount} linhas</span>` : ''}</td>
+        <td><button type="button" class="docai-extract-cell-link${validationClass(validation.article)}" data-line-article="${lineIndex}" title="${validation.article ? 'Artigo não Conforme' : 'Selecionar artigo'}">${escapeHtml(line.article_ref || line.article || 'Selecionar artigo')}</button></td>
         <td><input class="sz_input docai-extract-line-description-input${validationClass(validation.description)}" data-line-description="${lineIndex}" value="${escapeHtml(line.description || '')}" aria-label="Designação da linha"${validationTitle(validation.description, 'Valor não Conforme')}></td>
         <td><input class="sz_input docai-extract-line-number-input${validationClass(validation.quantity)}" inputmode="decimal" data-line-qty="${lineIndex}" value="${escapeHtml(formatEditableAmount(line.qty))}" aria-label="Quantidade"${validationTitle(validation.quantity, 'Valor não Conforme')}></td>
         <td><span class="docai-extract-line-money-input"><input class="sz_input docai-extract-line-number-input${validationClass(validation.unitPrice)}" inputmode="decimal" data-line-unit-price="${lineIndex}" value="${escapeHtml(formatEditableAmount(line.unit_price))}" aria-label="Preço unitário"${validationTitle(validation.unitPrice, 'Valor não Conforme')}>${currencySuffix}</span></td>
         <td><span class="docai-extract-line-money-input"><input class="sz_input docai-extract-line-number-input${validationClass(validation.total || validation.value)}" inputmode="decimal" data-line-total="${lineIndex}" value="${escapeHtml(formatEditableAmount(line.net_amount))}" aria-label="Preço total"${validationTitle(validation.total || validation.value, 'Valor não Conforme')}>${currencySuffix}</span></td>
         <td><input class="sz_input docai-extract-line-number-input" inputmode="decimal" data-line-tax-rate="${lineIndex}" value="${escapeHtml(formatEditableAmount(line.tax_rate))}" aria-label="Taxa de IVA"></td>
-        <td><button type="button" class="docai-extract-cell-link${validationClass(validation.project)}" data-line-project="${lineIndex}" title="${validation.project ? 'Falta Centro de Custo' : 'Associar Centro de Custo'}">${escapeHtml(project || 'Associar')}</button></td>
+        <td><button type="button" class="docai-extract-cell-link${validationClass(validation.project)}" data-line-project="${lineIndex}" title="${validation.project ? 'Falta Centro de Custo' : 'Selecionar CdC'}">${escapeHtml(project || 'Selecionar CdC')}</button></td>
         <td><input type="date" class="sz_input docai-extract-line-date-input${validationClass(validation.date)}" data-line-date="${lineIndex}" value="${escapeHtml(lineDate)}" aria-label="Data da linha"${validationTitle(validation.date, 'Valor não Conforme')}></td>
         <td class="docai-extract-bc-ref-cell">${primaryReference}</td>
         ${secondaryCell}
@@ -2511,7 +2545,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function openEntityModal() {
-    if (!state.documentData) return;
+    if (!state.documentData || state.readOnly || state.view !== 'home') return;
     els.entitySearch.value = '';
     els.entityModal.classList.add('sz_is_open');
     els.entityModal.setAttribute('aria-hidden', 'false');
@@ -2677,19 +2711,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const hasTotal = candidate.total !== null && candidate.total !== undefined && candidate.total !== '';
         const totalLabel = hasTotal ? formatMoney(candidate.total, state.documentData?.currency) : '';
         const canAssociate = originDisplayStage(String(stage.key || '')) !== 'proforma_invoice'
-          && candidate.available_balance !== false;
+          && candidate.selectable !== false && candidate.available_balance !== false;
         const candidateContext = [candidate.ccusto, candidate.project_machine, ...(candidate.reasons || [])]
           .filter(Boolean).join(' · ');
         return `
           <article class="docai-extract-origin-candidate${consulted ? ' is-selected' : ''}${associated ? ' is-associated' : ''}" data-origin-index="${candidateIndex}" role="button" tabindex="0" aria-label="Consultar ${escapeHtml(stage.label || 'origem')} ${escapeHtml(candidate.number || '')}">
             <span class="docai-extract-origin-candidate-top">
               <strong>${candidate.number ? `N.º ${escapeHtml(candidate.number)}${candidate.year ? ` · ${escapeHtml(candidate.year)}` : ''}` : '&nbsp;'}</strong>
-              ${canAssociate ? `<button type="button" class="docai-origin-link-button${associated ? ' is-associated' : ''}" data-origin-link="${candidateIndex}" aria-label="${associated ? 'Desassociar do processo' : 'Associar ao processo'}" title="${associated ? 'Desassociar do processo' : 'Associar ao processo'}"><i class="fa-solid ${associated ? 'fa-link-slash' : 'fa-link'}"></i></button>` : ''}
+              ${canAssociate ? `<button type="button" class="docai-origin-link-button${associated ? ' is-associated' : ''}" data-origin-link="${candidateIndex}" aria-label="${associated ? 'Desassociar' : 'Selecionar origem'}" title="${associated ? 'Desassociar' : 'Selecionar origem'}"><i class="fa-solid ${associated ? 'fa-link-slash' : 'fa-link'}"></i></button>` : ''}
             </span>
             <strong class="docai-origin-card-score">${escapeHtml(scoreLabel) || '&nbsp;'}</strong>
             <span>${escapeHtml(dateLabel) || '&nbsp;'}</span>
             <strong class="docai-origin-card-total">${escapeHtml(totalLabel) || '&nbsp;'}</strong>
-            <small>${associated ? 'Dossier associado · confirma linha e quantidade' : candidate.available_balance === false ? 'Dossier PHC encontrado · fechado ou sem saldo disponível' : escapeHtml(candidateContext) || 'Abrir dossier para consultar'}</small>
+            <small title="${escapeHtml(candidate.eligibility_reason || candidateContext)}">${associated ? 'Origem selecionada · confirma linha e quantidade' : !canAssociate ? escapeHtml(candidate.eligibility_reason || 'Origem apenas para consulta') : escapeHtml(candidateContext) || 'Abrir dossier para consultar'}</small>
           </article>`;
       }).join('');
       const count = candidates.length;
@@ -2709,7 +2743,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }).join('');
     if (virtualStageHtml && !virtualStageInserted) stageHtml += virtualStageHtml;
 
-    els.originFlow.innerHTML = stageHtml || '<div class="docai-extract-origin-unavailable"><i class="fa-solid fa-magnifying-glass"></i><span>Sem documentos anteriores disponíveis para ligar.</span></div>';
+    els.originFlow.innerHTML = stageHtml || `<div class="docai-extract-origin-unavailable"><i class="fa-solid fa-magnifying-glass"></i><span>${escapeHtml(payload.no_selectable_reason || 'Sem documentos anteriores disponíveis para ligar.')}</span></div>`;
     const tabStages = stages.map((stage) => ({
       key: originDisplayStage(String(stage.key || '')),
       label: String(stage.label || stage.key || ''),
@@ -3583,7 +3617,7 @@ document.addEventListener('DOMContentLoaded', () => {
       ? '<i class="fa-solid fa-triangle-exclamation"></i> Origens com Centros de Custo diferentes'
       : selected
       ? '<i class="fa-solid fa-pen"></i> Alterar Centro de Custo'
-      : '<i class="fa-solid fa-magnifying-glass"></i> Associar Centro de Custo';
+      : '<i class="fa-solid fa-magnifying-glass"></i> Selecionar CdC';
     els.projectHint.hidden = true;
     els.projectClear.hidden = !selected;
     els.projectCard.classList.toggle('is-selected', selected);
@@ -3666,7 +3700,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <strong>${escapeHtml(project.ccusto || '--')}</strong>
           <span>${escapeHtml([project.name, project.client, [project.address, project.city].filter(Boolean).join(' · ')].filter(Boolean).join(' · '))}</span>
         </span>
-        <span class="docai-supplier-match-score">Associar</span>
+        <span class="docai-supplier-match-score">Selecionar</span>
       </button>
     `).join('');
   }
@@ -3695,6 +3729,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function openProjectModal() {
+    if (state.readOnly || state.view !== 'management') return;
     if (!state.documentData?.customer?.feid && !state.documentData?.customer?.name) {
       showMessage('É necessário identificar primeiro a empresa cliente.', 'error');
       return;
@@ -3902,7 +3937,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <strong>${escapeHtml(vehicle.registration || '--')}</strong>
           <span>${escapeHtml([vehicle.brand, vehicle.model].filter(Boolean).join(' · ') || 'Sem descrição')}</span>
         </span>
-        <span class="docai-supplier-match-score">${escapeHtml([vehicle.fleet_number, 'Associar'].filter(Boolean).join(' · '))}</span>
+        <span class="docai-supplier-match-score">${escapeHtml([vehicle.fleet_number, 'Selecionar'].filter(Boolean).join(' · '))}</span>
       </button>
     `).join('');
   }
@@ -4252,6 +4287,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function openSupplierModal() {
+    if (state.readOnly || state.view !== 'home') return;
     const isCorrespondence = ['mail', 'bank_statement'].includes(state.documentData?.document_type);
     const isAdvertising = state.documentData?.document_type === 'advertising';
     const feid = Number(state.matching?.supplier_query?.feid || state.documentData?.customer?.feid || 0);
@@ -4695,7 +4731,7 @@ document.addEventListener('DOMContentLoaded', () => {
     openSublines: 'Abrir Sublinhas',
     groupLine: 'Agrupar linha',
     ungroupLine: 'Desagrupar linha',
-    vehicleToAssociate: 'Veículo a associar',
+    vehicleToAssociate: 'Selecionar matrícula',
     vehicleAssociated: 'Veículo associado',
   });
 
@@ -4874,12 +4910,7 @@ document.addEventListener('DOMContentLoaded', () => {
     els.gedFolderSelect.focus();
   });
   els.gedFolderSelect?.addEventListener('change', async () => {
-    if (!state.documentData?.customer) return;
-    const previous = {
-      folder: state.documentData.customer.ged_folder,
-      manual: state.documentData.customer.ged_folder_manually_selected,
-      suggested: state.documentData.customer.ged_folder_suggested_by,
-    };
+    if (!state.documentData?.customer || state.readOnly || state.view !== 'home') return;
     state.gedFolderManuallySelected = true;
     state.documentData.customer.ged_folder = els.gedFolderSelect.value;
     state.documentData.customer.ged_folder_manually_selected = true;
@@ -4894,12 +4925,9 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!saved) throw new Error('save_failed');
       setStatus(`Agência INTERSOL ${agency} guardada.`);
     } catch (error) {
-      state.documentData.customer.ged_folder = previous.folder;
-      state.documentData.customer.ged_folder_manually_selected = previous.manual;
-      state.documentData.customer.ged_folder_suggested_by = previous.suggested;
-      state.gedFolderManuallySelected = Boolean(previous.manual);
       renderGedDestination();
-      setStatus('Não foi possível guardar a agência INTERSOL.', true);
+      els.gedFolderSelect.hidden = false;
+      setStatus('Erro ao guardar', true);
     }
   });
   els.gedFolderSelect?.addEventListener('click', (event) => event.stopPropagation());
@@ -5080,12 +5108,17 @@ document.addEventListener('DOMContentLoaded', () => {
     state.draggedLineId = handle.dataset.lineGroupHandle;
     event.dataTransfer.effectAllowed = 'move';
     event.dataTransfer.setData('text/plain', state.draggedLineId);
+    const dragged = (state.documentData?.lines || []).find((line) => line.line_id === state.draggedLineId);
+    els.groupDropzone.textContent = dragged?.group_role === 'principal' ? 'Desfazer grupo' : 'Retirar linha do grupo';
     els.groupDropzone.hidden = false;
   });
   els.linesBody?.addEventListener('dragover', (event) => {
-    if (!state.draggedLineId || !event.target.closest('tr[data-line-id]')) return;
+    const target = event.target.closest('tr[data-line-id]');
+    if (!state.draggedLineId || !target) return;
     event.preventDefault();
     event.dataTransfer.dropEffect = 'move';
+    els.linesBody.querySelectorAll('tr.is-group-drop-target').forEach((row) => row.classList.remove('is-group-drop-target'));
+    if (target.dataset.lineId !== state.draggedLineId) target.classList.add('is-group-drop-target');
   });
   els.linesBody?.addEventListener('drop', (event) => {
     const target = event.target.closest('tr[data-line-id]');
@@ -5093,11 +5126,13 @@ document.addEventListener('DOMContentLoaded', () => {
     event.preventDefault();
     const sourceId = state.draggedLineId;
     state.draggedLineId = '';
+    target.classList.remove('is-group-drop-target');
     els.groupDropzone.hidden = true;
     groupLineOnTarget(sourceId, target.dataset.lineId);
   });
   els.linesBody?.addEventListener('dragend', () => {
     state.draggedLineId = '';
+    els.linesBody.querySelectorAll('tr.is-group-drop-target').forEach((row) => row.classList.remove('is-group-drop-target'));
     if (els.groupDropzone) els.groupDropzone.hidden = true;
   });
   els.groupDropzone?.addEventListener('dragover', (event) => event.preventDefault());

@@ -51,6 +51,8 @@ class DocumentAiReceptionIntegrationTests(unittest.TestCase):
         self.assertTrue(_has_complete_reception_integration({
             **base,
             'anexosstamps': ['ANEXO-CR', 'ANEXO-FO'],
+            'original_date': '2026-08-10',
+            'operational_date': '2026-09-01',
         }, 'invoice'))
 
     @staticmethod

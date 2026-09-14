@@ -130,6 +130,14 @@ class DocumentAiInboxWorkflowTests(unittest.TestCase):
         })
         self.assertTrue(result['ok'])
 
+    def test_one_cent_document_divergence_is_nonconforming(self):
+        result = validate_document_financial_consistency({
+            'totals': {'net_total': 100, 'tax_total': 20, 'gross_total': 120.01},
+            'taxes': [{'tax_rate': 20, 'taxable_base': 100, 'tax_amount': 20, 'gross_total': 120}],
+        })
+        self.assertFalse(result['ok'])
+        self.assertIn('Valor não Conforme', result['tooltips'])
+
     def test_inbox_column_filters_use_a_viewport_menu_to_escape_the_table_scroll_area(self):
         inbox_script = Path('static/js/document_ai_inbox.js').read_text()
         inbox_css = Path('static/css/document_ai.css').read_text()
@@ -169,7 +177,7 @@ class DocumentAiInboxWorkflowTests(unittest.TestCase):
             'Falta Matrícula', 'Falta Centro de Custo', 'Falta Categoria ADM/LOG',
             'Falta Distribuição', 'Artigo não Conforme', 'Valor não Conforme',
             'Movimento Duplicado', 'Matrícula não Conforme', 'Linha Ignorada',
-            'Veículo a associar', 'Veículo associado',
+            'Selecionar matrícula', 'Veículo associado',
         )
         for tooltip in expected:
             self.assertIn(tooltip, extract_script)
@@ -241,7 +249,7 @@ class DocumentAiInboxWorkflowTests(unittest.TestCase):
         self.assertIn("candidate.source_ref = candidate.extracted_ref || candidate.ref || '';", selection)
         self.assertIn("candidate.article_ref = article.ref || '';", selection)
         self.assertNotIn("candidate.ref = article.ref || '';", selection)
-        self.assertIn("line.article_ref || line.article || 'Associar'", extract_script)
+        self.assertIn("line.article_ref || line.article || 'Selecionar artigo'", extract_script)
 
     def test_article_search_is_scoped_and_reports_invalid_selection(self):
         extract_script = Path('static/js/document_ai_extract.js').read_text()

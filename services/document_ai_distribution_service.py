@@ -253,7 +253,12 @@ def _log_rule(action: str, rule_id: str, actor: str, before: dict[str, Any], aft
 
 
 def normalize_distribution_document_class(value: Any) -> str:
-    normalized = str(value or '').strip().lower()
+    normalized = _normalized_supplier_type(value).replace(' ', '_').replace('-', '_')
+    if normalized in {
+        'lettre', 'mahnung', 'carta', 'aviso', 'notificacao', 'notification',
+        'correio', 'courrier', 'mail',
+    }:
+        return 'mail'
     return 'invoice' if normalized == 'provisional_invoice' else normalized
 
 
