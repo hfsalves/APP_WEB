@@ -1902,6 +1902,8 @@ document.addEventListener('DOMContentLoaded', () => {
         openDraftConflict();
       } else {
         setDraftStatus('error');
+        setStatus(error.message || 'Erro ao guardar', true);
+        showMessage(error.message || 'Não foi possível guardar as alterações.', 'error');
       }
       return false;
     } finally {

@@ -380,6 +380,10 @@ document.addEventListener('DOMContentLoaded', () => {
     let dragged = false;
     scroller.addEventListener('pointerdown', (event) => {
       if (event.pointerType === 'mouse' && event.button !== 0) return;
+      // Keep filter chips as ordinary buttons. Pointer capture in the Windows
+      // desktop shell retargets their following click to this scroller and the
+      // document-type filter handler never receives the selected value.
+      if (event.target.closest('button, a, input, select')) return;
       pointerId = event.pointerId;
       startX = event.clientX;
       startScroll = scroller.scrollLeft;

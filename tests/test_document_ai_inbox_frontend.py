@@ -69,6 +69,14 @@ class DocumentAiInboxFrontendTests(unittest.TestCase):
         self.assertIn("selected.has(value) ? 'is-active' : ''", self.source)
         self.assertIn("aria-pressed=\"${selected.has(value) ? 'true' : 'false'}\"", self.source)
 
+    def test_document_type_scroller_does_not_capture_filter_button_clicks(self):
+        scroller = self.source.split('function bindTypeCounterScroller()', 1)[1].split('function applyFilters', 1)[0]
+        self.assertIn("event.target.closest('button, a, input, select')", scroller)
+        self.assertLess(
+            scroller.index("event.target.closest('button, a, input, select')"),
+            scroller.index('scroller.setPointerCapture(pointerId)'),
+        )
+
     def test_row_highlight_includes_the_sticky_action_cell(self):
         css = (Path(__file__).resolve().parents[1] / 'static/css/document_ai.css').read_text(encoding='utf-8')
         self.assertIn('.docai-inbox-row.is-interactive:hover > td:last-child,', css)

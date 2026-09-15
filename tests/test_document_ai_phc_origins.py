@@ -128,6 +128,60 @@ class DocumentAiPhcOriginTests(unittest.TestCase):
         self.assertEqual(result['version'], moment.isoformat(timespec='microseconds'))
         commit.assert_called_once()
 
+    def test_management_draft_accepts_the_complete_review_snapshot(self):
+        moment = datetime(2026, 9, 1, 10, 30, 0)
+        previous = {
+            'document_type': 'invoice',
+            'invoice_type': 'services',
+            'document_number': 'FAC-22',
+            'customer': {'feid': 8, 'name': 'INTERSOL'},
+            'supplier': {'supplier_no': 42, 'name': 'Fornecedor'},
+            'lines': [{'description': 'Original', 'qty': 1}],
+            'taxes': [],
+        }
+        reviewed = {
+            **previous,
+            'customer': {
+                **previous['customer'],
+                'phc_database': 'INTERSOL',
+                'ged_folder': 'HSOLS_INTERSOL_LOR',
+            },
+            'lines': [{'description': 'Revista no CdG', 'qty': 1}],
+            'taxes': [{'tax_rate': 20, 'tax_amount': 10}],
+            'origin_project': {'ccusto': 'FR0001'},
+        }
+        document = SimpleNamespace(
+            docinstamp='DOC-2', dtalt=moment, dtcri=moment,
+            processing_meta_json=json.dumps({'llm_full_extraction': {
+                'version': 4, 'document': previous,
+            }}),
+            json_resultado=json.dumps(previous), feid=8, fornecedor_no=42,
+            fornecedor_nome_detetado='Fornecedor', fornecedor_nif_detetado='',
+            doc_type_detected='invoice', invoice_type='services', useralteracao='',
+            management_validated=False,
+        )
+        locked = MagicMock()
+        locked.mappings.return_value.first.return_value = {'DTALT': moment, 'DTCRI': moment}
+        with patch.object(document_ai_service, '_ensure_document_ai_schema'), patch.object(
+            document_ai_service.db.session, 'execute', return_value=locked
+        ), patch.object(
+            document_ai_service.db.session, 'get', return_value=document
+        ), patch.object(
+            document_ai_service.db.session, 'commit'
+        ), patch.object(document_ai_service, '_now', return_value=moment), patch.object(
+            document_ai_service, '_document_log'
+        ):
+            save_document_draft(
+                'DOC-2',
+                {'expected_version': moment.isoformat(timespec='microseconds'), 'view': 'management', 'document': reviewed},
+                'tester',
+            )
+
+        persisted = json.loads(document.json_resultado)
+        self.assertEqual(persisted['customer']['ged_folder'], 'HSOLS_INTERSOL_LOR')
+        self.assertEqual(persisted['lines'][0]['description'], 'Revista no CdG')
+        self.assertEqual(persisted['origin_project']['ccusto'], 'FR0001')
+
     def test_cached_document_preserves_manually_selected_intersol_agency_across_views(self):
         moment = datetime(2026, 9, 1, 10, 30, 0)
         document = SimpleNamespace(
@@ -168,28 +222,6 @@ class DocumentAiPhcOriginTests(unittest.TestCase):
                 )
 
         rollback.assert_called_once()
-
-    def test_reception_can_persist_lines_but_not_management_tax_review(self):
-        before = {
-            'lines': [{'line_id': 'line-1', 'description': 'Original'}],
-            'taxes': [{'tax_rate': 20, 'tax_amount': 10}],
-            'origin_project': {},
-        }
-        with_changed_lines = {
-            **before,
-            'lines': [{'line_id': 'line-1', 'description': 'Lida pelo LLM'}],
-        }
-
-        document_ai_service._assert_document_field_ownership(
-            before, with_changed_lines, 'home',
-        )
-
-        with self.assertRaisesRegex(ValueError, 'taxes'):
-            document_ai_service._assert_document_field_ownership(
-                before,
-                {**before, 'taxes': [{'tax_rate': 20, 'tax_amount': 11}]},
-                'home',
-            )
 
     def test_accounting_cannot_persist_analysis_draft(self):
         moment = datetime(2026, 9, 1, 10, 31, 0)

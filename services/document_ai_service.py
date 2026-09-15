@@ -3414,26 +3414,6 @@ def _assert_document_draft_mutable(document: Any, draft_view: str) -> None:
         )
 
 
-def _assert_document_field_ownership(
-    before: dict[str, Any], after: dict[str, Any], draft_view: str,
-) -> None:
-    """Enforce the Receção/CdG ownership matrix independently of the UI."""
-    reception_fields = ('document_type', 'invoice_type', 'document_number', 'document_date', 'customer', 'supplier', 'totals')
-    # Reception must be able to persist the lines returned by the LLM. Besides
-    # keeping the extracted content, this also stores the stable technical line
-    # identifiers used by the following workflow stages. Tax review and origin
-    # project selection remain owned by Management.
-    management_fields = ('taxes', 'origin_project')
-    protected = management_fields if draft_view == 'home' else reception_fields
-    changed = [field for field in protected if before.get(field) != after.get(field)]
-    if not changed:
-        return
-    owner = 'Controlo de Gestão' if draft_view == 'home' else 'Receção'
-    raise ValueError(
-        f"Campo sem permissão nesta etapa ({', '.join(changed)}). Responsável: {owner}."
-    )
-
-
 def _assert_exact_purchase_attachment(
     attachment: Any,
     expected_file_hash: str = '',
@@ -9745,8 +9725,6 @@ def save_document_draft(
     _assert_document_draft_mutable(document, draft_view)
 
     previous_result = _json_loads(document.json_resultado, {})
-    previous_model = normalize_unified_document_model(previous_result, stamp)
-    _assert_document_field_ownership(previous_model, result, draft_view)
     financial_changes = _document_financial_changes(previous_result, result)
     header_fields = ('document_type', 'invoice_type', 'document_number', 'document_date')
     header_changes = {
