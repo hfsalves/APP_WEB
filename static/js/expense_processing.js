@@ -374,10 +374,10 @@
   });
   el.ai?.addEventListener('click',async()=>{
     const item=activeRow();if(!item)return;
-    el.ai.disabled=true;el.ai.innerHTML='<i class="fa-solid fa-circle-notch fa-spin"></i>';
+    el.ai.disabled=true;el.ai.innerHTML='<i class="fa-solid fa-circle-notch fa-spin"></i><span>A analisar...</span>';
     const response=await fetch(`/api/colaborador/despesas/processamento/${encodeURIComponent(item.stamp)}/analisar-ia`,{method:'POST',credentials:'same-origin'});
     const result=await response.json().catch(()=>({}));
-    el.ai.innerHTML='<i class="fa-solid fa-wand-magic-sparkles"></i>';
+    el.ai.innerHTML='<i class="fa-solid fa-wand-magic-sparkles"></i><span>IA</span>';
     if(!response.ok||!result.ok){el.ai.disabled=false;return alert(result.error||'A análise IA falhou. A despesa foi mantida sem alterações.');}
     alert(result.message||'Documento analisado.');await load();
   });

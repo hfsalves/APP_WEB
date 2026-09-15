@@ -454,8 +454,7 @@
   flex: 1 1 auto;
   display: flex;
   overflow: hidden;
-  width: calc(100% + var(--sz-space-5));
-  margin-right: calc(-1 * var(--sz-space-5));
+  width: 100%;
   scrollbar-gutter: auto;
 }
 

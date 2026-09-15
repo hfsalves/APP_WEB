@@ -14,7 +14,7 @@ class ExpenseProcessingFrontendTests(unittest.TestCase):
 
     def test_document_is_left_and_processing_is_right(self):
         self.assertLess(self.template.index('expense-document-panel'), self.template.index('expense-processing-panel'))
-        self.assertIn('grid-template-columns:minmax(18rem,25%) minmax(0,75%)', self.styles)
+        self.assertIn('grid-template-columns:minmax(20rem,.72fr) minmax(42rem,1.65fr)', self.styles)
         self.assertNotIn('42%) minmax(38rem,58%)', self.styles)
         self.assertNotIn('36%) minmax(0,64%)', self.styles)
 
@@ -24,6 +24,17 @@ class ExpenseProcessingFrontendTests(unittest.TestCase):
         self.assertIn('title="Abrir PDF"', self.template)
         self.assertIn('title="Eliminar PDF"', self.template)
         self.assertIn('title="Analisar novamente com IA"', self.template)
+
+    def test_document_actions_are_below_preview_and_match_analysis_layout(self):
+        self.assertGreater(
+            self.template.index('class="expense-document-actions"'),
+            self.template.index('id="expDropZone"'),
+        )
+        for label in ('<span>Abrir</span>', '<span>Eliminar</span>', '<span>IA</span>'):
+            self.assertIn(label, self.template)
+        self.assertIn('grid-template-columns:minmax(20rem,.72fr) minmax(42rem,1.65fr)', self.styles)
+        self.assertIn('.expense-document-panel{grid-template-rows:auto minmax(0,1fr) auto}', self.styles)
+        self.assertIn('.expense-document-actions .sz_button{width:100%', self.styles)
 
     def test_multiple_accounting_lines_and_totals_are_present(self):
         self.assertIn('data-accounting-line', self.script)
