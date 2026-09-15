@@ -8,10 +8,27 @@ from unittest.mock import patch
 from services.document_ai_service import (
     _has_complete_reception_integration,
     _integrate_reception_document,
+    submit_provisional_invoice_to_phc,
 )
 
 
 class DocumentAiReceptionIntegrationTests(unittest.TestCase):
+    def test_invoice_lines_are_optional_during_reception(self):
+        document = {
+            'document_type': 'invoice',
+            'document_number': 'FAC-SEM-LINHAS',
+            'customer': {'feid': 1},
+            'supplier': {'supplier_no': 100},
+            'lines': [],
+        }
+        with patch(
+            'services.document_ai_service._phc_origin_source',
+            return_value={'kind': 'missing', 'phc_db': ''},
+        ), self.assertRaisesRegex(ValueError, 'base PHC configurada'):
+            submit_provisional_invoice_to_phc(
+                document, b'%PDF-test', 'invoice.pdf', 'tester',
+            )
+
     def test_complete_correspondence_requires_attachment_and_confirmed_ged(self):
         base = {
             'status': 'confirmed',

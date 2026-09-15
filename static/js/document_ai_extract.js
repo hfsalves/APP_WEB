@@ -1443,13 +1443,13 @@ document.addEventListener('DOMContentLoaded', () => {
       && String(party.name || party.llm_name || '').trim()
       && (isCorrespondence || Number(party.supplier_no || party.no || 0) > 0)
       && state.correspondenceReference
-      && (isCorrespondence || (String(documentData.document_number || '').trim() && Array.isArray(documentData.lines) && documentData.lines.length))
+      && (isCorrespondence || String(documentData.document_number || '').trim())
     );
     if (els.controlOkBtn && isProvisionalInvoice) {
       els.controlOkBtn.disabled = !ready || incompleteDistribution || state.submittingControl || state.controlOk || state.integratedPhc;
       els.controlOkBtn.title = ready
         ? (state.controlOk ? 'Controlo OK concluído.' : 'Confirmar o controlo do documento.')
-        : 'Identifica a sociedade, o fornecedor, o número e as linhas do documento.';
+        : 'Identifica a sociedade, o fornecedor e o número do documento.';
       els.controlOkBtn.innerHTML = state.submittingControl
         ? '<i class="fa-solid fa-circle-notch fa-spin"></i><span>A confirmar...</span>'
         : state.controlOk

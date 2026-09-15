@@ -2411,6 +2411,12 @@ def _phc_money(value: Any) -> Decimal:
     return Decimal(str(parsed if parsed is not None else 0)).quantize(Decimal('0.01'))
 
 
+def _phc_provisional_value(value: Any, *, credit_note: bool = False) -> Decimal:
+    """Keep supplier credit-note magnitudes positive in the provisional PHC purchase."""
+    amount = _phc_money(value)
+    return abs(amount) if credit_note else amount
+
+
 def _split_phc_line_design(value: Any, width: int = 60) -> list[str]:
     clean_value = re.sub(r'\s+', ' ', str(value or '')).strip()
     if not clean_value:
@@ -3051,8 +3057,6 @@ def submit_provisional_invoice_to_phc(
     if not document_number:
         raise ValueError('Confirma o número da Fatura Provisória antes de submeter.')
     lines = [dict(item or {}) for item in (document.get('lines') or []) if isinstance(item, dict)]
-    if not lines:
-        raise ValueError('A Fatura Provisória tem de ter pelo menos uma linha.')
     customer = dict(document.get('customer') or {})
     if not _safe_int(customer.get('feid'), 0):
         raise ValueError('Escolhe a entidade antes de submeter.')
@@ -3159,16 +3163,17 @@ def submit_provisional_invoice_to_phc(
         normalized_lines = []
         fn_unit_width = _phc_text_column_limit(cursor, 'FN', 'UNIDADE', 4)
         tax_groups: dict[int, dict[str, Decimal]] = {}
+        is_credit_note = bool(doc_config['is_credit_note'])
         for index, line in enumerate(_effective_portal_lines(lines), start=1):
-            qty = _phc_money(line.get('qty'))
+            qty = _phc_provisional_value(line.get('qty'), credit_note=is_credit_note)
             if qty == 0:
                 qty = Decimal('1.00')
-            unit_price = _phc_money(line.get('unit_price'))
-            discount = _phc_money(line.get('discount'))
-            net = _phc_money(line.get('net_amount'))
+            unit_price = _phc_provisional_value(line.get('unit_price'), credit_note=is_credit_note)
+            discount = _phc_provisional_value(line.get('discount'), credit_note=is_credit_note)
+            net = _phc_provisional_value(line.get('net_amount'), credit_note=is_credit_note)
             if net == 0 and unit_price != 0:
                 net = (qty * unit_price * (Decimal('1.00') - discount / Decimal('100.00'))).quantize(Decimal('0.01'))
-            rate = _phc_money(line.get('tax_rate'))
+            rate = _phc_provisional_value(line.get('tax_rate'), credit_note=is_credit_note)
             code = _phc_tax_code(rate, tax_by_rate)
             tax_amount = (net * rate / Decimal('100.00')).quantize(Decimal('0.01'))
             group = tax_groups.setdefault(code, {'rate': rate, 'base': Decimal('0.00'), 'tax': Decimal('0.00')})
@@ -3189,9 +3194,14 @@ def submit_provisional_invoice_to_phc(
         calculated_net = sum((item['net'] for item in normalized_lines), Decimal('0.00'))
         calculated_tax = sum((item['tax'] for item in tax_groups.values()), Decimal('0.00'))
         totals = dict(document.get('totals') or {})
-        net_total = _phc_money(totals.get('net_total')) or calculated_net
-        tax_total = _phc_money(totals.get('tax_total')) if totals.get('tax_total') not in (None, '') else calculated_tax
-        gross_total = _phc_money(totals.get('gross_total')) or (net_total + tax_total)
+        net_total = _phc_provisional_value(totals.get('net_total'), credit_note=is_credit_note) or calculated_net
+        tax_total = (
+            _phc_provisional_value(totals.get('tax_total'), credit_note=is_credit_note)
+            if totals.get('tax_total') not in (None, '') else calculated_tax
+        )
+        gross_total = _phc_provisional_value(
+            totals.get('gross_total'), credit_note=is_credit_note,
+        ) or (net_total + tax_total)
         physical_lines = _expand_phc_invoice_lines(normalized_lines)
         project = dict(document.get('origin_project') or {})
         ccusto = str(project.get('ccusto') or supplier.get('ccusto') or '').strip()[:20]

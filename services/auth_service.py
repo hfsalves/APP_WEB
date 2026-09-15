@@ -39,6 +39,7 @@ BASE_USER_COLUMNS = [
     "LSADMIN",
     "FOTO",
     "TEMPOS",
+    "FORFAIT",
     "VIEWMODE",
     "CLNO",
     "CLESTAB",

@@ -2836,6 +2836,11 @@ def create_app():
                 # incluindo quando o utilizador é administrador.
                 elif table_key == 'FERIAS_APROVACAO':
                     mostrar = perms.get(table_key, {}).get('consultar', False)
+                # O suivi forfait-jours só é apresentado aos colaboradores
+                # explicitamente ativados em US.FORFAIT.
+                elif table_key == 'FORFAIT_JOURS':
+                    from services.forfait_jours_service import forfait_user_allowed
+                    mostrar = forfait_user_allowed(current_user)
                 # Todos os outros: sÃ³ se tem acesso
                 else:
                     mostrar = user_is_admin or perms.get(str(m.tabela or '').strip().upper(), {}).get('consultar', False)
@@ -26381,6 +26386,120 @@ def create_app():
             vacation_working_days=payload.get('working_days') or 0,
             vacation_warning=payload.get('warning') or '',
         )
+
+    @app.route('/forfait-jours/registo')
+    @login_required
+    def forfait_jours_daily_page():
+        from services.forfait_jours_service import get_daily_record
+
+        try:
+            payload = get_daily_record(current_user, request.args.get('data'))
+        except ValueError:
+            payload = get_daily_record(current_user, date.today())
+        if payload.get('signature_required'):
+            return redirect(url_for('forfait_jours_signature_page'))
+        return render_template(
+            'forfait_jours_daily.html',
+            page_title='Registo diário',
+            forfait_payload=payload,
+        )
+
+    @app.route('/api/forfait-jours/registo')
+    @login_required
+    def api_forfait_jours_daily():
+        from services.forfait_jours_service import get_daily_record
+        try:
+            return jsonify(get_daily_record(current_user, request.args.get('data')))
+        except ValueError as exc:
+            return jsonify({'ok': False, 'error': str(exc)}), 400
+
+    @app.route('/api/forfait-jours/registo', methods=['POST'])
+    @login_required
+    def api_forfait_jours_daily_save():
+        from services.forfait_jours_service import save_daily_record
+        try:
+            return jsonify(save_daily_record(current_user, request.get_json(silent=True) or {}))
+        except ValueError as exc:
+            db.session.rollback()
+            return jsonify({'ok': False, 'error': str(exc)}), 400
+        except Exception:
+            db.session.rollback()
+            app.logger.exception('Erro ao gravar registo forfait-jours.')
+            return jsonify({'ok': False, 'error': 'Não foi possível gravar o registo.'}), 500
+
+    @app.route('/forfait-jours/assinar-mes')
+    @login_required
+    def forfait_jours_signature_page():
+        from services.forfait_jours_service import signature_page_context
+        payload = signature_page_context(current_user)
+        if not payload.get('required'):
+            return redirect(url_for('forfait_jours_daily_page'))
+        return render_template('forfait_jours_signature.html', page_title='Signature mensuelle', forfait_signature=payload)
+
+    @app.route('/api/forfait-jours/assinar-mes', methods=['POST'])
+    @login_required
+    def api_forfait_jours_signature_save():
+        from services.forfait_jours_service import sign_previous_month
+        try:
+            return jsonify(sign_previous_month(current_user, request.get_json(silent=True) or {}))
+        except ValueError as exc:
+            db.session.rollback()
+            return jsonify({'ok': False, 'error': str(exc)}), 400
+        except Exception:
+            db.session.rollback()
+            app.logger.exception('Erro ao assinar documento forfait-jours.')
+            return jsonify({'ok': False, 'error': 'Impossible d’enregistrer la signature.'}), 500
+
+    @app.route('/api/forfait-jours/assinar-mes/pdf')
+    @login_required
+    def api_forfait_jours_signed_pdf():
+        from services.forfait_jours_service import signed_month_pdf
+        try:
+            content, filename = signed_month_pdf(current_user, request.args.get('ano'), request.args.get('mes'))
+            return send_file(io.BytesIO(content), mimetype='application/pdf', as_attachment=False, download_name=filename)
+        except ValueError as exc:
+            return jsonify({'ok': False, 'error': str(exc)}), 400
+
+    @app.route('/forfait-jours/mapa-anual')
+    @login_required
+    def forfait_jours_annual_page():
+        from services.forfait_jours_service import get_annual_summary
+        try:
+            payload = get_annual_summary(current_user, request.args.get('ano'))
+        except ValueError:
+            payload = get_annual_summary(current_user, date.today().year)
+        return render_template('forfait_jours_annual.html', page_title='Suivi annuel', forfait_payload=payload)
+
+    @app.route('/api/forfait-jours/mapa-anual')
+    @login_required
+    def api_forfait_jours_annual():
+        from services.forfait_jours_service import get_annual_summary
+        try:
+            return jsonify(get_annual_summary(current_user, request.args.get('ano')))
+        except ValueError as exc:
+            return jsonify({'ok': False, 'error': str(exc)}), 400
+
+    @app.route('/api/forfait-jours/mapa-anual/detail')
+    @login_required
+    def api_forfait_jours_annual_detail():
+        from services.forfait_jours_service import get_month_detail
+        try:
+            return jsonify(get_month_detail(current_user, request.args.get('ano'), request.args.get('mes')))
+        except ValueError as exc:
+            return jsonify({'ok': False, 'error': str(exc)}), 400
+
+    @app.route('/api/forfait-jours/mapa-anual/pdf')
+    @login_required
+    def api_forfait_jours_annual_pdf():
+        from services.forfait_jours_service import build_month_pdf
+        try:
+            content, filename = build_month_pdf(current_user, request.args.get('ano'), request.args.get('mes'))
+            return send_file(io.BytesIO(content), mimetype='application/pdf', as_attachment=False, download_name=filename)
+        except ValueError as exc:
+            return jsonify({'ok': False, 'error': str(exc)}), 400
+        except Exception:
+            app.logger.exception('Erro ao gerar PDF de forfait-jours.')
+            return jsonify({'ok': False, 'error': 'Impossible de générer le PDF.'}), 500
 
     @app.route('/api/colaborador/ferias')
     @login_required

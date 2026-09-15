@@ -1,0 +1,44 @@
+/* GR360_CORE — Ativação de utilizadores para o módulo forfait-jours */
+SET XACT_ABORT ON;
+GO
+BEGIN TRANSACTION;
+
+IF COL_LENGTH('dbo.US', 'FORFAIT') IS NULL
+BEGIN
+    ALTER TABLE dbo.US
+        ADD FORFAIT bit NOT NULL
+            CONSTRAINT DF_US_FORFAIT DEFAULT ((0));
+END;
+
+IF NOT EXISTS (
+    SELECT 1
+    FROM dbo.CAMPOS
+    WHERE TABELA = 'US' AND NMCAMPO = 'FORFAIT'
+)
+BEGIN
+    INSERT INTO dbo.CAMPOS
+    (
+        CAMPOSSTAMP, ORDEM, NMCAMPO, DESCRICAO, TIPO, TABELA,
+        LISTA, FILTRO, ADMIN, RONLY, COMBO, VIRTUAL, TAM,
+        ORDEM_MOBILE, TAM_MOBILE, CONDICAO_VISIVEL, OBRIGATORIO,
+        OBRIGATORIO_SE, FORMULA, DECIMAIS, MINIMO, MAXIMO,
+        FILTRODEFAULT, VISIVEL, ORDEM_LISTA, TAM_LISTA,
+        ORDEM_LISTA_MOBILE, TAM_LISTA_MOBILE, LISTA_MOBILE_BOLD,
+        LISTA_MOBILE_ITALIC, LISTA_MOBILE_SHOW_LABEL, LISTA_MOBILE_LABEL,
+        PROPRIEDADES
+    )
+    VALUES
+    (
+        LEFT(CONVERT(varchar(36), NEWID()), 25), 49, 'FORFAIT', 'Forfait-jours', 'BIT', 'US',
+        1, 1, 0, 0, '', '', 10,
+        59, 10, '', 0,
+        '', '', 2, -999999999, 999999999,
+        '', 1, 49, 10,
+        59, 10, 0,
+        0, 1, 'Forfait-jours',
+        '{}'
+    );
+END;
+
+COMMIT TRANSACTION;
+GO

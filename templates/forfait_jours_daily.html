@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}Saisie quotidienne · Forfait-jours{% endblock %}
+
+{% block content %}
+{% set record = forfait_payload.record %}
+{% set employee = forfait_payload.colaborador %}
+<main class="sz_page fj-page">
+  <header class="fj-header">
+    <div>
+      <p class="fj-eyebrow">Forfait-jours</p>
+      <h1>Saisie quotidienne</h1>
+      <p>{{ employee.penome or 'Colaborador' }}</p>
+    </div>
+    <label class="fj-date"><span>Date</span><input class="sz_input" type="date" id="fjDate" value="{{ forfait_payload.date }}" min="{{ forfait_payload.min_editable_date }}" max="{{ forfait_payload.today }}"></label>
+  </header>
+
+  {% if not forfait_payload.editable %}
+  <div class="fj-locked" role="status"><i class="fa-solid fa-lock"></i><span>{{ forfait_payload.lock_reason }}</span></div>
+  {% endif %}
+
+  <form id="fjForm" class="fj-form" novalidate {% if not forfait_payload.editable %}data-locked="true"{% endif %}>
+    <section class="fj-section" aria-labelledby="fj-work-title">
+      <div class="fj-section-head"><span class="fj-step">1</span><div><h2 id="fj-work-title">Avez-vous travaillé ce jour ?</h2><p>Indiquez la durée travaillée.</p></div></div>
+      <div class="fj-choice-grid" role="radiogroup" aria-label="Durée travaillée">
+        <label class="fj-choice"><input type="radio" name="work" value="1" {% if record.work_fraction == 1 %}checked{% endif %}><span><i class="fa-solid fa-sun"></i><b>Journée travaillée</b></span></label>
+        <label class="fj-choice"><input type="radio" name="work" value="0.5" {% if record.work_fraction == 0.5 %}checked{% endif %}><span><i class="fa-solid fa-circle-half-stroke"></i><b>Demi-journée travaillée</b></span></label>
+        <label class="fj-choice"><input type="radio" name="work" value="0" {% if not record.work_fraction %}checked{% endif %}><span><i class="fa-solid fa-circle-minus"></i><b>Absences</b></span></label>
+      </div>
+    </section>
+
+    <section class="fj-section" id="fjAbsenceSection" {% if record.work_fraction %}hidden{% endif %} aria-labelledby="fj-absence-title">
+      <div class="fj-section-head"><span class="fj-step">2</span><div><h2 id="fj-absence-title">Quel est le motif ?</h2><p>Choisissez une option pour cette journée non travaillée.</p></div></div>
+      <div class="fj-absence-list" role="radiogroup" aria-label="Motif d'absence">
+        {% set choices = [('WEEKLY_REST','Repos hebdomadaire','Temps de repos hebdomadaire'),('PAID_LEAVE','Congés payés','Congés annuels rémunérés'),('CONVENTIONAL_LEAVE','Congés conventionnels','Mariage, PACS, naissance, adoption, décès ou enfant malade'),('SICK_LEAVE','Absence pour maladie','Arrêt maladie'),('PUBLIC_HOLIDAY','Jour férié chômé','Jour férié non travaillé'),('UNEXCUSED_ABSENCE','Absence non justifiée','Absence sans justificatif')] %}
+        {% for value, title, detail in choices %}
+        <label class="fj-absence"><input type="radio" name="absence" value="{{ value }}" {% if record.absence_type == value %}checked{% endif %}><span><b>{{ title }}</b><small>{{ detail }}</small></span><i class="fa-solid fa-check"></i></label>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="fj-section fj-observations" aria-labelledby="fj-observations-title">
+      <div class="fj-section-head"><span class="fj-step">3</span><div><h2 id="fj-observations-title">Observations</h2></div></div>
+      <textarea class="sz_textarea" id="fjObservations" maxlength="1000" rows="5" placeholder="Ajouter une observation…">{{ record.observations }}</textarea>
+      <div class="fj-counter"><span id="fjCount">{{ record.observations|length }}</span>/1000</div>
+    </section>
+  </form>
+  <footer class="fj-footer"><p id="fjMessage" role="status"></p><button form="fjForm" type="submit" class="sz_button sz_button_primary fj-save" {% if not forfait_payload.editable %}disabled{% endif %}><i class="fa-solid fa-floppy-disk"></i> Enregistrer</button></footer>
+</main>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<style>
+  .fj-page{height:100%;min-height:100%;overflow-y:auto;padding:calc(var(--sz-space-5) + env(safe-area-inset-top)) var(--sz-page-pad-x) calc(5.75rem + env(safe-area-inset-bottom));background:var(--sz-color-bg-main)}.fj-page>*{width:100%;max-width:680px;margin-inline:auto}.fj-header{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--sz-space-4);margin-bottom:var(--sz-space-5)}.fj-eyebrow{margin:0 0 var(--sz-space-1);color:var(--sz-color-primary);font-weight:var(--sz-font-weight-bold);font-size:var(--sz-font-size-xs);letter-spacing:.06em;text-transform:uppercase}.fj-header h1{font-size:var(--sz-font-size-2xl);line-height:var(--sz-line-tight)}.fj-header p:not(.fj-eyebrow){margin:var(--sz-space-1) 0 0;color:var(--sz-color-text-secondary);font-size:var(--sz-font-size-sm)}.fj-date{display:grid;gap:var(--sz-space-1);min-width:132px;color:var(--sz-color-text-muted);font-size:var(--sz-font-size-xs);font-weight:var(--sz-font-weight-bold);text-transform:uppercase}.fj-date .sz_input{padding-inline:var(--sz-space-2)}.fj-locked{display:flex;align-items:flex-start;gap:var(--sz-space-2);margin-bottom:var(--sz-space-4);padding:var(--sz-space-3);border:1px solid color-mix(in srgb,var(--sz-color-warning) 38%,var(--sz-color-border));border-radius:var(--sz-radius-sm);background:color-mix(in srgb,var(--sz-color-warning) 8%,var(--sz-color-surface));color:var(--sz-color-text-secondary);font-size:var(--sz-font-size-sm)}.fj-locked i{margin-top:.15rem;color:var(--sz-color-warning)}.fj-form{display:grid;gap:var(--sz-space-4)}.fj-section{padding:var(--sz-space-4);border:1px solid var(--sz-color-border);border-radius:var(--sz-radius-md);background:var(--sz-color-surface);box-shadow:var(--sz-shadow-1)}.fj-section-head{display:flex;gap:var(--sz-space-3);margin-bottom:var(--sz-space-4)}.fj-step{display:grid;place-items:center;flex:0 0 1.7rem;height:1.7rem;border-radius:50%;background:color-mix(in srgb,var(--sz-color-primary) 10%,var(--sz-color-surface));color:var(--sz-color-primary);font-size:var(--sz-font-size-xs);font-weight:var(--sz-font-weight-bold)}.fj-section h2{font-size:var(--sz-font-size-md)}.fj-section p{margin:var(--sz-space-1) 0 0;color:var(--sz-color-text-muted);font-size:var(--sz-font-size-sm);line-height:var(--sz-line-normal)}.fj-choice-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--sz-space-2)}.fj-choice input,.fj-absence input{position:absolute;opacity:0;pointer-events:none}.fj-choice span{display:flex;min-height:104px;flex-direction:column;align-items:center;justify-content:center;gap:var(--sz-space-2);border:1px solid var(--sz-color-border);border-radius:var(--sz-radius-sm);padding:var(--sz-space-2);text-align:center;cursor:pointer;transition:border-color .18s,background-color .18s}.fj-choice i{color:var(--sz-color-primary);font-size:1.2rem}.fj-choice b,.fj-absence b{font-size:var(--sz-font-size-sm)}.fj-choice small,.fj-absence small{color:var(--sz-color-text-muted);font-size:var(--sz-font-size-xs);line-height:var(--sz-line-normal)}.fj-choice input:checked+span{border-color:var(--sz-color-primary);background:color-mix(in srgb,var(--sz-color-primary) 7%,var(--sz-color-surface));box-shadow:inset 0 0 0 1px var(--sz-color-primary)}.fj-absence-list{display:grid;gap:var(--sz-space-2)}.fj-absence{display:flex;align-items:center;gap:var(--sz-space-3);min-height:54px;border:1px solid var(--sz-color-border);border-radius:var(--sz-radius-sm);padding:var(--sz-space-2) var(--sz-space-3);cursor:pointer}.fj-absence span{display:grid;gap:var(--sz-space-1);flex:1}.fj-absence i{display:none;color:var(--sz-color-primary)}.fj-absence input:checked~i{display:block}.fj-absence:has(input:checked){border-color:var(--sz-color-primary);background:color-mix(in srgb,var(--sz-color-primary) 7%,var(--sz-color-surface))}.fj-observations .sz_textarea{min-height:7rem}.fj-counter{text-align:right;margin-top:var(--sz-space-1);color:var(--sz-color-text-muted);font-size:var(--sz-font-size-xs)}.fj-footer{position:fixed;z-index:5;bottom:0;left:0;right:0;display:flex;align-items:center;gap:var(--sz-space-3);padding:var(--sz-space-3) max(var(--sz-page-pad-x),calc((100vw - 680px)/2));border-top:1px solid var(--sz-color-border);background:color-mix(in srgb,var(--sz-color-surface) 96%,transparent);backdrop-filter:blur(12px)}.fj-footer p{flex:1;margin:0;color:var(--sz-color-text-muted);font-size:var(--sz-font-size-xs)}.fj-footer p.is-error{color:var(--sz-color-danger)}.fj-footer p.is-ok{color:var(--sz-color-success)}.fj-save{white-space:nowrap}.fj-save:disabled{opacity:.6}@media(max-width:390px){.fj-header{display:grid}.fj-date{width:100%}.fj-choice-grid{gap:var(--sz-space-1)}.fj-choice span{min-height:96px}.fj-choice b{font-size:.72rem}.fj-choice small{font-size:.62rem}}@media(min-width:681px){.fj-page{padding-top:var(--sz-space-6)}.fj-footer{padding-left:calc((100vw - 680px)/2);padding-right:calc((100vw - 680px)/2)}}
+</style>
+<script>
+(() => { const form=document.querySelector('#fjForm'), dateInput=document.querySelector('#fjDate'), work=[...document.querySelectorAll('input[name="work"]')], absenceSection=document.querySelector('#fjAbsenceSection'), absence=[...document.querySelectorAll('input[name="absence"]')], observations=document.querySelector('#fjObservations'), count=document.querySelector('#fjCount'), message=document.querySelector('#fjMessage'), button=document.querySelector('.fj-save');
+ const selected=items=>items.find(x=>x.checked)?.value || ''; const refresh=()=>{const off=selected(work)==='0';absenceSection.hidden=!off;absence.forEach(x=>x.required=off);if(!off) absence.forEach(x=>x.checked=false);}; work.forEach(x=>x.addEventListener('change',refresh)); observations.addEventListener('input',()=>count.textContent=observations.value.length); dateInput.addEventListener('change',()=>location.search='?data='+encodeURIComponent(dateInput.value));
+ form.addEventListener('submit',async e=>{e.preventDefault(); const fraction=selected(work), type=selected(absence); if(fraction==='0'&&!type){message.textContent='Sélectionnez le motif de la journée non travaillée.';message.className='is-error';return;} button.disabled=true;message.textContent='Enregistrement…';message.className='';try{const response=await fetch('/api/forfait-jours/registo',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({date:dateInput.value,work_fraction:fraction,absence_type:type,observations:observations.value})});const data=await response.json();if(!response.ok||!data.ok) throw new Error(data.error||'Impossible d’enregistrer la saisie.');message.textContent='Saisie enregistrée.';message.className='is-ok';}catch(error){message.textContent=error.message;message.className='is-error';}finally{button.disabled=false;}}); refresh(); })();
+</script>
+{% endblock %}

@@ -40,6 +40,7 @@ from services.document_ai_service import (
     _correspondence_ged_paths,
     _phc_correspondence_agency_origin,
     _phc_text_column_limit,
+    _phc_provisional_value,
     _provisional_invoice_ged_paths,
     _ensure_phc_provisional_article,
     _is_provisional_purchase_source_type,
@@ -398,6 +399,18 @@ class DocumentAiPhcOriginTests(unittest.TestCase):
         self.assertEqual(_phc_tax_code(Decimal('20'), by_rate), 2)
         with self.assertRaisesRegex(ValueError, '17.00%'):
             _phc_tax_code(Decimal('17'), by_rate)
+
+    def test_credit_note_provisional_values_are_always_positive(self):
+        for value in ('-2.50', Decimal('-120.45'), -20):
+            self.assertGreater(_phc_provisional_value(value, credit_note=True), 0)
+        self.assertEqual(
+            _phc_provisional_value(Decimal('-120.45'), credit_note=True),
+            Decimal('120.45'),
+        )
+        self.assertEqual(
+            _phc_provisional_value(Decimal('-120.45'), credit_note=False),
+            Decimal('-120.45'),
+        )
 
     def test_duplicate_tax_rates_use_the_first_phc_table(self):
         cursor = MagicMock()
