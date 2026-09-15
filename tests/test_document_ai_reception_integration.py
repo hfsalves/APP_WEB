@@ -32,6 +32,12 @@ class DocumentAiReceptionIntegrationTests(unittest.TestCase):
             'anexosstamp': 'ANEXO-1',
             'ged_confirmed': True,
         }, 'mail'))
+        self.assertFalse(_has_complete_reception_integration({
+            **base,
+            'reference': 0,
+            'anexosstamp': 'ANEXO-1',
+            'ged_confirmed': True,
+        }, 'mail'))
 
     def test_complete_invoice_requires_both_phc_attachments(self):
         base = {

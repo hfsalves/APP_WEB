@@ -4,7 +4,7 @@
   const permissions = config.permissions || {};
   const companies = Array.isArray(config.companies) ? config.companies : [];
   const fallbackUsers = Array.isArray(config.users) ? config.users : [];
-  const state = { rows: [], active: '', selected: new Set(), timers: new Map(), saves: new Map(), saveErrors: new Set(), rates: new Map(), resources: new Map(), returning: '', lookup: null };
+  const state = { rows: [], active: '', selected: new Set(), timers: new Map(), saves: new Map(), saveErrors: new Set(), rates: new Map(), resources: new Map(), returning: '', lookup: null, validating: false };
   const el = {
     from: document.getElementById('expDateFrom'), to: document.getElementById('expDateTo'),
     user: document.getElementById('expUser'), refresh: document.getElementById('expRefresh'),
@@ -42,7 +42,10 @@
     el.summary.textContent = archive
       ? `Arquivo · ${state.rows.length}`
       : `Despesas a analisar · ${state.rows.length}${selected.length ? ` | ${selected.length} selecionada${selected.length===1?'':'s'} · ${money(total, selected[0]?.moeda)}` : ''}`;
-    if (el.launch) el.launch.disabled = !selected.length || selected.some(item => state.saveErrors.has(item.stamp));
+    if (el.launch) {
+      el.launch.disabled = state.validating || !selected.length || selected.some(item => state.saveErrors.has(item.stamp));
+      if (!state.validating) el.launch.querySelector('span').textContent = selected.length === 1 ? 'Validar Despesa' : 'Validar Despesas';
+    }
     const base = selected[0];
     document.querySelectorAll('.expense-card').forEach(card => {
       const item = findRow(card.dataset.stamp);
@@ -64,8 +67,8 @@
     return `<div class="expense-line" data-accounting-line data-line-stamp="${esc(line.stamp||'')}" data-origins="${esc(JSON.stringify(line.origins||{}))}">
       <div class="expense-line-main">
       <div class="expense-line-actions"><button class="sz_icon_button" type="button" data-add-line title="Adicionar linha" aria-label="Adicionar linha" ${disabled}><i class="fa-solid fa-plus"></i></button><button class="sz_icon_button expense-remove-line" type="button" data-remove-line title="${index===0?'A primeira linha não pode ser removida':'Remover linha'}" aria-label="Remover linha" ${locked||index===0?'disabled':''}><i class="fa-solid fa-minus"></i></button></div>
-      <label><span class="sz_label">Artigo${origin(line,'artigo_ref')}</span><button class="expense-lookup" type="button" data-lookup="article" data-value="${esc(line.artigo_ref)}" ${disabled}><strong>${esc(line.artigo_ref||'Escolher')}</strong><small data-article-design>${esc(line.design||'Selecionar artigo PHC')}</small></button><input type="hidden" data-field="artigo_ref" value="${esc(line.artigo_ref)}"><input type="hidden" data-field="design" value="${esc(line.design)}"></label>
-      <label><span class="sz_label">Referência${origin(line,'referencia')}</span><input class="expense-input" data-field="referencia" value="${esc(line.referencia)}" ${disabled}></label>
+      <label><span class="sz_label">Artigo${origin(line,'artigo_ref')}</span><button class="expense-lookup" type="button" data-lookup="article" data-value="${esc(line.artigo_ref)}" ${disabled}><strong>${esc(line.artigo_ref||'Escolher')}</strong><small>${esc(line.design||'Selecionar artigo PHC')}</small></button><input type="hidden" data-field="artigo_ref" value="${esc(line.artigo_ref)}"></label>
+      <label><span class="sz_label">Designação${origin(line,'design')}</span><input class="expense-input" data-field="design" value="${esc(line.design)}" readonly aria-readonly="true"><input type="hidden" data-field="referencia" value="${esc(line.referencia&&String(line.referencia).trim().toLocaleLowerCase()!==String(line.artigo_ref||'').trim().toLocaleLowerCase()?line.referencia:'')}"></label>
       <label><span class="sz_label">Centro de Custo${origin(line,'ccusto')}</span><button class="expense-lookup" type="button" data-lookup="ccusto" data-value="${esc(line.ccusto)}" ${disabled}><strong>${esc(line.ccusto||'Escolher')}</strong></button><input type="hidden" data-field="ccusto" value="${esc(line.ccusto)}"></label>
       <label><span class="sz_label">Matrícula${origin(line,'matricula')}</span><button class="expense-lookup" type="button" data-lookup="vehicle" data-value="${esc(line.matricula)}" ${disabled}><strong>${esc(line.matricula||'Escolher')}</strong></button><input type="hidden" data-field="matricula" value="${esc(line.matricula)}"></label>
       </div><div class="expense-line-values">
@@ -90,8 +93,8 @@
       <div class="expense-card-head">
         ${archive ? badge : `<input class="expense-check" data-select type="checkbox" ${state.selected.has(item.stamp)?'checked':''}>`}
         <div class="expense-card-actions"><span class="expense-save" data-save-state></span>
-          ${!archive&&permissions.eliminar?'<button class="sz_icon_button expense-return" type="button" data-return title="Devolver" aria-label="Devolver"><i class="fa-solid fa-arrow-rotate-left"></i></button><button class="sz_icon_button expense-delete" type="button" data-delete title="Eliminar" aria-label="Eliminar"><i class="fa-solid fa-trash"></i></button>':''}
-          ${archive&&permissions.eliminar&&!item.phc_bostamp?'<button class="sz_icon_button danger" type="button" data-delete-permanent title="Eliminar definitivamente" aria-label="Eliminar definitivamente"><i class="fa-solid fa-trash"></i></button>':''}
+          ${!archive&&permissions.eliminar?'<button class="sz_icon_button expense-return" type="button" data-return title="Devolver" aria-label="Devolver"><i class="fa-solid fa-arrow-rotate-left"></i></button><button class="sz_icon_button expense-delete" type="button" data-delete title="Eliminar Documento Inbox" aria-label="Eliminar Documento Inbox"><i class="fa-solid fa-trash"></i></button>':''}
+          ${archive&&permissions.eliminar&&!item.phc_bostamp?'<button class="sz_icon_button expense-delete" type="button" data-delete-permanent title="Eliminar Documento Arquivo" aria-label="Eliminar Documento Arquivo"><i class="fa-solid fa-trash"></i></button>':''}
         </div>
       </div>
       <div class="expense-card-facts"><div class="expense-card-user"><span class="sz_label">Nome do colaborador</span><strong>${esc(item.penome||item.login||'-')}</strong></div><div><span class="sz_label">Tipo de despesa</span><strong>${esc(item.tipo||'-')}</strong></div><label><span class="sz_label">Data da despesa</span><input class="expense-input" data-expense-field="data_despesa" type="date" value="${esc(item.data_despesa)}" ${archive||!permissions.editar?'disabled':''}></label><div><span class="sz_label">Total c/IVA</span><strong>${money(item.valor,item.moeda)}</strong></div></div>
@@ -138,8 +141,10 @@
     if(target.kind!=='ccusto'&&!query){el.lookupResults.innerHTML='<div class="expense-state">Escreve para pesquisar.</div>';return;}
     const endpoint=target.kind==='article'?'artigos':target.kind==='vehicle'?'viaturas':'centros-custo';
     el.lookupResults.innerHTML='<div class="expense-state"><i class="fa-solid fa-circle-notch fa-spin"></i><span>A pesquisar...</span></div>';
-    const response=await fetch(`/api/colaborador/despesas/processamento/${endpoint}?feid=${encodeURIComponent(feid)}&q=${encodeURIComponent(query)}`,{credentials:'same-origin'});
-    const result=await response.json().catch(()=>({}));if(!response.ok||!result.ok){el.lookupResults.innerHTML=`<div class="expense-state">${esc(result.error||'Erro na pesquisa.')}</div>`;return;}
+    let response;
+    try { response=await fetch(`/api/colaborador/despesas/processamento/${endpoint}?feid=${encodeURIComponent(feid)}&q=${encodeURIComponent(query)}`,{credentials:'same-origin'}); }
+    catch(_error){el.lookupResults.innerHTML='<div class="expense-state">Erro ao consultar o PHC.</div>';return;}
+    const result=await response.json().catch(()=>({}));if(!response.ok||!result.ok){el.lookupResults.innerHTML=`<div class="expense-state">${esc(result.error||'Erro ao consultar o PHC.')}</div>`;return;}
     target.rows=result.rows||[];
     el.lookupResults.innerHTML=target.rows.map((row,index)=>{const value=typeof row==='string'?row:(target.kind==='article'?row.ref:target.kind==='ccusto'?row.ccusto:row.matricula);const detail=typeof row==='string'?'':(target.kind==='article'?row.design:target.kind==='ccusto'?row.design:[row.marca,row.modelo,row.nofrota].filter(Boolean).join(' · '));return `<button type="button" data-lookup-index="${index}"><strong>${esc(value)}</strong><small>${esc(detail)}</small></button>`;}).join('')||'<div class="expense-state">Nenhum resultado válido.</div>';
   }
@@ -148,7 +153,7 @@
     const line=target.button.closest('[data-accounting-line]');const value=typeof row==='string'?row:(target.kind==='article'?row.ref:target.kind==='ccusto'?row.ccusto:row.matricula);
     const field=target.kind==='article'?'artigo_ref':target.kind==='vehicle'?'matricula':'ccusto';
     line.querySelector(`[data-field="${field}"]`).value=value||'';target.button.dataset.value=value||'';target.button.querySelector('strong').textContent=value||'Escolher';target.button.classList.remove('is-unverified');
-    if(target.kind==='article'){line.querySelector('[data-field="design"]').value=row.design||'';line.querySelector('[data-article-design]').textContent=row.design||'Artigo PHC';}
+    if(target.kind==='article'){line.querySelector('[data-field="design"]').value=row.design||'';target.button.querySelector('small').textContent=row.design||'Artigo PHC';}
     let origins={};try{origins=JSON.parse(line.dataset.origins||'{}');}catch(_error){}origins[field]='manual';line.dataset.origins=JSON.stringify(origins);
     const card=target.card;closeLookup();recalculate(card);schedule(card);
   }
@@ -201,8 +206,8 @@
 
   function setSave(card,status,message='') {
     const node=card.querySelector('[data-save-state]'); if(!node)return;
-    node.className=`expense-save ${status==='ok'?'is-ok':status==='error'?'is-error':''}`; node.title=message;
-    node.innerHTML=status==='saving'?'<i class="fa-solid fa-circle-notch fa-spin"></i> A guardar...':status==='ok'?'<i class="fa-solid fa-check"></i> Guardado':status==='error'?'<i class="fa-solid fa-triangle-exclamation"></i> Erro ao guardar':'';
+    node.className=`expense-save ${status==='ok'?'is-ok':status==='error'||status==='conflict'?'is-error':''}`; node.title=message;
+    node.innerHTML=status==='saving'?'<i class="fa-solid fa-circle-notch fa-spin"></i> A guardar...':status==='ok'?'<i class="fa-solid fa-check"></i> Guardado':status==='conflict'?'<i class="fa-solid fa-triangle-exclamation"></i> Despesa alterada por outro utilizador. <button type="button" data-reload-expenses>Atualizar</button>':status==='error'?'<i class="fa-solid fa-triangle-exclamation"></i> Erro ao guardar':'';
   }
   function schedule(card) {
     if(archive||!permissions.editar)return;
@@ -221,8 +226,7 @@
     try {
       const result=await promise; Object.assign(findRow(stamp),result.line); card.dataset.version=result.line.version; state.saveErrors.delete(stamp); setSave(card,'ok'); updateSummary(); return true;
     } catch(error) {
-      state.saveErrors.add(stamp); setSave(card,'error',error.message); updateSummary();
-      if(error.conflict&&confirm(`${error.message}\n\nAtualizar agora?`))await load();
+      state.saveErrors.add(stamp); setSave(card,error.conflict?'conflict':'error',error.message); updateSummary();
       return false;
     } finally { state.saves.delete(stamp); }
   }
@@ -233,9 +237,10 @@
 
   async function loadRates(select,feid) {
     if(!feid){select.innerHTML='<option value="">Escolher</option>';return;}
-    if(!state.rates.has(String(feid))) state.rates.set(String(feid),fetch(`/api/colaborador/despesas/processamento/taxasiva?feid=${encodeURIComponent(feid)}`,{credentials:'same-origin'}).then(r=>r.json()).then(r=>r.rows||[]));
-    const rates=await state.rates.get(String(feid)), current=select.value;
-    select.innerHTML='<option value="">Escolher</option>'+rates.map(rate=>`<option value="${esc(rate.tabiva)}" data-rate="${esc(rate.taxaiva)}" ${String(rate.tabiva)===String(current)?'selected':''}>${esc(rate.label)}</option>`).join('');
+    if(!state.rates.has(String(feid))) state.rates.set(String(feid),fetch(`/api/colaborador/despesas/processamento/taxasiva?feid=${encodeURIComponent(feid)}`,{credentials:'same-origin'}).then(async r=>{const result=await r.json().catch(()=>({}));if(!r.ok||!result.ok)throw new Error(result.error||'Erro ao consultar o PHC.');return result.rows||[];}));
+    const current=select.value;
+    try { const rates=await state.rates.get(String(feid)); select.innerHTML='<option value="">Escolher</option>'+rates.map(rate=>`<option value="${esc(rate.tabiva)}" data-rate="${esc(rate.taxaiva)}" ${String(rate.tabiva)===String(current)?'selected':''}>${esc(rate.label)}</option>`).join(''); }
+    catch(error){state.rates.delete(String(feid));select.innerHTML=`<option value="">${esc(error.message)}</option>`;}
   }
 
   function renderPreview() {
@@ -269,6 +274,18 @@
     state.active=card.dataset.stamp; sessionStorage.setItem(`expense-active-${archive}`,state.active);
     el.rows.querySelectorAll('.expense-card').forEach(node=>node.classList.toggle('is-active',node===card)); renderPreview();
   }
+  function clearCompanyValues(card,item,newFeid) {
+    const invalidated=[];
+    card.querySelectorAll('[data-accounting-line]').forEach(line=>{
+      [['artigo_ref','Artigo'],['design','Designação'],['ccusto','Centro de Custo'],['matricula','Matrícula'],['tabiva','IVA']].forEach(([field,label])=>{const input=line.querySelector(`[data-field="${field}"]`);if(input?.value&&!invalidated.includes(label))invalidated.push(label);if(input)input.value='';});
+      line.querySelectorAll('[data-lookup]').forEach(button=>{button.dataset.value='';button.classList.remove('is-unverified');button.removeAttribute('title');button.querySelector('strong').textContent='Escolher';if(button.dataset.lookup==='article')button.querySelector('small').textContent='Selecionar artigo PHC';});
+    });
+    const company=companies.find(value=>String(value.feid)===String(newFeid));
+    item.feid=Number(newFeid||0);item.moeda=String(company?.phc_db||'').toUpperCase().includes('_MA')?'MAD':'EUR';
+    state.resources.clear();state.rates.delete(String(newFeid));
+    card.querySelectorAll('[data-field="tabiva"]').forEach(select=>loadRates(select,newFeid));
+    if(invalidated.length){state.saveErrors.add(item.stamp);setSave(card,'error',`Valores da Empresa anterior removidos: ${invalidated.join(', ')}.`);}
+  }
   async function upload(file) {
     const item=activeRow(); if(!item||archive||!permissions.editar)return;
     if(!file||file.type!=='application/pdf'&&!file.name.toLowerCase().endsWith('.pdf'))return alert('Seleciona um ficheiro PDF.');
@@ -282,6 +299,7 @@
     const card=event.target.closest('.expense-card');
     if(!card){if(event.target.closest('[data-retry]'))load();return;}
     activate(card); const item=findRow(card.dataset.stamp);
+    if(event.target.closest('[data-reload-expenses]')){await load();return;}
     const lookup=event.target.closest('[data-lookup]');if(lookup){openLookup(lookup,card);return;}
     if(event.target.closest('[data-add-line]')){
       const lines=card.querySelector('.expense-lines');
@@ -296,12 +314,12 @@
       state.returning=item.stamp;el.returnMeta.textContent=`${item.penome||item.login} · ${item.data_despesa}`;el.returnObs.value='';el.returnConfirm.disabled=true;el.modal.hidden=false;el.returnObs.focus();return;
     }
     if(event.target.closest('[data-delete]')){
-      if(!confirm('Eliminar esta despesa do processamento? Ficará visível no arquivo como Eliminada.'))return;
+      if(!confirm('Eliminar Documento Inbox? Ficará visível no arquivo como Eliminada.'))return;
       const response=await fetch(`/api/colaborador/despesas/processamento/${encodeURIComponent(item.stamp)}`,{method:'DELETE',credentials:'same-origin'});
       const result=await response.json().catch(()=>({}));if(!response.ok||!result.ok)return alert(result.error||'Erro ao eliminar.');await load();return;
     }
     if(event.target.closest('[data-delete-permanent]')){
-      if(!confirm('Eliminar definitivamente esta despesa e os anexos do Portal? Esta ação não pode ser anulada.'))return;
+      if(!confirm('Eliminar Documento Arquivo? Esta ação não pode ser anulada.'))return;
       const response=await fetch(`/api/colaborador/despesas/processamento/${encodeURIComponent(item.stamp)}/arquivo`,{method:'DELETE',credentials:'same-origin'});
       const result=await response.json().catch(()=>({}));if(!response.ok||!result.ok)return alert(result.error||'Erro ao eliminar.');await load();
     }
@@ -314,9 +332,7 @@
       updateSummary();return;
     }
     if(event.target.matches('[data-expense-field="feid"]')){
-      const item=findRow(card.dataset.stamp);item.feid=Number(event.target.value||0);state.resources.clear();state.rates.delete(String(item.feid));
-      card.querySelectorAll('[data-field="tabiva"]').forEach(select=>{select.value='';loadRates(select,event.target.value);});
-      card.querySelectorAll('[data-lookup]').forEach(button=>{if(button.dataset.value){button.classList.add('is-unverified');button.title='Confirmar valor para a nova Empresa.';}});
+      const item=findRow(card.dataset.stamp);clearCompanyValues(card,item,event.target.value);recalculate(card);updateSummary();return;
     }
     recalculate(card);schedule(card);
   });
@@ -331,16 +347,21 @@
   });
   el.rows.addEventListener('scroll',()=>sessionStorage.setItem(`expense-scroll-${archive}`,String(el.rows.scrollTop)),{passive:true});
   el.launch?.addEventListener('click',async()=>{
+    if(state.validating)return;
     const stamps=[...state.selected];if(!(await flushPendingSaves(stamps)))return alert('Não foi possível guardar todas as alterações.');
-    const issues=[];selectedRows().forEach(item=>{if(!item.feid)issues.push('Empresa em falta.');const card=el.rows.querySelector(`[data-stamp="${CSS.escape(item.stamp)}"]`);collect(card).accounting_lines.forEach((line,index)=>{if(!line.artigo_ref)issues.push(`${item.data_despesa}, linha ${index+1}: artigo em falta.`);});});
-    if(issues.length)return alert(issues.join('\n'));if(!confirm(`Lançar ${stamps.length} despesa(s) no PHC?`))return;
-    el.launch.disabled=true;
-    const response=await fetch('/api/colaborador/despesas/processamento/lancar-phc',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({stamps})});
-    const result=await response.json().catch(()=>({}));if(!response.ok||!result.ok){el.launch.disabled=false;return alert(result.error||'Erro ao lançar no PHC.');}
-    alert(`${result.nmdos} n.º ${result.obrano} criado com sucesso.`);await load();
+    const issues=[];let firstInvalid='';
+    selectedRows().forEach(item=>{const card=el.rows.querySelector(`[data-stamp="${CSS.escape(item.stamp)}"]`),payload=collect(card);const add=message=>{issues.push(`${item.data_despesa||item.penome||'Despesa'}: ${message}`);firstInvalid=firstInvalid||item.stamp;};if(!payload.feid)add('Empresa em falta.');if(!item.peno)add('Número PHC do colaborador em falta.');if(!/^[A-Z]{3}$/.test(String(payload.moeda||'').toUpperCase()))add('Moeda ISO inválida.');payload.accounting_lines.forEach((line,index)=>{const prefix=`linha ${index+1}`;if(!line.artigo_ref)add(`${prefix}: Artigo em falta.`);if(!line.ccusto)add(`${prefix}: Centro de Custo em falta.`);if(!line.tabiva)add(`${prefix}: IVA em falta.`);if(Number(line.total_com_iva)<0)add(`${prefix}: valor negativo não autorizado.`);if(Math.abs((Number(line.total_sem_iva)+Number(line.valor_iva))-Number(line.total_com_iva))>.009)add(`${prefix}: Totais incoerentes.`);});});
+    if(issues.length){if(firstInvalid){const card=el.rows.querySelector(`[data-stamp="${CSS.escape(firstInvalid)}"]`);activate(card);card.scrollIntoView({block:'start',behavior:'smooth'});}return alert(issues.join('\n'));}
+    const plural=stamps.length!==1;if(!confirm(`Validar ${plural?'Despesas':'Despesa'}? O documento PHC só será criado após o controlo integral.`))return;
+    state.validating=true;el.launch.disabled=true;el.launch.querySelector('span').textContent=plural?'A validar Despesas...':'A validar Despesa...';
+    try {
+      const response=await fetch('/api/colaborador/despesas/processamento/lancar-phc',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({stamps})});
+      const result=await response.json().catch(()=>({}));if(!response.ok||!result.ok)throw new Error(result.error||'Erro ao validar despesas no PHC.');
+      alert(`Documento criado no PHC: Despesa N.º ${result.obrano}`);await load();
+    } catch(error){alert(error.message);} finally {state.validating=false;updateSummary();}
   });
   el.deletePdf?.addEventListener('click',async()=>{
-    const item=activeRow();if(!item||!confirm('Eliminar apenas o PDF desta despesa? A despesa e a classificação serão mantidas.'))return;
+    const item=activeRow();if(!item||!confirm('Eliminar PDF? A despesa e a classificação serão mantidas.'))return;
     const response=await fetch(`/api/colaborador/despesas/processamento/${encodeURIComponent(item.stamp)}/pdf`,{method:'DELETE',credentials:'same-origin'});
     const result=await response.json().catch(()=>({}));if(!response.ok||!result.ok)return alert(result.error||'Erro ao eliminar PDF.');await load();
   });

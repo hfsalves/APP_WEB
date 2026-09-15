@@ -472,6 +472,11 @@
   background: color-mix(in srgb, var(--sz-color-primary) 8%, var(--sz-color-surface));
 }
 
+.docai-inbox-row.is-interactive:hover > td:last-child,
+.docai-inbox-row.is-interactive:focus-visible > td:last-child {
+  background: color-mix(in srgb, var(--sz-color-primary) 8%, var(--sz-color-surface));
+}
+
 .docai-inbox-row.is-interactive:focus-visible {
   outline: 2px solid var(--sz-color-primary);
   outline-offset: -2px;
@@ -479,6 +484,18 @@
 
 .docai-inbox-row.is-returned > td {
   background: color-mix(in srgb, var(--sz-color-primary) 5%, var(--sz-color-surface));
+}
+
+.docai-inbox-row.is-returned > td:last-child {
+  background: color-mix(in srgb, var(--sz-color-primary) 5%, var(--sz-color-surface));
+}
+
+.docai-archive-audit-card {
+  border-color: color-mix(in srgb, var(--sz-color-primary) 35%, var(--sz-color-border));
+}
+
+.docai-archive-audit-card > span {
+  display: block;
 }
 
 .docai-extract-page.is-read-only .docai-extract-dropzone,
@@ -2411,13 +2428,19 @@
   text-align: center;
 }
 
-.docai-origin-subheads > th,
+.docai-origin-subheads > th:nth-child(-n+2),
 .docai-origin-secondary-cell {
   width: 2.75rem;
   min-width: 2.75rem;
   max-width: 2.75rem;
   padding-right: 0.2rem !important;
   padding-left: 0.2rem !important;
+}
+
+.docai-origin-subheads > th:nth-child(n+3) {
+  width: auto;
+  min-width: 0;
+  max-width: none;
 }
 
 .docai-origin-subheads > th.is-empty {
@@ -3002,7 +3025,19 @@
 }
 
 .docai-extract-vehicle-cell {
+  width: auto;
+  min-width: 0;
+  max-width: none;
   padding-inline: 0.15rem !important;
+  text-align: center;
+}
+
+.docai-extract-result-panel,
+.docai-extract-results {
+  overflow-x: hidden;
+}
+
+#docAiExtractLinesSection thead th {
   text-align: center;
 }
 

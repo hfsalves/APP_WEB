@@ -95,6 +95,18 @@ class DocumentAiDistributionRuleTests(unittest.TestCase):
         self.assertEqual(rules[0]['destination'], 'accounting')
         self.assertEqual(rules[0]['state'], 'none')
 
+    @patch('services.document_ai_distribution_service.ensure_document_ai_distribution_schema')
+    def test_bank_statement_is_a_terminal_reception_circuit(self, _ensure):
+        document = SimpleNamespace(
+            doc_type_detected='bank_statement', fornecedor_no=1, feid=1,
+            json_resultado=json.dumps({'supplier': {'name': 'Banque'}}),
+        )
+
+        rules = assert_document_distribution_available(document, 'home')
+
+        self.assertEqual(rules[0]['id'], 'bank-statement-terminal')
+        self.assertTrue(rules[0]['terminal'])
+
     @patch('services.document_ai_distribution_service._distribution_rules', return_value=[])
     @patch('services.document_ai_distribution_service.ensure_document_ai_distribution_schema')
     def test_missing_distribution_fails_closed(self, _ensure, _rules):
@@ -125,6 +137,49 @@ class DocumentAiDistributionRuleTests(unittest.TestCase):
         self.assertTrue(result['ok'])
         self.assertTrue(result['already_validated'])
         self.assertTrue(result['distribution']['unchanged'])
+
+    @patch('services.document_ai_service._integrate_reception_document')
+    @patch('services.document_ai_service.preflight_document_inbox_stage', return_value={'ok': True})
+    @patch('services.document_ai_service.db.session.rollback')
+    @patch('services.document_ai_service.db.session.refresh')
+    @patch('services.document_ai_service.db.session.execute')
+    @patch('services.document_ai_service.db.session.get')
+    def test_concurrent_reception_finishes_only_one_portal_transition(
+        self, get_document, execute, refresh, rollback, _preflight, integrate,
+    ):
+        current = datetime(2026, 9, 9, 12, 30, 0)
+        document = SimpleNamespace(
+            docinstamp='DOC-1', dtalt=current, dtcri=current,
+            reception_validated=False, management_validated=False,
+            accounting_validated=False, processing_meta_json='{}',
+            json_resultado=json.dumps({
+                'document_type': 'mail', 'customer': {'feid': 1},
+                'supplier': {'supplier_no': 2},
+            }),
+            doc_type_detected='mail', invoice_type='unknown', extracted_text='',
+            feid=1, fornecedor_no=2, fornecedor_nome_detetado='',
+            fornecedor_nif_detetado='', processing_stage='parsed_ok',
+            useralteracao='',
+        )
+        get_document.return_value = document
+        execute.return_value = MagicMock(scalar_one=MagicMock(return_value='DOC-1'))
+        integrate.return_value = {
+            'status': 'confirmed', 'crstamp': 'CR-1', 'anexosstamp': 'AN-1',
+            'reference': 1, 'year': 2026, 'phc_database': 'PHC',
+            'ged_confirmed': True,
+        }
+
+        def mark_other_request_complete(_document):
+            if refresh.call_count == 2:
+                document.reception_validated = True
+                document.processing_meta_json = json.dumps({'phc_integration': integrate.return_value})
+
+        refresh.side_effect = mark_other_request_complete
+        result = validate_document_inbox_stage('DOC-1', 'home', 'tester')
+
+        self.assertTrue(result['already_validated'])
+        self.assertTrue(result['distribution']['unchanged'])
+        rollback.assert_called_once()
 
     @patch('services.document_ai_service.db.session.rollback')
     @patch('services.document_ai_service.db.session.refresh')

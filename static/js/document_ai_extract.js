@@ -184,6 +184,10 @@ document.addEventListener('DOMContentLoaded', () => {
     modeLabel: document.getElementById('docAiExtractModeLabel'),
     modeValue: document.getElementById('docAiExtractModeValue'),
     modeMeta: document.getElementById('docAiExtractModeMeta'),
+    archiveAudit: document.getElementById('docAiExtractArchiveAudit'),
+    archiveAuditState: document.getElementById('docAiExtractArchiveAuditState'),
+    archiveAuditActor: document.getElementById('docAiExtractArchiveAuditActor'),
+    archiveAuditRelations: document.getElementById('docAiExtractArchiveAuditRelations'),
   };
 
   const allowedViews = new Set([...(els.viewTabs?.querySelectorAll('[data-view]') || [])].map((button) => button.dataset.view));
@@ -277,6 +281,7 @@ document.addEventListener('DOMContentLoaded', () => {
     lineCostsTargetIndex: null,
     lineCostsType: '',
     readOnly,
+    archiveSnapshot: null,
     view: allowedViews.has(initialView) ? initialView : ([...allowedViews][0] || ''),
   };
   const originActionHandlers = new Map();
@@ -1578,7 +1583,14 @@ document.addEventListener('DOMContentLoaded', () => {
   async function loadCorrespondenceReference() {
     const integration = state.integrationResult || {};
     state.correspondenceReference = Number(integration.reference || 0) || null;
-    state.correspondenceYear = Number(integration.year || new Date().getFullYear());
+    state.correspondenceYear = Number(integration.year || 0) || null;
+    if (state.readOnly) {
+      renderDocumentCard();
+      renderGedDestination();
+      updateSubmitPhcButton();
+      return;
+    }
+    state.correspondenceYear ||= new Date().getFullYear();
     if (!state.correspondenceReference && state.documentData?.customer?.feid) {
       const year = Number(String(state.documentData.document_date || '').slice(0, 4)) || new Date().getFullYear();
       try {
@@ -2167,7 +2179,8 @@ document.addEventListener('DOMContentLoaded', () => {
           workflow: detail.workflow || cached.workflow || {},
           version: detail.version || '',
           processing_status: detail.status || '',
-          phc_integration: detail.processing_meta?.phc_integration || cached.phc_integration || {},
+          phc_integration: detail.phc_integration || cached.phc_integration || {},
+          archive_snapshot: detail.archive_snapshot || null,
         });
       }
     } catch (error) {
@@ -2237,15 +2250,14 @@ document.addEventListener('DOMContentLoaded', () => {
     ));
     const primaryFamilies = selectedPrimaryOriginFamilies();
     const primaryFamily = selectedPrimaryOriginFamily() || 'bc';
-    const hasMixedPrimaryFamilies = primaryFamilies.size > 1;
     const hasDeliveryNoteColumn = Boolean(primaryFamilies.has('bc') || primaryFamilies.has('contract')) && state.virtualDeliveryNotesActive;
     const hasWorkSituationColumn = primaryFamilies.has('subcontract');
     const primaryHead = document.getElementById('docAiExtractPrimaryOriginHead');
     const secondaryHead = document.getElementById('docAiExtractSecondaryOriginHead');
-    if (primaryHead) primaryHead.textContent = hasMixedPrimaryFamilies ? 'Origem' : (primaryFamily === 'contract' ? 'Contrato' : (primaryFamily === 'subcontract' ? 'Contrato Sub.Emp.' : 'NdE'));
+    if (primaryHead) primaryHead.textContent = 'Princ.';
     if (secondaryHead) {
-      secondaryHead.textContent = hasDeliveryNoteColumn && hasWorkSituationColumn ? 'GdR / SdTSub.Emp.' : (hasWorkSituationColumn ? 'SdTSub.Emp.' : 'GdR');
-      secondaryHead.classList.toggle('is-empty', !hasDeliveryNoteColumn && !hasWorkSituationColumn);
+      secondaryHead.textContent = 'Assoc.';
+      secondaryHead.classList.remove('is-empty');
     }
     const canDistributeDeliveryNotes = state.virtualDeliveryNotesActive && proportionalGroups.length > 0;
     els.splitLineBtn.hidden = !canDistributeDeliveryNotes;
@@ -2712,10 +2724,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const totalLabel = hasTotal ? formatMoney(candidate.total, state.documentData?.currency) : '';
         const canAssociate = originDisplayStage(String(stage.key || '')) !== 'proforma_invoice'
           && candidate.selectable !== false && candidate.available_balance !== false;
-        const candidateContext = [candidate.ccusto, candidate.project_machine, ...(candidate.reasons || [])]
-          .filter(Boolean).join(' · ');
         return `
-          <article class="docai-extract-origin-candidate${consulted ? ' is-selected' : ''}${associated ? ' is-associated' : ''}" data-origin-index="${candidateIndex}" role="button" tabindex="0" aria-label="Consultar ${escapeHtml(stage.label || 'origem')} ${escapeHtml(candidate.number || '')}">
+          <article class="docai-extract-origin-candidate${consulted ? ' is-selected' : ''}${associated ? ' is-associated' : ''}" data-origin-index="${candidateIndex}" ${state.readOnly ? 'aria-readonly="true"' : `role="button" tabindex="0" aria-label="Consultar ${escapeHtml(stage.label || 'origem')} ${escapeHtml(candidate.number || '')}"`}>
             <span class="docai-extract-origin-candidate-top">
               <strong>${candidate.number ? `N.º ${escapeHtml(candidate.number)}${candidate.year ? ` · ${escapeHtml(candidate.year)}` : ''}` : '&nbsp;'}</strong>
               ${canAssociate ? `<button type="button" class="docai-origin-link-button${associated ? ' is-associated' : ''}" data-origin-link="${candidateIndex}" aria-label="${associated ? 'Desassociar' : 'Selecionar origem'}" title="${associated ? 'Desassociar' : 'Selecionar origem'}"><i class="fa-solid ${associated ? 'fa-link-slash' : 'fa-link'}"></i></button>` : ''}
@@ -2723,7 +2733,6 @@ document.addEventListener('DOMContentLoaded', () => {
             <strong class="docai-origin-card-score">${escapeHtml(scoreLabel) || '&nbsp;'}</strong>
             <span>${escapeHtml(dateLabel) || '&nbsp;'}</span>
             <strong class="docai-origin-card-total">${escapeHtml(totalLabel) || '&nbsp;'}</strong>
-            <small title="${escapeHtml(candidate.eligibility_reason || candidateContext)}">${associated ? 'Origem selecionada · confirma linha e quantidade' : !canAssociate ? escapeHtml(candidate.eligibility_reason || 'Origem apenas para consulta') : escapeHtml(candidateContext) || 'Abrir dossier para consultar'}</small>
           </article>`;
       }).join('');
       const count = candidates.length;
@@ -4440,10 +4449,13 @@ document.addEventListener('DOMContentLoaded', () => {
     state.draftConflict = false;
     if (els.saveRetryBtn) els.saveRetryBtn.hidden = true;
     state.workflow = payload.workflow || {};
+    state.archiveSnapshot = payload.archive_snapshot || null;
     state.controlOk = Boolean(payload.workflow?.control_ok);
     state.integratedPhc = payload.processing_status === 'provisional_invoice'
-      || Boolean(payload.phc_integration?.fostamp || payload.phc_integration?.crstamp);
-    state.integrationResult = state.integratedPhc ? (payload.phc_integration || {}) : null;
+      || Boolean(payload.phc_integration?.fostamp || payload.phc_integration?.crstamp || payload.phc_integration?.bostamp);
+    state.integrationResult = state.readOnly
+      ? (payload.phc_integration || {})
+      : (state.integratedPhc ? (payload.phc_integration || {}) : null);
     state.gedFolderManuallySelected = Boolean(documentData.customer?.ged_folder_manually_selected);
     state.submittingPhc = false;
     if (state.selectedProject?.ccusto) state.documentData.origin_project = { ...state.selectedProject };
@@ -4465,8 +4477,9 @@ document.addEventListener('DOMContentLoaded', () => {
     renderSupplierCard(supplier, state.matching);
     renderProjectCard();
     els.projectCard.hidden = isCorrespondence;
-    els.originSection.hidden = isCorrespondence || isReception;
-    els.linesSection.hidden = isCorrespondence || isReception;
+    const archivedOrigins = Array.isArray(state.archiveSnapshot?.origins) ? state.archiveSnapshot.origins : [];
+    els.originSection.hidden = isCorrespondence || (isReception && !state.readOnly) || (state.readOnly && !archivedOrigins.length);
+    els.linesSection.hidden = isCorrespondence || (isReception && !state.readOnly);
     els.notesSection.hidden = true;
     els.persistenceNote.textContent = isMail
       ? 'O correio foi analisado apenas neste ecrã e não foi adicionado ao inbox.'
@@ -4474,12 +4487,13 @@ document.addEventListener('DOMContentLoaded', () => {
         ? 'O extrato fica no inbox e pode ser integrado como correspondência RB no PHC.'
         : 'O PDF e a leitura ficam guardados no inbox.');
     state.correspondenceReference = null;
-    state.correspondenceYear = new Date().getFullYear();
+    state.correspondenceYear = state.readOnly ? null : new Date().getFullYear();
     renderDocumentCard();
     renderClassificationCard();
     els.legalBadge.hidden = !(isMail && documentData.mail_category === 'legal');
     renderGedDestination();
     loadCorrespondenceReference();
+    renderArchiveAudit(state.archiveSnapshot);
 
     renderLines(documentData.lines, currency);
     renderTaxes(documentData.taxes, currency);
@@ -4497,16 +4511,66 @@ document.addEventListener('DOMContentLoaded', () => {
     els.empty.hidden = true;
     els.loading.hidden = true;
     els.results.hidden = false;
-    if (isCorrespondence || isReception) {
+    if (isCorrespondence) {
       state.originSearchToken += 1;
       state.originPayload = null;
       state.originCandidates = [];
       state.selectedOrigins = [];
-    } else if (!state.readOnly) {
+    } else if (state.readOnly) {
+      renderArchivedOrigins(archivedOrigins);
+    } else if (isReception) {
+      state.originSearchToken += 1;
+      state.originPayload = null;
+      state.originCandidates = [];
+      state.selectedOrigins = [];
+    } else {
       loadOriginCandidates(documentData);
     }
     if (state.currentDocumentId && draftFingerprint() !== serverFingerprint) scheduleAnalysisSave();
     applyReadOnlyState();
+  }
+
+  function renderArchiveAudit(snapshot) {
+    if (!els.archiveAudit) return;
+    els.archiveAudit.hidden = !state.readOnly;
+    if (!state.readOnly) return;
+    const event = snapshot?.latest_event || {};
+    const validated = Boolean(snapshot?.validated);
+    const eventLabel = event.event === 'deleted' ? 'Eliminado' : (validated ? 'Validado' : 'Arquivado');
+    const actor = event.actor || snapshot?.validated_by || '--';
+    const at = event.at || snapshot?.validated_at || '';
+    const relationCount = (snapshot?.origins || []).length;
+    const operationCount = Object.keys(snapshot?.phc_operations || {}).length;
+    const integration = snapshot?.phc_integration || {};
+    const relations = [
+      relationCount ? `${relationCount} origem${relationCount === 1 ? '' : 's'} PHC` : '',
+      operationCount ? `${operationCount} operação${operationCount === 1 ? '' : 'ões'} PHC` : '',
+      integration.ged_path || integration.unc_path ? 'PDF no GED' : '',
+      integration.fostamp || integration.crstamp || integration.bostamp ? 'relação PHC persistida' : '',
+    ].filter(Boolean);
+    els.archiveAuditState.textContent = `${eventLabel} · ${workflowViewLabel(snapshot?.view)}`;
+    els.archiveAuditActor.textContent = at ? `${actor} · ${formatDate(at)}` : actor;
+    els.archiveAuditRelations.textContent = relations.join(' · ') || 'Sem relações externas registadas';
+  }
+
+  function renderArchivedOrigins(origins = []) {
+    const groups = new Map();
+    origins.forEach((origin) => {
+      const rawKey = String(origin.document_type || origin.origin_family || origin.key || '');
+      const key = originDisplayStage(({ bc: 'purchase_order', proforma_invoice: 'proforma_invoice' })[rawKey] || rawKey);
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push({ ...origin, selectable: false });
+    });
+    const labels = {
+      purchase_order: 'Nota de encomenda', delivery_note: 'Guia de remessa',
+      proforma_invoice: 'Pré-Fatura', contract: 'Contrato',
+      subcontract_contract: 'Contrato Sub.Emp.', work_situation: 'Situação de trabalho',
+    };
+    renderOriginCandidates({
+      available: true,
+      selected_origins: origins,
+      stages: [...groups.entries()].map(([key, candidates]) => ({ key, label: labels[key] || 'Origem', candidates })),
+    });
   }
 
   function clearSuggestionsForForcedRead() {
@@ -5378,6 +5442,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (event.target === els.bcModal) closeBcModal();
   });
   els.originFlow?.addEventListener('click', (event) => {
+    if (state.readOnly) return;
     if (event.target.closest('[data-credit-save]')) {
       event.preventDefault();
       saveCreditNoteMapping();
@@ -5394,6 +5459,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (option) openOriginDetail(option.dataset.originIndex);
   });
   els.originFlow?.addEventListener('change', (event) => {
+    if (state.readOnly) return;
     const creditFo = event.target.closest('[data-credit-fo]');
     if (creditFo) {
       state.creditNoteSelectedFo = state.creditNoteCandidates[Number(creditFo.dataset.creditFo)]?.fostamp || '';
@@ -5407,6 +5473,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderLines(state.documentData?.lines || [], state.documentData?.currency || '');
   });
   els.originFlow?.addEventListener('keydown', (event) => {
+    if (state.readOnly) return;
     if (!['Enter', ' '].includes(event.key) || event.target.closest('[data-origin-link]')) return;
     const option = event.target.closest('[data-origin-index]');
     if (!option) return;

@@ -57,6 +57,23 @@ class DocumentAiInboxFrontendTests(unittest.TestCase):
     def test_archive_hides_new_document_even_with_create_permission(self):
         self.assertIn('els.uploadBtn.hidden = state.archived || !state.permissions.create;', self.source)
 
+    def test_each_filter_change_persists_the_same_visible_dataset(self):
+        apply_filters = self.source.split('function applyFilters', 1)[1].split('function renderViewTabs', 1)[0]
+        self.assertIn('renderTable();', apply_filters)
+        self.assertIn('saveNavigationState(state.activeDocumentId);', apply_filters)
+
+    def test_counter_selection_applies_immediately_and_exposes_active_state(self):
+        listener = self.source.split("els.counts?.addEventListener('click'", 1)[1].split("els.refreshBtn?", 1)[0]
+        self.assertIn('target.has(value) ? target.delete(value) : target.add(value);', listener)
+        self.assertIn('applyFilters();', listener)
+        self.assertIn("selected.has(value) ? 'is-active' : ''", self.source)
+        self.assertIn("aria-pressed=\"${selected.has(value) ? 'true' : 'false'}\"", self.source)
+
+    def test_row_highlight_includes_the_sticky_action_cell(self):
+        css = (Path(__file__).resolve().parents[1] / 'static/css/document_ai.css').read_text(encoding='utf-8')
+        self.assertIn('.docai-inbox-row.is-interactive:hover > td:last-child,', css)
+        self.assertIn('.docai-inbox-row.is-returned > td:last-child', css)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -1,0 +1,35 @@
+/* TP073 - migrate the former visible Referencia field to technical history.
+   Safe to run repeatedly; no PHC document or ticket data is changed. */
+
+IF OBJECT_ID('dbo.COLAB_DESPESA_HIST', 'U') IS NOT NULL
+   AND OBJECT_ID('dbo.COLAB_DESPESA_CONTAB_LINHA', 'U') IS NOT NULL
+BEGIN
+    INSERT INTO dbo.COLAB_DESPESA_HIST
+        (DESPHISTSTAMP, DESPLINHASTAMP, ACAO, DETALHE_JSON, UTILIZADOR)
+    SELECT LEFT(REPLACE(CONVERT(varchar(36), NEWID()), '-', ''), 25),
+           C.DESPLINHASTAMP,
+           'MIGRACAO_TP073',
+           N'{"referencia_anterior":"' +
+             STRING_ESCAPE(LTRIM(RTRIM(ISNULL(C.REFERENCIA, ''))), 'json') + N'"}',
+           'MIGRACAO'
+    FROM dbo.COLAB_DESPESA_CONTAB_LINHA C
+    WHERE LTRIM(RTRIM(ISNULL(C.REFERENCIA, ''))) <> ''
+      AND UPPER(LTRIM(RTRIM(ISNULL(C.REFERENCIA, '')))) <>
+          UPPER(LTRIM(RTRIM(ISNULL(C.ARTIGO_REF, ''))))
+      AND NOT EXISTS (
+          SELECT 1 FROM dbo.COLAB_DESPESA_HIST H
+          WHERE H.DESPLINHASTAMP = C.DESPLINHASTAMP
+            AND H.ACAO = 'MIGRACAO_TP073'
+            AND H.DETALHE_JSON LIKE N'%"referencia_anterior":"' +
+                STRING_ESCAPE(LTRIM(RTRIM(ISNULL(C.REFERENCIA, ''))), 'json') + N'"%'
+      );
+
+    UPDATE dbo.COLAB_DESPESA_CONTAB_LINHA SET REFERENCIA = N''
+    WHERE LTRIM(RTRIM(ISNULL(REFERENCIA, ''))) <> '';
+END;
+
+IF COL_LENGTH('dbo.COLAB_DESPESA_LINHA', 'REFERENCIA_DOCUMENTO') IS NOT NULL
+BEGIN
+    UPDATE dbo.COLAB_DESPESA_LINHA SET REFERENCIA_DOCUMENTO = N''
+    WHERE LTRIM(RTRIM(ISNULL(REFERENCIA_DOCUMENTO, ''))) <> '';
+END;

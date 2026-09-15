@@ -335,6 +335,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="docai-business-count-options">${ordered.map(([value, data]) => `
           <button type="button" class="docai-business-count-chip ${selected.has(value) ? 'is-active' : ''}"
                   data-count-filter="${filterName}" data-value="${escapeHtml(value)}"
+                  aria-pressed="${selected.has(value) ? 'true' : 'false'}"
                   title="${data.count} ${escapeHtml(data.label || '-')}" aria-label="${data.count} ${escapeHtml(data.label || '-')}">
             <strong>${data.count}</strong><span>${escapeHtml(data.label || '-')}</span>
           </button>`).join('')}</div></div>`;
@@ -351,6 +352,7 @@ document.addEventListener('DOMContentLoaded', () => {
           ${[...stateCounts.entries()].map(([value, count]) => `
             <button type="button" class="docai-business-count-chip ${state.stateFilters.has(value) ? 'is-active' : ''}"
                     data-state="${escapeHtml(String(value).toLowerCase())}" data-count-filter="state" data-value="${escapeHtml(value)}"
+                    aria-pressed="${state.stateFilters.has(value) ? 'true' : 'false'}"
                     title="${escapeHtml(value)}" aria-label="${escapeHtml(value)}">
               <strong>${count}</strong><span>${escapeHtml(value)}</span>
             </button>
@@ -422,6 +424,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (resetScroll && els.tableScroller) els.tableScroller.scrollTop = 0;
     renderTable();
     refreshColumnFilters();
+    saveNavigationState(state.activeDocumentId);
   }
 
   function renderViewTabs() {

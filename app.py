@@ -26627,7 +26627,7 @@ def create_app():
     @app.route('/colaborador/despesas/processamento')
     @login_required
     def colaborador_despesas_processamento_page():
-        from services.colaborador_despesas_service import list_expense_companies, list_expense_cost_centers, list_expense_processing_users
+        from services.colaborador_despesas_service import list_expense_companies, list_expense_processing_users
 
         if not _expense_processing_has_permission('consultar'):
             abort(403)
@@ -26639,7 +26639,9 @@ def create_app():
             page_title='Processamento de Despesas',
             expense_users=list_expense_processing_users(),
             expense_companies=list_expense_companies(),
-            expense_ccustos=list_expense_cost_centers(),
+            # Cost centres are company-specific and are loaded from PHC only
+            # after a FEID is known; never preload them from the active Portal DB.
+            expense_ccustos=[],
             default_date_from='',
             default_date_to=today_value.isoformat(),
             archive_mode=archive_mode,
@@ -26745,43 +26747,55 @@ def create_app():
     @app.route('/api/colaborador/despesas/processamento/artigos')
     @login_required
     def api_colaborador_despesas_processamento_artigos():
-        from services.colaborador_despesas_service import search_expense_articles
+        from services.colaborador_despesas_service import ExpensePhcConfigurationError, ExpensePhcQueryError, search_expense_articles
 
         try:
             if not _expense_processing_has_permission('consultar'):
-                return jsonify({'ok': False, 'rows': [], 'error': 'Sem permissão.'}), 403
+                return jsonify({'ok': False, 'error': 'Sem permissão para consultar.'}), 403
             rows = search_expense_articles(
                 _to_int(request.args.get('feid'), 0),
                 request.args.get('q', ''),
             )
             return jsonify({'ok': True, 'rows': rows})
+        except ExpensePhcConfigurationError as exc:
+            return jsonify({'ok': False, 'error': str(exc)}), 422
+        except ExpensePhcQueryError:
+            return jsonify({'ok': False, 'error': 'Erro ao consultar o PHC.'}), 502
         except Exception:
             db.session.rollback()
             app.logger.exception('Erro ao pesquisar artigos para despesas.')
-            return jsonify({'ok': False, 'rows': [], 'error': 'Erro ao pesquisar artigos.'}), 500
+            return jsonify({'ok': False, 'error': 'Erro ao consultar o PHC.'}), 500
 
     @app.route('/api/colaborador/despesas/processamento/viaturas')
     @login_required
     def api_colaborador_despesas_processamento_viaturas():
-        from services.colaborador_despesas_service import search_expense_vehicles
+        from services.colaborador_despesas_service import ExpensePhcConfigurationError, ExpensePhcQueryError, search_expense_vehicles
 
         try:
             if not _expense_processing_has_permission('consultar'):
-                return jsonify({'ok': False, 'rows': [], 'error': 'Sem permissão.'}), 403
+                return jsonify({'ok': False, 'error': 'Sem permissão para consultar.'}), 403
             rows = search_expense_vehicles(request.args.get('q', ''), feid=_to_int(request.args.get('feid'), 0))
             return jsonify({'ok': True, 'rows': rows})
+        except ExpensePhcConfigurationError as exc:
+            return jsonify({'ok': False, 'error': str(exc)}), 422
+        except ExpensePhcQueryError:
+            return jsonify({'ok': False, 'error': 'Erro ao consultar o PHC.'}), 502
         except Exception:
             db.session.rollback()
             app.logger.exception('Erro ao pesquisar viaturas para despesas.')
-            return jsonify({'ok': False, 'rows': [], 'error': 'Erro ao pesquisar viaturas.'}), 500
+            return jsonify({'ok': False, 'error': 'Erro ao consultar o PHC.'}), 500
 
     @app.route('/api/colaborador/despesas/viaturas')
     @login_required
     def api_colaborador_despesas_viaturas():
-        from services.colaborador_despesas_service import search_expense_vehicles
+        from services.colaborador_despesas_service import get_colaborador_context, search_expense_vehicles
 
         try:
-            rows = search_expense_vehicles(request.args.get('q', ''))
+            colaborador = get_colaborador_context(current_user)
+            rows = search_expense_vehicles(
+                request.args.get('q', ''),
+                feid=_to_int(colaborador.get('feid') or colaborador.get('pefeid'), 0),
+            )
             return jsonify({'ok': True, 'rows': rows})
         except Exception:
             db.session.rollback()
@@ -26791,32 +26805,41 @@ def create_app():
     @app.route('/api/colaborador/despesas/processamento/taxasiva')
     @login_required
     def api_colaborador_despesas_processamento_taxasiva():
-        from services.colaborador_despesas_service import list_expense_vat_rates
+        from services.colaborador_despesas_service import ExpensePhcConfigurationError, ExpensePhcQueryError, list_expense_vat_rates
 
         try:
             if not _expense_processing_has_permission('consultar'):
-                return jsonify({'ok': False, 'rows': [], 'error': 'Sem permissão.'}), 403
+                return jsonify({'ok': False, 'error': 'Sem permissão para consultar.'}), 403
             rows = list_expense_vat_rates(_to_int(request.args.get('feid'), 0))
             return jsonify({'ok': True, 'rows': rows})
+        except ExpensePhcConfigurationError as exc:
+            return jsonify({'ok': False, 'error': str(exc)}), 422
+        except ExpensePhcQueryError:
+            return jsonify({'ok': False, 'error': 'Erro ao consultar o PHC.'}), 502
         except Exception:
             db.session.rollback()
             app.logger.exception('Erro ao listar taxas de IVA para despesas.')
-            return jsonify({'ok': False, 'rows': [], 'error': 'Erro ao listar taxas de IVA.'}), 500
+            return jsonify({'ok': False, 'error': 'Erro ao consultar o PHC.'}), 500
 
     @app.route('/api/colaborador/despesas/processamento/centros-custo')
     @login_required
     def api_colaborador_despesas_processamento_cost_centers():
-        from services.colaborador_despesas_service import list_expense_cost_centers
+        from services.colaborador_despesas_service import ExpensePhcConfigurationError, ExpensePhcQueryError, list_expense_cost_centers
         if not _expense_processing_has_permission('consultar'):
-            return jsonify({'ok': False, 'rows': [], 'error': 'Sem permissão.'}), 403
+            return jsonify({'ok': False, 'error': 'Sem permissão para consultar.'}), 403
         try:
             return jsonify({'ok': True, 'rows': list_expense_cost_centers(
                 feid=_to_int(request.args.get('feid'), 0), with_description=True,
+                term=request.args.get('q', ''),
             )})
+        except ExpensePhcConfigurationError as exc:
+            return jsonify({'ok': False, 'error': str(exc)}), 422
+        except ExpensePhcQueryError:
+            return jsonify({'ok': False, 'error': 'Erro ao consultar o PHC.'}), 502
         except Exception:
             db.session.rollback()
             app.logger.exception('Erro ao listar centros de custo para despesas.')
-            return jsonify({'ok': False, 'rows': [], 'error': 'Erro ao listar centros de custo.'}), 500
+            return jsonify({'ok': False, 'error': 'Erro ao consultar o PHC.'}), 500
 
     @app.route('/api/colaborador/despesas/processamento/lancar-phc', methods=['POST'])
     @login_required
@@ -26825,7 +26848,7 @@ def create_app():
 
         try:
             if not _expense_processing_has_permission('inserir'):
-                return jsonify({'ok': False, 'error': 'Sem permissão para lançar despesas no PHC.'}), 403
+                return jsonify({'ok': False, 'error': 'Sem permissão para validar despesas.'}), 403
             payload = request.get_json(silent=True) or {}
             stamps = payload.get('stamps') or payload.get('linhas') or []
             return jsonify(launch_expenses_to_phc(stamps, current_user))
@@ -26834,8 +26857,8 @@ def create_app():
             return jsonify({'ok': False, 'error': str(exc)}), 400
         except Exception:
             db.session.rollback()
-            app.logger.exception('Erro ao lançar despesas no PHC.')
-            return jsonify({'ok': False, 'error': f'Erro ao lançar despesas no PHC: {str(sys.exc_info()[1])}'}), 500
+            app.logger.exception('Erro ao validar despesas no PHC.')
+            return jsonify({'ok': False, 'error': 'Erro ao validar despesas no PHC.'}), 500
 
     @app.route('/api/colaborador/despesas/processamento/<string:line_stamp>/pdf', methods=['POST', 'DELETE'])
     @login_required

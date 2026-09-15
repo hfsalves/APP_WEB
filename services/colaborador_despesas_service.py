@@ -43,6 +43,14 @@ PHC_NOTES_FRAIS_NMDOS = "Notes de Frais"
 _schema_ready_databases: set[str] = set()
 
 
+class ExpensePhcConfigurationError(ValueError):
+    """The selected Portal company cannot be resolved to a PHC database."""
+
+
+class ExpensePhcQueryError(RuntimeError):
+    """A configured PHC database could not be queried."""
+
+
 def _new_stamp() -> str:
     return uuid.uuid4().hex.upper()[:25]
 
@@ -714,6 +722,26 @@ def _expense_company_by_feid(feid: int) -> dict[str, Any]:
     } if row else {}
 
 
+def _expense_phc_target(feid: int) -> tuple[dict[str, Any], str]:
+    """Resolve a Portal FEID to its PHC target, never to the active Portal DB."""
+    company = _expense_company_by_feid(_safe_int(feid))
+    if not company or not _safe_int(company.get('feid')):
+        raise ExpensePhcConfigurationError('Empresa inválida.')
+    phc_db = str(company.get('phc_db') or '').strip()
+    if not phc_db:
+        raise ExpensePhcConfigurationError('Empresa sem configuração PHC.')
+    return company, _phc_conn_str(phc_db, str(company.get('phc_server') or '').strip())
+
+
+def _phc_cursor_columns(cursor, table_name: str) -> set[str]:
+    cursor.execute("""
+        SELECT UPPER(COLUMN_NAME)
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = 'dbo' AND UPPER(TABLE_NAME) = UPPER(?)
+    """, table_name)
+    return {str(row[0] or '').strip().upper() for row in cursor.fetchall()}
+
+
 def _pick_column(columns: set[str], candidates: list[str]) -> str:
     for candidate in candidates:
         if candidate.upper() in columns:
@@ -727,13 +755,10 @@ def _sql_identifier(name: str) -> str:
 
 def list_expense_vat_rates(feid: int) -> list[dict[str, Any]]:
     ensure_colaborador_despesas_schema()
-    company = _expense_company_by_feid(_safe_int(feid))
-    phc_db = str(company.get('phc_db') or '').strip()
-    if not phc_db:
-        return []
+    company, conn_str = _expense_phc_target(feid)
 
     try:
-        with pyodbc.connect(_phc_conn_str(phc_db, str(company.get('phc_server') or '').strip()), timeout=8) as conn:
+        with pyodbc.connect(conn_str, timeout=8) as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT UPPER(COLUMN_NAME)
@@ -765,9 +790,11 @@ def list_expense_vat_rates(feid: int) -> list[dict[str, Any]]:
                 ORDER BY TRY_CONVERT(int, {_sql_identifier(code_col)}), {_sql_identifier(code_col)}
             """)
             rows = cursor.fetchall()
-    except Exception:
+    except ExpensePhcConfigurationError:
+        raise
+    except Exception as exc:
         current_app.logger.exception('Erro ao obter taxas de IVA da TAXASIVA do PHC.')
-        return []
+        raise ExpensePhcQueryError('Erro ao consultar o PHC.') from exc
 
     rates: list[dict[str, Any]] = []
     for row in rows:
@@ -788,38 +815,44 @@ def list_expense_vat_rates(feid: int) -> list[dict[str, Any]]:
     return rates
 
 
-def list_expense_cost_centers(limit: int = 500, feid: int = 0, with_description: bool = False) -> list[Any]:
+def list_expense_cost_centers(limit: int = 500, feid: int = 0, with_description: bool = False, term: str = '') -> list[Any]:
     ensure_colaborador_despesas_schema()
-    if not db.session.execute(text("SELECT OBJECT_ID('dbo.V_CCT', 'V')")).scalar():
-        return []
     safe_limit = max(1, min(int(limit or 500), 1000))
-    columns = {
-        str(value or '').strip().upper()
-        for value in db.session.execute(text("""
-            SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_SCHEMA='dbo' AND TABLE_NAME='V_CCT'
-        """)).scalars().all()
-    }
-    company = _expense_company_by_feid(_safe_int(feid)) if _safe_int(feid) else {}
-    origin = str(company.get('phc_db') or '').strip()
-    origin_filter = "AND UPPER(LTRIM(RTRIM(ISNULL(ORIGEM,''))))=UPPER(:origin)" if origin and 'ORIGEM' in columns else ""
-    description_select = "LTRIM(RTRIM(ISNULL(DESCRICAO, ''))) AS DESCRICAO," if 'DESCRICAO' in columns else "CAST('' AS varchar(200)) AS DESCRICAO,"
-    rows = db.session.execute(text("""
-        SELECT DISTINCT TOP """ + str(safe_limit) + """
-            LTRIM(RTRIM(ISNULL(CCUSTO, ''))) AS CCUSTO,
-            """ + description_select + """
-            LTRIM(RTRIM(ISNULL(ORIGEM, ''))) AS ORIGEM
-        FROM dbo.V_CCT
-        WHERE LTRIM(RTRIM(ISNULL(CCUSTO, ''))) <> ''
-        """ + origin_filter + """
-        ORDER BY LTRIM(RTRIM(ISNULL(CCUSTO, '')))
-    """), {'origin': origin}).mappings().all()
+    _, conn_str = _expense_phc_target(feid)
+    clean_term = str(term or '').strip()
+    try:
+        with pyodbc.connect(conn_str, timeout=8) as conn:
+            cursor = conn.cursor()
+            columns = _phc_cursor_columns(cursor, 'CCT')
+            if 'CCUSTO' not in columns:
+                raise ExpensePhcQueryError('Erro ao consultar o PHC.')
+            design_col = _pick_column(columns, ['U_DESIGN', 'DESIGN', 'DESCRICAO', 'NOME'])
+            inactive_col = _pick_column(columns, ['INACTIVO', 'INATIVO'])
+            design_expr = f"LTRIM(RTRIM(ISNULL(CONVERT(nvarchar(200), {_sql_identifier(design_col)}), '')))" if design_col else "CAST('' AS nvarchar(200))"
+            inactive_filter = f"AND ISNULL({_sql_identifier(inactive_col)}, 0) = 0" if inactive_col else ''
+            search_filter = f"AND (LTRIM(RTRIM(ISNULL(CCUSTO, ''))) LIKE ? OR {design_expr} LIKE ?)" if clean_term else ''
+            params = [f'%{clean_term}%', f'%{clean_term}%'] if clean_term else []
+            cursor.execute(f"""
+                SELECT DISTINCT TOP {safe_limit}
+                    LTRIM(RTRIM(ISNULL(CCUSTO, ''))) AS CCUSTO,
+                    {design_expr} AS DESCRICAO
+                FROM dbo.CCT
+                WHERE LTRIM(RTRIM(ISNULL(CCUSTO, ''))) <> ''
+                  {inactive_filter} {search_filter}
+                ORDER BY LTRIM(RTRIM(ISNULL(CCUSTO, '')))
+            """, params)
+            rows = cursor.fetchall()
+    except (ExpensePhcConfigurationError, ExpensePhcQueryError):
+        raise
+    except Exception as exc:
+        current_app.logger.exception('Erro ao pesquisar centros de custo no PHC.')
+        raise ExpensePhcQueryError('Erro ao consultar o PHC.') from exc
     if with_description:
         return [
-            {'ccusto': str(row.get('CCUSTO') or '').strip(), 'design': str(row.get('DESCRICAO') or '').strip()}
-            for row in rows if str(row.get('CCUSTO') or '').strip()
+            {'ccusto': str(row.CCUSTO or '').strip(), 'design': str(row.DESCRICAO or '').strip()}
+            for row in rows if str(row.CCUSTO or '').strip()
         ]
-    return [str(row.get('CCUSTO') or '').strip() for row in rows if str(row.get('CCUSTO') or '').strip()]
+    return [str(row.CCUSTO or '').strip() for row in rows if str(row.CCUSTO or '').strip()]
 
 
 def search_expense_articles(feid: int, term: str, limit: int = 12) -> list[dict[str, Any]]:
@@ -828,38 +861,42 @@ def search_expense_articles(feid: int, term: str, limit: int = 12) -> list[dict[
     if len(clean_term) < 1:
         return []
     safe_limit = max(1, min(int(limit or 12), 30))
-    unidade_select = "LTRIM(RTRIM(ISNULL(S.UNIDADE, ''))) AS UNIDADE," if _column_exists('ST', 'UNIDADE') else "CAST('' AS varchar(20)) AS UNIDADE,"
-    inactive_column = 'INACTIVO' if _column_exists('ST', 'INACTIVO') else ('INATIVO' if _column_exists('ST', 'INATIVO') else '')
-    inactive_filter = f"AND ISNULL(S.{inactive_column}, 0) = 0" if inactive_column else ""
-    base_sql = f"""
-        SELECT TOP {safe_limit}
-            LTRIM(RTRIM(ISNULL(S.REF, ''))) AS REF,
-            LTRIM(RTRIM(ISNULL(S.DESIGN, ''))) AS DESIGN,
-            {unidade_select}
-            LTRIM(RTRIM(ISNULL(S.FAMILIA, ''))) AS FAMILIA
-        FROM dbo.ST S
-        WHERE (
-            LTRIM(RTRIM(ISNULL(S.REF, ''))) LIKE :term
-            OR LTRIM(RTRIM(ISNULL(S.DESIGN, ''))) LIKE :term
-        )
-        {inactive_filter}
-        {{feid_filter}}
-        ORDER BY LTRIM(RTRIM(ISNULL(S.REF, '')))
-    """
-    params = {'term': f'%{clean_term}%'}
-    clean_feid = _safe_int(feid)
-    rows = []
-    if clean_feid:
-        scoped_params = {**params, 'feid': clean_feid}
-        rows = db.session.execute(text(base_sql.replace('{feid_filter}', 'AND ISNULL(S.FEID, 0) = :feid')), scoped_params).mappings().all()
-    if not rows and not clean_feid:
-        rows = db.session.execute(text(base_sql.replace('{feid_filter}', '')), params).mappings().all()
+    _, conn_str = _expense_phc_target(feid)
+    try:
+        with pyodbc.connect(conn_str, timeout=8) as conn:
+            cursor = conn.cursor()
+            columns = _phc_cursor_columns(cursor, 'ST')
+            if not {'REF', 'DESIGN'}.issubset(columns):
+                raise ExpensePhcQueryError('Erro ao consultar o PHC.')
+            unidade_select = "LTRIM(RTRIM(ISNULL(S.UNIDADE, '')))" if 'UNIDADE' in columns else "CAST('' AS varchar(20))"
+            familia_select = "LTRIM(RTRIM(ISNULL(S.FAMILIA, '')))" if 'FAMILIA' in columns else "CAST('' AS varchar(80))"
+            inactive_column = _pick_column(columns, ['INACTIVO', 'INATIVO'])
+            inactive_filter = f"AND ISNULL(S.{_sql_identifier(inactive_column)}, 0) = 0" if inactive_column else ''
+            cursor.execute(f"""
+                SELECT TOP {safe_limit}
+                    LTRIM(RTRIM(ISNULL(S.REF, ''))) AS REF,
+                    LTRIM(RTRIM(ISNULL(S.DESIGN, ''))) AS DESIGN,
+                    {unidade_select} AS UNIDADE,
+                    {familia_select} AS FAMILIA
+                FROM dbo.ST S
+                WHERE (LTRIM(RTRIM(ISNULL(S.REF, ''))) LIKE ?
+                    OR LTRIM(RTRIM(ISNULL(S.DESIGN, ''))) LIKE ?)
+                  {inactive_filter}
+                ORDER BY CASE WHEN UPPER(LTRIM(RTRIM(ISNULL(S.REF, '')))) = UPPER(?) THEN 0 ELSE 1 END,
+                         LTRIM(RTRIM(ISNULL(S.REF, '')))
+            """, f'%{clean_term}%', f'%{clean_term}%', clean_term)
+            rows = cursor.fetchall()
+    except (ExpensePhcConfigurationError, ExpensePhcQueryError):
+        raise
+    except Exception as exc:
+        current_app.logger.exception('Erro ao pesquisar artigos no PHC.')
+        raise ExpensePhcQueryError('Erro ao consultar o PHC.') from exc
     return [
         {
-            'ref': str(row.get('REF') or '').strip(),
-            'design': str(row.get('DESIGN') or '').strip(),
-            'unidade': str(row.get('UNIDADE') or '').strip(),
-            'familia': str(row.get('FAMILIA') or '').strip(),
+            'ref': str(row.REF or '').strip(),
+            'design': str(row.DESIGN or '').strip(),
+            'unidade': str(row.UNIDADE or '').strip(),
+            'familia': str(row.FAMILIA or '').strip(),
         }
         for row in rows
     ]
@@ -870,28 +907,25 @@ def search_expense_vehicles(term: str, limit: int = 12, feid: int = 0) -> list[d
     clean_term = str(term or '').strip()
     if len(clean_term) < 1:
         return []
-    if not db.session.execute(text("SELECT OBJECT_ID('dbo.VA', 'U')")).scalar():
-        return []
     safe_limit = max(1, min(int(limit or 12), 30))
     excluded_sql = ", ".join(f"'{plate}'" for plate in sorted(EXCLUDED_EXPENSE_PLATES))
-    cols = {
-        str(row.get('COLUMN_NAME') or '').strip().upper()
-        for row in db.session.execute(text("""
-            SELECT COLUMN_NAME
-            FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_SCHEMA = 'dbo'
-              AND TABLE_NAME = 'VA'
-        """)).mappings().all()
-    }
+    _, conn_str = _expense_phc_target(feid)
+    try:
+        conn = pyodbc.connect(conn_str, timeout=8)
+        cursor = conn.cursor()
+        cols = _phc_cursor_columns(cursor, 'VA')
+    except ExpensePhcConfigurationError:
+        raise
+    except Exception as exc:
+        current_app.logger.exception('Erro ao ligar ao PHC para pesquisar viaturas.')
+        raise ExpensePhcQueryError('Erro ao consultar o PHC.') from exc
+    if 'MATRICULA' not in cols:
+        conn.close()
+        raise ExpensePhcQueryError('Erro ao consultar o PHC.')
     marca_select = "LTRIM(RTRIM(ISNULL(MARCA, ''))) AS MARCA" if 'MARCA' in cols else "CAST('' AS varchar(80)) AS MARCA"
     modelo_select = "LTRIM(RTRIM(ISNULL(MODELO, ''))) AS MODELO" if 'MODELO' in cols else "CAST('' AS varchar(80)) AS MODELO"
     nofrota_select = "LTRIM(RTRIM(ISNULL(NOFROTA, ''))) AS NOFROTA" if 'NOFROTA' in cols else "CAST('' AS varchar(80)) AS NOFROTA"
     inactive_filter = "AND ISNULL(INATIVO, 0) = 0" if 'INATIVO' in cols else ""
-    company = _expense_company_by_feid(_safe_int(feid)) if _safe_int(feid) else {}
-    origin = str(company.get('phc_db') or '').strip()
-    company_filter = "AND ISNULL(FEID, 0) = :feid" if 'FEID' in cols and _safe_int(feid) else (
-        "AND UPPER(LTRIM(RTRIM(ISNULL(ORIGEM,''))))=UPPER(:origin)" if origin and 'ORIGEM' in cols else ""
-    )
     search_parts = ["LTRIM(RTRIM(ISNULL(MATRICULA, ''))) LIKE :term"]
     if 'MARCA' in cols:
         search_parts.append("LTRIM(RTRIM(ISNULL(MARCA, ''))) LIKE :term")
@@ -899,30 +933,32 @@ def search_expense_vehicles(term: str, limit: int = 12, feid: int = 0) -> list[d
         search_parts.append("LTRIM(RTRIM(ISNULL(MODELO, ''))) LIKE :term")
     if 'NOFROTA' in cols:
         search_parts.append("LTRIM(RTRIM(ISNULL(NOFROTA, ''))) LIKE :term")
-    rows = db.session.execute(text(f"""
-        SELECT TOP {safe_limit}
-            LTRIM(RTRIM(ISNULL(MATRICULA, ''))) AS MATRICULA,
-            {marca_select},
-            {modelo_select},
-            {nofrota_select}
-        FROM dbo.VA
-        WHERE LTRIM(RTRIM(ISNULL(MATRICULA, ''))) <> ''
-          AND UPPER(LTRIM(RTRIM(ISNULL(MATRICULA, '')))) NOT IN ({excluded_sql})
-          {inactive_filter}
-          {company_filter}
-          AND ({' OR '.join(search_parts)})
-        ORDER BY LTRIM(RTRIM(ISNULL(MATRICULA, '')))
-    """), {
-        'term': f'%{clean_term}%',
-        'feid': _safe_int(feid),
-        'origin': origin,
-    }).mappings().all()
+    try:
+        params = [f'%{clean_term}%'] * len(search_parts)
+        cursor.execute(f"""
+            SELECT TOP {safe_limit}
+                LTRIM(RTRIM(ISNULL(MATRICULA, ''))) AS MATRICULA,
+                {marca_select}, {modelo_select}, {nofrota_select}
+            FROM dbo.VA
+            WHERE LTRIM(RTRIM(ISNULL(MATRICULA, ''))) <> ''
+              AND UPPER(LTRIM(RTRIM(ISNULL(MATRICULA, '')))) NOT IN ({excluded_sql})
+              {inactive_filter}
+              AND ({' OR '.join(part.replace(':term', '?') for part in search_parts)})
+            ORDER BY CASE WHEN UPPER(LTRIM(RTRIM(ISNULL(MATRICULA, '')))) = UPPER(?) THEN 0 ELSE 1 END,
+                     LTRIM(RTRIM(ISNULL(MATRICULA, '')))
+        """, params + [clean_term])
+        rows = cursor.fetchall()
+    except Exception as exc:
+        current_app.logger.exception('Erro ao pesquisar viaturas no PHC.')
+        raise ExpensePhcQueryError('Erro ao consultar o PHC.') from exc
+    finally:
+        conn.close()
     return [
         {
-            'matricula': str(row.get('MATRICULA') or '').strip(),
-            'marca': str(row.get('MARCA') or '').strip(),
-            'modelo': str(row.get('MODELO') or '').strip(),
-            'nofrota': str(row.get('NOFROTA') or '').strip(),
+            'matricula': str(row.MATRICULA or '').strip(),
+            'marca': str(row.MARCA or '').strip(),
+            'modelo': str(row.MODELO or '').strip(),
+            'nofrota': str(row.NOFROTA or '').strip(),
         }
         for row in rows
     ]
@@ -1529,7 +1565,7 @@ def update_expense_processing_classification(line_stamp: str, payload: dict[str,
     if not current:
         raise ValueError('Despesa não encontrada.')
     if int(current.get('VERSION') or 1) != expected_version:
-        raise ValueError('Esta despesa foi alterada por outro utilizador. Atualiza antes de continuar.')
+        raise ValueError('Despesa alterada por outro utilizador.')
 
     feid = _safe_int(payload.get('feid') or current.get('FEID'))
     company = _expense_company_by_feid(feid) if feid else {}
@@ -2043,10 +2079,11 @@ def _build_cover_pdf(path: str, prepared_lines: list[dict[str, Any]], supplier: 
     y = _draw_text_line(pdf, margin, y, f"Data dossier: {dataobra.strftime('%d/%m/%Y') if hasattr(dataobra, 'strftime') else dataobra}", 9)
     y -= 8
 
+    currency = str((prepared_lines[0].get('row') or {}).get('MOEDA') or 'EUR').strip().upper() or 'EUR'
     total_gross = (total_net + total_vat).quantize(Decimal("0.01"))
-    y = _draw_text_line(pdf, margin, y, f"Total sem IVA: {_decimal_label(total_net, 2)} EUR", 10, True)
-    y = _draw_text_line(pdf, margin, y, f"IVA: {_decimal_label(total_vat, 2)} EUR", 10, True)
-    y = _draw_text_line(pdf, margin, y, f"Total com IVA: {_decimal_label(total_gross, 2)} EUR", 10, True)
+    y = _draw_text_line(pdf, margin, y, f"Total sem IVA: {_decimal_label(total_net, 2)} {currency}", 10, True)
+    y = _draw_text_line(pdf, margin, y, f"IVA: {_decimal_label(total_vat, 2)} {currency}", 10, True)
+    y = _draw_text_line(pdf, margin, y, f"Total com IVA: {_decimal_label(total_gross, 2)} {currency}", 10, True)
     y -= 10
 
     headers = ["Data", "Tipo", "Ref.", "Designacao", "C. custo", "Total"]
@@ -2074,7 +2111,7 @@ def _build_cover_pdf(path: str, prepared_lines: list[dict[str, Any]], supplier: 
             str(row.get("REF") or ""),
             str(row.get("DESIGN") or line.get("article", {}).get("design") or "")[:42],
             str(line.get("ccusto") or ""),
-            f"{_decimal_label(line.get('gross'), 2)} EUR",
+            f"{_decimal_label(line.get('gross'), 2)} {currency}",
         ]
         x = margin
         for idx, value in enumerate(values):
@@ -2135,7 +2172,8 @@ def _create_notes_frais_pdf(prepared_lines: list[dict[str, Any]], supplier: dict
             if not source:
                 continue
             ext = os.path.splitext(source)[1].lower()
-            title = f"Anexo {index} - {row.get('DATA_DESPESA') or ''} - {row.get('TIPO') or ''} - {_decimal_label(row.get('VALOR'), 2)} EUR"
+            currency = str(row.get('MOEDA') or 'EUR').strip().upper() or 'EUR'
+            title = f"Anexo {index} - {row.get('DATA_DESPESA') or ''} - {row.get('TIPO') or ''} - {_decimal_label(row.get('VALOR'), 2)} {currency}"
             if ext == ".pdf":
                 try:
                     for page in PdfReader(source).pages:
@@ -2274,8 +2312,127 @@ def _load_processing_lines_for_launch(stamps: list[str]) -> list[dict[str, Any]]
     return result
 
 
+def _expense_launch_preflight(lines: list[dict[str, Any]], company: dict[str, Any]) -> list[str]:
+    """Validate the complete batch before any PHC row or launch lock is created."""
+    errors: list[str] = []
+    phc_db = str(company.get('phc_db') or '').strip()
+    phc_server = str(company.get('phc_server') or '').strip()
+    currencies = {str(row.get('MOEDA') or '').strip().upper() for row in lines}
+    if any(not re.fullmatch(r'[A-Z]{3}', currency or '') for currency in currencies):
+        errors.append('Moeda ISO inválida.')
+    for row in lines:
+        label = str(row.get('DATA_DESPESA') or row.get('DESPLINHASTAMP') or 'Despesa')
+        if row.get('VALOR') is None:
+            errors.append(f'{label}: total em falta.')
+        if not str(row.get('CAMINHO') or '').strip():
+            errors.append(f'{label}: justificativo em falta.')
+        accounting = row.get('ACCOUNTING_LINES') or []
+        if not accounting:
+            errors.append(f'{label}: sem linha contabilística.')
+        for index, accounting_line in enumerate(accounting, start=1):
+            prefix = f'{label}, linha {index}'
+            if not str(accounting_line.get('artigo_ref') or '').strip():
+                errors.append(f'{prefix}: Artigo em falta.')
+            if not str(accounting_line.get('ccusto') or '').strip():
+                errors.append(f'{prefix}: Centro de Custo em falta.')
+            if not str(accounting_line.get('tabiva') or '').strip():
+                errors.append(f'{prefix}: IVA em falta.')
+            gross = _safe_decimal(accounting_line.get('total_com_iva'))
+            net = _safe_decimal(accounting_line.get('total_sem_iva'))
+            vat = _safe_decimal(accounting_line.get('valor_iva'))
+            if gross < 0:
+                errors.append(f'{prefix}: valor negativo não autorizado.')
+            if abs((net + vat) - gross) > Decimal('0.01'):
+                errors.append(f'{prefix}: Totais incoerentes.')
+    if errors or not phc_db:
+        if not phc_db:
+            errors.append('Empresa sem configuração PHC.')
+        return errors
+
+    try:
+        with pyodbc.connect(_phc_conn_str(phc_db, phc_server), timeout=15) as target_conn:
+            cursor = target_conn.cursor()
+            valid_rates = {str(rate.get('tabiva') or '').strip(): _safe_decimal(rate.get('taxaiva')) for rate in _phc_tax_rates(cursor)}
+            for row in lines:
+                label = str(row.get('DATA_DESPESA') or row.get('DESPLINHASTAMP') or 'Despesa')
+                for index, accounting_line in enumerate(row.get('ACCOUNTING_LINES') or [], start=1):
+                    ref = str(accounting_line.get('artigo_ref') or '').strip()
+                    try:
+                        _phc_article(cursor, ref)
+                    except ValueError:
+                        errors.append(f'{label}, linha {index}: Artigo PHC inválido.')
+                    ccusto = str(accounting_line.get('ccusto') or '').strip()
+                    if ccusto:
+                        found = cursor.execute("SELECT TOP 1 1 FROM dbo.CCT WHERE UPPER(LTRIM(RTRIM(ISNULL(CCUSTO,''))))=UPPER(?) AND ISNULL(INACTIVO,0)=0", ccusto).fetchone()
+                        if not found:
+                            errors.append(f'{label}, linha {index}: Centro de Custo inválido.')
+                    tabiva = str(accounting_line.get('tabiva') or '').strip()
+                    rate = _safe_decimal(accounting_line.get('taxaiva'))
+                    if tabiva not in valid_rates or abs(valid_rates[tabiva] - rate) > Decimal('0.0001'):
+                        errors.append(f'{label}, linha {index}: IVA inválido para a Empresa.')
+            source_company = _expense_company_by_feid(_safe_int(lines[0].get('PEFEID')))
+            employee_db = str(lines[0].get('PHC_DB') or source_company.get('phc_db') or '').strip()
+            employee_server = str(lines[0].get('PHC_SERVER') or source_company.get('phc_server') or '').strip()
+            if not _safe_int(lines[0].get('PENO')):
+                errors.append('Número PHC do colaborador em falta.')
+            elif not employee_db:
+                errors.append('Empresa do colaborador sem configuração PHC.')
+            else:
+                try:
+                    if employee_db.upper() == phc_db.upper():
+                        employee = _employee_taxpayer(cursor, _safe_int(lines[0].get('PENO')))
+                    else:
+                        with pyodbc.connect(_phc_conn_str(employee_db, employee_server), timeout=15) as source_conn:
+                            employee = _employee_taxpayer(source_conn.cursor(), _safe_int(lines[0].get('PENO')))
+                    _resolve_phc_supplier(cursor, employee['ncont'], employee['nome'])
+                except ValueError as exc:
+                    errors.append(str(exc))
+    except Exception as exc:
+        current_app.logger.exception('Erro no controlo integral de despesas no PHC.')
+        errors.append('Erro ao consultar o PHC durante o controlo integral.')
+    return errors
+
+
 def launch_expenses_to_phc(stamps: list[str], user) -> dict[str, Any]:
     ensure_colaborador_despesas_schema()
+    requested_stamps = sorted({str(stamp or '').strip() for stamp in stamps if str(stamp or '').strip()})
+    if not requested_stamps:
+        raise ValueError('Seleciona pelo menos uma despesa.')
+    batch_key = hashlib.sha256('|'.join(requested_stamps).encode('utf-8')).hexdigest()
+    previous = db.session.execute(text("""
+        SELECT TOP 1 * FROM dbo.COLAB_DESPESA_LANCAMENTO
+        WHERE LANCAMENTO_CHAVE=:batch_key
+    """), {'batch_key': batch_key}).mappings().first()
+    previous_state = str((previous or {}).get('ESTADO') or '').strip().upper()
+    if previous_state in {'PHC_CRIADO', 'LANCADO'}:
+        params = {f's{i}': stamp for i, stamp in enumerate(requested_stamps)}
+        in_sql = ', '.join(f':s{i}' for i in range(len(requested_stamps)))
+        params.update({
+            'bostamp': str(previous.get('PHC_BOSTAMP') or ''),
+            'obrano': int(previous.get('PHC_OBRANO') or 0),
+            'nmdos': str(previous.get('PHC_NMDOS') or PHC_NOTES_FRAIS_NMDOS),
+        })
+        db.session.execute(text(f"""
+            UPDATE dbo.COLAB_DESPESA_LINHA SET PHC_STATUS='LANCADO',
+                PHC_BOSTAMP=:bostamp, PHC_OBRANO=:obrano, PHC_NMDOS=:nmdos,
+                ARQUIVO_ESTADO='LANCADA', ARQUIVO_DATA=COALESCE(ARQUIVO_DATA,GETDATE()),
+                PHC_DTENVIO=COALESCE(PHC_DTENVIO,GETDATE())
+            WHERE DESPLINHASTAMP IN ({in_sql})
+              AND LTRIM(RTRIM(ISNULL(PHC_BOSTAMP,''))) IN ('', :bostamp)
+        """), params)
+        db.session.execute(text("""
+            UPDATE dbo.COLAB_DESPESA_LANCAMENTO SET ESTADO='LANCADO', DTALT=GETDATE()
+            WHERE LANCAMENTO_CHAVE=:batch_key
+        """), {'batch_key': batch_key})
+        db.session.commit()
+        return {
+            'ok': True, 'recovered': True,
+            'phc_db': str(previous.get('PHC_DB') or ''),
+            'bostamp': str(previous.get('PHC_BOSTAMP') or ''),
+            'obrano': int(previous.get('PHC_OBRANO') or 0),
+            'nmdos': str(previous.get('PHC_NMDOS') or PHC_NOTES_FRAIS_NMDOS),
+            'linhas': len(requested_stamps),
+        }
     lines = _load_processing_lines_for_launch(stamps)
     feids = {int(row.get('LINHA_FEID') or 0) for row in lines}
     logins = {str(row.get('LOGIN') or '').strip().lower() for row in lines}
@@ -2288,25 +2445,6 @@ def launch_expenses_to_phc(stamps: list[str], user) -> dict[str, Any]:
     if len(currencies) != 1:
         raise ValueError('Só podes lançar despesas da mesma moeda de cada vez.')
 
-    validation_errors: list[str] = []
-    for row in lines:
-        accounting = row.get('ACCOUNTING_LINES') or []
-        if not accounting:
-            validation_errors.append(f"{row.get('DATA_DESPESA') or 'Despesa'}: sem linha contabilística")
-            continue
-        for index, accounting_line in enumerate(accounting, start=1):
-            if not str(accounting_line.get('artigo_ref') or '').strip():
-                validation_errors.append(f"{row.get('DATA_DESPESA') or 'Despesa'}, linha {index}: artigo em falta")
-            if _safe_decimal(accounting_line.get('total_com_iva')) < 0:
-                validation_errors.append(f"{row.get('DATA_DESPESA') or 'Despesa'}, linha {index}: valor negativo não autorizado")
-            net = _safe_decimal(accounting_line.get('total_sem_iva'))
-            vat = _safe_decimal(accounting_line.get('valor_iva'))
-            gross = _safe_decimal(accounting_line.get('total_com_iva'))
-            if abs((net + vat) - gross) > Decimal('0.01'):
-                validation_errors.append(f"{row.get('DATA_DESPESA') or 'Despesa'}, linha {index}: Totais incoerentes.")
-    if validation_errors:
-        raise ValueError('Não foi possível lançar:\n' + '\n'.join(validation_errors))
-
     feid = next(iter(feids))
     peno = next(iter(penos))
     company = _expense_company_by_feid(feid)
@@ -2314,8 +2452,10 @@ def launch_expenses_to_phc(stamps: list[str], user) -> dict[str, Any]:
     phc_server = str(company.get('phc_server') or '').strip()
     if not phc_db:
         raise ValueError('A empresa selecionada não tem base de dados PHC configurada.')
+    validation_errors = _expense_launch_preflight(lines, company)
+    if validation_errors:
+        raise ValueError('Não foi possível validar:\n' + '\n'.join(validation_errors))
 
-    batch_key = hashlib.sha256('|'.join(sorted(str(row.get('DESPLINHASTAMP') or '') for row in lines)).encode('utf-8')).hexdigest()
     marker = f'EXP:{batch_key[:24]}'
     existing_launch = db.session.execute(text("""
         SELECT TOP 1 * FROM dbo.COLAB_DESPESA_LANCAMENTO WITH (UPDLOCK, HOLDLOCK)
@@ -2393,6 +2533,7 @@ def launch_expenses_to_phc(stamps: list[str], user) -> dict[str, Any]:
     with pyodbc.connect(_phc_conn_str(phc_db, phc_server), timeout=30) as conn:
         conn.autocommit = False
         cursor = conn.cursor()
+        pdf_info: dict[str, Any] = {}
         try:
             if employee_phc_db.upper() == phc_db.upper():
                 employee = _employee_taxpayer(cursor, peno)
@@ -2641,13 +2782,35 @@ def launch_expenses_to_phc(stamps: list[str], user) -> dict[str, Any]:
             pdf_info = _create_notes_frais_pdf(prepared_lines, supplier, obrano, dataobra, phc_db, total_net, total_vat, company_info, logo_path)
             anexosstamp = _insert_phc_anexo(cursor, bostamp, pdf_info, user_inis, now_sql, hour)
             conn.commit()
+            # Durable recovery point: PHC has committed, Portal stamps may still
+            # need reconciliation after a lost response or Portal DB failure.
+            db.session.execute(text("""
+                UPDATE dbo.COLAB_DESPESA_LANCAMENTO SET ESTADO='PHC_CRIADO',
+                    PHC_BOSTAMP=:bostamp, PHC_OBRANO=:obrano, PHC_NMDOS=:nmdos,
+                    DTALT=GETDATE() WHERE LANCAMENTO_CHAVE=:batch_key
+            """), {
+                'batch_key': batch_key, 'bostamp': bostamp, 'obrano': obrano,
+                'nmdos': PHC_NOTES_FRAIS_NMDOS,
+            })
+            db.session.commit()
         except Exception:
             conn.rollback()
-            db.session.execute(text("""
-                UPDATE dbo.COLAB_DESPESA_LANCAMENTO SET ESTADO='FALHOU', DTALT=GETDATE()
+            launch_state = str(db.session.execute(text("""
+                SELECT ESTADO FROM dbo.COLAB_DESPESA_LANCAMENTO
                 WHERE LANCAMENTO_CHAVE=:batch_key
-            """), {'batch_key': batch_key})
-            db.session.commit()
+            """), {'batch_key': batch_key}).scalar() or '').upper()
+            if launch_state != 'PHC_CRIADO':
+                generated_pdf = str(pdf_info.get('path') or '').strip()
+                if generated_pdf and os.path.isfile(generated_pdf):
+                    try:
+                        os.remove(generated_pdf)
+                    except OSError:
+                        current_app.logger.warning('Não foi possível limpar o PDF de um lançamento revertido.', exc_info=True)
+                db.session.execute(text("""
+                    UPDATE dbo.COLAB_DESPESA_LANCAMENTO SET ESTADO='FALHOU', DTALT=GETDATE()
+                    WHERE LANCAMENTO_CHAVE=:batch_key
+                """), {'batch_key': batch_key})
+                db.session.commit()
             raise
 
     line_params = {

@@ -6,15 +6,34 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 
 class DocumentAiOriginDetailsUiTests(unittest.TestCase):
-    def test_detail_table_has_dynamic_origin_headers(self):
+    def test_detail_table_has_fixed_principal_and_associated_origin_headers(self):
         template = (ROOT / 'templates' / 'document_ai_extract.html').read_text(encoding='utf-8')
         script = (ROOT / 'static' / 'js' / 'document_ai_extract.js').read_text(encoding='utf-8')
 
         self.assertIn('docAiExtractPrimaryOriginHead', template)
         self.assertIn('docAiExtractSecondaryOriginHead', template)
-        self.assertIn("'Contrato Sub.Emp.'", script)
-        self.assertIn("'SdTSub.Emp.'", script)
+        self.assertIn('>Princ.</th>', template)
+        self.assertIn('>Assoc.</th>', template)
+        self.assertIn("primaryHead.textContent = 'Princ.'", script)
+        self.assertIn("secondaryHead.textContent = 'Assoc.'", script)
         self.assertIn('colspan="2" scope="colgroup"', template)
+
+    def test_analysis_only_shows_open_origins_without_card_annotations(self):
+        service = (ROOT / 'services' / 'document_ai_service.py').read_text(encoding='utf-8')
+        script = (ROOT / 'static' / 'js' / 'document_ai_extract.js').read_text(encoding='utf-8')
+        self.assertIn("candidates = [item for item in candidates if not bool(item.get('closed'))]", service)
+        candidate_card = script.split('class="docai-extract-origin-candidate', 1)[1].split('</article>', 1)[0]
+        self.assertNotIn('<small', candidate_card)
+
+    def test_info_is_outside_origin_and_vehicle_has_no_artificial_width(self):
+        template = (ROOT / 'templates' / 'document_ai_extract.html').read_text(encoding='utf-8')
+        css = (ROOT / 'static' / 'css' / 'document_ai.css').read_text(encoding='utf-8')
+        header = template.split('class="docai-origin-subheads"', 1)[1].split('</tr>', 1)[0]
+        self.assertLess(header.index('Princ.'), header.index('Assoc.'))
+        self.assertLess(header.index('Assoc.'), header.index('Info'))
+        self.assertLess(header.index('Info'), header.index('Matrícula'))
+        self.assertIn('.docai-origin-subheads > th:nth-child(-n+2)', css)
+        self.assertIn('.docai-extract-vehicle-cell {\n  width: auto;', css)
 
     def test_detail_origin_cells_are_compact_controls_only(self):
         template = (ROOT / 'templates' / 'document_ai_extract.html').read_text(encoding='utf-8')

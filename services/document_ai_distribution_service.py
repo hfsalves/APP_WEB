@@ -337,6 +337,11 @@ def assert_document_distribution_available(document: Any, source: str, document_
         document_type if document_type is not None else getattr(document, 'doc_type_detected', '')
     )
     supplier = _document_supplier_identity(document)
+    if source == 'home' and doc_class == 'bank_statement':
+        return [{
+            'id': 'bank-statement-terminal', 'doc_class': doc_class, 'source': source,
+            'destination': '', 'state': 'none', 'terminal': True,
+        }]
     if source == 'home' and doc_class in {'invoice', 'credit_note'} and supplier['is_bank']:
         return [{
             'id': 'bank-direct', 'doc_class': doc_class, 'source': source,

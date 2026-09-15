@@ -24,8 +24,8 @@ class DocumentAiBusinessLabelsTests(unittest.TestCase):
     def test_compact_table_headers_use_defined_abbreviations(self):
         template = (ROOT / 'templates/document_ai_extract.html').read_text(encoding='utf-8')
         script = (ROOT / 'static/js/document_ai_extract.js').read_text(encoding='utf-8')
-        self.assertIn('>NdE</th>', template)
-        self.assertIn('>GdR</th>', template)
+        self.assertIn('>Princ.</th>', template)
+        self.assertIn('>Assoc.</th>', template)
         self.assertIn("'Contrato Sub.Emp.'", script)
         self.assertIn("'SdTSub.Emp.'", script)
 

@@ -3,7 +3,10 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from services.document_ai_phc_operation_service import run_document_phc_operation
+from services.document_ai_phc_operation_service import (
+    DocumentPhcOperationInProgressError,
+    run_document_phc_operation,
+)
 
 
 class DocumentAiPhcOperationServiceTests(unittest.TestCase):
@@ -60,6 +63,52 @@ class DocumentAiPhcOperationServiceTests(unittest.TestCase):
         self.assertEqual(result['fostamp'], 'FO-1')
         execute.assert_not_called()
         commit.assert_not_called()
+
+    @patch('services.document_ai_phc_operation_service.db.session.commit')
+    def test_recent_pending_operation_rejects_a_concurrent_execution(self, commit):
+        from datetime import datetime, timezone
+
+        existing = {
+            'status': 'pending', 'operation_id': 'OTHER',
+            'attempted_at_utc': datetime.now(timezone.utc).isoformat(),
+        }
+        document = self.document({'phc_operations': {'provisional_invoice': existing}})
+        execute = Mock()
+
+        with self.assertRaises(DocumentPhcOperationInProgressError):
+            self.run_operation(document, execute)
+
+        execute.assert_not_called()
+        commit.assert_not_called()
+
+    @patch('services.document_ai_phc_operation_service.db.session.commit')
+    def test_stale_pending_operation_is_recovered(self, _commit):
+        from datetime import datetime, timedelta, timezone
+
+        existing = {
+            'status': 'pending', 'operation_id': 'ABANDONED',
+            'attempted_at_utc': (datetime.now(timezone.utc) - timedelta(minutes=3)).isoformat(),
+        }
+        document = self.document({'phc_operations': {'provisional_invoice': existing}})
+        execute = Mock(return_value={'fostamp': 'FO-RECOVERED'})
+
+        result = self.run_operation(document, execute)
+
+        self.assertEqual(result['fostamp'], 'FO-RECOVERED')
+        execute.assert_called_once()
+
+    @patch('services.document_ai_phc_operation_service.db.session.commit')
+    def test_recovery_preserves_identifiers_not_returned_again(self, _commit):
+        existing = {
+            'status': 'failed_recoverable', 'fostamp': 'FO-1',
+            'phc_database': 'HSOLS_FR', 'ged_confirmed': True,
+        }
+        document = self.document({'phc_operations': {'provisional_invoice': existing}})
+
+        result = self.run_operation(document, lambda: {'ged_confirmed': True})
+
+        self.assertEqual(result['fostamp'], 'FO-1')
+        self.assertEqual(result['phc_database'], 'HSOLS_FR')
 
     @patch('services.document_ai_phc_operation_service.db.session.commit')
     def test_failure_is_recoverable_and_does_not_hide_original_error(self, commit):

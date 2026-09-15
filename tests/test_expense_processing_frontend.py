@@ -14,13 +14,15 @@ class ExpenseProcessingFrontendTests(unittest.TestCase):
 
     def test_document_is_left_and_processing_is_right(self):
         self.assertLess(self.template.index('expense-document-panel'), self.template.index('expense-processing-panel'))
-        self.assertIn('grid-template-columns:minmax(24rem,42%) minmax(38rem,58%)', self.styles)
+        self.assertIn('grid-template-columns:minmax(18rem,25%) minmax(0,75%)', self.styles)
+        self.assertNotIn('42%) minmax(38rem,58%)', self.styles)
+        self.assertNotIn('36%) minmax(0,64%)', self.styles)
 
     def test_header_and_document_actions_match_tp038(self):
         self.assertNotIn('sz_page_subtitle', self.template)
         self.assertIn("'Processamento' if archive_mode else 'Arquivo'", self.template)
         self.assertIn('title="Abrir PDF"', self.template)
-        self.assertIn('title="Eliminar apenas o PDF"', self.template)
+        self.assertIn('title="Eliminar PDF"', self.template)
         self.assertIn('title="Analisar novamente com IA"', self.template)
 
     def test_multiple_accounting_lines_and_totals_are_present(self):
@@ -38,7 +40,9 @@ class ExpenseProcessingFrontendTests(unittest.TestCase):
 
     def test_optimistic_concurrency_and_exact_conflict_message(self):
         self.assertIn('VERSION = VERSION + 1', self.service)
-        self.assertIn('Esta despesa foi alterada por outro utilizador. Atualiza antes de continuar.', self.service)
+        self.assertIn('Despesa alterada por outro utilizador.', self.service)
+        self.assertIn('data-reload-expenses', self.script)
+        self.assertIn('>Atualizar</button>', self.script)
         self.assertIn("status = 409", self.app)
 
     def test_archive_and_three_deletion_paths_exist(self):
@@ -53,8 +57,8 @@ class ExpenseProcessingFrontendTests(unittest.TestCase):
 
     def test_phc_endpoint_and_success_identifiers_are_preserved(self):
         self.assertIn("fetch('/api/colaborador/despesas/processamento/lancar-phc'", self.script)
-        self.assertIn('result.nmdos', self.script)
         self.assertIn('result.obrano', self.script)
+        self.assertIn('Documento criado no PHC: Despesa N.º', self.script)
 
     def test_processing_permissions_are_separate(self):
         self.assertIn("tabela='PROC_DESP'", self.app)
@@ -88,23 +92,43 @@ class ExpenseProcessingFrontendTests(unittest.TestCase):
         self.assertNotIn('datalist', self.script)
         for message in ('Artigo não encontrado.', 'Centro de Custo não encontrado.', 'Matrícula não encontrada.'):
             self.assertIn(message, self.service)
-        self.assertIn("'ccusto': str(row.get('CCUSTO')", self.service)
-        self.assertIn("'design': str(row.get('DESCRICAO')", self.service)
-        self.assertIn("('INATIVO' if _column_exists('ST', 'INATIVO')", self.service)
+        self.assertIn("FROM dbo.ST S", self.service)
+        self.assertIn("FROM dbo.CCT", self.service)
+        self.assertIn("FROM dbo.VA", self.service)
+        self.assertIn('_expense_phc_target(feid)', self.service)
+        self.assertIn('Empresa sem configuração PHC.', self.service)
+        self.assertIn('Erro ao consultar o PHC.', self.service)
 
     def test_save_state_buttons_and_totals_match_tp072(self):
         for text in ('A guardar...', 'Guardado', 'Erro ao guardar'):
             self.assertIn(text, self.script)
         self.assertIn('title="Devolver" aria-label="Devolver"', self.script)
-        self.assertIn('title="Eliminar" aria-label="Eliminar"', self.script)
+        self.assertIn('title="Eliminar Documento Inbox" aria-label="Eliminar Documento Inbox"', self.script)
+        self.assertIn('title="Eliminar Documento Arquivo" aria-label="Eliminar Documento Arquivo"', self.script)
         self.assertIn('.expense-return:hover:not(:disabled)', self.styles)
         self.assertIn('.expense-delete:hover:not(:disabled)', self.styles)
         self.assertIn('.expense-difference.is-zero', self.styles)
         self.assertIn("raise ValueError('Totais incoerentes.')", self.service)
 
     def test_company_change_preserves_and_flags_manual_values(self):
-        self.assertIn("button.classList.add('is-unverified')", self.script)
-        self.assertNotIn("querySelectorAll('[data-field=\"ccusto\"],[data-field=\"matricula\"]')", self.script)
+        self.assertIn('function clearCompanyValues', self.script)
+        for field in ('artigo_ref', 'design', 'ccusto', 'matricula', 'tabiva'):
+            self.assertIn(f"['{field}'", self.script)
+        self.assertIn('Valores da Empresa anterior removidos:', self.script)
+
+    def test_tp073_labels_validation_states_and_designation(self):
+        self.assertIn('>Validar Despesas</span>', self.template)
+        for text in ('Validar Despesa', 'Validar Despesas', 'A validar Despesa...', 'A validar Despesas...'):
+            self.assertIn(text, self.script)
+        self.assertIn('<span class="sz_label">Designação', self.script)
+        self.assertNotIn('<span class="sz_label">Referência', self.script)
+        self.assertIn('Nenhum resultado válido.', self.script)
+
+    def test_tp073_preflight_is_aggregated_and_idempotent(self):
+        self.assertIn('def _expense_launch_preflight', self.service)
+        self.assertIn("errors.append(f'{prefix}: Totais incoerentes.')", self.service)
+        self.assertIn("ESTADO='PHC_CRIADO'", self.service)
+        self.assertIn("previous_state in {'PHC_CRIADO', 'LANCADO'}", self.service)
 
     def test_document_identity_includes_required_expense_fields(self):
         self.assertIn("item.tipo||''", self.script)

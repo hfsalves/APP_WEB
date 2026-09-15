@@ -14,6 +14,7 @@ from services.document_ai_service import (
     delete_document_source,
     document_ai_lookups,
     get_document_detail,
+    get_document_archive_detail,
     get_document_group,
     get_document_phc_origins,
     get_phc_document_origin_detail,
@@ -1218,7 +1219,10 @@ def api_document_ai_document_detail(docinstamp: str):
     if not _current_document_access(docinstamp, requested_view, permission):
         return jsonify({'error': 'Sem acesso a este documento.'}), 403
     try:
-        return jsonify(get_document_detail(docinstamp))
+        return jsonify(
+            get_document_archive_detail(docinstamp, requested_view)
+            if archived else get_document_detail(docinstamp)
+        )
     except Exception as exc:
         current_app.logger.exception('Erro ao carregar detalhe documental')
         return jsonify({'error': str(exc)}), 500

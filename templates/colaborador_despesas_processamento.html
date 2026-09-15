@@ -19,14 +19,14 @@
           <div><strong>Documento</strong><small id="expDocumentMeta">Seleciona uma despesa.</small></div>
           <div class="expense-document-actions">
             <a id="expOpenPdf" class="sz_icon_button" href="#" target="_blank" rel="noopener" title="Abrir PDF" aria-label="Abrir PDF" aria-disabled="true"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>
-            <button id="expDeletePdf" class="sz_icon_button danger" type="button" title="Eliminar apenas o PDF" aria-label="Eliminar apenas o PDF" disabled><i class="fa-solid fa-file-circle-xmark"></i></button>
+            <button id="expDeletePdf" class="sz_icon_button expense-delete" type="button" title="Eliminar PDF" aria-label="Eliminar PDF" disabled><i class="fa-solid fa-file-circle-xmark"></i></button>
             <button id="expRunAi" class="sz_icon_button" type="button" title="Analisar novamente com IA" aria-label="Analisar novamente com IA" disabled><i class="fa-solid fa-wand-magic-sparkles"></i></button>
           </div>
         </header>
         <div id="expDropZone" class="expense-drop-zone" tabindex="0"><input id="expPdfInput" type="file" accept="application/pdf,.pdf" hidden><div id="expPreview" class="expense-preview-empty"><i class="fa-solid fa-file-arrow-up"></i><span>Seleciona uma despesa ou larga aqui um PDF</span><small>PDF até 50 MB</small></div></div>
       </section>
       <section class="sz_panel expense-processing-panel">
-        <header class="expense-panel-header expense-list-header"><strong id="expSummary">Despesas a analisar · 0</strong>{% if not archive_mode and expense_permissions.inserir %}<button id="expLaunch" class="sz_button sz_button_primary" type="button" disabled><i class="fa-solid fa-paper-plane"></i><span>Lançar no PHC</span></button>{% endif %}</header>
+        <header class="expense-panel-header expense-list-header"><strong id="expSummary">Despesas a analisar · 0</strong>{% if not archive_mode and expense_permissions.inserir %}<button id="expLaunch" class="sz_button sz_button_primary" type="button" disabled><i class="fa-solid fa-check"></i><span>Validar Despesas</span></button>{% endif %}</header>
         <div id="expRows" class="expense-rows"><div class="expense-state"><i class="fa-solid fa-circle-notch fa-spin"></i><span>A carregar despesas...</span></div></div>
       </section>
     </main>

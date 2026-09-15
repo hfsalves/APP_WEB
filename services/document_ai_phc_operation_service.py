@@ -1,11 +1,18 @@
 import json
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import uuid4
 
 from models import db
 from services.gr360_audit_service import redact_data
+
+
+class DocumentPhcOperationInProgressError(RuntimeError):
+    """Raised when another request still owns a recent PHC/GED attempt."""
+
+
+_PENDING_OPERATION_LEASE = timedelta(minutes=2)
 
 
 def _utc_now() -> datetime:
@@ -32,6 +39,21 @@ def _public_result(result: dict[str, Any], allowed_fields: tuple[str, ...]) -> d
         for key in allowed_fields
         if result.get(key) not in (None, '')
     }
+
+
+def _pending_attempt_is_live(operation: dict[str, Any], now: datetime) -> bool:
+    if str(operation.get('status') or '').strip().lower() != 'pending':
+        return False
+    raw_attempted_at = str(operation.get('attempted_at_utc') or '').strip()
+    if not raw_attempted_at:
+        return False
+    try:
+        attempted_at = datetime.fromisoformat(raw_attempted_at.replace('Z', '+00:00'))
+    except ValueError:
+        return False
+    if attempted_at.tzinfo is None:
+        attempted_at = attempted_at.replace(tzinfo=timezone.utc)
+    return now - attempted_at.astimezone(timezone.utc) < _PENDING_OPERATION_LEASE
 
 
 def run_document_phc_operation(
@@ -63,6 +85,10 @@ def run_document_phc_operation(
         return existing
 
     now = _utc_now()
+    if _pending_attempt_is_live(existing, now):
+        raise DocumentPhcOperationInProgressError(
+            'A integração PHC/GED deste documento já está em curso. Tenta novamente dentro de instantes.'
+        )
     operation_id = uuid4().hex
     safe_context = redact_data(dict(operation_context or {}))
     pending = {
@@ -106,6 +132,11 @@ def run_document_phc_operation(
         raise
 
     confirmed_at = _utc_now()
+    # A recovery callback may only be able to rediscover part of an identity.
+    # Keep every previously persisted public identifier and overlay the newly
+    # confirmed values, so retry/reconciliation never erases useful lineage.
+    recovered_identity = _public_result(existing, result_fields)
+    recovered_identity.update(_public_result(raw_result, result_fields))
     confirmed = {
         'operation_id': operation_id,
         'type': clean_type,
@@ -113,7 +144,7 @@ def run_document_phc_operation(
         'integrated_at_utc': confirmed_at.isoformat(),
         'integrated_by': str(requested_by or ''),
         'context': safe_context,
-        **_public_result(raw_result, result_fields),
+        **recovered_identity,
     }
     if not is_complete(confirmed):
         message = 'A integração PHC/GED não devolveu todos os identificadores obrigatórios.'

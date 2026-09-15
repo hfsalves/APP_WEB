@@ -264,7 +264,13 @@ def evaluate_required_info(
 
     checks = {
         'entity': _positive_int(customer.get('feid') or stored_feid),
-        'supplier': _positive_int(supplier.get('supplier_no') or supplier.get('no') or stored_supplier_no),
+        'supplier': bool(
+            _positive_int(supplier.get('supplier_no') or supplier.get('no') or stored_supplier_no)
+            or (
+                doc_type in {'mail', 'bank_statement'}
+                and str(supplier.get('name') or supplier.get('llm_name') or '').strip()
+            )
+        ),
         'supplier_resolved': bool(
             _positive_int(supplier.get('supplier_no') or supplier.get('no') or stored_supplier_no)
             or data.get('supplier_explicitly_absent')

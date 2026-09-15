@@ -4665,6 +4665,9 @@ def search_phc_document_origins(document_data: dict[str, Any] | None, limit_per_
         candidate['eligibility_reason'] = eligibility_reason
         candidate['date'] = candidate['date'].date().isoformat() if isinstance(candidate['date'], datetime) else str(candidate['date'] or '')[:10]
         candidates.append(candidate)
+    # TP076: the Analysis origin lane only exposes open PHC documents. Closed
+    # dossiers remain in PHC and are never reconstructed or annotated here.
+    candidates = [item for item in candidates if not bool(item.get('closed'))]
     candidates.sort(key=lambda item: (
         bool(item.get('available_balance')),
         float(item.get('score') or 0),
@@ -5925,10 +5928,20 @@ def preflight_document_inbox_stage(
             raise ValueError('O PDF contém vários documentos.')
         if str(document.processing_status or '').strip().lower() == 'parse_error':
             raise ValueError('Erro de leitura.')
+        from services.document_ai_required_info_service import required_fields_for
+
+        # Configuration may ask later departments for totals, articles, cost
+        # centres, vehicles or origins. Those controls are deliberately outside
+        # the historical Reception gate and cannot prevent intake/PHC/GED.
+        reception_fields = {'entity', 'supplier', 'supplier_resolved', 'classification'}
         required_info = evaluate_required_info(
             result, stage, stored_feid=document.feid,
             stored_supplier_no=document.fornecedor_no,
             processing_meta=_json_loads(document.processing_meta_json, {}),
+            required_fields=[
+                code for code in required_fields_for(document_type, stage)
+                if code in reception_fields
+            ],
         )
         if _missing_intersol_agency(result.get('customer')):
             required_info = dict(required_info)
@@ -5946,13 +5959,11 @@ def preflight_document_inbox_stage(
             'entity': 'Falta a entidade.',
             'supplier': 'Falta o fornecedor.',
             'classification': 'Falta a classificação.',
-            'invoice_type': 'Falta o tipo de fatura.',
         }
         reception_targets = {
             'entity': 'docAiExtractCustomerCard',
             'supplier': 'docAiExtractSupplierCard',
             'classification': 'docAiExtractModeCard',
-            'invoice_type': 'docAiExtractModeCard',
         }
         canonical_missing = [
             code for code in assessment['missing']
@@ -6038,7 +6049,11 @@ def _has_complete_reception_integration(
     payload = dict(integration or {})
     if str(payload.get('status') or '').strip().lower() != 'confirmed':
         return False
-    if not all(payload.get(key) not in (None, '') for key in ('reference', 'year', 'phc_database')):
+    if (
+        _safe_int(payload.get('reference'), 0) <= 0
+        or _safe_int(payload.get('year'), 0) <= 0
+        or not str(payload.get('phc_database') or '').strip()
+    ):
         return False
 
     clean_type = str(document_type or '').strip().lower()
@@ -6414,12 +6429,20 @@ def validate_document_inbox_stage(
         }[stage]
         if not completed:
             return None
-        existing_integration = dict(
-            _json_loads(getattr(document, 'processing_meta_json', ''), {}).get('phc_integration') or {}
-        )
+        completed_meta = _json_loads(getattr(document, 'processing_meta_json', ''), {})
         existing_result = _json_loads(getattr(document, 'json_resultado', ''), {})
         existing_type = normalize_document_type(
             existing_result.get('document_type') or getattr(document, 'doc_type_detected', '') or ''
+        )
+        operation_key = (
+            'correspondence'
+            if existing_type in {'mail', 'bank_statement'}
+            else 'provisional_invoice'
+        )
+        existing_integration = dict(
+            dict(completed_meta.get('phc_operations') or {}).get(operation_key)
+            or completed_meta.get('phc_integration')
+            or {}
         )
         if stage == 'management' and existing_type in {'invoice', 'provisional_invoice'}:
             meta = _json_loads(getattr(document, 'processing_meta_json', ''), {})
@@ -6462,6 +6485,7 @@ def validate_document_inbox_stage(
     now = _now()
     already_completed = completed_payload()
     if already_completed:
+        db.session.rollback()
         return already_completed
     persisted_source = _json_loads(document.json_resultado, {})
     if stage == 'accounting':
@@ -6498,6 +6522,8 @@ def validate_document_inbox_stage(
         raise ValueError(str(preflight.get('message') or 'Não foi possível validar a etapa documental.'))
     document.json_resultado = _json_dumps(result)
 
+    integration: dict[str, Any] = {}
+    accounting_integration: dict[str, Any] = {}
     if stage == 'home':
         integration = _integrate_reception_document(
             document,
@@ -6505,14 +6531,8 @@ def validate_document_inbox_stage(
             requested_by,
             integration_permissions=integration_permissions,
         )
-        document.reception_validated = True
-        document.reception_validated_at = now
-        document.reception_validated_by = requested_by or ''
     elif stage == 'management':
         _integrate_management_preinvoice(document, result, requested_by, integration_permissions)
-        document.management_validated = True
-        document.management_validated_at = now
-        document.management_validated_by = requested_by or ''
     else:
         if document_type == 'credit_note':
             accounting_integration = _integrate_accounting_credit_note(
@@ -6522,6 +6542,52 @@ def validate_document_inbox_stage(
             accounting_integration = _integrate_accounting_purchase(
                 document, result, requested_by, integration_permissions=integration_permissions,
             )
+
+    # PHC/GED operations commit their durable identity independently. Re-lock
+    # the Portal row afterwards: a concurrent validation can reuse that
+    # identity, then observe this request's final transition instead of routing
+    # the same stage twice.
+    db.session.execute(text("""
+        SELECT DOCINSTAMP
+        FROM dbo.DOC_INBOX WITH (UPDLOCK, HOLDLOCK)
+        WHERE DOCINSTAMP=:document_id
+    """), {'document_id': document.docinstamp}).scalar_one()
+    db.session.refresh(document)
+    already_completed = completed_payload()
+    if already_completed:
+        db.session.rollback()
+        return already_completed
+
+    # refresh() is essential for the concurrent completion check, but a stage
+    # without a PHC operation may not have flushed its reviewed draft yet.
+    # Reapply that controlled snapshot after the lock so the next view receives
+    # exactly what Reception validated.
+    document.json_resultado = _json_dumps(result)
+    if reviewed_document:
+        customer = dict(result.get('customer') or {})
+        supplier = dict(result.get('supplier') or {})
+        document.feid = _safe_int(customer.get('feid'), 0) or document.feid
+        document.fornecedor_no = (
+            _safe_int(supplier.get('supplier_no') or supplier.get('no'), 0)
+            or document.fornecedor_no
+        )
+        document.fornecedor_nome_detetado = str(
+            supplier.get('name') or supplier.get('llm_name') or ''
+        )[:120]
+        document.fornecedor_nif_detetado = str(supplier.get('tax_id') or '')[:40]
+        document.doc_type_detected = str(
+            result.get('document_type') or document.doc_type_detected or 'unknown'
+        )[:30]
+
+    if stage == 'home':
+        document.reception_validated = True
+        document.reception_validated_at = now
+        document.reception_validated_by = requested_by or ''
+    elif stage == 'management':
+        document.management_validated = True
+        document.management_validated_at = now
+        document.management_validated_by = requested_by or ''
+    else:
         document.accounting_validated = True
         document.accounting_validated_at = now
         document.accounting_validated_by = requested_by or ''
@@ -8267,6 +8333,10 @@ def assess_document_reception(
     }.get(raw_type, raw_type or 'unknown')
     feid = _safe_int(customer.get('feid') or stored_feid, 0)
     supplier_no = _safe_int(supplier.get('supplier_no') or supplier.get('no') or stored_supplier_no, 0)
+    correspondence_party = bool(
+        document_type in {'mail', 'bank_statement'}
+        and str(supplier.get('name') or supplier.get('llm_name') or '').strip()
+    )
     supplier_absent = bool(
         result.get('supplier_explicitly_absent')
         or supplier.get('explicitly_absent')
@@ -8279,12 +8349,13 @@ def assess_document_reception(
     missing = []
     if not feid:
         missing.append('entity')
-    if not supplier_no and not (document_type == 'advertising' and supplier_absent):
+    if not supplier_no and not correspondence_party and not (document_type == 'advertising' and supplier_absent):
         missing.append('supplier')
     if document_type == 'unknown':
         missing.append('classification')
-    if document_type in {'invoice', 'provisional_invoice'} and invoice_type == 'unknown':
-        missing.append('invoice_type')
+    # The invoice family is a Controlo de Gestão classification. Receção must
+    # preserve it when supplied, but cannot block the historical intake action
+    # when it is still unknown.
 
     reasons = []
     if multiple_documents:
@@ -9472,6 +9543,114 @@ def get_document_detail(document_stamp: str) -> dict[str, Any]:
         **_document_workflow_payload(document),
     }
     return payload
+
+
+def get_document_archive_detail(document_stamp: str, view: str) -> dict[str, Any]:
+    """Return only the document state already persisted at archive time.
+
+    Archive consultation deliberately avoids schema preparation, template matching,
+    entity rematching and preview generation.  Those operations either write to the
+    database or derive fresh defaults, neither of which belongs in an audit view.
+    """
+    stamp = str(document_stamp or '').strip()
+    normalized_view = _normalize_document_inbox_view(view)
+    document = db.session.get(DocInbox, stamp)
+    if not document:
+        raise ValueError('Documento não encontrado.')
+
+    result = _json_loads(document.json_resultado, {})
+    if not isinstance(result, dict):
+        result = {}
+    processing_meta = _json_loads(document.processing_meta_json, {})
+    if not isinstance(processing_meta, dict):
+        processing_meta = {}
+
+    event_rows = db.session.execute(text("""
+        SELECT EVENT_CODE, PREVIOUS_STATE, USUARIO, DTCRI
+        FROM dbo.DOC_AI_VIEW_EVENT
+        WHERE DOCINSTAMP=:document_id AND VIEW_CODE=:view_code
+        ORDER BY DTCRI DESC, DOCVIEWEVENTSTAMP DESC
+    """), {'document_id': stamp, 'view_code': normalized_view}).mappings().all()
+    assignment_rows = db.session.execute(text("""
+        SELECT VIEW_CODE, STATE_CODE, ATIVO, VALIDADO, SOURCE_VIEW, DTCRI, DTALT
+        FROM dbo.DOC_AI_WORKFLOW_ASSIGNMENT
+        WHERE DOCINSTAMP=:document_id
+        ORDER BY DTALT DESC, DTCRI DESC
+    """), {'document_id': stamp}).mappings().all()
+    log_rows = db.session.execute(text("""
+        SELECT FASE, STATUS, MENSAGEM, DETALHE_JSON, DTCRI
+        FROM dbo.DOC_PROCESS_LOG
+        WHERE DOCINSTAMP=:document_id
+        ORDER BY DTCRI DESC, DOCPROCESSLOGSTAMP DESC
+    """), {'document_id': stamp}).mappings().all()
+
+    validation_fields = {
+        'home': ('reception_validated', 'reception_validated_at', 'reception_validated_by'),
+        'management': ('management_validated', 'management_validated_at', 'management_validated_by'),
+        'accounting': ('accounting_validated', 'accounting_validated_at', 'accounting_validated_by'),
+    }
+    flag_name, at_name, by_name = validation_fields[normalized_view]
+    validated_at = getattr(document, at_name, None)
+    events = [{
+        'event': str(row.get('EVENT_CODE') or '').strip().lower(),
+        'previous_state': str(row.get('PREVIOUS_STATE') or '').strip(),
+        'actor': str(row.get('USUARIO') or '').strip(),
+        'at': row.get('DTCRI').isoformat() if row.get('DTCRI') else None,
+    } for row in event_rows]
+    assignments = [{
+        'view': str(row.get('VIEW_CODE') or '').strip().lower(),
+        'state': str(row.get('STATE_CODE') or '').strip().lower(),
+        'active': bool(row.get('ATIVO')),
+        'validated': bool(row.get('VALIDADO')),
+        'source': str(row.get('SOURCE_VIEW') or '').strip().lower(),
+        'created_at': row.get('DTCRI').isoformat() if row.get('DTCRI') else None,
+        'updated_at': row.get('DTALT').isoformat() if row.get('DTALT') else None,
+    } for row in assignment_rows]
+    workflow = {
+        **dict(processing_meta.get('workflow') or {}),
+        'reception_validated': bool(document.reception_validated),
+        'management_validated': bool(document.management_validated),
+        'accounting_validated': bool(document.accounting_validated),
+        'assignments': assignments,
+    }
+    phc_integration = dict(processing_meta.get('phc_integration') or {})
+    return {
+        'id': stamp,
+        'file_name': document.file_name or '',
+        'file_ext': document.file_ext or '',
+        'mime_type': document.mime_type or '',
+        'file_size': int(document.file_size or 0),
+        'result': result,
+        'processing_meta': processing_meta,
+        'status': document.processing_status or '',
+        'version': _document_draft_version(document),
+        'workflow': workflow,
+        'phc_integration': phc_integration,
+        'archive_snapshot': {
+            'view': normalized_view,
+            'validated': bool(getattr(document, flag_name, False)),
+            'validated_at': validated_at.isoformat() if validated_at else None,
+            'validated_by': str(getattr(document, by_name, '') or '').strip(),
+            'latest_event': events[0] if events else None,
+            'events': events,
+            'origins': get_phc_origins_from_meta(processing_meta),
+            'phc_integration': phc_integration,
+            'phc_operations': dict(processing_meta.get('phc_operations') or {}),
+            'credit_note_mapping': dict(processing_meta.get('credit_note_mapping') or {}),
+            'assignments': assignments,
+        },
+        'logs': [{
+            'phase': str(row.get('FASE') or '').strip(),
+            'status': str(row.get('STATUS') or '').strip(),
+            'message': str(row.get('MENSAGEM') or '').strip(),
+            'detail': _json_loads(row.get('DETALHE_JSON'), {}),
+            'created_at': row.get('DTCRI').isoformat() if row.get('DTCRI') else None,
+        } for row in log_rows],
+        'created_at': document.dtcri.isoformat() if document.dtcri else None,
+        'updated_at': document.dtalt.isoformat() if document.dtalt else None,
+        'created_by': document.usercriacao or '',
+        'updated_by': document.useralteracao or '',
+    }
 
 
 class DocumentDraftConflictError(RuntimeError):
