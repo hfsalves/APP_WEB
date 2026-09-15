@@ -9,6 +9,7 @@
         <label class="expense-filter"><span>Desde</span><input id="expDateFrom" class="sz_input" type="date" value="{{ default_date_from }}"></label>
         <label class="expense-filter"><span>Até</span><input id="expDateTo" class="sz_input" type="date" value="{{ default_date_to }}"></label>
         <label class="expense-filter expense-filter-user"><span>Utilizador</span><select id="expUser" class="sz_select"><option value="">Todos</option></select></label>
+        <button id="expClearFilters" class="sz_button sz_button_secondary" type="button"><i class="fa-solid fa-filter-circle-xmark"></i><span>Limpar filtros</span></button>
         <a class="sz_button sz_button_secondary" href="{{ url_for('colaborador_despesas_processamento_page', arquivo=0 if archive_mode else 1) }}"><i class="fa-solid {{ 'fa-list-check' if archive_mode else 'fa-box-archive' }}"></i><span>{{ 'Processamento' if archive_mode else 'Arquivo' }}</span></a>
         <button id="expRefresh" class="sz_button sz_button_secondary" type="button"><i class="fa-solid fa-rotate"></i><span>Atualizar</span></button>
       </div>

@@ -94,7 +94,7 @@ class DocumentAiInboxFrontendTests(unittest.TestCase):
         outer = css.split('.docai-inbox-table-panel .docai-table-wrap {', 1)[1].split('}', 1)[0]
         inner = css.split('.docai-inbox-table-panel .sz_table_wrap {', 1)[1].split('}', 1)[0]
         self.assertIn('margin-right: calc(-1 * var(--sz-space-5));', outer)
-        self.assertIn('margin-bottom: calc(-1 * var(--sz-space-5));', outer)
+        self.assertNotIn('margin-bottom:', outer)
         self.assertIn('scrollbar-gutter: auto;', outer)
         self.assertIn('scrollbar-gutter: auto;', inner)
 

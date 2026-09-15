@@ -456,7 +456,6 @@
   overflow: hidden;
   width: calc(100% + var(--sz-space-5));
   margin-right: calc(-1 * var(--sz-space-5));
-  margin-bottom: calc(-1 * var(--sz-space-5));
   scrollbar-gutter: auto;
 }
 

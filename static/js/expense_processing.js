@@ -7,7 +7,7 @@
   const state = { rows: [], active: '', selected: new Set(), timers: new Map(), saves: new Map(), saveErrors: new Set(), rates: new Map(), resources: new Map(), returning: '', lookup: null, validating: false };
   const el = {
     from: document.getElementById('expDateFrom'), to: document.getElementById('expDateTo'),
-    user: document.getElementById('expUser'), refresh: document.getElementById('expRefresh'),
+    user: document.getElementById('expUser'), clearFilters: document.getElementById('expClearFilters'), refresh: document.getElementById('expRefresh'),
     rows: document.getElementById('expRows'), summary: document.getElementById('expSummary'),
     launch: document.getElementById('expLaunch'), preview: document.getElementById('expPreview'),
     meta: document.getElementById('expDocumentMeta'), open: document.getElementById('expOpenPdf'),
@@ -259,6 +259,13 @@
   }
   function saveFilters(){localStorage.setItem(`expense-processing-filters-${archive}`,JSON.stringify({from:el.from.value,to:el.to.value,user:el.user.value}));}
   function restoreFilters(){try{const saved=JSON.parse(localStorage.getItem(`expense-processing-filters-${archive}`)||'{}');if(saved.from!==undefined)el.from.value=saved.from;if(saved.to!==undefined)el.to.value=saved.to;if(saved.user!==undefined)el.user.value=saved.user;}catch(_error){}}
+  function clearFilters(){
+    localStorage.removeItem(`expense-processing-filters-${archive}`);
+    el.from.value=el.from.defaultValue;
+    el.to.value=el.to.defaultValue;
+    el.user.value='';
+    load();
+  }
   async function load() {
     const params=new URLSearchParams({date_from:el.from.value,date_to:el.to.value,user:el.user.value,arquivo:archive?'1':'0'});
     el.rows.innerHTML='<div class="expense-state"><i class="fa-solid fa-circle-notch fa-spin"></i><span>A carregar despesas...</span></div>';
@@ -390,5 +397,6 @@
   el.lookupSearch?.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();searchLookupOptions();}if(event.key==='Escape')closeLookup();});
   el.lookupResults?.addEventListener('click',event=>{const option=event.target.closest('[data-lookup-index]');if(option)selectLookup(option.dataset.lookupIndex);});
   [el.from,el.to,el.user].forEach(input=>input.addEventListener('change',()=>{saveFilters();load();}));
+  el.clearFilters?.addEventListener('click',clearFilters);
   el.refresh.addEventListener('click',load);updateUsers(fallbackUsers);restoreFilters();load();
 })();
