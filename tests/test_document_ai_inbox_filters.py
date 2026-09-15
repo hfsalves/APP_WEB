@@ -111,7 +111,8 @@ class DocumentAiInboxFiltersTests(unittest.TestCase):
     def test_total_card_width_and_result_line_are_fixed_at_all_resolutions(self):
         css = (ROOT / 'static/css/document_ai.css').read_text(encoding='utf-8')
         self.assertIn('.docai-filtered-total .count {\n  white-space: nowrap;', css)
-        self.assertGreaterEqual(css.count('min-width: 7.5rem;'), 2)
+        self.assertIn('min-width: 10rem;', css)
+        self.assertIn('min-width: 9rem;', css)
         self.assertNotIn('.docai-filtered-total {\n    width: 100%;', css)
         self.assertNotIn('minmax(10.75rem, 1fr) 5.125rem', css)
 

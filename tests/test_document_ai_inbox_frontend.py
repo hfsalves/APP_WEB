@@ -79,8 +79,24 @@ class DocumentAiInboxFrontendTests(unittest.TestCase):
 
     def test_row_highlight_includes_the_sticky_action_cell(self):
         css = (Path(__file__).resolve().parents[1] / 'static/css/document_ai.css').read_text(encoding='utf-8')
-        self.assertIn('.docai-inbox-row.is-interactive:hover > td:last-child,', css)
-        self.assertIn('.docai-inbox-row.is-returned > td:last-child', css)
+        sticky_rules = css.split('.docai-inbox-table-panel .sz_table td:last-child {', 1)[1]
+        self.assertIn('.docai-inbox-row.is-interactive:hover > td:last-child,', sticky_rules)
+        self.assertIn('.docai-inbox-row.is-returned > td:last-child', sticky_rules)
+
+    def test_total_card_is_wide_enough_for_filtered_and_scope_counts(self):
+        css = (Path(__file__).resolve().parents[1] / 'static/css/document_ai.css').read_text(encoding='utf-8')
+        total_rule = css.split('.docai-filtered-total {', 1)[1].split('}', 1)[0]
+        self.assertIn('width: 10rem;', total_rule)
+        self.assertIn('min-width: 10rem;', total_rule)
+
+    def test_table_scrollbar_uses_the_edge_without_a_reserved_outer_gutter(self):
+        css = (Path(__file__).resolve().parents[1] / 'static/css/document_ai.css').read_text(encoding='utf-8')
+        outer = css.split('.docai-inbox-table-panel .docai-table-wrap {', 1)[1].split('}', 1)[0]
+        inner = css.split('.docai-inbox-table-panel .sz_table_wrap {', 1)[1].split('}', 1)[0]
+        self.assertIn('margin-right: calc(-1 * var(--sz-space-5));', outer)
+        self.assertIn('margin-bottom: calc(-1 * var(--sz-space-5));', outer)
+        self.assertIn('scrollbar-gutter: auto;', outer)
+        self.assertIn('scrollbar-gutter: auto;', inner)
 
 
 if __name__ == '__main__':

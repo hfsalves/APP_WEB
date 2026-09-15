@@ -245,13 +245,13 @@
 
 .docai-counts {
   display: grid;
-  grid-template-columns: max-content minmax(0, 1fr) 7.5rem;
+  grid-template-columns: max-content minmax(0, 1fr) 10rem;
   gap: var(--sz-space-2);
   align-items: stretch;
 }
 
 .docai-counts.has-invoice-type {
-  grid-template-columns: max-content minmax(0, 1fr) max-content 7.5rem;
+  grid-template-columns: max-content minmax(0, 1fr) max-content 10rem;
 }
 
 .docai-inbox-counts-head {
@@ -305,9 +305,9 @@
 }
 
 .docai-filtered-total {
-  width: 7.5rem;
-  min-width: 7.5rem;
-  max-width: 7.5rem;
+  width: 10rem;
+  min-width: 10rem;
+  max-width: 10rem;
   min-height: 4.4rem;
   display: flex;
   flex-direction: column;
@@ -454,6 +454,10 @@
   flex: 1 1 auto;
   display: flex;
   overflow: hidden;
+  width: calc(100% + var(--sz-space-5));
+  margin-right: calc(-1 * var(--sz-space-5));
+  margin-bottom: calc(-1 * var(--sz-space-5));
+  scrollbar-gutter: auto;
 }
 
 .docai-inbox-table-panel .sz_table_wrap {
@@ -461,6 +465,7 @@
   height: 100%;
   overflow-x: hidden;
   overflow-y: auto;
+  scrollbar-gutter: auto;
 }
 
 .docai-inbox-row.is-interactive {
@@ -905,15 +910,26 @@
   z-index: 4;
 }
 
+/* The sticky action cell paints its own background, so selected/hovered rows
+   need to override it after the sticky rule as well. */
+.docai-inbox-table-panel .docai-inbox-row.is-interactive:hover > td:last-child,
+.docai-inbox-table-panel .docai-inbox-row.is-interactive:focus-visible > td:last-child {
+  background: color-mix(in srgb, var(--sz-color-primary) 8%, var(--sz-color-surface));
+}
+
+.docai-inbox-table-panel .docai-inbox-row.is-returned > td:last-child {
+  background: color-mix(in srgb, var(--sz-color-primary) 5%, var(--sz-color-surface));
+}
+
 @media (max-width: 900px) {
   .docai-counts,
   .docai-counts.has-invoice-type {
-    grid-template-columns: 8.5rem 7.5rem minmax(10.75rem, 1fr) 7.5rem;
+    grid-template-columns: 8.5rem 7.5rem minmax(10.75rem, 1fr) 9rem;
     gap: 0.25rem;
   }
 
   .docai-counts:not(.has-invoice-type) {
-    grid-template-columns: minmax(8rem, 1.3fr) minmax(4rem, 1fr) 6.5rem;
+    grid-template-columns: minmax(8rem, 1.3fr) minmax(4rem, 1fr) 9rem;
   }
 
   .docai-business-count-group {
@@ -940,8 +956,9 @@
   }
 
   .docai-filtered-total {
-    width: 7.5rem;
-    min-width: 7.5rem;
+    width: 9rem;
+    min-width: 9rem;
+    max-width: 9rem;
   }
 
   .docai-inbox-table-panel .sz_table th,
@@ -958,12 +975,12 @@
 @media (max-width: 600px) {
   .docai-counts,
   .docai-counts.has-invoice-type {
-    grid-template-columns: 8.5rem 7.5rem minmax(10.75rem, 1fr) 7.5rem;
+    grid-template-columns: 8.5rem 7.5rem minmax(10.75rem, 1fr) 9rem;
     gap: 0.25rem;
   }
 
   .docai-counts:not(.has-invoice-type) {
-    grid-template-columns: minmax(5rem, 1.3fr) minmax(2rem, 1fr) minmax(5.5rem, 0.8fr);
+    grid-template-columns: minmax(5rem, 1.3fr) minmax(2rem, 1fr) 9rem;
   }
 
   .docai-business-count-group,
