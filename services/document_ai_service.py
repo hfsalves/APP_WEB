@@ -3419,7 +3419,11 @@ def _assert_document_field_ownership(
 ) -> None:
     """Enforce the Receção/CdG ownership matrix independently of the UI."""
     reception_fields = ('document_type', 'invoice_type', 'document_number', 'document_date', 'customer', 'supplier', 'totals')
-    management_fields = ('lines', 'taxes', 'origin_project')
+    # Reception must be able to persist the lines returned by the LLM. Besides
+    # keeping the extracted content, this also stores the stable technical line
+    # identifiers used by the following workflow stages. Tax review and origin
+    # project selection remain owned by Management.
+    management_fields = ('taxes', 'origin_project')
     protected = management_fields if draft_view == 'home' else reception_fields
     changed = [field for field in protected if before.get(field) != after.get(field)]
     if not changed:

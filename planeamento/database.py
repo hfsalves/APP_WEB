@@ -1108,44 +1108,89 @@ class Database:
         """Return adjudicated budget items for the provided project."""
         if not project_code:
             return []
-        core_code = project_code.strip()
-        if len(core_code) < 3:
+        full_project_code = project_code.strip().upper()
+        if len(full_project_code) < 3:
             return []
-        core_code = core_code[2:]
+        core_code = full_project_code[2:]
         if not core_code:
             return []
-        core_code = core_code.upper()
-        query = (
+        master_query = (
             "SELECT OBRAM, LITEM, DGERAL, QTT, UNIDADE, QTT2, BISTAMP "
             "FROM v_bi_ee "
             "WHERE LEN(LTRIM(RTRIM(ISNULL(OBRAM, '')))) > 2 "
             "AND UPPER(SUBSTRING(LTRIM(RTRIM(ISNULL(OBRAM, ''))), 3, 8000)) = ? "
             "ORDER BY LITEM"
         )
+        intersol_query = (
+            "WITH BASE AS ("
+            "    SELECT "
+            "        CAST(0 AS bit) AS MARCADA, "
+            "        BO2.PROCESSO AS OBRAM, "
+            "        TRY_CONVERT(numeric(10,0), BI.LITEM) AS LITEM, "
+            "        BI.DGERAL, BI.QTT, BI.UNIDADE, BI.QTT2, BI.BISTAMP "
+            "    FROM INTERSOL.dbo.BI AS BI "
+            "    INNER JOIN INTERSOL.dbo.BO2 AS BO2 ON BO2.BO2STAMP = BI.BOSTAMP "
+            "    WHERE BI.NDOS = 122 "
+            "      AND BI.LITEM <> 'ZZ' "
+            "      AND CHARINDEX('.', BI.LITEM) = 0 "
+            "      AND TRY_CONVERT(numeric(10,0), BI.LITEM) IS NOT NULL "
+            "      AND UPPER(SUBSTRING(LTRIM(RTRIM(BO2.PROCESSO)), 3, 8000)) = ?"
+            "), SEED AS ("
+            "    SELECT OBRAM, MIN(BISTAMP) AS BISTAMP FROM BASE GROUP BY OBRAM"
+            "), FIXOS AS ("
+            "    SELECT * FROM (VALUES "
+            "        (999, N'PREPARAÇÃO'), (998, N'COULIS'), (997, N'REPARAÇÃO'), "
+            "        (990, N'VIAGEM'), (980, N'IMOBILIZACAO'), (995, N'OUTROS'), "
+            "        (994, N'LAVAGE'), (996, N'FERRO')"
+            "    ) V(LITEM, DGERAL)"
+            ") "
+            "SELECT OBRAM, LITEM, DGERAL, QTT, UNIDADE, QTT2, BISTAMP FROM BASE "
+            "UNION ALL "
+            "SELECT S.OBRAM, F.LITEM, F.DGERAL, 0, '', 0, CONCAT('FIXO_', F.LITEM) "
+            "FROM SEED AS S CROSS JOIN FIXOS AS F "
+            "WHERE NOT EXISTS ("
+            "    SELECT 1 FROM BASE AS B WHERE B.OBRAM = S.OBRAM AND B.LITEM = F.LITEM"
+            ") ORDER BY LITEM"
+        )
+
+        def serialize_rows(rows, columns):
+            items: list[Dict[str, object]] = []
+            for row in rows:
+                record: Dict[str, object] = {}
+                for idx, column in enumerate(columns):
+                    value = row[idx]
+                    if column in {"qtt", "qtt2"} and value is not None:
+                        try:
+                            value = float(value)
+                        except (TypeError, ValueError):
+                            value = None
+                    elif column == "bistamp" and value is not None:
+                        value = str(value).strip().upper()
+                    record[column] = value
+                items.append(record)
+            return items
+
         try:
             with self.connect() as conn:
                 cursor = conn.cursor()
-                cursor.execute(query, (core_code,))
+                cursor.execute(master_query, (core_code,))
                 rows = cursor.fetchall()
-                if not rows:
-                    return []
                 columns = [col[0].lower() for col in cursor.description]
-                items: list[Dict[str, object]] = []
-                for row in rows:
-                    record: Dict[str, object] = {}
-                    for idx, column in enumerate(columns):
-                        value = row[idx]
-                        if column in {"qtt", "qtt2"} and value is not None:
-                            try:
-                                value = float(value)
-                            except (TypeError, ValueError):
-                                value = None
-                        elif column == "bistamp" and value is not None:
-                            value = str(value).strip().upper()
-                        record[column] = value
-                    items.append(record)
+                if rows:
+                    return serialize_rows(rows, columns)
 
-                return items
+                cursor.execute(
+                    "SELECT TOP 1 LTRIM(RTRIM(ISNULL(U_ORIGEM, ''))) FROM OPC WHERE PROCESSO = ?",
+                    (full_project_code,),
+                )
+                project_origin = str((cursor.fetchone() or [''])[0] or '').strip().upper()
+                if not project_origin.startswith('INTERSOL'):
+                    return []
+
+                cursor.execute(intersol_query, (core_code,))
+                rows = cursor.fetchall()
+                columns = [col[0].lower() for col in cursor.description]
+                return serialize_rows(rows, columns)
         except Exception as exc:
             raise RuntimeError(str(exc)) from exc
 

@@ -169,6 +169,28 @@ class DocumentAiPhcOriginTests(unittest.TestCase):
 
         rollback.assert_called_once()
 
+    def test_reception_can_persist_lines_but_not_management_tax_review(self):
+        before = {
+            'lines': [{'line_id': 'line-1', 'description': 'Original'}],
+            'taxes': [{'tax_rate': 20, 'tax_amount': 10}],
+            'origin_project': {},
+        }
+        with_changed_lines = {
+            **before,
+            'lines': [{'line_id': 'line-1', 'description': 'Lida pelo LLM'}],
+        }
+
+        document_ai_service._assert_document_field_ownership(
+            before, with_changed_lines, 'home',
+        )
+
+        with self.assertRaisesRegex(ValueError, 'taxes'):
+            document_ai_service._assert_document_field_ownership(
+                before,
+                {**before, 'taxes': [{'tax_rate': 20, 'tax_amount': 11}]},
+                'home',
+            )
+
     def test_accounting_cannot_persist_analysis_draft(self):
         moment = datetime(2026, 9, 1, 10, 31, 0)
         document = SimpleNamespace(dtalt=moment, dtcri=moment)

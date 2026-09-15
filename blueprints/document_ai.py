@@ -532,6 +532,11 @@ def api_document_ai_extract():
             inbox = ensure_llm_inbox_document(file_name, file_bytes, _current_login())
             document_id = str(inbox.get('id') or '').strip()
         saved_extraction = save_llm_extraction(document_id, payload, _current_login())
+        # Return the exact normalized snapshot that was persisted. Returning the
+        # pre-save LLM payload made the browser generate different line IDs and
+        # the first Reception autosave looked like an unauthorized line change.
+        payload['document'] = saved_extraction.get('document') or payload.get('document') or {}
+        payload['matching'] = saved_extraction.get('matching') or payload.get('matching') or {}
         payload['document_id'] = document_id
         payload['version'] = str(saved_extraction.get('version') or '')
         payload['cached'] = False
