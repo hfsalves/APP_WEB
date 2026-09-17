@@ -1,0 +1,4279 @@
+{
+  "source_snapshot": "/Users/hugoalves/Projects/APP_WEB/backups/phc_repair_20260917.7153bk/before.json",
+  "scope": "Exactly 56 non-Petrogal documents from previous confirmed errors in the 200-document population.",
+  "read_only_analysis": true,
+  "document_count": 56,
+  "ml_update_count": 113,
+  "iva_reduction_total": "8588.460000",
+  "ambiguous_documents": [],
+  "conversion": "All 172 ML lines: DEB=EDEB*200.482 and CRE=ECRE*200.482 verified exactly; update monetary pairs together.",
+  "preserve": "Counterparty, ECRE/CRE, account/classification, TABIVA/IVA, DOSTAMP, source/origin and all other business fields. No amount-valued IVA/base fields exist separately in ML. All changed rows have recapval/erecapval/debm/crem/cambio=0 and IVAREG/BASEREG/NDECIVA/REG=false. Native SQL triggers must remain enabled.",
+  "documents": [
+    {
+      "fostamp": "E9CFFAD2-38D2-47D9-9492-4",
+      "document": "FAC 1/287",
+      "supplier": "REDECUPE, UNIPESSOAL, LDA",
+      "date": "2026-04-16 00:00:00",
+      "dostamp": "ADM26060938242,960065495 ",
+      "dilno": "4000087",
+      "base": "158.15",
+      "iva": "36.37",
+      "total": "194.52",
+      "old_iva": "72.750000",
+      "iva_reduction": "36.380000",
+      "counterparty_ml_unchanged": "ADM26060938243,066000003 ",
+      "unchanged_base_ml": [],
+      "fn_evidence": [
+        {
+          "fnstamp": "8AE9D5D2C4574259B3233C21E",
+          "ref": "REPARACOES        ",
+          "design": "CONSERVAÇÃO E REPARAÇÃO",
+          "cpoc": "6226",
+          "etiliquido": "79.000000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        },
+        {
+          "fnstamp": "95C607D8720742DC9EAD39910",
+          "ref": "REPARACOES        ",
+          "design": "CONSERVAÇÃO E REPARAÇÃO",
+          "cpoc": "6226",
+          "etiliquido": "79.150000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "DEB47F74-22F3-4EEC-A065-1",
+      "document": "FAC 262/67",
+      "supplier": "REGRAS E VISÃO LDA",
+      "date": "2026-04-15 00:00:00",
+      "dostamp": "ADM26060938241,169312964 ",
+      "dilno": "4000082",
+      "base": "529.46",
+      "iva": "121.78",
+      "total": "651.24",
+      "old_iva": "243.550000",
+      "iva_reduction": "121.770000",
+      "counterparty_ml_unchanged": "ADM26060938241,353000003 ",
+      "unchanged_base_ml": [],
+      "fn_evidence": [
+        {
+          "fnstamp": "384BCA0AB30946A8BA8470D77",
+          "ref": "LAVAND            ",
+          "design": "LAVANDARIA",
+          "cpoc": "6221",
+          "etiliquido": "529.460000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "C5A2CCEF-7CAD-4E08-9256-2",
+      "document": "FT FA.2026L/5",
+      "supplier": "EASYWASH UNIPESSOAL, LDA",
+      "date": "2026-04-17 00:00:00",
+      "dostamp": "ADM26060938245,814170344 ",
+      "dilno": "4000095",
+      "base": "9.00",
+      "iva": "2.07",
+      "total": "11.07",
+      "old_iva": "4.140000",
+      "iva_reduction": "2.070000",
+      "counterparty_ml_unchanged": "ADM26060938246,004000003 ",
+      "unchanged_base_ml": [],
+      "fn_evidence": [
+        {
+          "fnstamp": "A5EB1555E4F044A9A0D07A7EE",
+          "ref": "LAVAND            ",
+          "design": "LAVANDARIA",
+          "cpoc": "6221",
+          "etiliquido": "9.000000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "A5584CE2-BA04-4ABA-8F3C-5",
+      "document": "FT FA.2026K/36",
+      "supplier": "EASYWASH UNIPESSOAL, LDA",
+      "date": "2026-04-17 00:00:00",
+      "dostamp": "ADM26060938246,177568778 ",
+      "dilno": "4000096",
+      "base": "502.44",
+      "iva": "115.56",
+      "total": "618.00",
+      "old_iva": "231.120000",
+      "iva_reduction": "115.560000",
+      "counterparty_ml_unchanged": "ADM26060938246,405000003 ",
+      "unchanged_base_ml": [],
+      "fn_evidence": [
+        {
+          "fnstamp": "E7855ED8DB274828B4BB6FB04",
+          "ref": "LAVAND            ",
+          "design": "LAVANDARIA",
+          "cpoc": "6221",
+          "etiliquido": "502.440000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "973ABE67-907C-411C-ADE2-7",
+      "document": "FT 101/113269416",
+      "supplier": "VODAFONE PORTUGAL - COMUNICAÇÕES PESSOAIS S A",
+      "date": "2026-05-03 00:00:00",
+      "dostamp": "ADM26060954004,086487025 ",
+      "dilno": "5000011",
+      "base": "10.37",
+      "iva": "2.39",
+      "total": "12.76",
+      "old_iva": "4.770000",
+      "iva_reduction": "2.380000",
+      "counterparty_ml_unchanged": "ADM26060954004,205000003 ",
+      "unchanged_base_ml": [],
+      "fn_evidence": [
+        {
+          "fnstamp": "B03FBB982AD843D786526E7F3",
+          "ref": "COMUNICACOES      ",
+          "design": "COMUNICAÇÕES",
+          "cpoc": "6262",
+          "etiliquido": "10.370000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "6DFF0EA7-27D7-46E3-8BE3-0",
+      "document": "FT 101/113268097",
+      "supplier": "VODAFONE PORTUGAL - COMUNICAÇÕES PESSOAIS S A",
+      "date": "2026-05-03 00:00:00",
+      "dostamp": "ADM26060954004,383245584 ",
+      "dilno": "5000012",
+      "base": "28.17",
+      "iva": "6.48",
+      "total": "34.65",
+      "old_iva": "12.960000",
+      "iva_reduction": "6.480000",
+      "counterparty_ml_unchanged": "ADM26060954004,476000003 ",
+      "unchanged_base_ml": [],
+      "fn_evidence": [
+        {
+          "fnstamp": "5C8C29EF986E469D8E9F67E4A",
+          "ref": "COMUNICACOES      ",
+          "design": "COMUNICAÇÕES",
+          "cpoc": "6262",
+          "etiliquido": "28.170000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "C42F7C23-6701-4212-A4AC-F",
+      "document": "FAC 262/87",
+      "supplier": "REGRAS E VISÃO LDA",
+      "date": "2026-04-30 00:00:00",
+      "dostamp": "ADM26060938281,289150200 ",
+      "dilno": "4000189",
+      "base": "943.24",
+      "iva": "216.95",
+      "total": "1160.19",
+      "old_iva": "433.890000",
+      "iva_reduction": "216.940000",
+      "counterparty_ml_unchanged": "ADM26060938281,474000003 ",
+      "unchanged_base_ml": [],
+      "fn_evidence": [
+        {
+          "fnstamp": "208FDA97BE8A4E31977D41188",
+          "ref": "LAVAND            ",
+          "design": "LAVANDARIA",
+          "cpoc": "6221",
+          "etiliquido": "943.240000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "7117E596-D89C-43E1-82E7-2",
+      "document": "FT 2025/63",
+      "supplier": "HABILIDADE PERFUMADA LDA",
+      "date": "2026-04-30 00:00:00",
+      "dostamp": "ADM26060938283,487055891 ",
+      "dilno": "4000195",
+      "base": "3420.30",
+      "iva": "786.67",
+      "total": "4206.97",
+      "old_iva": "1573.340000",
+      "iva_reduction": "786.670000",
+      "counterparty_ml_unchanged": "ADM26060938283,684000003 ",
+      "unchanged_base_ml": [
+        "ADM26060938283,710000004 "
+      ],
+      "fn_evidence": [
+        {
+          "fnstamp": "BA3E1F977378421689FDA2DEF",
+          "ref": "LAVAND            ",
+          "design": "LAVANDARIA",
+          "cpoc": "6221",
+          "etiliquido": "1114.800000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        },
+        {
+          "fnstamp": "3877305966154334B04DA2A71",
+          "ref": "LIMPEZA           ",
+          "design": "LIMPEZA",
+          "cpoc": "6267",
+          "etiliquido": "2305.500000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "E18FBB60-9190-4321-B146-B",
+      "document": "FT FA.2026K/42",
+      "supplier": "EASYWASH UNIPESSOAL, LDA",
+      "date": "2026-04-30 00:00:00",
+      "dostamp": "ADM26060938281,648462638 ",
+      "dilno": "4000190",
+      "base": "477.18",
+      "iva": "109.75",
+      "total": "586.93",
+      "old_iva": "219.500000",
+      "iva_reduction": "109.750000",
+      "counterparty_ml_unchanged": "ADM26060938281,832000003 ",
+      "unchanged_base_ml": [],
+      "fn_evidence": [
+        {
+          "fnstamp": "41DD512D80B04080B82BAA6AF",
+          "ref": "LAVAND            ",
+          "design": "LAVANDARIA",
+          "cpoc": "6221",
+          "etiliquido": "477.180000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "33AF72FB-EAA4-4AD7-8722-A",
+      "document": "FR 2026A11/37",
+      "supplier": "GUILHERME SILVA E GOMES SUCRS LDA",
+      "date": "2026-04-29 00:00:00",
+      "dostamp": "ADM26060938278,452844141 ",
+      "dilno": "4000180",
+      "base": "139.43",
+      "iva": "32.07",
+      "total": "171.50",
+      "old_iva": "64.140000",
+      "iva_reduction": "32.070000",
+      "counterparty_ml_unchanged": "ADM26060938278,637000003 ",
+      "unchanged_base_ml": [],
+      "fn_evidence": [
+        {
+          "fnstamp": "D36AA4A78CE04F3BBA4E39725",
+          "ref": "ROUPA             ",
+          "design": "ROUPAS DE BANHO E CAMA",
+          "cpoc": "6237",
+          "etiliquido": "139.430000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "9A0DB907-C6BC-4AF3-8AE5-0",
+      "document": "FAC 1/296",
+      "supplier": "REDECUPE, UNIPESSOAL, LDA",
+      "date": "2026-04-28 00:00:00",
+      "dostamp": "ADM26060938275,171011587 ",
+      "dilno": "4000170",
+      "base": "210.00",
+      "iva": "48.30",
+      "total": "258.30",
+      "old_iva": "96.600000",
+      "iva_reduction": "48.300000",
+      "counterparty_ml_unchanged": "ADM26060938275,267000003 ",
+      "unchanged_base_ml": [],
+      "fn_evidence": [
+        {
+          "fnstamp": "055A9E915F404D6482F050C22",
+          "ref": "BRICOLAGE         ",
+          "design": "ARTIGOS DE BRICOLAGE",
+          "cpoc": "6236",
+          "etiliquido": "210.000000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "E971084F-92A7-4A26-A0B3-F",
+      "document": "193093",
+      "supplier": "IKEA PORTUGAL MOVEIS E DECORAÇÃO LDA",
+      "date": "2026-04-30 00:00:00",
+      "dostamp": "ADM26060938282,359124394 ",
+      "dilno": "4000192",
+      "base": "267.45",
+      "iva": "61.51",
+      "total": "328.96",
+      "old_iva": "123.030000",
+      "iva_reduction": "61.520000",
+      "counterparty_ml_unchanged": "ADM26060938282,557000003 ",
+      "unchanged_base_ml": [],
+      "fn_evidence": [
+        {
+          "fnstamp": "1675830C679C495B8D5D90651",
+          "ref": "MOVEIS            ",
+          "design": "MOVEIS",
+          "cpoc": "6236",
+          "etiliquido": "267.450000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "4C6ABC6C-54B9-4AF8-8F6B-E",
+      "document": "193091",
+      "supplier": "IKEA PORTUGAL MOVEIS E DECORAÇÃO LDA",
+      "date": "2026-04-30 00:00:00",
+      "dostamp": "ADM26060938282,735995053 ",
+      "dilno": "4000193",
+      "base": "408.59",
+      "iva": "93.97",
+      "total": "502.56",
+      "old_iva": "187.950000",
+      "iva_reduction": "93.980000",
+      "counterparty_ml_unchanged": "ADM26060938282,922000003 ",
+      "unchanged_base_ml": [],
+      "fn_evidence": [
+        {
+          "fnstamp": "296805C131D34E47872DA0A96",
+          "ref": "MOVEIS            ",
+          "design": "MOVEIS",
+          "cpoc": "6236",
+          "etiliquido": "502.560000",
+          "ivaincl": true,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "9C4A422B-0560-4B7A-9659-F",
+      "document": "FS 20260016202/025044",
+      "supplier": "BCM BRICOLAGE S A",
+      "date": "2026-04-28 00:00:00",
+      "dostamp": "ADM26060938274,075283919 ",
+      "dilno": "4000167",
+      "base": "143.27",
+      "iva": "32.95",
+      "total": "176.22",
+      "old_iva": "65.900000",
+      "iva_reduction": "32.950000",
+      "counterparty_ml_unchanged": "ADM26060938274,253000003 ",
+      "unchanged_base_ml": [
+        "ADM26060938274,282000004 "
+      ],
+      "fn_evidence": [
+        {
+          "fnstamp": "BA77E9353AE749E28F3106857",
+          "ref": "MOVEIS            ",
+          "design": "MOVEIS",
+          "cpoc": "6236",
+          "etiliquido": "135.950000",
+          "ivaincl": true,
+          "iva": "23.00",
+          "tabiva": "2"
+        },
+        {
+          "fnstamp": "46A215563EF44102A178BF218",
+          "ref": "REPARACOES        ",
+          "design": "CONSERVAÇÃO E REPARAÇÃO",
+          "cpoc": "6226",
+          "etiliquido": "15.280000",
+          "ivaincl": true,
+          "iva": "23.00",
+          "tabiva": "2"
+        },
+        {
+          "fnstamp": "3FB69B84BDBF48C29DD1A8C96",
+          "ref": "MOVEIS            ",
+          "design": "MOVEIS",
+          "cpoc": "6236",
+          "etiliquido": "24.990000",
+          "ivaincl": true,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "E9614A22-5948-4480-928A-9",
+      "document": "112882131",
+      "supplier": "VODAFONE PORTUGAL - COMUNICAÇÕES PESSOAIS S A",
+      "date": "2026-04-25 00:00:00",
+      "dostamp": "ADM26060938270,681825743 ",
+      "dilno": "4000158",
+      "base": "196.09",
+      "iva": "45.10",
+      "total": "241.19",
+      "old_iva": "90.200000",
+      "iva_reduction": "45.100000",
+      "counterparty_ml_unchanged": "ADM26060938270,865000003 ",
+      "unchanged_base_ml": [],
+      "fn_evidence": [
+        {
+          "fnstamp": "CBB6179A49CB457B98E74882F",
+          "ref": "COMUNICACOES      ",
+          "design": "COMUNICAÇÕES",
+          "cpoc": "6262",
+          "etiliquido": "32.820000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        },
+        {
+          "fnstamp": "C7F605D9E1CC415FA74786654",
+          "ref": "COMUNICACOES      ",
+          "design": "COMUNICAÇÕES",
+          "cpoc": "6262",
+          "etiliquido": "32.820000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        },
+        {
+          "fnstamp": "7D64E2AD23594F86AB8AE7FA4",
+          "ref": "COMUNICACOES      ",
+          "design": "COMUNICAÇÕES",
+          "cpoc": "6262",
+          "etiliquido": "32.820000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        },
+        {
+          "fnstamp": "734BD8862D61415AA5846407B",
+          "ref": "COMUNICACOES      ",
+          "design": "COMUNICAÇÕES",
+          "cpoc": "6262",
+          "etiliquido": "32.820000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        },
+        {
+          "fnstamp": "EA5894B19F7F4B2C9C0CCDF62",
+          "ref": "COMUNICACOES      ",
+          "design": "COMUNICAÇÕES",
+          "cpoc": "6262",
+          "etiliquido": "32.820000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        },
+        {
+          "fnstamp": "570A4F504881461192F0A92DA",
+          "ref": "COMUNICACOES      ",
+          "design": "COMUNICAÇÕES",
+          "cpoc": "6262",
+          "etiliquido": "31.990000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "35B2B235-9DE0-4E84-A087-9",
+      "document": "FAC 1/293",
+      "supplier": "REDECUPE, UNIPESSOAL, LDA",
+      "date": "2026-04-22 00:00:00",
+      "dostamp": "ADM26060938263,016774198 ",
+      "dilno": "4000137",
+      "base": "85.00",
+      "iva": "19.55",
+      "total": "104.55",
+      "old_iva": "39.100000",
+      "iva_reduction": "19.550000",
+      "counterparty_ml_unchanged": "ADM26060938263,197000003 ",
+      "unchanged_base_ml": [],
+      "fn_evidence": [
+        {
+          "fnstamp": "DDA6D13DB1444C89A6636CBAE",
+          "ref": "REPARACOES        ",
+          "design": "CONSERVAÇÃO E REPARAÇÃO",
+          "cpoc": "6226",
+          "etiliquido": "42.500000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        },
+        {
+          "fnstamp": "F09787CD9D0D4DB4B1B7A47C2",
+          "ref": "REPARACOES        ",
+          "design": "CONSERVAÇÃO E REPARAÇÃO",
+          "cpoc": "6226",
+          "etiliquido": "42.500000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "F721E733-1555-4DFB-AF72-A",
+      "document": "FAC 1/292",
+      "supplier": "REDECUPE, UNIPESSOAL, LDA",
+      "date": "2026-04-22 00:00:00",
+      "dostamp": "ADM26060938263,366500463 ",
+      "dilno": "4000138",
+      "base": "125.41",
+      "iva": "28.84",
+      "total": "154.25",
+      "old_iva": "57.690000",
+      "iva_reduction": "28.850000",
+      "counterparty_ml_unchanged": "ADM26060938263,552000003 ",
+      "unchanged_base_ml": [],
+      "fn_evidence": [
+        {
+          "fnstamp": "E173817FBF844323BBE388424",
+          "ref": "REPARACOES        ",
+          "design": "CONSERVAÇÃO E REPARAÇÃO",
+          "cpoc": "6226",
+          "etiliquido": "125.410000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "B15DA36C-C04B-4E12-BB74-9",
+      "document": "FT 2026/65",
+      "supplier": "JORGE GONÇALVES PEREIRA UNIPESSOAL LDA",
+      "date": "2026-04-22 00:00:00",
+      "dostamp": "ADM26060938263,727963182 ",
+      "dilno": "4000139",
+      "base": "260.16",
+      "iva": "59.84",
+      "total": "320.00",
+      "old_iva": "119.680000",
+      "iva_reduction": "59.840000",
+      "counterparty_ml_unchanged": "ADM26060938263,920000003 ",
+      "unchanged_base_ml": [],
+      "fn_evidence": [
+        {
+          "fnstamp": "1C435FB4915D463C80592B298",
+          "ref": "REPARACOES        ",
+          "design": "CONSERVAÇÃO E REPARAÇÃO",
+          "cpoc": "6226",
+          "etiliquido": "320.000000",
+          "ivaincl": true,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "662F5553-683D-45B1-BD80-6",
+      "document": "FT 101/00029677",
+      "supplier": "LUA MUSCULADA LDA",
+      "date": "2026-05-12 00:00:00",
+      "dostamp": "ADM26060954142,802334957 ",
+      "dilno": "5000089",
+      "base": "7.72",
+      "iva": "1.78",
+      "total": "9.50",
+      "old_iva": "3.550000",
+      "iva_reduction": "1.770000",
+      "counterparty_ml_unchanged": "ADM26060954142,986000003 ",
+      "unchanged_base_ml": [],
+      "fn_evidence": [
+        {
+          "fnstamp": "376960EF4ABA4ABEB97447B2E",
+          "ref": "MOVEIS            ",
+          "design": "MOVEIS",
+          "cpoc": "6236",
+          "etiliquido": "7.720000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "ACD08ECF-3948-46D2-9F9E-0",
+      "document": "098238",
+      "supplier": "RADIO POPULAR ELECTRODOMESTICOS SA",
+      "date": "2026-05-07 00:00:00",
+      "dostamp": "ADM26060954133,976960338 ",
+      "dilno": "5000066",
+      "base": "107.27",
+      "iva": "24.67",
+      "total": "131.94",
+      "old_iva": "49.340000",
+      "iva_reduction": "24.670000",
+      "counterparty_ml_unchanged": "ADM26060954134,157000003 ",
+      "unchanged_base_ml": [],
+      "fn_evidence": [
+        {
+          "fnstamp": "646F4EAADB5C48B7A740B1F57",
+          "ref": "EQUIP             ",
+          "design": "EQUIPAMENTOS",
+          "cpoc": "6236",
+          "etiliquido": "115.950000",
+          "ivaincl": true,
+          "iva": "23.00",
+          "tabiva": "2"
+        },
+        {
+          "fnstamp": "C97E0560888A45B88C7E3A4B0",
+          "ref": "EQUIP             ",
+          "design": "EQUIPAMENTOS",
+          "cpoc": "6236",
+          "etiliquido": "15.990000",
+          "ivaincl": true,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "508B32D8-0A46-4C8B-A437-B",
+      "document": "010753",
+      "supplier": "DSTORE RETAIL, S.A.",
+      "date": "2026-05-09 00:00:00",
+      "dostamp": "ADM26060954137,594635270 ",
+      "dilno": "5000076",
+      "base": "180.49",
+      "iva": "41.51",
+      "total": "222.00",
+      "old_iva": "83.030000",
+      "iva_reduction": "41.520000",
+      "counterparty_ml_unchanged": "ADM26060954137,780000003 ",
+      "unchanged_base_ml": [],
+      "fn_evidence": [
+        {
+          "fnstamp": "F0F995B168CF4228BFDAE7AAF",
+          "ref": "DECO              ",
+          "design": "ARTIGOS DE DECORAÇÃO",
+          "cpoc": "6236",
+          "etiliquido": "180.490000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "2139E73B-1843-4C07-B4B0-5",
+      "document": "019700",
+      "supplier": "DSTORE RETAIL, S.A.",
+      "date": "2026-05-10 00:00:00",
+      "dostamp": "ADM26060954139,691833759 ",
+      "dilno": "5000081",
+      "base": "63.41",
+      "iva": "14.59",
+      "total": "78.00",
+      "old_iva": "29.170000",
+      "iva_reduction": "14.580000",
+      "counterparty_ml_unchanged": "ADM26060954139,868000003 ",
+      "unchanged_base_ml": [],
+      "fn_evidence": [
+        {
+          "fnstamp": "70DFE5DE377047608552DC10D",
+          "ref": "MOVEIS            ",
+          "design": "MOVEIS",
+          "cpoc": "6236",
+          "etiliquido": "26.000000",
+          "ivaincl": true,
+          "iva": "23.00",
+          "tabiva": "2"
+        },
+        {
+          "fnstamp": "DAFB81CD0B0F400697B30B41C",
+          "ref": "MOVEIS            ",
+          "design": "MOVEIS",
+          "cpoc": "6236",
+          "etiliquido": "26.000000",
+          "ivaincl": true,
+          "iva": "23.00",
+          "tabiva": "2"
+        },
+        {
+          "fnstamp": "FCE5076F207341E38298E8119",
+          "ref": "MOVEIS            ",
+          "design": "MOVEIS",
+          "cpoc": "6236",
+          "etiliquido": "26.000000",
+          "ivaincl": true,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "7C7C2BD2-02E5-458A-8A87-6",
+      "document": "260",
+      "supplier": "FERNANDO AUGUSTO PORTELA SIMÕES",
+      "date": "2026-05-08 00:00:00",
+      "dostamp": "ADM26060954135,821788135 ",
+      "dilno": "5000071",
+      "base": "8.74",
+      "iva": "2.01",
+      "total": "10.75",
+      "old_iva": "4.020000",
+      "iva_reduction": "2.010000",
+      "counterparty_ml_unchanged": "ADM26060954135,994000003 ",
+      "unchanged_base_ml": [],
+      "fn_evidence": [
+        {
+          "fnstamp": "90089C40B68346D9B239CBF1D",
+          "ref": "REPARACOES        ",
+          "design": "CONSERVAÇÃO E REPARAÇÃO",
+          "cpoc": "6226",
+          "etiliquido": "8.740000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "14EC2D57-A8BD-4F66-B265-5",
+      "document": "00105386",
+      "supplier": "SOL IMPAGAVEL UNIPESSOAL LDA",
+      "date": "2026-05-13 00:00:00",
+      "dostamp": "ADM26060954143,866255057 ",
+      "dilno": "5000092",
+      "base": "5.28",
+      "iva": "1.22",
+      "total": "6.50",
+      "old_iva": "2.430000",
+      "iva_reduction": "1.210000",
+      "counterparty_ml_unchanged": "ADM26060954144,049000003 ",
+      "unchanged_base_ml": [],
+      "fn_evidence": [
+        {
+          "fnstamp": "8464377877FE4DFF9C6F5F4DF",
+          "ref": "LIMPEZA           ",
+          "design": "LIMPEZA",
+          "cpoc": "6267",
+          "etiliquido": "6.500000",
+          "ivaincl": true,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "DFFDEDEE-0329-44B3-AA39-2",
+      "document": "000053",
+      "supplier": "IRMÃDONA SUPERMERCADOS, UNIPESSOAL, LDA.",
+      "date": "2026-05-12 00:00:00",
+      "dostamp": "ADM26060954143,164546922 ",
+      "dilno": "5000090",
+      "base": "44.72",
+      "iva": "10.28",
+      "total": "55.00",
+      "old_iva": "20.570000",
+      "iva_reduction": "10.290000",
+      "counterparty_ml_unchanged": "ADM26060954143,337000003 ",
+      "unchanged_base_ml": [],
+      "fn_evidence": [
+        {
+          "fnstamp": "EA1A4501010C484EA9A3A661D",
+          "ref": "LIMPEZA           ",
+          "design": "LIMPEZA",
+          "cpoc": "6267",
+          "etiliquido": "13.750000",
+          "ivaincl": true,
+          "iva": "23.00",
+          "tabiva": "2"
+        },
+        {
+          "fnstamp": "B2C7C2F3FAE04EA6BC0B2F529",
+          "ref": "LIMPEZA           ",
+          "design": "LIMPEZA",
+          "cpoc": "6267",
+          "etiliquido": "13.750000",
+          "ivaincl": true,
+          "iva": "23.00",
+          "tabiva": "2"
+        },
+        {
+          "fnstamp": "E5487FAA6E6B45B2AFF09317E",
+          "ref": "LIMPEZA           ",
+          "design": "LIMPEZA",
+          "cpoc": "6267",
+          "etiliquido": "13.750000",
+          "ivaincl": true,
+          "iva": "23.00",
+          "tabiva": "2"
+        },
+        {
+          "fnstamp": "D17AD6DF0CE84B0CB8A8AEC11",
+          "ref": "LIMPEZA           ",
+          "design": "LIMPEZA",
+          "cpoc": "6267",
+          "etiliquido": "13.750000",
+          "ivaincl": true,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "7831E4B0-2CA8-470B-90E3-1",
+      "document": "25812",
+      "supplier": "BIN LIU",
+      "date": "2026-05-08 00:00:00",
+      "dostamp": "ADM26060954136,533308517 ",
+      "dilno": "5000073",
+      "base": "11.67",
+      "iva": "2.68",
+      "total": "14.35",
+      "old_iva": "5.370000",
+      "iva_reduction": "2.690000",
+      "counterparty_ml_unchanged": "ADM26060954136,718000003 ",
+      "unchanged_base_ml": [],
+      "fn_evidence": [
+        {
+          "fnstamp": "CB2C22C950394DDE8CD7B9FFF",
+          "ref": "LIMPEZA           ",
+          "design": "LIMPEZA",
+          "cpoc": "6267",
+          "etiliquido": "14.350000",
+          "ivaincl": true,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "00032EA1-9884-4B20-9410-B",
+      "document": "FT M/2415",
+      "supplier": "LAVANDARIA BARREIROS LDA",
+      "date": "2026-05-31 00:00:00",
+      "dostamp": "ADM26060954016,662523509 ",
+      "dilno": "5000051",
+      "base": "292.68",
+      "iva": "67.32",
+      "total": "360.00",
+      "old_iva": "134.630000",
+      "iva_reduction": "67.310000",
+      "counterparty_ml_unchanged": "ADM26060954016,844000003 ",
+      "unchanged_base_ml": [],
+      "fn_evidence": [
+        {
+          "fnstamp": "AC1F08312C934A5086F27DE15",
+          "ref": "LAVAND            ",
+          "design": "LAVANDARIA",
+          "cpoc": "6221",
+          "etiliquido": "292.680000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "5691E7C8-2FF5-4136-ADED-4",
+      "document": "FT FA.2026K/55",
+      "supplier": "EASYWASH UNIPESSOAL, LDA",
+      "date": "2026-05-30 00:00:00",
+      "dostamp": "ADM26060954015,613990087 ",
+      "dilno": "5000048",
+      "base": "803.17",
+      "iva": "184.73",
+      "total": "987.90",
+      "old_iva": "369.460000",
+      "iva_reduction": "184.730000",
+      "counterparty_ml_unchanged": "ADM26060954015,781000003 ",
+      "unchanged_base_ml": [],
+      "fn_evidence": [
+        {
+          "fnstamp": "A98489734F9240E8B6CF229DA",
+          "ref": "LAVAND            ",
+          "design": "LAVANDARIA",
+          "cpoc": "6221",
+          "etiliquido": "803.170000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "0E6D660C-D57C-4E7F-80BE-D",
+      "document": "FAC 262/122",
+      "supplier": "REGRAS E VISÃO LDA",
+      "date": "2026-05-31 00:00:00",
+      "dostamp": "ADM26060954017,358309148 ",
+      "dilno": "5000053",
+      "base": "489.72",
+      "iva": "112.64",
+      "total": "602.36",
+      "old_iva": "225.270000",
+      "iva_reduction": "112.630000",
+      "counterparty_ml_unchanged": "ADM26060954017,529000003 ",
+      "unchanged_base_ml": [],
+      "fn_evidence": [
+        {
+          "fnstamp": "FED1E90B7F524F54AE1B5E87B",
+          "ref": "LAVAND            ",
+          "design": "LAVANDARIA",
+          "cpoc": "6221",
+          "etiliquido": "489.720000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "5F189038-83D9-4BBA-ABBA-E",
+      "document": "FT M/2409",
+      "supplier": "LAVANDARIA BARREIROS LDA",
+      "date": "2026-05-31 00:00:00",
+      "dostamp": "ADM26060954017,013390553 ",
+      "dilno": "5000052",
+      "base": "850.01",
+      "iva": "195.50",
+      "total": "1045.51",
+      "old_iva": "391.000000",
+      "iva_reduction": "195.500000",
+      "counterparty_ml_unchanged": "ADM26060954017,189000003 ",
+      "unchanged_base_ml": [],
+      "fn_evidence": [
+        {
+          "fnstamp": "46BDD911DAEE40F28473142D6",
+          "ref": "LAVAND            ",
+          "design": "LAVANDARIA",
+          "cpoc": "6221",
+          "etiliquido": "850.010000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "88713347-5737-44A3-BED6-B",
+      "document": "FT 2026/99",
+      "supplier": "JORGE GONÇALVES PEREIRA UNIPESSOAL LDA",
+      "date": "2026-06-29 00:00:00",
+      "dostamp": "ADM26070639607,030153939 ",
+      "dilno": "6000136",
+      "base": "134.15",
+      "iva": "30.85",
+      "total": "165.00",
+      "old_iva": "61.710000",
+      "iva_reduction": "30.860000",
+      "counterparty_ml_unchanged": "ADM26070639607,204000003 ",
+      "unchanged_base_ml": [],
+      "fn_evidence": [
+        {
+          "fnstamp": "CFE1B1EBFC294355890440D8F",
+          "ref": "REPARACOES        ",
+          "design": "CONSERVAÇÃO E REPARAÇÃO",
+          "cpoc": "6226",
+          "etiliquido": "134.150000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "AECD1B86-B6BC-47E3-BE5E-5",
+      "document": "FT 2026/98",
+      "supplier": "JORGE GONÇALVES PEREIRA UNIPESSOAL LDA",
+      "date": "2026-06-29 00:00:00",
+      "dostamp": "ADM26070639606,677469746 ",
+      "dilno": "6000135",
+      "base": "40.65",
+      "iva": "9.35",
+      "total": "50.00",
+      "old_iva": "18.700000",
+      "iva_reduction": "9.350000",
+      "counterparty_ml_unchanged": "ADM26070639606,869000003 ",
+      "unchanged_base_ml": [],
+      "fn_evidence": [
+        {
+          "fnstamp": "46C5A193D2A147D8919E13CFB",
+          "ref": "REPARACOES        ",
+          "design": "CONSERVAÇÃO E REPARAÇÃO  ( teclado)",
+          "cpoc": "6226",
+          "etiliquido": "40.650000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "55B7E8A0-3097-411C-8B0C-0",
+      "document": "103778",
+      "supplier": "RADIO POPULAR ELECTRODOMESTICOS SA",
+      "date": "2026-06-29 00:00:00",
+      "dostamp": "ADM26070638862,512686620 ",
+      "dilno": "6000096",
+      "base": "39.65",
+      "iva": "9.12",
+      "total": "48.77",
+      "old_iva": "18.240000",
+      "iva_reduction": "9.120000",
+      "counterparty_ml_unchanged": "ADM26070638862,586000003 ",
+      "unchanged_base_ml": [],
+      "fn_evidence": [
+        {
+          "fnstamp": "E4463A42D98748C58A6E0B3FD",
+          "ref": "EQUIP             ",
+          "design": "EQUIPAMENTOS",
+          "cpoc": "6236",
+          "etiliquido": "48.770000",
+          "ivaincl": true,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "15A668B5-DBBC-419B-8EC2-2",
+      "document": "005396",
+      "supplier": "BCM BRICOLAGE S A",
+      "date": "2026-06-26 00:00:00",
+      "dostamp": "ADM26070638861,182800034 ",
+      "dilno": "6000091",
+      "base": "103.57",
+      "iva": "23.82",
+      "total": "127.39",
+      "old_iva": "47.640000",
+      "iva_reduction": "23.820000",
+      "counterparty_ml_unchanged": "ADM26070638861,282000003 ",
+      "unchanged_base_ml": [],
+      "fn_evidence": [
+        {
+          "fnstamp": "9B0BE48342AE41A1AA71B3CE4",
+          "ref": "BRICOLAGE         ",
+          "design": "ARTIGOS DE BRICOLAGE",
+          "cpoc": "6236",
+          "etiliquido": "103.570000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "E978FBD7-E50B-430C-A436-E",
+      "document": "FAC 262/161",
+      "supplier": "REGRAS E VISÃO LDA",
+      "date": "2026-06-30 00:00:00",
+      "dostamp": "ADM26070639608,030578338 ",
+      "dilno": "6000139",
+      "base": "426.67",
+      "iva": "98.13",
+      "total": "524.80",
+      "old_iva": "196.270000",
+      "iva_reduction": "98.140000",
+      "counterparty_ml_unchanged": "ADM26070639608,113000003 ",
+      "unchanged_base_ml": [],
+      "fn_evidence": [
+        {
+          "fnstamp": "DD79C575C4584F6A81B83BCDE",
+          "ref": "LAVAND            ",
+          "design": "LAVANDARIA",
+          "cpoc": "6221",
+          "etiliquido": "426.670000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "ADB1DD04-9171-422F-A3A1-3",
+      "document": "8",
+      "supplier": "HUGO FILIPE SIMÃO ALVES",
+      "date": "2026-05-15 00:00:00",
+      "dostamp": "ADM26060954012,017029264 ",
+      "dilno": "5000038",
+      "base": "5686.22",
+      "iva": "1307.83",
+      "total": "6994.05",
+      "old_iva": "2615.660000",
+      "iva_reduction": "1307.830000",
+      "counterparty_ml_unchanged": "ADM26060954012,191000003 ",
+      "unchanged_base_ml": [],
+      "fn_evidence": [
+        {
+          "fnstamp": "C1553DCA15004500A396F33AA",
+          "ref": "RENDA.SEDE        ",
+          "design": "RENDA SEDE",
+          "cpoc": "6261",
+          "etiliquido": "869.040000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        },
+        {
+          "fnstamp": "19778B58D14248879E2943B85",
+          "ref": "RENDA             ",
+          "design": "RENDA",
+          "cpoc": "6261",
+          "etiliquido": "600.000000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        },
+        {
+          "fnstamp": "533CD441991647D48D174AB97",
+          "ref": "RENDA             ",
+          "design": "RENDA",
+          "cpoc": "6261",
+          "etiliquido": "766.800000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        },
+        {
+          "fnstamp": "FA93A7C33EF941F59BA642C88",
+          "ref": "RENDA             ",
+          "design": "RENDA",
+          "cpoc": "6261",
+          "etiliquido": "534.700000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        },
+        {
+          "fnstamp": "4C11CE79BEDC46B4B55190F2E",
+          "ref": "RENDA             ",
+          "design": "RENDA",
+          "cpoc": "6261",
+          "etiliquido": "1100.000000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        },
+        {
+          "fnstamp": "49AC25C6D2E94D5D8020A1BDB",
+          "ref": "RENDA             ",
+          "design": "RENDA",
+          "cpoc": "6261",
+          "etiliquido": "1100.000000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        },
+        {
+          "fnstamp": "385E3F205F2A4AC8B783675E2",
+          "ref": "RENDA             ",
+          "design": "RENDA",
+          "cpoc": "6261",
+          "etiliquido": "715.680000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "4CE5EDE6-6D02-4741-8C03-E",
+      "document": "387",
+      "supplier": "PEDRO NUNO SIMÃO ALVES",
+      "date": "2026-05-15 00:00:00",
+      "dostamp": "ADM26060954012,362921077 ",
+      "dilno": "5000039",
+      "base": "14107.16",
+      "iva": "3244.65",
+      "total": "17351.81",
+      "old_iva": "6489.290000",
+      "iva_reduction": "3244.640000",
+      "counterparty_ml_unchanged": "ADM26060954012,547000003 ",
+      "unchanged_base_ml": [],
+      "fn_evidence": [
+        {
+          "fnstamp": "DBCC17EB2CCB408C982A0A062",
+          "ref": "RENDA             ",
+          "design": "RENDA",
+          "cpoc": "6261",
+          "etiliquido": "796.000000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        },
+        {
+          "fnstamp": "AB1D3CA9F8B544AABC28986F8",
+          "ref": "RENDA             ",
+          "design": "RENDA",
+          "cpoc": "6261",
+          "etiliquido": "1300.000000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        },
+        {
+          "fnstamp": "B16DD533B8D240009F2C1996D",
+          "ref": "RENDA             ",
+          "design": "RENDA",
+          "cpoc": "6261",
+          "etiliquido": "1250.000000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        },
+        {
+          "fnstamp": "A526363E65A14D20B2FD029F9",
+          "ref": "RENDA             ",
+          "design": "RENDA",
+          "cpoc": "6261",
+          "etiliquido": "1250.000000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        },
+        {
+          "fnstamp": "A7A91F0CD5724832A1EB86A16",
+          "ref": "RENDA             ",
+          "design": "RENDA",
+          "cpoc": "6261",
+          "etiliquido": "1250.000000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        },
+        {
+          "fnstamp": "CD66104FD6714456A25E373CB",
+          "ref": "RENDA             ",
+          "design": "RENDA",
+          "cpoc": "6261",
+          "etiliquido": "1250.000000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        },
+        {
+          "fnstamp": "6CE7B3BC324B499B88D44EDF9",
+          "ref": "RENDA             ",
+          "design": "RENDA",
+          "cpoc": "6261",
+          "etiliquido": "1100.000000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        },
+        {
+          "fnstamp": "1FC87533D2314BADAEC93E4A9",
+          "ref": "RENDA             ",
+          "design": "RENDA",
+          "cpoc": "6261",
+          "etiliquido": "1100.000000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        },
+        {
+          "fnstamp": "407FB087242446A2976199286",
+          "ref": "RENDA.SEDE        ",
+          "design": "RENDA SEDE",
+          "cpoc": "6261",
+          "etiliquido": "920.160000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        },
+        {
+          "fnstamp": "5C2AD200D9DE4FE8AA26FF0C5",
+          "ref": "RENDA             ",
+          "design": "RENDA",
+          "cpoc": "6261",
+          "etiliquido": "1300.000000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        },
+        {
+          "fnstamp": "F66AE78A2F8A400689455DB90",
+          "ref": "RENDA             ",
+          "design": "RENDA",
+          "cpoc": "6261",
+          "etiliquido": "1250.000000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        },
+        {
+          "fnstamp": "B2CF6E403A6941FEBE64A71A9",
+          "ref": "RENDA             ",
+          "design": "RENDA",
+          "cpoc": "6261",
+          "etiliquido": "501.000000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        },
+        {
+          "fnstamp": "0CAB92B3BCE64071B6DC3585A",
+          "ref": "RENDA             ",
+          "design": "RENDA",
+          "cpoc": "6261",
+          "etiliquido": "840.000000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "048DC60B-AA73-4DD6-9B82-5",
+      "document": "FT FA.2026K/50",
+      "supplier": "EASYWASH UNIPESSOAL, LDA",
+      "date": "2026-05-17 00:00:00",
+      "dostamp": "ADM26060954148,840441793 ",
+      "dilno": "5000105",
+      "base": "763.51",
+      "iva": "175.61",
+      "total": "939.12",
+      "old_iva": "351.220000",
+      "iva_reduction": "175.610000",
+      "counterparty_ml_unchanged": "ADM26060954149,022000003 ",
+      "unchanged_base_ml": [],
+      "fn_evidence": [
+        {
+          "fnstamp": "3982BA77F4AE4C10BB89FF0A5",
+          "ref": "LAVAND            ",
+          "design": "LAVANDARIA",
+          "cpoc": "6221",
+          "etiliquido": "939.120000",
+          "ivaincl": true,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "E0422472-0450-4D66-816E-5",
+      "document": "261019557",
+      "supplier": "ONBIT - MATERIAL INFORMÁTICO, LDA",
+      "date": "2026-05-20 00:00:00",
+      "dostamp": "ADM26060954014,143818286 ",
+      "dilno": "5000044",
+      "base": "40.39",
+      "iva": "9.29",
+      "total": "49.68",
+      "old_iva": "18.580000",
+      "iva_reduction": "9.290000",
+      "counterparty_ml_unchanged": "ADM26060954014,310000003 ",
+      "unchanged_base_ml": [],
+      "fn_evidence": [
+        {
+          "fnstamp": "3CFCBF812ADB483A9EEEC78AE",
+          "ref": "MAT-ESCRIT        ",
+          "design": "MATERIAL DE ESCRITÓRIO",
+          "cpoc": "6233",
+          "etiliquido": "40.390000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "3E6D7598-0A9D-4AB1-92C8-4",
+      "document": "1397",
+      "supplier": "SO COLCHÃO LDA",
+      "date": "2026-05-20 00:00:00",
+      "dostamp": "ADM26060954013,786852484 ",
+      "dilno": "5000043",
+      "base": "752.59",
+      "iva": "173.10",
+      "total": "925.69",
+      "old_iva": "346.190000",
+      "iva_reduction": "173.090000",
+      "counterparty_ml_unchanged": "ADM26060954013,968000003 ",
+      "unchanged_base_ml": [],
+      "fn_evidence": [
+        {
+          "fnstamp": "D4D9CC8CBF4E42899E4FF77C3",
+          "ref": "MOVEIS            ",
+          "design": "MOVEIS",
+          "cpoc": "6236",
+          "etiliquido": "752.590000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "BB6BA7ED-02F0-4443-A51E-5",
+      "document": "FAC 262/109",
+      "supplier": "REGRAS E VISÃO LDA",
+      "date": "2026-05-15 00:00:00",
+      "dostamp": "ADM26060954012,720317645 ",
+      "dilno": "5000040",
+      "base": "677.77",
+      "iva": "155.89",
+      "total": "833.66",
+      "old_iva": "311.770000",
+      "iva_reduction": "155.880000",
+      "counterparty_ml_unchanged": "ADM26060954012,898000003 ",
+      "unchanged_base_ml": [],
+      "fn_evidence": [
+        {
+          "fnstamp": "EC73BBF2674E4B0D910D7B6B4",
+          "ref": "LAVAND            ",
+          "design": "LAVANDARIA",
+          "cpoc": "6221",
+          "etiliquido": "677.770000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "B17D5149-A6AD-4CC7-A4D5-D",
+      "document": "FT 101/114226177",
+      "supplier": "VODAFONE PORTUGAL - COMUNICAÇÕES PESSOAIS S A",
+      "date": "2026-05-18 00:00:00",
+      "dostamp": "ADM26060954149,892435793 ",
+      "dilno": "5000108",
+      "base": "34.55",
+      "iva": "7.95",
+      "total": "42.50",
+      "old_iva": "15.890000",
+      "iva_reduction": "7.940000",
+      "counterparty_ml_unchanged": "ADM26060954150,071000003 ",
+      "unchanged_base_ml": [],
+      "fn_evidence": [
+        {
+          "fnstamp": "C6BD6FB0E9E443CD9311A3FAF",
+          "ref": "COMUNICACOES      ",
+          "design": "COMUNICAÇÕES",
+          "cpoc": "6262",
+          "etiliquido": "34.550000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "57739A84-109D-4DE5-AA18-9",
+      "document": "FT A/867230854",
+      "supplier": "MEO - SERVIÇOS DE COMUNICAÇÕES E MULTIMÉDIA S.A.",
+      "date": "2026-05-23 00:00:00",
+      "dostamp": "ADM26060954168,317518064 ",
+      "dilno": "5000154",
+      "base": "375.47",
+      "iva": "86.36",
+      "total": "461.83",
+      "old_iva": "172.720000",
+      "iva_reduction": "86.360000",
+      "counterparty_ml_unchanged": "ADM26060954168,491000003 ",
+      "unchanged_base_ml": [],
+      "fn_evidence": [
+        {
+          "fnstamp": "D5BD64CAD86D49FCB71EEDE3A",
+          "ref": "COMUNICACOES      ",
+          "design": "COMUNICAÇÕES",
+          "cpoc": "6262",
+          "etiliquido": "375.470000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "284D0DBE-BD82-43B4-A50E-6",
+      "document": "1488425",
+      "supplier": "NOS COMUNICAÇÕES S A",
+      "date": "2026-05-19 00:00:00",
+      "dostamp": "ADM26060954013,423057698 ",
+      "dilno": "5000042",
+      "base": "107.89",
+      "iva": "24.81",
+      "total": "132.70",
+      "old_iva": "49.630000",
+      "iva_reduction": "24.820000",
+      "counterparty_ml_unchanged": "ADM26060954013,611000003 ",
+      "unchanged_base_ml": [],
+      "fn_evidence": [
+        {
+          "fnstamp": "2E13F99843574A0FA9650819C",
+          "ref": "COMUNICACOES      ",
+          "design": "COMUNICAÇÕES",
+          "cpoc": "6262",
+          "etiliquido": "132.700000",
+          "ivaincl": true,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "C80C7EBD-3473-417E-8CF0-0",
+      "document": "004632",
+      "supplier": "BCM BRICOLAGE S A",
+      "date": "2026-05-28 00:00:00",
+      "dostamp": "ADM26060954175,229223297 ",
+      "dilno": "5000173",
+      "base": "182.84",
+      "iva": "42.05",
+      "total": "224.89",
+      "old_iva": "84.110000",
+      "iva_reduction": "42.060000",
+      "counterparty_ml_unchanged": "ADM26060954175,402000003 ",
+      "unchanged_base_ml": [],
+      "fn_evidence": [
+        {
+          "fnstamp": "334586349EAD456188B4DC415",
+          "ref": "EQUIP             ",
+          "design": "EQUIPAMENTOS",
+          "cpoc": "6236",
+          "etiliquido": "162.520000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        },
+        {
+          "fnstamp": "F818255910F0458EAFE9A750A",
+          "ref": "MOVEIS            ",
+          "design": "MOVEIS",
+          "cpoc": "6236",
+          "etiliquido": "20.320000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "C7F454C5-6AA6-45F9-BFB6-7",
+      "document": "023668",
+      "supplier": "IRMÃDONA SUPERMERCADOS, UNIPESSOAL, LDA.",
+      "date": "2026-05-28 00:00:00",
+      "dostamp": "ADM26060954175,555033519 ",
+      "dilno": "5000174",
+      "base": "12.28",
+      "iva": "2.82",
+      "total": "15.10",
+      "old_iva": "5.650000",
+      "iva_reduction": "2.830000",
+      "counterparty_ml_unchanged": "ADM26060954175,738000003 ",
+      "unchanged_base_ml": [],
+      "fn_evidence": [
+        {
+          "fnstamp": "FCA71345F9594EF0AA90207A1",
+          "ref": "DETERG.LIMP       ",
+          "design": "DETERGENTES DE LIMPEZA",
+          "cpoc": "6233",
+          "etiliquido": "12.280000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "411DF4D0-5AD7-4440-A67E-7",
+      "document": "ZFAT BZA1/9181617497",
+      "supplier": "PC DIGA LDA",
+      "date": "2026-05-26 00:00:00",
+      "dostamp": "ADM26060954170,875564763 ",
+      "dilno": "5000161",
+      "base": "812.20",
+      "iva": "186.80",
+      "total": "999.00",
+      "old_iva": "373.610000",
+      "iva_reduction": "186.810000",
+      "counterparty_ml_unchanged": "ADM26060954170,980000003 ",
+      "unchanged_base_ml": [],
+      "fn_evidence": [
+        {
+          "fnstamp": "974AB7A906FC4FB7894ABA1A0",
+          "ref": "EQUIP             ",
+          "design": "EQUIPAMENTOS",
+          "cpoc": "6236",
+          "etiliquido": "999.000000",
+          "ivaincl": true,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "D6D92A9A-28A8-4AE5-95CE-C",
+      "document": "FT 101/114613388",
+      "supplier": "VODAFONE PORTUGAL - COMUNICAÇÕES PESSOAIS S A",
+      "date": "2026-05-25 00:00:00",
+      "dostamp": "ADM26060954170,528391312 ",
+      "dilno": "5000160",
+      "base": "196.09",
+      "iva": "45.10",
+      "total": "241.19",
+      "old_iva": "90.200000",
+      "iva_reduction": "45.100000",
+      "counterparty_ml_unchanged": "ADM26060954170,706000003 ",
+      "unchanged_base_ml": [],
+      "fn_evidence": [
+        {
+          "fnstamp": "8ECFC5BF24E049E59D74AE1B6",
+          "ref": "COMUNICACOES      ",
+          "design": "COMUNICAÇÕES",
+          "cpoc": "6262",
+          "etiliquido": "32.820000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        },
+        {
+          "fnstamp": "CD245305DB344375A6DB712D3",
+          "ref": "COMUNICACOES      ",
+          "design": "COMUNICAÇÕES",
+          "cpoc": "6262",
+          "etiliquido": "32.820000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        },
+        {
+          "fnstamp": "EF5DDE8B50F34D4B8DE38952A",
+          "ref": "COMUNICACOES      ",
+          "design": "COMUNICAÇÕES",
+          "cpoc": "6262",
+          "etiliquido": "32.820000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        },
+        {
+          "fnstamp": "0D6AC7A5393E4A6C8BB3EA779",
+          "ref": "COMUNICACOES      ",
+          "design": "COMUNICAÇÕES",
+          "cpoc": "6262",
+          "etiliquido": "31.990000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        },
+        {
+          "fnstamp": "636E29774CCB4172BE0A2F987",
+          "ref": "COMUNICACOES      ",
+          "design": "COMUNICAÇÕES",
+          "cpoc": "6262",
+          "etiliquido": "32.820000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        },
+        {
+          "fnstamp": "0FE27C63B8934F27B113CA82F",
+          "ref": "COMUNICACOES      ",
+          "design": "COMUNICAÇÕES",
+          "cpoc": "6262",
+          "etiliquido": "32.820000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "26202B62-7110-4D0C-B6BF-C",
+      "document": "FT 2026/61",
+      "supplier": "JORGE GONÇALVES PEREIRA UNIPESSOAL LDA",
+      "date": "2026-04-09 00:00:00",
+      "dostamp": "ADM26060938230,243336643 ",
+      "dilno": "4000053",
+      "base": "191.06",
+      "iva": "43.94",
+      "total": "235.00",
+      "old_iva": "87.890000",
+      "iva_reduction": "43.950000",
+      "counterparty_ml_unchanged": "ADM26060938230,427000003 ",
+      "unchanged_base_ml": [],
+      "fn_evidence": [
+        {
+          "fnstamp": "8C2D482C289A45B692F07AD83",
+          "ref": "REPARACOES        ",
+          "design": "CONSERVAÇÃO E REPARAÇÃO",
+          "cpoc": "6226",
+          "etiliquido": "50.000000",
+          "ivaincl": true,
+          "iva": "23.00",
+          "tabiva": "2"
+        },
+        {
+          "fnstamp": "7631DC9DF6C3495AA89FA71BB",
+          "ref": "REPARACOES        ",
+          "design": "CONSERVAÇÃO E REPARAÇÃO",
+          "cpoc": "6226",
+          "etiliquido": "185.000000",
+          "ivaincl": true,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "31C86F9A-3D88-400D-BDF6-E",
+      "document": "FR AAD897/255759",
+      "supplier": "MODELO CONTINENTE HIPERMERCADOS S A",
+      "date": "2026-04-08 00:00:00",
+      "dostamp": "ADM26060938228,754804125 ",
+      "dilno": "4000049",
+      "base": "104.16",
+      "iva": "21.74",
+      "total": "125.90",
+      "old_iva": "43.490000",
+      "iva_reduction": "21.750000",
+      "counterparty_ml_unchanged": "ADM26060938228,937000003 ",
+      "unchanged_base_ml": [
+        "ADM26060938228,858000001 "
+      ],
+      "fn_evidence": [
+        {
+          "fnstamp": "0072D3D1E2A2414A93BC07499",
+          "ref": "PROD-AL-13        ",
+          "design": "PRODUTOS PARA ALOJAMENTOS 13%",
+          "cpoc": "6235",
+          "etiliquido": "22.140000",
+          "ivaincl": false,
+          "iva": "13.00",
+          "tabiva": "3"
+        },
+        {
+          "fnstamp": "A974424E67E24E0DB0AA8B764",
+          "ref": "PROD-AL-23        ",
+          "design": "PRODUTOS PARA ALOJAMENTOS 23%",
+          "cpoc": "6235",
+          "etiliquido": "82.020000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 3
+    },
+    {
+      "fostamp": "99678EB5-061E-4D5E-9FC8-9",
+      "document": "59",
+      "supplier": "JORGE GONÇALVES PEREIRA UNIPESSOAL LDA",
+      "date": "2026-04-06 00:00:00",
+      "dostamp": "ADM26060938224,248825612 ",
+      "dilno": "4000036",
+      "base": "73.17",
+      "iva": "16.83",
+      "total": "90.00",
+      "old_iva": "33.660000",
+      "iva_reduction": "16.830000",
+      "counterparty_ml_unchanged": "ADM26060938224,438000003 ",
+      "unchanged_base_ml": [],
+      "fn_evidence": [
+        {
+          "fnstamp": "8165DAA5F43A460FB7FAD614D",
+          "ref": "BRICOLAGE         ",
+          "design": "ARTIGOS DE BRICOLAGE",
+          "cpoc": "6236",
+          "etiliquido": "90.000000",
+          "ivaincl": true,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "37FE4ED5-4623-4720-9AB0-6",
+      "document": "58",
+      "supplier": "JORGE GONÇALVES PEREIRA UNIPESSOAL LDA",
+      "date": "2026-04-06 00:00:00",
+      "dostamp": "ADM26060938224,613994767 ",
+      "dilno": "4000037",
+      "base": "40.65",
+      "iva": "9.35",
+      "total": "50.00",
+      "old_iva": "18.700000",
+      "iva_reduction": "9.350000",
+      "counterparty_ml_unchanged": "ADM26060938224,800000003 ",
+      "unchanged_base_ml": [],
+      "fn_evidence": [
+        {
+          "fnstamp": "3AE5730D7E5F409BA9549605C",
+          "ref": "BRICOLAGE         ",
+          "design": "ARTIGOS DE BRICOLAGE",
+          "cpoc": "6236",
+          "etiliquido": "50.000000",
+          "ivaincl": true,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "3C4284C0-E0E1-4138-A02D-6",
+      "document": "FT A/1387",
+      "supplier": "SO COLCHÃO LDA",
+      "date": "2026-04-07 00:00:00",
+      "dostamp": "ADM26060938227,291155615 ",
+      "dilno": "4000045",
+      "base": "1302.73",
+      "iva": "299.63",
+      "total": "1602.36",
+      "old_iva": "599.260000",
+      "iva_reduction": "299.630000",
+      "counterparty_ml_unchanged": "ADM26060938227,387000003 ",
+      "unchanged_base_ml": [],
+      "fn_evidence": [
+        {
+          "fnstamp": "A4B9B90DA7F849E7AC558EE28",
+          "ref": "MOVEIS            ",
+          "design": "MOVEIS",
+          "cpoc": "6236",
+          "etiliquido": "651.360000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        },
+        {
+          "fnstamp": "DF371FE097754E86B0568A36D",
+          "ref": "MOVEIS            ",
+          "design": "MOVEIS",
+          "cpoc": "6236",
+          "etiliquido": "651.370000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "4976D0E9-A8E2-4E5F-8719-5",
+      "document": "FT FA.2026L/9",
+      "supplier": "EASYWASH UNIPESSOAL, LDA",
+      "date": "2026-06-18 00:00:00",
+      "dostamp": "ADM26070639603,768114968 ",
+      "dilno": "6000125",
+      "base": "41.50",
+      "iva": "9.54",
+      "total": "51.04",
+      "old_iva": "19.090000",
+      "iva_reduction": "9.550000",
+      "counterparty_ml_unchanged": "ADM26070639603,967000003 ",
+      "unchanged_base_ml": [],
+      "fn_evidence": [
+        {
+          "fnstamp": "A5611B0123034B3EBDEFF8B6C",
+          "ref": "LAVAND            ",
+          "design": "LAVANDARIA",
+          "cpoc": "6221",
+          "etiliquido": "41.500000",
+          "ivaincl": false,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "BF90B43F-73F7-4043-8C80-5",
+      "document": "103303",
+      "supplier": "RADIO POPULAR ELECTRODOMESTICOS SA",
+      "date": "2026-06-26 00:00:00",
+      "dostamp": "ADM26070638860,615264672 ",
+      "dilno": "6000089",
+      "base": "162.56",
+      "iva": "37.39",
+      "total": "199.95",
+      "old_iva": "74.780000",
+      "iva_reduction": "37.390000",
+      "counterparty_ml_unchanged": "ADM26070638860,799000003 ",
+      "unchanged_base_ml": [],
+      "fn_evidence": [
+        {
+          "fnstamp": "3E0D419BB1BA4A0897824141C",
+          "ref": "EQUIP             ",
+          "design": "EQUIPAMENTOS",
+          "cpoc": "6236",
+          "etiliquido": "199.950000",
+          "ivaincl": true,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    },
+    {
+      "fostamp": "67984800-53B7-4F19-AF3D-D",
+      "document": "103305",
+      "supplier": "RADIO POPULAR ELECTRODOMESTICOS SA",
+      "date": "2026-06-26 00:00:00",
+      "dostamp": "ADM26070638860,953643471 ",
+      "dilno": "6000090",
+      "base": "162.56",
+      "iva": "37.39",
+      "total": "199.95",
+      "old_iva": "74.780000",
+      "iva_reduction": "37.390000",
+      "counterparty_ml_unchanged": "ADM26070638861,039000003 ",
+      "unchanged_base_ml": [],
+      "fn_evidence": [
+        {
+          "fnstamp": "268A4798AE2E459D92A770B11",
+          "ref": "EQUIP             ",
+          "design": "EQUIPAMENTOS",
+          "cpoc": "6236",
+          "etiliquido": "199.950000",
+          "ivaincl": true,
+          "iva": "23.00",
+          "tabiva": "2"
+        }
+      ],
+      "row_changes": 2
+    }
+  ],
+  "updates": [
+    {
+      "fostamp": "E9CFFAD2-38D2-47D9-9492-4",
+      "dostamp": "ADM26060938242,960065495 ",
+      "mlstamp": "ADM26060938242,998000001 ",
+      "conta": "62261131",
+      "classification": "BASE",
+      "before": {
+        "edeb": "121.770000",
+        "deb": "24412.69314",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "158.150000",
+        "deb": "31706.22830",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta de base; total da base confirmado em FO app, FO PHC e FN válidas."
+    },
+    {
+      "fostamp": "E9CFFAD2-38D2-47D9-9492-4",
+      "dostamp": "ADM26060938242,960065495 ",
+      "mlstamp": "ADM26060938243,028000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "72.750000",
+        "deb": "14585.06550",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "36.370000",
+        "deb": "7291.53034",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor documental FO.IVA confirmado em app e PHC, sem dedução parcial."
+    },
+    {
+      "fostamp": "DEB47F74-22F3-4EEC-A065-1",
+      "dostamp": "ADM26060938241,169312964 ",
+      "mlstamp": "ADM26060938241,278000001 ",
+      "conta": "622111131",
+      "classification": "BASE",
+      "before": {
+        "edeb": "407.690000",
+        "deb": "81734.50658",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "529.460000",
+        "deb": "106147.19972",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta de base; total da base confirmado em FO app, FO PHC e FN válidas."
+    },
+    {
+      "fostamp": "DEB47F74-22F3-4EEC-A065-1",
+      "dostamp": "ADM26060938241,169312964 ",
+      "mlstamp": "ADM26060938241,313000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "243.550000",
+        "deb": "48827.39110",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "121.780000",
+        "deb": "24414.69796",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor documental FO.IVA confirmado em app e PHC, sem dedução parcial."
+    },
+    {
+      "fostamp": "C5A2CCEF-7CAD-4E08-9256-2",
+      "dostamp": "ADM26060938245,814170344 ",
+      "mlstamp": "ADM26060938245,922000001 ",
+      "conta": "622111131",
+      "classification": "BASE",
+      "before": {
+        "edeb": "6.930000",
+        "deb": "1389.34026",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "9.000000",
+        "deb": "1804.33800",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta de base; total da base confirmado em FO app, FO PHC e FN válidas."
+    },
+    {
+      "fostamp": "C5A2CCEF-7CAD-4E08-9256-2",
+      "dostamp": "ADM26060938245,814170344 ",
+      "mlstamp": "ADM26060938245,957000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "4.140000",
+        "deb": "829.99548",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "2.070000",
+        "deb": "414.99774",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor documental FO.IVA confirmado em app e PHC, sem dedução parcial."
+    },
+    {
+      "fostamp": "A5584CE2-BA04-4ABA-8F3C-5",
+      "dostamp": "ADM26060938246,177568778 ",
+      "mlstamp": "ADM26060938246,293000001 ",
+      "conta": "622111131",
+      "classification": "BASE",
+      "before": {
+        "edeb": "386.880000",
+        "deb": "77562.47616",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "502.440000",
+        "deb": "100730.17608",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta de base; total da base confirmado em FO app, FO PHC e FN válidas."
+    },
+    {
+      "fostamp": "A5584CE2-BA04-4ABA-8F3C-5",
+      "dostamp": "ADM26060938246,177568778 ",
+      "mlstamp": "ADM26060938246,353000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "231.120000",
+        "deb": "46335.39984",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "115.560000",
+        "deb": "23167.69992",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor documental FO.IVA confirmado em app e PHC, sem dedução parcial."
+    },
+    {
+      "fostamp": "973ABE67-907C-411C-ADE2-7",
+      "dostamp": "ADM26060954004,086487025 ",
+      "mlstamp": "ADM26060954004,129000001 ",
+      "conta": "62621131",
+      "classification": "BASE",
+      "before": {
+        "edeb": "7.990000",
+        "deb": "1601.85118",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "10.370000",
+        "deb": "2078.99834",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta de base; total da base confirmado em FO app, FO PHC e FN válidas."
+    },
+    {
+      "fostamp": "973ABE67-907C-411C-ADE2-7",
+      "dostamp": "ADM26060954004,086487025 ",
+      "mlstamp": "ADM26060954004,160000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "4.770000",
+        "deb": "956.29914",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "2.390000",
+        "deb": "479.15198",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor documental FO.IVA confirmado em app e PHC, sem dedução parcial."
+    },
+    {
+      "fostamp": "6DFF0EA7-27D7-46E3-8BE3-0",
+      "dostamp": "ADM26060954004,383245584 ",
+      "mlstamp": "ADM26060954004,414000001 ",
+      "conta": "62621131",
+      "classification": "BASE",
+      "before": {
+        "edeb": "21.690000",
+        "deb": "4348.45458",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "28.170000",
+        "deb": "5647.57794",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta de base; total da base confirmado em FO app, FO PHC e FN válidas."
+    },
+    {
+      "fostamp": "6DFF0EA7-27D7-46E3-8BE3-0",
+      "dostamp": "ADM26060954004,383245584 ",
+      "mlstamp": "ADM26060954004,439000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "12.960000",
+        "deb": "2598.24672",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "6.480000",
+        "deb": "1299.12336",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor documental FO.IVA confirmado em app e PHC, sem dedução parcial."
+    },
+    {
+      "fostamp": "C42F7C23-6701-4212-A4AC-F",
+      "dostamp": "ADM26060938281,289150200 ",
+      "mlstamp": "ADM26060938281,401000001 ",
+      "conta": "622111131",
+      "classification": "BASE",
+      "before": {
+        "edeb": "726.300000",
+        "deb": "145610.07660",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "943.240000",
+        "deb": "189102.64168",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta de base; total da base confirmado em FO app, FO PHC e FN válidas."
+    },
+    {
+      "fostamp": "C42F7C23-6701-4212-A4AC-F",
+      "dostamp": "ADM26060938281,289150200 ",
+      "mlstamp": "ADM26060938281,435000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "433.890000",
+        "deb": "86987.13498",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "216.950000",
+        "deb": "43494.56990",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor documental FO.IVA confirmado em app e PHC, sem dedução parcial."
+    },
+    {
+      "fostamp": "7117E596-D89C-43E1-82E7-2",
+      "dostamp": "ADM26060938283,487055891 ",
+      "mlstamp": "ADM26060938283,603000001 ",
+      "conta": "622111131",
+      "classification": "BASE",
+      "before": {
+        "edeb": "328.130000",
+        "deb": "65784.15866",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "1114.800000",
+        "deb": "223497.33360",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "FN.CPOC coincide com prefixo da conta 622111131; FNSTAMP BA3E1F977378421689FDA2DEF; soma bases líquidas após retirar IVA incluído quando aplicável = 1114.80. Sem rateio ou residual."
+    },
+    {
+      "fostamp": "7117E596-D89C-43E1-82E7-2",
+      "dostamp": "ADM26060938283,487055891 ",
+      "mlstamp": "ADM26060938283,638000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "1573.340000",
+        "deb": "315426.34988",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "786.670000",
+        "deb": "157713.17494",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor correto do cabeçalho app/PHC; bases atribuídas por FN.CPOC e IVAINCL."
+    },
+    {
+      "fostamp": "E18FBB60-9190-4321-B146-B",
+      "dostamp": "ADM26060938281,648462638 ",
+      "mlstamp": "ADM26060938281,761000001 ",
+      "conta": "622111131",
+      "classification": "BASE",
+      "before": {
+        "edeb": "367.430000",
+        "deb": "73663.10126",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "477.180000",
+        "deb": "95666.00076",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta de base; total da base confirmado em FO app, FO PHC e FN válidas."
+    },
+    {
+      "fostamp": "E18FBB60-9190-4321-B146-B",
+      "dostamp": "ADM26060938281,648462638 ",
+      "mlstamp": "ADM26060938281,794000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "219.500000",
+        "deb": "44005.79900",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "109.750000",
+        "deb": "22002.89950",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor documental FO.IVA confirmado em app e PHC, sem dedução parcial."
+    },
+    {
+      "fostamp": "33AF72FB-EAA4-4AD7-8722-A",
+      "dostamp": "ADM26060938278,452844141 ",
+      "mlstamp": "ADM26060938278,563000001 ",
+      "conta": "6237",
+      "classification": "BASE",
+      "before": {
+        "edeb": "107.360000",
+        "deb": "21523.74752",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "139.430000",
+        "deb": "27953.20526",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta de base; total da base confirmado em FO app, FO PHC e FN válidas."
+    },
+    {
+      "fostamp": "33AF72FB-EAA4-4AD7-8722-A",
+      "dostamp": "ADM26060938278,452844141 ",
+      "mlstamp": "ADM26060938278,596000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "64.140000",
+        "deb": "12858.91548",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "32.070000",
+        "deb": "6429.45774",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor documental FO.IVA confirmado em app e PHC, sem dedução parcial."
+    },
+    {
+      "fostamp": "9A0DB907-C6BC-4AF3-8AE5-0",
+      "dostamp": "ADM26060938275,171011587 ",
+      "mlstamp": "ADM26060938275,203000001 ",
+      "conta": "6236",
+      "classification": "BASE",
+      "before": {
+        "edeb": "161.700000",
+        "deb": "32417.93940",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "210.000000",
+        "deb": "42101.22000",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta de base; total da base confirmado em FO app, FO PHC e FN válidas."
+    },
+    {
+      "fostamp": "9A0DB907-C6BC-4AF3-8AE5-0",
+      "dostamp": "ADM26060938275,171011587 ",
+      "mlstamp": "ADM26060938275,230000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "96.600000",
+        "deb": "19366.56120",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "48.300000",
+        "deb": "9683.28060",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor documental FO.IVA confirmado em app e PHC, sem dedução parcial."
+    },
+    {
+      "fostamp": "E971084F-92A7-4A26-A0B3-F",
+      "dostamp": "ADM26060938282,359124394 ",
+      "mlstamp": "ADM26060938282,473000001 ",
+      "conta": "6236",
+      "classification": "BASE",
+      "before": {
+        "edeb": "205.930000",
+        "deb": "41285.25826",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "267.450000",
+        "deb": "53618.91090",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta de base; total da base confirmado em FO app, FO PHC e FN válidas."
+    },
+    {
+      "fostamp": "E971084F-92A7-4A26-A0B3-F",
+      "dostamp": "ADM26060938282,359124394 ",
+      "mlstamp": "ADM26060938282,509000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "123.030000",
+        "deb": "24665.30046",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "61.510000",
+        "deb": "12331.64782",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor documental FO.IVA confirmado em app e PHC, sem dedução parcial."
+    },
+    {
+      "fostamp": "4C6ABC6C-54B9-4AF8-8F6B-E",
+      "dostamp": "ADM26060938282,735995053 ",
+      "mlstamp": "ADM26060938282,838000001 ",
+      "conta": "6236",
+      "classification": "BASE",
+      "before": {
+        "edeb": "314.610000",
+        "deb": "63073.64202",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "408.590000",
+        "deb": "81914.94038",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta de base; total da base confirmado em FO app, FO PHC e FN válidas."
+    },
+    {
+      "fostamp": "4C6ABC6C-54B9-4AF8-8F6B-E",
+      "dostamp": "ADM26060938282,735995053 ",
+      "mlstamp": "ADM26060938282,875000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "187.950000",
+        "deb": "37680.59190",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "93.970000",
+        "deb": "18839.29354",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor documental FO.IVA confirmado em app e PHC, sem dedução parcial."
+    },
+    {
+      "fostamp": "9C4A422B-0560-4B7A-9659-F",
+      "dostamp": "ADM26060938274,075283919 ",
+      "mlstamp": "ADM26060938274,178000001 ",
+      "conta": "6236",
+      "classification": "BASE",
+      "before": {
+        "edeb": "97.900000",
+        "deb": "19627.18780",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "130.850000",
+        "deb": "26233.06970",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "FN.CPOC coincide com prefixo da conta 6236; FNSTAMP BA77E9353AE749E28F3106857, 3FB69B84BDBF48C29DD1A8C96; soma bases líquidas após retirar IVA incluído quando aplicável = 130.85. Sem rateio ou residual."
+    },
+    {
+      "fostamp": "9C4A422B-0560-4B7A-9659-F",
+      "dostamp": "ADM26060938274,075283919 ",
+      "mlstamp": "ADM26060938274,213000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "65.900000",
+        "deb": "13211.76380",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "32.950000",
+        "deb": "6605.88190",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor correto do cabeçalho app/PHC; bases atribuídas por FN.CPOC e IVAINCL."
+    },
+    {
+      "fostamp": "E9614A22-5948-4480-928A-9",
+      "dostamp": "ADM26060938270,681825743 ",
+      "mlstamp": "ADM26060938270,791000001 ",
+      "conta": "62621131",
+      "classification": "BASE",
+      "before": {
+        "edeb": "150.990000",
+        "deb": "30270.77718",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "196.090000",
+        "deb": "39312.51538",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta de base; total da base confirmado em FO app, FO PHC e FN válidas."
+    },
+    {
+      "fostamp": "E9614A22-5948-4480-928A-9",
+      "dostamp": "ADM26060938270,681825743 ",
+      "mlstamp": "ADM26060938270,826000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "90.200000",
+        "deb": "18083.47640",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "45.100000",
+        "deb": "9041.73820",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor documental FO.IVA confirmado em app e PHC, sem dedução parcial."
+    },
+    {
+      "fostamp": "35B2B235-9DE0-4E84-A087-9",
+      "dostamp": "ADM26060938263,016774198 ",
+      "mlstamp": "ADM26060938263,125000001 ",
+      "conta": "62261131",
+      "classification": "BASE",
+      "before": {
+        "edeb": "65.450000",
+        "deb": "13121.54690",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "85.000000",
+        "deb": "17040.97000",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta de base; total da base confirmado em FO app, FO PHC e FN válidas."
+    },
+    {
+      "fostamp": "35B2B235-9DE0-4E84-A087-9",
+      "dostamp": "ADM26060938263,016774198 ",
+      "mlstamp": "ADM26060938263,161000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "39.100000",
+        "deb": "7838.84620",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "19.550000",
+        "deb": "3919.42310",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor documental FO.IVA confirmado em app e PHC, sem dedução parcial."
+    },
+    {
+      "fostamp": "F721E733-1555-4DFB-AF72-A",
+      "dostamp": "ADM26060938263,366500463 ",
+      "mlstamp": "ADM26060938263,472000001 ",
+      "conta": "62261131",
+      "classification": "BASE",
+      "before": {
+        "edeb": "96.560000",
+        "deb": "19358.54192",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "125.410000",
+        "deb": "25142.44762",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta de base; total da base confirmado em FO app, FO PHC e FN válidas."
+    },
+    {
+      "fostamp": "F721E733-1555-4DFB-AF72-A",
+      "dostamp": "ADM26060938263,366500463 ",
+      "mlstamp": "ADM26060938263,507000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "57.690000",
+        "deb": "11565.80658",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "28.840000",
+        "deb": "5781.90088",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor documental FO.IVA confirmado em app e PHC, sem dedução parcial."
+    },
+    {
+      "fostamp": "B15DA36C-C04B-4E12-BB74-9",
+      "dostamp": "ADM26060938263,727963182 ",
+      "mlstamp": "ADM26060938263,834000001 ",
+      "conta": "62261131",
+      "classification": "BASE",
+      "before": {
+        "edeb": "200.320000",
+        "deb": "40160.55424",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "260.160000",
+        "deb": "52157.39712",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta de base; total da base confirmado em FO app, FO PHC e FN válidas."
+    },
+    {
+      "fostamp": "B15DA36C-C04B-4E12-BB74-9",
+      "dostamp": "ADM26060938263,727963182 ",
+      "mlstamp": "ADM26060938263,873000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "119.680000",
+        "deb": "23993.68576",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "59.840000",
+        "deb": "11996.84288",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor documental FO.IVA confirmado em app e PHC, sem dedução parcial."
+    },
+    {
+      "fostamp": "662F5553-683D-45B1-BD80-6",
+      "dostamp": "ADM26060954142,802334957 ",
+      "mlstamp": "ADM26060954142,906000001 ",
+      "conta": "6236",
+      "classification": "BASE",
+      "before": {
+        "edeb": "5.950000",
+        "deb": "1192.86790",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "7.720000",
+        "deb": "1547.72104",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta de base; total da base confirmado em FO app, FO PHC e FN válidas."
+    },
+    {
+      "fostamp": "662F5553-683D-45B1-BD80-6",
+      "dostamp": "ADM26060954142,802334957 ",
+      "mlstamp": "ADM26060954142,940000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "3.550000",
+        "deb": "711.71110",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "1.780000",
+        "deb": "356.85796",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor documental FO.IVA confirmado em app e PHC, sem dedução parcial."
+    },
+    {
+      "fostamp": "ACD08ECF-3948-46D2-9F9E-0",
+      "dostamp": "ADM26060954133,976960338 ",
+      "mlstamp": "ADM26060954134,078000001 ",
+      "conta": "6236",
+      "classification": "BASE",
+      "before": {
+        "edeb": "82.600000",
+        "deb": "16559.81320",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "107.270000",
+        "deb": "21505.70414",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta de base; total da base confirmado em FO app, FO PHC e FN válidas."
+    },
+    {
+      "fostamp": "ACD08ECF-3948-46D2-9F9E-0",
+      "dostamp": "ADM26060954133,976960338 ",
+      "mlstamp": "ADM26060954134,110000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "49.340000",
+        "deb": "9891.78188",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "24.670000",
+        "deb": "4945.89094",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor documental FO.IVA confirmado em app e PHC, sem dedução parcial."
+    },
+    {
+      "fostamp": "508B32D8-0A46-4C8B-A437-B",
+      "dostamp": "ADM26060954137,594635270 ",
+      "mlstamp": "ADM26060954137,699000001 ",
+      "conta": "6236",
+      "classification": "BASE",
+      "before": {
+        "edeb": "138.970000",
+        "deb": "27860.98354",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "180.490000",
+        "deb": "36184.99618",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta de base; total da base confirmado em FO app, FO PHC e FN válidas."
+    },
+    {
+      "fostamp": "508B32D8-0A46-4C8B-A437-B",
+      "dostamp": "ADM26060954137,594635270 ",
+      "mlstamp": "ADM26060954137,734000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "83.030000",
+        "deb": "16646.02046",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "41.510000",
+        "deb": "8322.00782",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor documental FO.IVA confirmado em app e PHC, sem dedução parcial."
+    },
+    {
+      "fostamp": "2139E73B-1843-4C07-B4B0-5",
+      "dostamp": "ADM26060954139,691833759 ",
+      "mlstamp": "ADM26060954139,788000001 ",
+      "conta": "6236",
+      "classification": "BASE",
+      "before": {
+        "edeb": "48.830000",
+        "deb": "9789.53606",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "63.410000",
+        "deb": "12712.56362",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta de base; total da base confirmado em FO app, FO PHC e FN válidas."
+    },
+    {
+      "fostamp": "2139E73B-1843-4C07-B4B0-5",
+      "dostamp": "ADM26060954139,691833759 ",
+      "mlstamp": "ADM26060954139,822000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "29.170000",
+        "deb": "5848.05994",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "14.590000",
+        "deb": "2925.03238",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor documental FO.IVA confirmado em app e PHC, sem dedução parcial."
+    },
+    {
+      "fostamp": "7C7C2BD2-02E5-458A-8A87-6",
+      "dostamp": "ADM26060954135,821788135 ",
+      "mlstamp": "ADM26060954135,925000001 ",
+      "conta": "62261131",
+      "classification": "BASE",
+      "before": {
+        "edeb": "6.730000",
+        "deb": "1349.24386",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "8.740000",
+        "deb": "1752.21268",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta de base; total da base confirmado em FO app, FO PHC e FN válidas."
+    },
+    {
+      "fostamp": "7C7C2BD2-02E5-458A-8A87-6",
+      "dostamp": "ADM26060954135,821788135 ",
+      "mlstamp": "ADM26060954135,958000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "4.020000",
+        "deb": "805.93764",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "2.010000",
+        "deb": "402.96882",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor documental FO.IVA confirmado em app e PHC, sem dedução parcial."
+    },
+    {
+      "fostamp": "14EC2D57-A8BD-4F66-B265-5",
+      "dostamp": "ADM26060954143,866255057 ",
+      "mlstamp": "ADM26060954143,974000001 ",
+      "conta": "62671131",
+      "classification": "BASE",
+      "before": {
+        "edeb": "4.070000",
+        "deb": "815.96174",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "5.280000",
+        "deb": "1058.54496",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta de base; total da base confirmado em FO app, FO PHC e FN válidas."
+    },
+    {
+      "fostamp": "14EC2D57-A8BD-4F66-B265-5",
+      "dostamp": "ADM26060954143,866255057 ",
+      "mlstamp": "ADM26060954144,007000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "2.430000",
+        "deb": "487.17126",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "1.220000",
+        "deb": "244.58804",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor documental FO.IVA confirmado em app e PHC, sem dedução parcial."
+    },
+    {
+      "fostamp": "DFFDEDEE-0329-44B3-AA39-2",
+      "dostamp": "ADM26060954143,164546922 ",
+      "mlstamp": "ADM26060954143,263000001 ",
+      "conta": "62671131",
+      "classification": "BASE",
+      "before": {
+        "edeb": "34.430000",
+        "deb": "6902.59526",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "44.720000",
+        "deb": "8965.55504",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta de base; total da base confirmado em FO app, FO PHC e FN válidas."
+    },
+    {
+      "fostamp": "DFFDEDEE-0329-44B3-AA39-2",
+      "dostamp": "ADM26060954143,164546922 ",
+      "mlstamp": "ADM26060954143,297000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "20.570000",
+        "deb": "4123.91474",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "10.280000",
+        "deb": "2060.95496",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor documental FO.IVA confirmado em app e PHC, sem dedução parcial."
+    },
+    {
+      "fostamp": "7831E4B0-2CA8-470B-90E3-1",
+      "dostamp": "ADM26060954136,533308517 ",
+      "mlstamp": "ADM26060954136,637000001 ",
+      "conta": "62671131",
+      "classification": "BASE",
+      "before": {
+        "edeb": "8.980000",
+        "deb": "1800.32836",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "11.670000",
+        "deb": "2339.62494",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta de base; total da base confirmado em FO app, FO PHC e FN válidas."
+    },
+    {
+      "fostamp": "7831E4B0-2CA8-470B-90E3-1",
+      "dostamp": "ADM26060954136,533308517 ",
+      "mlstamp": "ADM26060954136,672000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "5.370000",
+        "deb": "1076.58834",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "2.680000",
+        "deb": "537.29176",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor documental FO.IVA confirmado em app e PHC, sem dedução parcial."
+    },
+    {
+      "fostamp": "00032EA1-9884-4B20-9410-B",
+      "dostamp": "ADM26060954016,662523509 ",
+      "mlstamp": "ADM26060954016,766000001 ",
+      "conta": "622111131",
+      "classification": "BASE",
+      "before": {
+        "edeb": "225.370000",
+        "deb": "45182.62834",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "292.680000",
+        "deb": "58677.07176",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta de base; total da base confirmado em FO app, FO PHC e FN válidas."
+    },
+    {
+      "fostamp": "00032EA1-9884-4B20-9410-B",
+      "dostamp": "ADM26060954016,662523509 ",
+      "mlstamp": "ADM26060954016,799000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "134.630000",
+        "deb": "26990.89166",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "67.320000",
+        "deb": "13496.44824",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor documental FO.IVA confirmado em app e PHC, sem dedução parcial."
+    },
+    {
+      "fostamp": "5691E7C8-2FF5-4136-ADED-4",
+      "dostamp": "ADM26060954015,613990087 ",
+      "mlstamp": "ADM26060954015,710000001 ",
+      "conta": "622111131",
+      "classification": "BASE",
+      "before": {
+        "edeb": "618.440000",
+        "deb": "123986.08808",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "803.170000",
+        "deb": "161021.12794",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta de base; total da base confirmado em FO app, FO PHC e FN válidas."
+    },
+    {
+      "fostamp": "5691E7C8-2FF5-4136-ADED-4",
+      "dostamp": "ADM26060954015,613990087 ",
+      "mlstamp": "ADM26060954015,744000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "369.460000",
+        "deb": "74070.07972",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "184.730000",
+        "deb": "37035.03986",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor documental FO.IVA confirmado em app e PHC, sem dedução parcial."
+    },
+    {
+      "fostamp": "0E6D660C-D57C-4E7F-80BE-D",
+      "dostamp": "ADM26060954017,358309148 ",
+      "mlstamp": "ADM26060954017,461000001 ",
+      "conta": "622111131",
+      "classification": "BASE",
+      "before": {
+        "edeb": "377.090000",
+        "deb": "75599.75738",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "489.720000",
+        "deb": "98180.04504",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta de base; total da base confirmado em FO app, FO PHC e FN válidas."
+    },
+    {
+      "fostamp": "0E6D660C-D57C-4E7F-80BE-D",
+      "dostamp": "ADM26060954017,358309148 ",
+      "mlstamp": "ADM26060954017,495000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "225.270000",
+        "deb": "45162.58014",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "112.640000",
+        "deb": "22582.29248",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor documental FO.IVA confirmado em app e PHC, sem dedução parcial."
+    },
+    {
+      "fostamp": "5F189038-83D9-4BBA-ABBA-E",
+      "dostamp": "ADM26060954017,013390553 ",
+      "mlstamp": "ADM26060954017,118000001 ",
+      "conta": "622111131",
+      "classification": "BASE",
+      "before": {
+        "edeb": "654.510000",
+        "deb": "131217.47382",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "850.010000",
+        "deb": "170411.70482",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta de base; total da base confirmado em FO app, FO PHC e FN válidas."
+    },
+    {
+      "fostamp": "5F189038-83D9-4BBA-ABBA-E",
+      "dostamp": "ADM26060954017,013390553 ",
+      "mlstamp": "ADM26060954017,152000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "391.000000",
+        "deb": "78388.46200",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "195.500000",
+        "deb": "39194.23100",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor documental FO.IVA confirmado em app e PHC, sem dedução parcial."
+    },
+    {
+      "fostamp": "88713347-5737-44A3-BED6-B",
+      "dostamp": "ADM26070639607,030153939 ",
+      "mlstamp": "ADM26070639607,140000001 ",
+      "conta": "62261131",
+      "classification": "BASE",
+      "before": {
+        "edeb": "103.290000",
+        "deb": "20707.78578",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "134.150000",
+        "deb": "26894.66030",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta de base; total da base confirmado em FO app, FO PHC e FN válidas."
+    },
+    {
+      "fostamp": "88713347-5737-44A3-BED6-B",
+      "dostamp": "ADM26070639607,030153939 ",
+      "mlstamp": "ADM26070639607,171000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "61.710000",
+        "deb": "12371.74422",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "30.850000",
+        "deb": "6184.86970",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor documental FO.IVA confirmado em app e PHC, sem dedução parcial."
+    },
+    {
+      "fostamp": "AECD1B86-B6BC-47E3-BE5E-5",
+      "dostamp": "ADM26070639606,677469746 ",
+      "mlstamp": "ADM26070639606,783000001 ",
+      "conta": "62261131",
+      "classification": "BASE",
+      "before": {
+        "edeb": "31.300000",
+        "deb": "6275.08660",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "40.650000",
+        "deb": "8149.59330",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta de base; total da base confirmado em FO app, FO PHC e FN válidas."
+    },
+    {
+      "fostamp": "AECD1B86-B6BC-47E3-BE5E-5",
+      "dostamp": "ADM26070639606,677469746 ",
+      "mlstamp": "ADM26070639606,826000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "18.700000",
+        "deb": "3749.01340",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "9.350000",
+        "deb": "1874.50670",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor documental FO.IVA confirmado em app e PHC, sem dedução parcial."
+    },
+    {
+      "fostamp": "55B7E8A0-3097-411C-8B0C-0",
+      "dostamp": "ADM26070638862,512686620 ",
+      "mlstamp": "ADM26070638862,535000001 ",
+      "conta": "6236",
+      "classification": "BASE",
+      "before": {
+        "edeb": "30.530000",
+        "deb": "6120.71546",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "39.650000",
+        "deb": "7949.11130",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta de base; total da base confirmado em FO app, FO PHC e FN válidas."
+    },
+    {
+      "fostamp": "55B7E8A0-3097-411C-8B0C-0",
+      "dostamp": "ADM26070638862,512686620 ",
+      "mlstamp": "ADM26070638862,563000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "18.240000",
+        "deb": "3656.79168",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "9.120000",
+        "deb": "1828.39584",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor documental FO.IVA confirmado em app e PHC, sem dedução parcial."
+    },
+    {
+      "fostamp": "15A668B5-DBBC-419B-8EC2-2",
+      "dostamp": "ADM26070638861,182800034 ",
+      "mlstamp": "ADM26070638861,222000001 ",
+      "conta": "6236",
+      "classification": "BASE",
+      "before": {
+        "edeb": "79.750000",
+        "deb": "15988.43950",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "103.570000",
+        "deb": "20763.92074",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta de base; total da base confirmado em FO app, FO PHC e FN válidas."
+    },
+    {
+      "fostamp": "15A668B5-DBBC-419B-8EC2-2",
+      "dostamp": "ADM26070638861,182800034 ",
+      "mlstamp": "ADM26070638861,252000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "47.640000",
+        "deb": "9550.96248",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "23.820000",
+        "deb": "4775.48124",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor documental FO.IVA confirmado em app e PHC, sem dedução parcial."
+    },
+    {
+      "fostamp": "E978FBD7-E50B-430C-A436-E",
+      "dostamp": "ADM26070639608,030578338 ",
+      "mlstamp": "ADM26070639608,060000001 ",
+      "conta": "622111131",
+      "classification": "BASE",
+      "before": {
+        "edeb": "328.530000",
+        "deb": "65864.35146",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "426.670000",
+        "deb": "85539.65494",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta de base; total da base confirmado em FO app, FO PHC e FN válidas."
+    },
+    {
+      "fostamp": "E978FBD7-E50B-430C-A436-E",
+      "dostamp": "ADM26070639608,030578338 ",
+      "mlstamp": "ADM26070639608,079000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "196.270000",
+        "deb": "39348.60214",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "98.130000",
+        "deb": "19673.29866",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor documental FO.IVA confirmado em app e PHC, sem dedução parcial."
+    },
+    {
+      "fostamp": "ADB1DD04-9171-422F-A3A1-3",
+      "dostamp": "ADM26060954012,017029264 ",
+      "mlstamp": "ADM26060954012,120000001 ",
+      "conta": "62611112",
+      "classification": "BASE",
+      "before": {
+        "edeb": "4378.390000",
+        "deb": "877788.38398",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "5686.220000",
+        "deb": "1139984.75804",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta de base; total da base confirmado em FO app, FO PHC e FN válidas."
+    },
+    {
+      "fostamp": "ADB1DD04-9171-422F-A3A1-3",
+      "dostamp": "ADM26060954012,017029264 ",
+      "mlstamp": "ADM26060954012,153000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "2615.660000",
+        "deb": "524392.74812",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "1307.830000",
+        "deb": "262196.37406",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor documental FO.IVA confirmado em app e PHC, sem dedução parcial."
+    },
+    {
+      "fostamp": "4CE5EDE6-6D02-4741-8C03-E",
+      "dostamp": "ADM26060954012,362921077 ",
+      "mlstamp": "ADM26060954012,469000001 ",
+      "conta": "62611112",
+      "classification": "BASE",
+      "before": {
+        "edeb": "10862.520000",
+        "deb": "2177739.73464",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "14107.160000",
+        "deb": "2828231.65112",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta de base; total da base confirmado em FO app, FO PHC e FN válidas."
+    },
+    {
+      "fostamp": "4CE5EDE6-6D02-4741-8C03-E",
+      "dostamp": "ADM26060954012,362921077 ",
+      "mlstamp": "ADM26060954012,502000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "6489.290000",
+        "deb": "1300985.83778",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "3244.650000",
+        "deb": "650493.92130",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor documental FO.IVA confirmado em app e PHC, sem dedução parcial."
+    },
+    {
+      "fostamp": "048DC60B-AA73-4DD6-9B82-5",
+      "dostamp": "ADM26060954148,840441793 ",
+      "mlstamp": "ADM26060954148,939000001 ",
+      "conta": "622111131",
+      "classification": "BASE",
+      "before": {
+        "edeb": "587.900000",
+        "deb": "117863.36780",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "763.510000",
+        "deb": "153070.01182",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta de base; total da base confirmado em FO app, FO PHC e FN válidas."
+    },
+    {
+      "fostamp": "048DC60B-AA73-4DD6-9B82-5",
+      "dostamp": "ADM26060954148,840441793 ",
+      "mlstamp": "ADM26060954148,974000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "351.220000",
+        "deb": "70413.28804",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "175.610000",
+        "deb": "35206.64402",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor documental FO.IVA confirmado em app e PHC, sem dedução parcial."
+    },
+    {
+      "fostamp": "E0422472-0450-4D66-816E-5",
+      "dostamp": "ADM26060954014,143818286 ",
+      "mlstamp": "ADM26060954014,242000001 ",
+      "conta": "62331131",
+      "classification": "BASE",
+      "before": {
+        "edeb": "31.100000",
+        "deb": "6234.99020",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "40.390000",
+        "deb": "8097.46798",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta de base; total da base confirmado em FO app, FO PHC e FN válidas."
+    },
+    {
+      "fostamp": "E0422472-0450-4D66-816E-5",
+      "dostamp": "ADM26060954014,143818286 ",
+      "mlstamp": "ADM26060954014,274000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "18.580000",
+        "deb": "3724.95556",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "9.290000",
+        "deb": "1862.47778",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor documental FO.IVA confirmado em app e PHC, sem dedução parcial."
+    },
+    {
+      "fostamp": "3E6D7598-0A9D-4AB1-92C8-4",
+      "dostamp": "ADM26060954013,786852484 ",
+      "mlstamp": "ADM26060954013,889000001 ",
+      "conta": "6236",
+      "classification": "BASE",
+      "before": {
+        "edeb": "579.500000",
+        "deb": "116179.31900",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "752.590000",
+        "deb": "150880.74838",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta de base; total da base confirmado em FO app, FO PHC e FN válidas."
+    },
+    {
+      "fostamp": "3E6D7598-0A9D-4AB1-92C8-4",
+      "dostamp": "ADM26060954013,786852484 ",
+      "mlstamp": "ADM26060954013,923000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "346.190000",
+        "deb": "69404.86358",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "173.100000",
+        "deb": "34703.43420",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor documental FO.IVA confirmado em app e PHC, sem dedução parcial."
+    },
+    {
+      "fostamp": "BB6BA7ED-02F0-4443-A51E-5",
+      "dostamp": "ADM26060954012,720317645 ",
+      "mlstamp": "ADM26060954012,823000001 ",
+      "conta": "622111131",
+      "classification": "BASE",
+      "before": {
+        "edeb": "521.890000",
+        "deb": "104629.55098",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "677.770000",
+        "deb": "135880.68514",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta de base; total da base confirmado em FO app, FO PHC e FN válidas."
+    },
+    {
+      "fostamp": "BB6BA7ED-02F0-4443-A51E-5",
+      "dostamp": "ADM26060954012,720317645 ",
+      "mlstamp": "ADM26060954012,858000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "311.770000",
+        "deb": "62504.27314",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "155.890000",
+        "deb": "31253.13898",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor documental FO.IVA confirmado em app e PHC, sem dedução parcial."
+    },
+    {
+      "fostamp": "B17D5149-A6AD-4CC7-A4D5-D",
+      "dostamp": "ADM26060954149,892435793 ",
+      "mlstamp": "ADM26060954150,001000001 ",
+      "conta": "62621131",
+      "classification": "BASE",
+      "before": {
+        "edeb": "26.610000",
+        "deb": "5334.82602",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "34.550000",
+        "deb": "6926.65310",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta de base; total da base confirmado em FO app, FO PHC e FN válidas."
+    },
+    {
+      "fostamp": "B17D5149-A6AD-4CC7-A4D5-D",
+      "dostamp": "ADM26060954149,892435793 ",
+      "mlstamp": "ADM26060954150,033000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "15.890000",
+        "deb": "3185.65898",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "7.950000",
+        "deb": "1593.83190",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor documental FO.IVA confirmado em app e PHC, sem dedução parcial."
+    },
+    {
+      "fostamp": "57739A84-109D-4DE5-AA18-9",
+      "dostamp": "ADM26060954168,317518064 ",
+      "mlstamp": "ADM26060954168,415000001 ",
+      "conta": "62621131",
+      "classification": "BASE",
+      "before": {
+        "edeb": "289.110000",
+        "deb": "57961.35102",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "375.470000",
+        "deb": "75274.97654",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta de base; total da base confirmado em FO app, FO PHC e FN válidas."
+    },
+    {
+      "fostamp": "57739A84-109D-4DE5-AA18-9",
+      "dostamp": "ADM26060954168,317518064 ",
+      "mlstamp": "ADM26060954168,452000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "172.720000",
+        "deb": "34627.25104",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "86.360000",
+        "deb": "17313.62552",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor documental FO.IVA confirmado em app e PHC, sem dedução parcial."
+    },
+    {
+      "fostamp": "284D0DBE-BD82-43B4-A50E-6",
+      "dostamp": "ADM26060954013,423057698 ",
+      "mlstamp": "ADM26060954013,532000001 ",
+      "conta": "62621131",
+      "classification": "BASE",
+      "before": {
+        "edeb": "83.070000",
+        "deb": "16654.03974",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "107.890000",
+        "deb": "21630.00298",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta de base; total da base confirmado em FO app, FO PHC e FN válidas."
+    },
+    {
+      "fostamp": "284D0DBE-BD82-43B4-A50E-6",
+      "dostamp": "ADM26060954013,423057698 ",
+      "mlstamp": "ADM26060954013,567000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "49.630000",
+        "deb": "9949.92166",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "24.810000",
+        "deb": "4973.95842",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor documental FO.IVA confirmado em app e PHC, sem dedução parcial."
+    },
+    {
+      "fostamp": "C80C7EBD-3473-417E-8CF0-0",
+      "dostamp": "ADM26060954175,229223297 ",
+      "mlstamp": "ADM26060954175,336000001 ",
+      "conta": "6236",
+      "classification": "BASE",
+      "before": {
+        "edeb": "140.780000",
+        "deb": "28223.85596",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "182.840000",
+        "deb": "36656.12888",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta de base; total da base confirmado em FO app, FO PHC e FN válidas."
+    },
+    {
+      "fostamp": "C80C7EBD-3473-417E-8CF0-0",
+      "dostamp": "ADM26060954175,229223297 ",
+      "mlstamp": "ADM26060954175,368000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "84.110000",
+        "deb": "16862.54102",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "42.050000",
+        "deb": "8430.26810",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor documental FO.IVA confirmado em app e PHC, sem dedução parcial."
+    },
+    {
+      "fostamp": "C7F454C5-6AA6-45F9-BFB6-7",
+      "dostamp": "ADM26060954175,555033519 ",
+      "mlstamp": "ADM26060954175,669000001 ",
+      "conta": "62331131",
+      "classification": "BASE",
+      "before": {
+        "edeb": "9.450000",
+        "deb": "1894.55490",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "12.280000",
+        "deb": "2461.91896",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta de base; total da base confirmado em FO app, FO PHC e FN válidas."
+    },
+    {
+      "fostamp": "C7F454C5-6AA6-45F9-BFB6-7",
+      "dostamp": "ADM26060954175,555033519 ",
+      "mlstamp": "ADM26060954175,700000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "5.650000",
+        "deb": "1132.72330",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "2.820000",
+        "deb": "565.35924",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor documental FO.IVA confirmado em app e PHC, sem dedução parcial."
+    },
+    {
+      "fostamp": "411DF4D0-5AD7-4440-A67E-7",
+      "dostamp": "ADM26060954170,875564763 ",
+      "mlstamp": "ADM26060954170,913000001 ",
+      "conta": "6236",
+      "classification": "BASE",
+      "before": {
+        "edeb": "625.390000",
+        "deb": "125379.43798",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "812.200000",
+        "deb": "162831.48040",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta de base; total da base confirmado em FO app, FO PHC e FN válidas."
+    },
+    {
+      "fostamp": "411DF4D0-5AD7-4440-A67E-7",
+      "dostamp": "ADM26060954170,875564763 ",
+      "mlstamp": "ADM26060954170,940000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "373.610000",
+        "deb": "74902.08002",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "186.800000",
+        "deb": "37450.03760",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor documental FO.IVA confirmado em app e PHC, sem dedução parcial."
+    },
+    {
+      "fostamp": "D6D92A9A-28A8-4AE5-95CE-C",
+      "dostamp": "ADM26060954170,528391312 ",
+      "mlstamp": "ADM26060954170,634000001 ",
+      "conta": "62621131",
+      "classification": "BASE",
+      "before": {
+        "edeb": "150.990000",
+        "deb": "30270.77718",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "196.090000",
+        "deb": "39312.51538",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta de base; total da base confirmado em FO app, FO PHC e FN válidas."
+    },
+    {
+      "fostamp": "D6D92A9A-28A8-4AE5-95CE-C",
+      "dostamp": "ADM26060954170,528391312 ",
+      "mlstamp": "ADM26060954170,667000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "90.200000",
+        "deb": "18083.47640",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "45.100000",
+        "deb": "9041.73820",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor documental FO.IVA confirmado em app e PHC, sem dedução parcial."
+    },
+    {
+      "fostamp": "26202B62-7110-4D0C-B6BF-C",
+      "dostamp": "ADM26060938230,243336643 ",
+      "mlstamp": "ADM26060938230,353000001 ",
+      "conta": "62261131",
+      "classification": "BASE",
+      "before": {
+        "edeb": "147.110000",
+        "deb": "29492.90702",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "191.060000",
+        "deb": "38304.09092",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta de base; total da base confirmado em FO app, FO PHC e FN válidas."
+    },
+    {
+      "fostamp": "26202B62-7110-4D0C-B6BF-C",
+      "dostamp": "ADM26060938230,243336643 ",
+      "mlstamp": "ADM26060938230,389000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "87.890000",
+        "deb": "17620.36298",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "43.940000",
+        "deb": "8809.17908",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor documental FO.IVA confirmado em app e PHC, sem dedução parcial."
+    },
+    {
+      "fostamp": "31C86F9A-3D88-400D-BDF6-E",
+      "dostamp": "ADM26060938228,754804125 ",
+      "mlstamp": "ADM26060938228,963000004 ",
+      "conta": "62671131",
+      "classification": "BASE",
+      "before": {
+        "edeb": "60.270000",
+        "deb": "12083.05014",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "82.020000",
+        "deb": "16443.53364",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "FN A974424E67E24E0DB0AA8B764: base 82.02; PC 2026 conta 62671131 taxa 23% e contaiva 24323131."
+    },
+    {
+      "fostamp": "31C86F9A-3D88-400D-BDF6-E",
+      "dostamp": "ADM26060938228,754804125 ",
+      "mlstamp": "ADM26060938228,891000002 ",
+      "conta": "24323121",
+      "classification": "IVA",
+      "before": {
+        "edeb": "5.760000",
+        "deb": "1154.77632",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "2.880000",
+        "deb": "577.38816",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "IVA calculado sobre a base da FN de 13%: ROUND(22.14*13/100,2). Soma IVA = 21.74, coincidente com FO, sem residual."
+    },
+    {
+      "fostamp": "31C86F9A-3D88-400D-BDF6-E",
+      "dostamp": "ADM26060938228,754804125 ",
+      "mlstamp": "ADM26060938228,989000005 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "37.730000",
+        "deb": "7564.18586",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "18.860000",
+        "deb": "3781.09052",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "IVA calculado sobre a base da FN de 23%: ROUND(82.02*23/100,2). Soma IVA = 21.74, coincidente com FO, sem residual."
+    },
+    {
+      "fostamp": "99678EB5-061E-4D5E-9FC8-9",
+      "dostamp": "ADM26060938224,248825612 ",
+      "mlstamp": "ADM26060938224,358000001 ",
+      "conta": "6236",
+      "classification": "BASE",
+      "before": {
+        "edeb": "56.340000",
+        "deb": "11295.15588",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "73.170000",
+        "deb": "14669.26794",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta de base; total da base confirmado em FO app, FO PHC e FN válidas."
+    },
+    {
+      "fostamp": "99678EB5-061E-4D5E-9FC8-9",
+      "dostamp": "ADM26060938224,248825612 ",
+      "mlstamp": "ADM26060938224,393000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "33.660000",
+        "deb": "6748.22412",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "16.830000",
+        "deb": "3374.11206",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor documental FO.IVA confirmado em app e PHC, sem dedução parcial."
+    },
+    {
+      "fostamp": "37FE4ED5-4623-4720-9AB0-6",
+      "dostamp": "ADM26060938224,613994767 ",
+      "mlstamp": "ADM26060938224,721000001 ",
+      "conta": "6236",
+      "classification": "BASE",
+      "before": {
+        "edeb": "31.300000",
+        "deb": "6275.08660",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "40.650000",
+        "deb": "8149.59330",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta de base; total da base confirmado em FO app, FO PHC e FN válidas."
+    },
+    {
+      "fostamp": "37FE4ED5-4623-4720-9AB0-6",
+      "dostamp": "ADM26060938224,613994767 ",
+      "mlstamp": "ADM26060938224,757000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "18.700000",
+        "deb": "3749.01340",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "9.350000",
+        "deb": "1874.50670",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor documental FO.IVA confirmado em app e PHC, sem dedução parcial."
+    },
+    {
+      "fostamp": "3C4284C0-E0E1-4138-A02D-6",
+      "dostamp": "ADM26060938227,291155615 ",
+      "mlstamp": "ADM26060938227,324000001 ",
+      "conta": "6236",
+      "classification": "BASE",
+      "before": {
+        "edeb": "1003.100000",
+        "deb": "201103.49420",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "1302.730000",
+        "deb": "261173.91586",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta de base; total da base confirmado em FO app, FO PHC e FN válidas."
+    },
+    {
+      "fostamp": "3C4284C0-E0E1-4138-A02D-6",
+      "dostamp": "ADM26060938227,291155615 ",
+      "mlstamp": "ADM26060938227,350000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "599.260000",
+        "deb": "120140.84332",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "299.630000",
+        "deb": "60070.42166",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor documental FO.IVA confirmado em app e PHC, sem dedução parcial."
+    },
+    {
+      "fostamp": "4976D0E9-A8E2-4E5F-8719-5",
+      "dostamp": "ADM26070639603,768114968 ",
+      "mlstamp": "ADM26070639603,882000001 ",
+      "conta": "622111131",
+      "classification": "BASE",
+      "before": {
+        "edeb": "31.950000",
+        "deb": "6405.39990",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "41.500000",
+        "deb": "8320.00300",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta de base; total da base confirmado em FO app, FO PHC e FN válidas."
+    },
+    {
+      "fostamp": "4976D0E9-A8E2-4E5F-8719-5",
+      "dostamp": "ADM26070639603,768114968 ",
+      "mlstamp": "ADM26070639603,922000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "19.090000",
+        "deb": "3827.20138",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "9.540000",
+        "deb": "1912.59828",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor documental FO.IVA confirmado em app e PHC, sem dedução parcial."
+    },
+    {
+      "fostamp": "BF90B43F-73F7-4043-8C80-5",
+      "dostamp": "ADM26070638860,615264672 ",
+      "mlstamp": "ADM26070638860,726000001 ",
+      "conta": "6236",
+      "classification": "BASE",
+      "before": {
+        "edeb": "125.170000",
+        "deb": "25094.33194",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "162.560000",
+        "deb": "32590.35392",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta de base; total da base confirmado em FO app, FO PHC e FN válidas."
+    },
+    {
+      "fostamp": "BF90B43F-73F7-4043-8C80-5",
+      "dostamp": "ADM26070638860,615264672 ",
+      "mlstamp": "ADM26070638860,761000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "74.780000",
+        "deb": "14992.04396",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "37.390000",
+        "deb": "7496.02198",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor documental FO.IVA confirmado em app e PHC, sem dedução parcial."
+    },
+    {
+      "fostamp": "67984800-53B7-4F19-AF3D-D",
+      "dostamp": "ADM26070638860,953643471 ",
+      "mlstamp": "ADM26070638860,975000001 ",
+      "conta": "6236",
+      "classification": "BASE",
+      "before": {
+        "edeb": "125.170000",
+        "deb": "25094.33194",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "162.560000",
+        "deb": "32590.35392",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta de base; total da base confirmado em FO app, FO PHC e FN válidas."
+    },
+    {
+      "fostamp": "67984800-53B7-4F19-AF3D-D",
+      "dostamp": "ADM26070638860,953643471 ",
+      "mlstamp": "ADM26070638861,006000002 ",
+      "conta": "24323131",
+      "classification": "IVA",
+      "before": {
+        "edeb": "74.780000",
+        "deb": "14992.04396",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "after": {
+        "edeb": "37.390000",
+        "deb": "7496.02198",
+        "ecre": "0.000000",
+        "cre": "0.00000"
+      },
+      "reason": "Única conta IVA; valor documental FO.IVA confirmado em app e PHC, sem dedução parcial."
+    }
+  ]
+}

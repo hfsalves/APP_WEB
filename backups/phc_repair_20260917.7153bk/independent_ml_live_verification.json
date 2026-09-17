@@ -1,0 +1,1250 @@
+{
+  "verified_live_at": "2026-09-17T16:14:18.616704",
+  "select_only": true,
+  "documents_verified": 56,
+  "ML_rows_verified": 172,
+  "planned_updates_verified": 113,
+  "petrogal_documents_unchanged": 8,
+  "issues": [],
+  "petrogal_checks": [
+    {
+      "table": "GESTAO.FO",
+      "rows": 8,
+      "unchanged": true
+    },
+    {
+      "table": "GESTAO.FN",
+      "rows": 20,
+      "unchanged": true
+    },
+    {
+      "table": "Guest_SPA_Tur.FO",
+      "rows": 8,
+      "unchanged": true
+    },
+    {
+      "table": "Guest_SPA_Tur.FO2",
+      "rows": 8,
+      "unchanged": true
+    },
+    {
+      "table": "Guest_SPA_Tur.FN",
+      "rows": 15,
+      "unchanged": true
+    },
+    {
+      "table": "Guest_SPA_Tur.FOT",
+      "rows": 8,
+      "unchanged": true
+    },
+    {
+      "table": "Guest_SPA_Tur.ML",
+      "rows": 23,
+      "unchanged": true
+    },
+    {
+      "table": "Guest_SPA_Tur.DO",
+      "rows": 6,
+      "unchanged": true
+    }
+  ],
+  "invoice_387": {
+    "fostamp": "4CE5EDE6-6D02-4741-8C03-E",
+    "document": "387",
+    "supplier": "PEDRO NUNO SIMÃO ALVES",
+    "dilno": "5000039",
+    "base": "14107.160000",
+    "vat": "3244.650000",
+    "debit": "17351.810000",
+    "credit": "17351.810000",
+    "checks": {
+      "base_equals_FO": true,
+      "vat_equals_FO": true,
+      "total_equals_FO": true,
+      "FOT_equals_FO": true,
+      "ML_native_balanced": true,
+      "DO_euro_totals_equal_ML": true,
+      "DO_native_totals_equal_ML": true,
+      "ML_all_monetary_pairs": true,
+      "counterparty_full_row_unchanged": true
+    }
+  },
+  "documents": [
+    {
+      "fostamp": "E9CFFAD2-38D2-47D9-9492-4",
+      "document": "FAC 1/287",
+      "supplier": "REDECUPE, UNIPESSOAL, LDA",
+      "dilno": "4000087",
+      "base": "158.150000",
+      "vat": "36.370000",
+      "debit": "194.520000",
+      "credit": "194.520000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "DEB47F74-22F3-4EEC-A065-1",
+      "document": "FAC 262/67",
+      "supplier": "REGRAS E VISÃO LDA",
+      "dilno": "4000082",
+      "base": "529.460000",
+      "vat": "121.780000",
+      "debit": "651.240000",
+      "credit": "651.240000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "C5A2CCEF-7CAD-4E08-9256-2",
+      "document": "FT FA.2026L/5",
+      "supplier": "EASYWASH UNIPESSOAL, LDA",
+      "dilno": "4000095",
+      "base": "9.000000",
+      "vat": "2.070000",
+      "debit": "11.070000",
+      "credit": "11.070000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "A5584CE2-BA04-4ABA-8F3C-5",
+      "document": "FT FA.2026K/36",
+      "supplier": "EASYWASH UNIPESSOAL, LDA",
+      "dilno": "4000096",
+      "base": "502.440000",
+      "vat": "115.560000",
+      "debit": "618.000000",
+      "credit": "618.000000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "973ABE67-907C-411C-ADE2-7",
+      "document": "FT 101/113269416",
+      "supplier": "VODAFONE PORTUGAL - COMUNICAÇÕES PESSOAIS S A",
+      "dilno": "5000011",
+      "base": "10.370000",
+      "vat": "2.390000",
+      "debit": "12.760000",
+      "credit": "12.760000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "6DFF0EA7-27D7-46E3-8BE3-0",
+      "document": "FT 101/113268097",
+      "supplier": "VODAFONE PORTUGAL - COMUNICAÇÕES PESSOAIS S A",
+      "dilno": "5000012",
+      "base": "28.170000",
+      "vat": "6.480000",
+      "debit": "34.650000",
+      "credit": "34.650000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "C42F7C23-6701-4212-A4AC-F",
+      "document": "FAC 262/87",
+      "supplier": "REGRAS E VISÃO LDA",
+      "dilno": "4000189",
+      "base": "943.240000",
+      "vat": "216.950000",
+      "debit": "1160.190000",
+      "credit": "1160.190000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "7117E596-D89C-43E1-82E7-2",
+      "document": "FT 2025/63",
+      "supplier": "HABILIDADE PERFUMADA LDA",
+      "dilno": "4000195",
+      "base": "3420.300000",
+      "vat": "786.670000",
+      "debit": "4206.970000",
+      "credit": "4206.970000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "E18FBB60-9190-4321-B146-B",
+      "document": "FT FA.2026K/42",
+      "supplier": "EASYWASH UNIPESSOAL, LDA",
+      "dilno": "4000190",
+      "base": "477.180000",
+      "vat": "109.750000",
+      "debit": "586.930000",
+      "credit": "586.930000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "33AF72FB-EAA4-4AD7-8722-A",
+      "document": "FR 2026A11/37",
+      "supplier": "GUILHERME SILVA E GOMES SUCRS LDA",
+      "dilno": "4000180",
+      "base": "139.430000",
+      "vat": "32.070000",
+      "debit": "171.500000",
+      "credit": "171.500000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "9A0DB907-C6BC-4AF3-8AE5-0",
+      "document": "FAC 1/296",
+      "supplier": "REDECUPE, UNIPESSOAL, LDA",
+      "dilno": "4000170",
+      "base": "210.000000",
+      "vat": "48.300000",
+      "debit": "258.300000",
+      "credit": "258.300000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "E971084F-92A7-4A26-A0B3-F",
+      "document": "193093",
+      "supplier": "IKEA PORTUGAL MOVEIS E DECORAÇÃO LDA",
+      "dilno": "4000192",
+      "base": "267.450000",
+      "vat": "61.510000",
+      "debit": "328.960000",
+      "credit": "328.960000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "4C6ABC6C-54B9-4AF8-8F6B-E",
+      "document": "193091",
+      "supplier": "IKEA PORTUGAL MOVEIS E DECORAÇÃO LDA",
+      "dilno": "4000193",
+      "base": "408.590000",
+      "vat": "93.970000",
+      "debit": "502.560000",
+      "credit": "502.560000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "9C4A422B-0560-4B7A-9659-F",
+      "document": "FS 20260016202/025044",
+      "supplier": "BCM BRICOLAGE S A",
+      "dilno": "4000167",
+      "base": "143.270000",
+      "vat": "32.950000",
+      "debit": "176.220000",
+      "credit": "176.220000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "E9614A22-5948-4480-928A-9",
+      "document": "112882131",
+      "supplier": "VODAFONE PORTUGAL - COMUNICAÇÕES PESSOAIS S A",
+      "dilno": "4000158",
+      "base": "196.090000",
+      "vat": "45.100000",
+      "debit": "241.190000",
+      "credit": "241.190000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "35B2B235-9DE0-4E84-A087-9",
+      "document": "FAC 1/293",
+      "supplier": "REDECUPE, UNIPESSOAL, LDA",
+      "dilno": "4000137",
+      "base": "85.000000",
+      "vat": "19.550000",
+      "debit": "104.550000",
+      "credit": "104.550000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "F721E733-1555-4DFB-AF72-A",
+      "document": "FAC 1/292",
+      "supplier": "REDECUPE, UNIPESSOAL, LDA",
+      "dilno": "4000138",
+      "base": "125.410000",
+      "vat": "28.840000",
+      "debit": "154.250000",
+      "credit": "154.250000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "B15DA36C-C04B-4E12-BB74-9",
+      "document": "FT 2026/65",
+      "supplier": "JORGE GONÇALVES PEREIRA UNIPESSOAL LDA",
+      "dilno": "4000139",
+      "base": "260.160000",
+      "vat": "59.840000",
+      "debit": "320.000000",
+      "credit": "320.000000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "662F5553-683D-45B1-BD80-6",
+      "document": "FT 101/00029677",
+      "supplier": "LUA MUSCULADA LDA",
+      "dilno": "5000089",
+      "base": "7.720000",
+      "vat": "1.780000",
+      "debit": "9.500000",
+      "credit": "9.500000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "ACD08ECF-3948-46D2-9F9E-0",
+      "document": "098238",
+      "supplier": "RADIO POPULAR ELECTRODOMESTICOS SA",
+      "dilno": "5000066",
+      "base": "107.270000",
+      "vat": "24.670000",
+      "debit": "131.940000",
+      "credit": "131.940000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "508B32D8-0A46-4C8B-A437-B",
+      "document": "010753",
+      "supplier": "DSTORE RETAIL, S.A.",
+      "dilno": "5000076",
+      "base": "180.490000",
+      "vat": "41.510000",
+      "debit": "222.000000",
+      "credit": "222.000000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "2139E73B-1843-4C07-B4B0-5",
+      "document": "019700",
+      "supplier": "DSTORE RETAIL, S.A.",
+      "dilno": "5000081",
+      "base": "63.410000",
+      "vat": "14.590000",
+      "debit": "78.000000",
+      "credit": "78.000000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "7C7C2BD2-02E5-458A-8A87-6",
+      "document": "260",
+      "supplier": "FERNANDO AUGUSTO PORTELA SIMÕES",
+      "dilno": "5000071",
+      "base": "8.740000",
+      "vat": "2.010000",
+      "debit": "10.750000",
+      "credit": "10.750000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "14EC2D57-A8BD-4F66-B265-5",
+      "document": "00105386",
+      "supplier": "SOL IMPAGAVEL UNIPESSOAL LDA",
+      "dilno": "5000092",
+      "base": "5.280000",
+      "vat": "1.220000",
+      "debit": "6.500000",
+      "credit": "6.500000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "DFFDEDEE-0329-44B3-AA39-2",
+      "document": "000053",
+      "supplier": "IRMÃDONA SUPERMERCADOS, UNIPESSOAL, LDA.",
+      "dilno": "5000090",
+      "base": "44.720000",
+      "vat": "10.280000",
+      "debit": "55.000000",
+      "credit": "55.000000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "7831E4B0-2CA8-470B-90E3-1",
+      "document": "25812",
+      "supplier": "BIN LIU",
+      "dilno": "5000073",
+      "base": "11.670000",
+      "vat": "2.680000",
+      "debit": "14.350000",
+      "credit": "14.350000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "00032EA1-9884-4B20-9410-B",
+      "document": "FT M/2415",
+      "supplier": "LAVANDARIA BARREIROS LDA",
+      "dilno": "5000051",
+      "base": "292.680000",
+      "vat": "67.320000",
+      "debit": "360.000000",
+      "credit": "360.000000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "5691E7C8-2FF5-4136-ADED-4",
+      "document": "FT FA.2026K/55",
+      "supplier": "EASYWASH UNIPESSOAL, LDA",
+      "dilno": "5000048",
+      "base": "803.170000",
+      "vat": "184.730000",
+      "debit": "987.900000",
+      "credit": "987.900000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "0E6D660C-D57C-4E7F-80BE-D",
+      "document": "FAC 262/122",
+      "supplier": "REGRAS E VISÃO LDA",
+      "dilno": "5000053",
+      "base": "489.720000",
+      "vat": "112.640000",
+      "debit": "602.360000",
+      "credit": "602.360000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "5F189038-83D9-4BBA-ABBA-E",
+      "document": "FT M/2409",
+      "supplier": "LAVANDARIA BARREIROS LDA",
+      "dilno": "5000052",
+      "base": "850.010000",
+      "vat": "195.500000",
+      "debit": "1045.510000",
+      "credit": "1045.510000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "88713347-5737-44A3-BED6-B",
+      "document": "FT 2026/99",
+      "supplier": "JORGE GONÇALVES PEREIRA UNIPESSOAL LDA",
+      "dilno": "6000136",
+      "base": "134.150000",
+      "vat": "30.850000",
+      "debit": "165.000000",
+      "credit": "165.000000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "AECD1B86-B6BC-47E3-BE5E-5",
+      "document": "FT 2026/98",
+      "supplier": "JORGE GONÇALVES PEREIRA UNIPESSOAL LDA",
+      "dilno": "6000135",
+      "base": "40.650000",
+      "vat": "9.350000",
+      "debit": "50.000000",
+      "credit": "50.000000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "55B7E8A0-3097-411C-8B0C-0",
+      "document": "103778",
+      "supplier": "RADIO POPULAR ELECTRODOMESTICOS SA",
+      "dilno": "6000096",
+      "base": "39.650000",
+      "vat": "9.120000",
+      "debit": "48.770000",
+      "credit": "48.770000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "15A668B5-DBBC-419B-8EC2-2",
+      "document": "005396",
+      "supplier": "BCM BRICOLAGE S A",
+      "dilno": "6000091",
+      "base": "103.570000",
+      "vat": "23.820000",
+      "debit": "127.390000",
+      "credit": "127.390000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "E978FBD7-E50B-430C-A436-E",
+      "document": "FAC 262/161",
+      "supplier": "REGRAS E VISÃO LDA",
+      "dilno": "6000139",
+      "base": "426.670000",
+      "vat": "98.130000",
+      "debit": "524.800000",
+      "credit": "524.800000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "ADB1DD04-9171-422F-A3A1-3",
+      "document": "8",
+      "supplier": "HUGO FILIPE SIMÃO ALVES",
+      "dilno": "5000038",
+      "base": "5686.220000",
+      "vat": "1307.830000",
+      "debit": "6994.050000",
+      "credit": "6994.050000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "4CE5EDE6-6D02-4741-8C03-E",
+      "document": "387",
+      "supplier": "PEDRO NUNO SIMÃO ALVES",
+      "dilno": "5000039",
+      "base": "14107.160000",
+      "vat": "3244.650000",
+      "debit": "17351.810000",
+      "credit": "17351.810000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "048DC60B-AA73-4DD6-9B82-5",
+      "document": "FT FA.2026K/50",
+      "supplier": "EASYWASH UNIPESSOAL, LDA",
+      "dilno": "5000105",
+      "base": "763.510000",
+      "vat": "175.610000",
+      "debit": "939.120000",
+      "credit": "939.120000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "E0422472-0450-4D66-816E-5",
+      "document": "261019557",
+      "supplier": "ONBIT - MATERIAL INFORMÁTICO, LDA",
+      "dilno": "5000044",
+      "base": "40.390000",
+      "vat": "9.290000",
+      "debit": "49.680000",
+      "credit": "49.680000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "3E6D7598-0A9D-4AB1-92C8-4",
+      "document": "1397",
+      "supplier": "SO COLCHÃO LDA",
+      "dilno": "5000043",
+      "base": "752.590000",
+      "vat": "173.100000",
+      "debit": "925.690000",
+      "credit": "925.690000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "BB6BA7ED-02F0-4443-A51E-5",
+      "document": "FAC 262/109",
+      "supplier": "REGRAS E VISÃO LDA",
+      "dilno": "5000040",
+      "base": "677.770000",
+      "vat": "155.890000",
+      "debit": "833.660000",
+      "credit": "833.660000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "B17D5149-A6AD-4CC7-A4D5-D",
+      "document": "FT 101/114226177",
+      "supplier": "VODAFONE PORTUGAL - COMUNICAÇÕES PESSOAIS S A",
+      "dilno": "5000108",
+      "base": "34.550000",
+      "vat": "7.950000",
+      "debit": "42.500000",
+      "credit": "42.500000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "57739A84-109D-4DE5-AA18-9",
+      "document": "FT A/867230854",
+      "supplier": "MEO - SERVIÇOS DE COMUNICAÇÕES E MULTIMÉDIA S.A.",
+      "dilno": "5000154",
+      "base": "375.470000",
+      "vat": "86.360000",
+      "debit": "461.830000",
+      "credit": "461.830000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "284D0DBE-BD82-43B4-A50E-6",
+      "document": "1488425",
+      "supplier": "NOS COMUNICAÇÕES S A",
+      "dilno": "5000042",
+      "base": "107.890000",
+      "vat": "24.810000",
+      "debit": "132.700000",
+      "credit": "132.700000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "C80C7EBD-3473-417E-8CF0-0",
+      "document": "004632",
+      "supplier": "BCM BRICOLAGE S A",
+      "dilno": "5000173",
+      "base": "182.840000",
+      "vat": "42.050000",
+      "debit": "224.890000",
+      "credit": "224.890000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "C7F454C5-6AA6-45F9-BFB6-7",
+      "document": "023668",
+      "supplier": "IRMÃDONA SUPERMERCADOS, UNIPESSOAL, LDA.",
+      "dilno": "5000174",
+      "base": "12.280000",
+      "vat": "2.820000",
+      "debit": "15.100000",
+      "credit": "15.100000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "411DF4D0-5AD7-4440-A67E-7",
+      "document": "ZFAT BZA1/9181617497",
+      "supplier": "PC DIGA LDA",
+      "dilno": "5000161",
+      "base": "812.200000",
+      "vat": "186.800000",
+      "debit": "999.000000",
+      "credit": "999.000000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "D6D92A9A-28A8-4AE5-95CE-C",
+      "document": "FT 101/114613388",
+      "supplier": "VODAFONE PORTUGAL - COMUNICAÇÕES PESSOAIS S A",
+      "dilno": "5000160",
+      "base": "196.090000",
+      "vat": "45.100000",
+      "debit": "241.190000",
+      "credit": "241.190000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "26202B62-7110-4D0C-B6BF-C",
+      "document": "FT 2026/61",
+      "supplier": "JORGE GONÇALVES PEREIRA UNIPESSOAL LDA",
+      "dilno": "4000053",
+      "base": "191.060000",
+      "vat": "43.940000",
+      "debit": "235.000000",
+      "credit": "235.000000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "31C86F9A-3D88-400D-BDF6-E",
+      "document": "FR AAD897/255759",
+      "supplier": "MODELO CONTINENTE HIPERMERCADOS S A",
+      "dilno": "4000049",
+      "base": "104.160000",
+      "vat": "21.740000",
+      "debit": "125.900000",
+      "credit": "125.900000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "99678EB5-061E-4D5E-9FC8-9",
+      "document": "59",
+      "supplier": "JORGE GONÇALVES PEREIRA UNIPESSOAL LDA",
+      "dilno": "4000036",
+      "base": "73.170000",
+      "vat": "16.830000",
+      "debit": "90.000000",
+      "credit": "90.000000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "37FE4ED5-4623-4720-9AB0-6",
+      "document": "58",
+      "supplier": "JORGE GONÇALVES PEREIRA UNIPESSOAL LDA",
+      "dilno": "4000037",
+      "base": "40.650000",
+      "vat": "9.350000",
+      "debit": "50.000000",
+      "credit": "50.000000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "3C4284C0-E0E1-4138-A02D-6",
+      "document": "FT A/1387",
+      "supplier": "SO COLCHÃO LDA",
+      "dilno": "4000045",
+      "base": "1302.730000",
+      "vat": "299.630000",
+      "debit": "1602.360000",
+      "credit": "1602.360000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "4976D0E9-A8E2-4E5F-8719-5",
+      "document": "FT FA.2026L/9",
+      "supplier": "EASYWASH UNIPESSOAL, LDA",
+      "dilno": "6000125",
+      "base": "41.500000",
+      "vat": "9.540000",
+      "debit": "51.040000",
+      "credit": "51.040000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "BF90B43F-73F7-4043-8C80-5",
+      "document": "103303",
+      "supplier": "RADIO POPULAR ELECTRODOMESTICOS SA",
+      "dilno": "6000089",
+      "base": "162.560000",
+      "vat": "37.390000",
+      "debit": "199.950000",
+      "credit": "199.950000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    },
+    {
+      "fostamp": "67984800-53B7-4F19-AF3D-D",
+      "document": "103305",
+      "supplier": "RADIO POPULAR ELECTRODOMESTICOS SA",
+      "dilno": "6000090",
+      "base": "162.560000",
+      "vat": "37.390000",
+      "debit": "199.950000",
+      "credit": "199.950000",
+      "checks": {
+        "base_equals_FO": true,
+        "vat_equals_FO": true,
+        "total_equals_FO": true,
+        "FOT_equals_FO": true,
+        "ML_native_balanced": true,
+        "DO_euro_totals_equal_ML": true,
+        "DO_native_totals_equal_ML": true,
+        "ML_all_monetary_pairs": true,
+        "counterparty_full_row_unchanged": true
+      }
+    }
+  ]
+}

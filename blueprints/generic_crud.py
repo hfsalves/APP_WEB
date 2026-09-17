@@ -73,12 +73,27 @@ def _generic_audit_record_key(table_name: str, record_stamp: str) -> dict:
     return {f"{str(table_name or '').strip().upper()}STAMP": str(record_stamp or '').strip()}
 
 
+def _opc_external_planning_access(action: str = 'consultar') -> bool:
+    """Restrict this flag without granting visibility of other admin fields."""
+    if bool(getattr(current_user, 'ADMIN', False) or getattr(current_user, 'ADMINOPC', False)):
+        return True
+    try:
+        access = Acessos.query.filter_by(
+            utilizador=str(getattr(current_user, 'LOGIN', '') or '').strip(),
+            tabela='OPC_PLANEXT_VIEW',
+        ).first()
+        return bool(access and getattr(access, action, False))
+    except Exception:
+        current_app.logger.exception('Erro ao validar o acesso ao planeamento externo.')
+        return False
+
+
+def _can_view_opc_external_planning() -> bool:
+    return _opc_external_planning_access('consultar')
+
+
 def _can_manage_opc_external_planning() -> bool:
-    """Only OPC administrators may expose a work to external planning."""
-    return bool(
-        getattr(current_user, 'ADMIN', False)
-        or getattr(current_user, 'ADMINOPC', False)
-    )
+    return _opc_external_planning_access('editar')
 
 
 def _ensure_opc_external_planning_write_access(table_name: str, values: dict) -> None:
@@ -2166,6 +2181,10 @@ def edit_table(table_name, record_stamp):
         botoes=botoes,
         linhas_exist=linhas_exist,
         exact_widths=exact_widths,
+        can_view_opc_external_planning=(
+            str(table_name or '').strip().upper() == 'OPC'
+            and _can_view_opc_external_planning()
+        ),
         menu_stamp=(menu_item.menustamp if menu_item else '')
     )
 
@@ -4649,8 +4668,8 @@ def get_record(table_name, record_stamp):
     # Base: dados reais
     rec = dict(row._mapping)
 
-    # Do not expose the value through the generic endpoint to non-OPC admins.
-    if str(table_name or '').strip().upper() == 'OPC' and not _can_manage_opc_external_planning():
+    # Do not expose this administrative value without its specific permission.
+    if str(table_name or '').strip().upper() == 'OPC' and not _can_view_opc_external_planning():
         rec.pop('U_PLANEXT', None)
 
     # ðŸ” Adiciona campos virtuais

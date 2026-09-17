@@ -1,0 +1,25 @@
+{
+  "mode": "apply",
+  "started_at": "2026-09-17T16:12:22.893067",
+  "status": "committed",
+  "documents": 192,
+  "petrogal_excluded": 8,
+  "accounting_documents": 56,
+  "operation_counts": {
+    "DELETE GESTAO.FN": 156,
+    "DELETE Guest_SPA_Tur.FN": 96,
+    "DELETE Guest_SPA_Tur.FOT": 3,
+    "UPDATE Guest_SPA_Tur.FOT": 195,
+    "UPDATE GESTAO.FO": 192,
+    "UPDATE Guest_SPA_Tur.FO": 192,
+    "UPDATE Guest_SPA_Tur.ML": 113
+  },
+  "source_sha256": {
+    "before.json": "28fdf3b0315b541e45a0e9c24f35f5c476af33fa59c29cf56ba3fdfe278c718b",
+    "repair_plan.json": "6e39352d41523d125b47712f008b7bb10dfa9272d0bbe4fd66dd78644de16904",
+    "ml_plan_review.json": "346cee6fdfebcd69d030ad88aa5fd14b0e2c15e10a00561d70cb78041326ac4e"
+  },
+  "validated_at": "2026-09-17T16:12:32.209300",
+  "iva_reduction": "8588.460000",
+  "finished_at": "2026-09-17T16:12:32.280912"
+}

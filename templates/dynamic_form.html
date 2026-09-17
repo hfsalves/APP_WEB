@@ -507,6 +507,7 @@
   window.RECORD_STAMP  = {{ record_stamp|tojson }};
   window.IS_ADMIN_USER = {{ 'true' if current_user.ADMIN else 'false' }};
   window.CAN_VIEW_ADMIN_FIELDS = {{ 'true' if current_user.ADMIN or (table_name|upper == 'OPC' and current_user.ADMINOPC) else 'false' }};
+  window.CAN_VIEW_OPC_EXTERNAL_PLANNING = {{ 'true' if can_view_opc_external_planning|default(false) else 'false' }};
   window.RETURN_TO     = {{ return_to|tojson }};
   window.MENU_STAMP    = {{ menu_stamp|tojson }};
   window.DYNAMIC_FORM_EXACT_WIDTHS = {{ 'true' if exact_widths else 'false' }};

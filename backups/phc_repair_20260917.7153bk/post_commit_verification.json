@@ -1,0 +1,47 @@
+{
+  "verified_at": "2026-09-17T16:13:05.270029",
+  "status": "PASS",
+  "all_columns_all_scoped_tables_match_expected": true,
+  "documents": 192,
+  "accounting_documents": 56,
+  "excluded_petrogal_unchanged": 8,
+  "counts": {
+    "GESTAO.FO": 200,
+    "GESTAO.FN": 377,
+    "Guest_SPA_Tur.FO": 200,
+    "Guest_SPA_Tur.FO2": 200,
+    "Guest_SPA_Tur.FN": 367,
+    "Guest_SPA_Tur.FOT": 203,
+    "Guest_SPA_Tur.ML": 304,
+    "Guest_SPA_Tur.DO": 98,
+    "GESTAO.IM": 18,
+    "Guest_SPA_Tur.PC": 54
+  },
+  "sample_invoice_387": {
+    "FOT": [
+      {
+        "codigo": "2",
+        "taxa": "23.00",
+        "ebaseinc": "14107.160000",
+        "evalor": "3244.650000"
+      }
+    ],
+    "ML": [
+      {
+        "conta": "62611112",
+        "edeb": "14107.160000",
+        "ecre": "0.000000"
+      },
+      {
+        "conta": "24323131",
+        "edeb": "3244.650000",
+        "ecre": "0.000000"
+      },
+      {
+        "conta": "278100002",
+        "edeb": "0.000000",
+        "ecre": "17351.810000"
+      }
+    ]
+  }
+}

@@ -52,6 +52,10 @@ PORTAL_PASSWORD_RESET_COOLDOWN_SECONDS = 60
 PORTAL_PAYMENT_ACCESS_SESSION_KEY = "PORTOBREAK_PAYMENT_ACCESS"
 PORTAL_GUEST_PORTAL_TOKEN_SALT = "portobreak-guest-portal-v1"
 PORTAL_GUEST_PORTAL_TOKEN_MAX_AGE = 60 * 60 * 24 * 365
+PORTAL_INTERNAL_BOOKING_RECIPIENTS = (
+    "pedro@guestspa.pt", "hugo@guestspa.pt", "susana@guestspa.pt", "dyhia@guestspa.pt",
+    "helpdesk@guestspa.pt", "hfsalves@hotmail.com", "pnalves.pa@gmail.com", "guestspa.pt@gmail.com",
+)
 
 TRANSLATIONS = {
     "pt": {
@@ -1130,9 +1134,10 @@ def _confirmed_booking_summary(booking_id: str, *, payment_id: str | None = None
         text(
             f"""
             SELECT TOP 1
-                B.PBBKSTAMP, B.PBUSERSTAMP, B.EMAIL_ID, B.ALSTAMP, B.AL_NOME,
+                B.PBBKSTAMP, B.PBUSERSTAMP, B.EMAIL_ID, B.EMAIL_INTERNO_ID, B.ALSTAMP, B.AL_NOME,
                 B.CHECKIN, B.CHECKOUT, B.NOITES, B.ADULTOS, B.CRIANCAS, B.BEBES,
-                B.CLIENTE_NOME, B.CLIENTE_EMAIL, B.PRECO_ESTIMADO, B.PRECO_LABEL,
+                B.CLIENTE_NOME, B.CLIENTE_EMAIL, B.CLIENTE_TELEFONE, B.CLIENTE_MORADA,
+                B.CLIENTE_PAIS, B.CLIENTE_NIF, B.PRECO_ESTIMADO, B.PRECO_LABEL,
                 R.RESERVA, P.PBPAYSTAMP
             FROM dbo.PB_BOOKING_REQUESTS AS B{lock_hint}
             INNER JOIN dbo.PB_STRIPE_TEST_PAYMENTS AS P ON P.PBBKSTAMP = B.PBBKSTAMP
@@ -1674,6 +1679,97 @@ def _send_paid_booking_confirmation_email(payment: dict, lang: str) -> int | Non
     return None
 
 
+def _send_internal_paid_booking_notification(payment: dict, lang: str) -> int | None:
+    """Send the operations team one independent notification per confirmed booking."""
+    payment_id = str(payment.get("id") or "").strip()
+    booking_id = str(payment.get("booking_id") or "").strip()
+    reservation_code = str(payment.get("reservation_code") or "").strip()
+    if not payment_id or not booking_id or not reservation_code:
+        return None
+
+    try:
+        booking = _confirmed_booking_summary(booking_id, payment_id=payment_id, lang=lang, lock=True)
+        if not booking or booking.get("EMAIL_INTERNO_ID"):
+            db.session.rollback()
+            return None
+
+        rows = [
+            ("Referência", booking.get("reservation_code") or reservation_code),
+            ("Alojamento", booking.get("nome") or ""),
+            ("Localização", booking.get("localizacao") or ""),
+            ("Check-in", booking.get("CHECKIN") or ""),
+            ("Check-out", booking.get("CHECKOUT") or ""),
+            ("Noites", booking.get("NOITES") or 0),
+            ("Hóspedes", booking.get("guest_summary") or ""),
+            ("Total pago", booking.get("total") or ""),
+            ("Nome do hóspede", booking.get("CLIENTE_NOME") or ""),
+            ("Email do hóspede", booking.get("CLIENTE_EMAIL") or ""),
+            ("Telefone", booking.get("CLIENTE_TELEFONE") or ""),
+            ("Morada", booking.get("CLIENTE_MORADA") or ""),
+            ("País", booking.get("CLIENTE_PAIS") or ""),
+            ("NIF", booking.get("CLIENTE_NIF") or ""),
+        ]
+        text_body = "\n".join([
+            "Nova reserva confirmada no Porto Break.", "",
+            *[f"{label}: {value}" for label, value in rows],
+        ])
+        html_rows = "".join(
+            "<tr>"
+            f'<td style="padding:8px 10px;color:#6b6258;font-weight:700;">{html.escape(str(label))}</td>'
+            f'<td style="padding:8px 10px;color:#1c1917;">{html.escape(str(value))}</td>'
+            "</tr>"
+            for label, value in rows
+        )
+        body_html = f"""
+        <div style="font-family:Inter,Arial,sans-serif;color:#1c1917;background:#f5f1ea;padding:28px 16px;">
+          <div style="max-width:620px;margin:0 auto;background:#ffffff;border:1px solid #e2d8ca;border-radius:12px;padding:28px;">
+            <p style="margin:0 0 8px;color:#f97316;font-size:12px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;">Porto Break · Operações</p>
+            <h1 style="margin:0 0 14px;font-size:28px;line-height:1.15;">Nova reserva confirmada</h1>
+            <p style="margin:0 0 22px;color:#615a52;line-height:1.5;">O pagamento foi confirmado. Seguem todos os dados operacionais da reserva.</p>
+            <table style="width:100%;border-collapse:collapse;background:#f7f3ed;border-radius:8px;overflow:hidden;">{html_rows}</table>
+          </div>
+        </div>
+        """
+        email_id = queue_email(
+            to=list(PORTAL_INTERNAL_BOOKING_RECIPIENTS),
+            subject=f"Nova reserva confirmada · {booking.get('reservation_code') or reservation_code} · Porto Break",
+            body_html=body_html,
+            body_text=text_body,
+            priority=2,
+            context="PORTOBREAK_BOOKING_INTERNAL_NOTIFICATION",
+            context_id=booking_id,
+            created_by="portobreak_public",
+            from_email="noreply@portobreak.com",
+            from_name="Porto Break",
+        )
+        updated = db.session.execute(
+            text("""
+                UPDATE dbo.PB_BOOKING_REQUESTS
+                SET EMAIL_INTERNO_ID = :email_id, DTALT = SYSUTCDATETIME()
+                WHERE PBBKSTAMP = :booking_id AND EMAIL_INTERNO_ID IS NULL
+            """),
+            {"email_id": email_id, "booking_id": booking_id},
+        )
+        if not updated.rowcount:
+            db.session.rollback()
+            return None
+        db.session.commit()
+        send_result = send_email_now(email_id)
+        if not send_result.get("ok"):
+            current_app.logger.warning(
+                "Notificação interna Porto Break %s ficou com erro para reserva %s: %s",
+                email_id, reservation_code, send_result.get("error") or "",
+            )
+        return int(email_id)
+    except EmailServiceError:
+        db.session.rollback()
+        current_app.logger.exception("Não foi possível enviar notificação interna Porto Break para reserva %s", reservation_code)
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception("Erro inesperado na notificação interna Porto Break para reserva %s", reservation_code)
+    return None
+
+
 @bp.route("/portal-reservas/recuperar-password", methods=["GET", "POST"])
 @bp.route("/reservas/recuperar-password", methods=["GET", "POST"])
 def password_recovery():
@@ -2129,6 +2225,7 @@ def payment_result():
             abort(404)
         if payment.get("paid") and payment.get("reservation_code"):
             _send_paid_booking_confirmation_email(payment, lang)
+            _send_internal_paid_booking_notification(payment, lang)
             booking = _confirmed_booking_summary(payment.get("booking_id"), payment_id=payment.get("id"), lang=lang)
         payment_error = ""
     except PortalPaymentError as exc:
@@ -2168,6 +2265,7 @@ def stripe_webhook():
         payment = result.get("payment") or {}
         if payment.get("paid") and payment.get("reservation_code"):
             _send_paid_booking_confirmation_email(payment, _resolve_lang())
+            _send_internal_paid_booking_notification(payment, _resolve_lang())
         return jsonify({"ok": True, "duplicate": bool(result.get("duplicate"))})
     except PortalPaymentError as exc:
         current_app.logger.exception("Falha ao processar webhook Stripe Porto Break: %s", exc)
