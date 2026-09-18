@@ -51,6 +51,8 @@ from services.booking_portal_cookies import (
 from services.booking_portal_seo import (
     PUBLIC_ENDPOINTS, build_booking_seo, is_public_origin, public_url,
 )
+from services.booking_portal_map import get_map_catalog
+from services.booking_portal_map_copy import get_map_copy
 
 
 bp = Blueprint("booking_portal", __name__)
@@ -1266,6 +1268,26 @@ def _reservation_query_args(params: dict, lang: str) -> dict:
     return query
 
 
+def _map_query_args(params: dict, lang: str) -> dict:
+    """Keep the catalog search, including the legacy party count, across views."""
+    query = _reservation_query_args(params, lang)
+    raw = params.get("raw") or {}
+    if raw.get("hospedes"):
+        query["hospedes"] = raw["hospedes"]
+    if params.get("query"):
+        query["q"] = params["query"]
+    return query
+
+
+def _map_json(payload: dict, status: int = 200):
+    response = jsonify(payload)
+    response.status_code = status
+    # Availability and quotations must not be reused as a promise of inventory.
+    response.headers["Cache-Control"] = "private, no-store"
+    response.vary.add("Cookie")
+    return response
+
+
 def _pagination_url(page_number: int, lang: str):
     args = {}
     for key in ("checkin", "checkout", "adultos", "criancas", "bebes", "hospedes", "q"):
@@ -2373,8 +2395,116 @@ def index():
         alojamentos=alojamentos,
         pagination=_pagination_context(pagination, lang),
         search=params,
+        catalog_map={
+            "view": "map" if request.args.get("view") == "map" else "list",
+            "lang": lang,
+            "data_url": url_for("booking_portal.map_catalog", **_map_query_args(params, lang)),
+            "labels": get_map_copy(lang),
+        },
         page_title=_t(lang)["page_reservations"],
     )
+
+
+@bp.get("/reservas/mapa-dados")
+def map_catalog():
+    lang = _resolve_lang()
+    params = _search_params(lang)
+    try:
+        catalog = get_map_catalog(params)
+    except SQLAlchemyError:
+        current_app.logger.exception("Não foi possível carregar o mapa de alojamentos PortoBreak")
+        return _map_json({"error": get_map_copy(lang)["error"]}, 503)
+
+    query = _map_query_args(params, lang)
+    # Deliberate public allowlist: never serialize decorated AL records or RS data.
+    items = [
+        {
+            "id": item["id"], "name": item["name"],
+            "lat": item["lat"], "lon": item["lon"],
+            "available": bool(item["available"]),
+            "detail_url": _detail_url(item["id"], params),
+            "quote_url": url_for("booking_portal.map_quote", al_id=item["id"], **query),
+        }
+        for item in catalog["items"]
+    ]
+    return _map_json({
+        "items": items,
+        "total": catalog["total"], "matched": catalog["matched"],
+        "missing_coordinates": catalog["missing_coordinates"],
+        "has_search": bool(catalog["has_search"] or params["errors"]),
+        "has_dates": catalog["has_dates"],
+        "errors": params["errors"], "guest_summary": params["guest_summary"],
+    })
+
+
+@bp.get("/reservas/<al_id>/simulacao-mapa")
+def map_quote(al_id):
+    """Read-only preview, computed only when a visitor selects a map property."""
+    lang = _resolve_lang()
+    params = _search_params(lang)
+    t = _t(lang)
+    copy = get_map_copy(lang)
+    try:
+        alojamento = get_alojamento(al_id, lang=lang)
+        if not alojamento:
+            abort(404)
+        constraints = _guest_constraints(alojamento, params, t)
+        errors = list(params["errors"]) + constraints["errors"] + _date_policy_messages(al_id, params, t)
+        has_dates = bool(params["checkin"] and params["checkout"])
+        available = None
+        price = None
+        if has_dates and not errors:
+            available = alojamento_disponivel(al_id, params["checkin"], params["checkout"])
+            if available:
+                calculated = _translate_price(calcular_preco(
+                    al_id, params["checkin"], params["checkout"], params["hospedes"],
+                ), t)
+                if calculated and calculated.get("valor"):
+                    price = {
+                        "label": calculated["label"],
+                        "lines": [
+                            {"label": line["label"], "value": line["value"]}
+                            for line in calculated.get("linhas", [])
+                        ],
+                        "nights": calculated["noites"], "is_estimate": True,
+                    }
+                else:
+                    errors.append(copy["no_price"])
+            else:
+                errors.append(t["unavailable_selected"])
+        elif errors:
+            available = False
+    except SQLAlchemyError:
+        current_app.logger.exception("Não foi possível simular um alojamento no mapa PortoBreak")
+        return _map_json({"error": copy["quote_error"]}, 503)
+
+    detail_url = _detail_url(al_id, params)
+    # The policy's return link goes back to the map with the same search.
+    return_to = url_for("booking_portal.index", view="map", **_map_query_args(params, lang))
+    policy = _cancellation_policy_context(params["checkin"], lang)
+    cancellation = {
+        "label": policy["free_message_text"] if policy.get("show_free_cancellation") else policy["policy_link"],
+        "url": _cancellation_policy_url(params["checkin"], lang, return_to),
+    }
+    return _map_json({
+        "id": alojamento["id"], "name": alojamento["nome"],
+        "image": alojamento.get("foto_principal") or "",
+        "tipologia": alojamento.get("tipologia") or "",
+        "capacity": alojamento.get("capacidade"),
+        "location": alojamento.get("localizacao") or "",
+        "from_price": alojamento.get("preco_desde") or "",
+        "price": price, "available": available,
+        "reserve_enabled": bool(available is True and price and not errors),
+        "errors": errors, "notes": constraints["notes"],
+        "detail_url": detail_url,
+        "reserve_url": url_for("booking_portal.reserve", al_id=al_id, **_reservation_query_args(params, lang)),
+        "dates": {
+            "checkin": params["checkin"].isoformat() if params["checkin"] else "",
+            "checkout": params["checkout"].isoformat() if params["checkout"] else "",
+        },
+        "guest_summary": params["guest_summary"] or (f"1 {t['guest']}" if has_dates else ""),
+        "cancellation": cancellation,
+    })
 
 
 @bp.route("/portal-reservas/alojamento/<al_id>")

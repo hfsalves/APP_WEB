@@ -8,6 +8,11 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/booking_portal.css') }}?v={{ config.get('STATIC_VERSION', 1) }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/booking_mobile_search.css') }}?v={{ config.get('STATIC_VERSION', 1) }}">
   <script src="{{ url_for('static', filename='js/booking_mobile_search.js') }}?v={{ config.get('STATIC_VERSION', 1) }}" defer></script>
+  {% if catalog_map is defined %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/booking_portal/leaflet-1.9.4/leaflet.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/booking_catalog_map.css') }}?v={{ config.get('STATIC_VERSION', 1) }}">
+    <script src="{{ url_for('static', filename='vendor/booking_portal/leaflet-1.9.4/leaflet.js') }}" defer></script>
+  {% endif %}
 </head>
 <body>
   <main class="booking-shell">
@@ -29,6 +34,7 @@
 
         <form class="booking-search" method="get" action="{{ url_for('booking_portal.index') }}" data-search-form>
           <input type="hidden" name="lang" value="{{ lang }}">
+          {% if catalog_map is defined and catalog_map.view == 'map' %}<input type="hidden" name="view" value="map" data-catalog-view-input>{% endif %}
           <div class="booking-search-dates">
             <label>
               <span>{{ t.checkin }}</span>
@@ -69,7 +75,7 @@
       </div>
     </header>
 
-    <section class="booking-hero">
+    <section class="booking-hero" data-catalog-list>
       <div class="booking-hero-content">
         <div class="booking-hero-copy">
           <p class="booking-kicker">{{ t.local_stay }}</p>
@@ -85,19 +91,54 @@
           <p class="booking-kicker booking-kicker-dark">{{ t.availability }}</p>
           <h2>{% if search.has_search and not search.errors %}{{ t.results_found }}{% else %}{{ t.available_stays }}{% endif %}</h2>
         </div>
-        <span class="booking-count">{{ pagination.total }} {% if pagination.total == 1 %}{{ t.stay }}{% else %}{{ t.stays }}{% endif %}</span>
+        <div class="booking-catalog-actions">
+          <span class="booking-count" data-catalog-count>{{ pagination.total }} {% if pagination.total == 1 %}{{ t.stay }}{% else %}{{ t.stays }}{% endif %}</span>
+          {% if catalog_map is defined %}
+            <button class="booking-button booking-catalog-view-toggle" type="button" data-catalog-view-toggle data-map-open aria-controls="bookingCatalogMap" aria-pressed="false" hidden>
+              <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path d="m9 18-6 3V6l6-3 6 3 6-3v15l-6 3-6-3Zm0 0V3m6 3v15"/></svg>
+              <span data-catalog-view-label>{{ catalog_map.labels.view_map }}</span>
+            </button>
+          {% endif %}
+        </div>
       </div>
 
       {% if search.errors %}
-        <div class="booking-alert">
+        <div class="booking-alert" data-catalog-list>
           {% for error in search.errors %}
             <p>{{ error }}</p>
           {% endfor %}
         </div>
       {% endif %}
 
+      {% if catalog_map is defined %}
+        <section class="booking-catalog-map" id="bookingCatalogMap" data-catalog-map hidden aria-label="{{ catalog_map.labels.title }}">
+          <div class="booking-catalog-map-toolbar">
+            <div class="booking-catalog-map-legend" aria-label="{{ catalog_map.labels.title }}">
+              <span><i class="booking-catalog-map-dot" aria-hidden="true"></i><span data-map-available-label>{{ catalog_map.labels.legend_all }}</span></span>
+              <span data-map-unavailable-legend hidden><i class="booking-catalog-map-dot is-unavailable" aria-hidden="true"></i>{{ catalog_map.labels.legend_unavailable }}</span>
+            </div>
+            <p class="booking-catalog-map-approximate">{{ catalog_map.labels.approximate }}</p>
+          </div>
+          <div class="booking-catalog-map-consent" data-catalog-map-consent>
+            <strong>{{ cookie_ui.map_title }}</strong>
+            <p>{{ cookie_ui.map_description }}</p>
+            <button class="booking-button booking-button-primary" type="button" data-catalog-map-settings hidden>{{ cookie_ui.map_settings }}</button>
+            <a href="{{ cookie_policy_url }}">{{ booking_legal_links.cookies.label }}</a>
+          </div>
+          <div class="booking-catalog-map-feedback" data-catalog-map-feedback hidden>
+            <p data-catalog-map-status role="status" aria-live="polite"></p>
+            <button class="booking-button" type="button" data-catalog-map-retry hidden>{{ catalog_map.labels.retry }}</button>
+          </div>
+          <p class="booking-catalog-map-warning" data-catalog-map-warning role="status" hidden></p>
+          <div class="booking-catalog-map-stage" data-catalog-map-stage hidden>
+            <div class="booking-catalog-map-canvas" data-catalog-map-canvas aria-label="{{ catalog_map.labels.title }}"></div>
+          </div>
+          <p class="booking-catalog-map-missing" data-catalog-map-missing hidden></p>
+        </section>
+      {% endif %}
+
       {% if alojamentos %}
-        <div class="booking-grid">
+        <div class="booking-grid" data-catalog-list>
           {% for al in alojamentos %}
             <article class="booking-card">
               <a class="booking-card-media" href="{{ al.detail_url }}" aria-label="{{ t.view_stay }} {{ al.nome }}">
@@ -139,7 +180,7 @@
           {% endfor %}
         </div>
         {% if pagination.pages > 1 %}
-          <nav class="booking-pagination" aria-label="{{ t.page }}">
+          <nav class="booking-pagination" aria-label="{{ t.page }}" data-catalog-list>
             {% if pagination.has_prev %}
               <a class="booking-page-link booking-page-prev" href="{{ pagination.prev_url }}" aria-label="{{ t.previous }}">{{ t.previous }}</a>
             {% else %}
@@ -164,7 +205,7 @@
           </nav>
         {% endif %}
       {% else %}
-        <div class="booking-empty">
+        <div class="booking-empty" data-catalog-list>
           <h3>{{ t.empty_title }}</h3>
           <p>{{ t.empty_text }}</p>
           <a class="booking-button booking-button-primary" href="{{ url_for('booking_portal.index', lang=lang) }}">{{ t.clear_search }}</a>
@@ -187,5 +228,9 @@
     });
   </script>
   {% include 'booking_portal/_footer.html' %}
+  {% if catalog_map is defined %}
+    <script type="application/json" id="booking-catalog-map-config">{{ catalog_map|tojson }}</script>
+    <script src="{{ url_for('static', filename='js/booking_catalog_map.js') }}?v={{ config.get('STATIC_VERSION', 1) }}" defer></script>
+  {% endif %}
 </body>
 </html>
