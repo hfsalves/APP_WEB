@@ -6,6 +6,8 @@
   {% include 'booking_portal/_seo.html' %}
   {% include 'booking_portal/_fonts.html' %}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/booking_portal.css') }}?v={{ config.get('STATIC_VERSION', 1) }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/booking_mobile_search.css') }}?v={{ config.get('STATIC_VERSION', 1) }}">
+  <script src="{{ url_for('static', filename='js/booking_mobile_search.js') }}?v={{ config.get('STATIC_VERSION', 1) }}" defer></script>
 </head>
 <body>
   <main class="booking-shell">
@@ -13,7 +15,7 @@
       <nav class="booking-nav booking-site-header" aria-label="PortoBreak.com">
         <a class="booking-brand" href="{{ url_for('booking_portal.index', lang=lang) }}" aria-label="PortoBreak.com">
           <picture>
-            <source media="(max-width: 768px)" srcset="{{ url_for('static', filename='images/booking_portal/portobreak-logo-simple.png') }}">
+            <source media="(max-width: 980px)" srcset="{{ url_for('static', filename='images/booking_portal/portobreak-logo-simple.png') }}">
             <img src="{{ url_for('static', filename='images/booking_portal/portobreak-logo-current.png') }}" alt="PortoBreak.com">
           </picture>
         </a>
@@ -21,41 +23,48 @@
 
       <div class="booking-search-stack">
         <div class="booking-top-actions">
-          <div class="booking-language-switcher" aria-label="Language">
-            {% for item in language_links %}
-              <a href="{{ item.url }}" class="{% if item.active %}is-active{% endif %}" lang="{{ item.code }}">{{ item.label }}</a>
-            {% endfor %}
-          </div>
+          {% include 'booking_portal/_language_switcher.html' %}
           {% include 'booking_portal/_account_menu.html' %}
         </div>
 
         <form class="booking-search" method="get" action="{{ url_for('booking_portal.index') }}" data-search-form>
           <input type="hidden" name="lang" value="{{ lang }}">
-          <label>
-            <span>{{ t.checkin }}</span>
-            <input type="date" name="checkin" value="{{ search.raw.checkin }}">
-          </label>
-          <label>
-            <span>{{ t.checkout }}</span>
-            <input type="date" name="checkout" value="{{ search.raw.checkout }}">
-          </label>
-          <label>
-            <span>{{ t.adults }}</span>
-            <input type="number" name="adultos" min="1" max="50" inputmode="numeric" value="{{ search.raw.adultos }}" placeholder="2">
-          </label>
-          <label>
-            <span>{{ t.children }}</span>
-            <input type="number" name="criancas" min="0" max="50" inputmode="numeric" value="{{ search.raw.criancas }}" placeholder="0">
-          </label>
-          <label>
-            <span>{{ t.babies }}</span>
-            <input type="number" name="bebes" min="0" max="10" inputmode="numeric" value="{{ search.raw.bebes }}" placeholder="0">
-          </label>
+          <div class="booking-search-dates">
+            <label>
+              <span>{{ t.checkin }}</span>
+              <input type="date" name="checkin" value="{{ search.raw.checkin }}">
+            </label>
+            <label>
+              <span>{{ t.checkout }}</span>
+              <input type="date" name="checkout" value="{{ search.raw.checkout }}">
+            </label>
+          </div>
+          <div class="booking-search-party" data-search-party>
+            <button class="booking-mobile-party-toggle" type="button" aria-expanded="false" aria-controls="booking-search-party-fields" aria-labelledby="booking-mobile-party-label booking-mobile-party-count" data-party-toggle>
+              <span id="booking-mobile-party-label">{{ t.guests }}</span>
+              <span class="booking-mobile-party-value"><b id="booking-mobile-party-count" data-party-count data-empty-label="{{ t.choose }}">{{ t.choose }}</b><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="m5 7 5 5 5-5"/></svg></span>
+            </button>
+            <div class="booking-search-party-fields" id="booking-search-party-fields">
+              <label>
+                <span>{{ t.adults }}</span>
+                <input type="number" name="adultos" min="1" max="50" inputmode="numeric" value="{{ search.raw.adultos }}" placeholder="2">
+              </label>
+              <label>
+                <span>{{ t.children }}</span>
+                <input type="number" name="criancas" min="0" max="50" inputmode="numeric" value="{{ search.raw.criancas }}" placeholder="0">
+              </label>
+              <label>
+                <span>{{ t.babies }}</span>
+                <input type="number" name="bebes" min="0" max="10" inputmode="numeric" value="{{ search.raw.bebes }}" placeholder="0">
+              </label>
+              <button class="booking-mobile-party-close" type="button" data-party-close>{{ t.close }}</button>
+            </div>
+          </div>
           <label class="booking-search-query">
             <span>{{ t.name_location }}</span>
             <input type="search" name="q" value="{{ search.raw.query }}" placeholder="{{ t.search_placeholder }}">
           </label>
-          <button class="booking-button booking-button-primary" type="submit" data-search-button>{{ t.search }}</button>
+          <button class="booking-button booking-button-primary" type="submit" aria-label="{{ t.search }}" data-search-button>{{ t.search }}</button>
         </form>
       </div>
     </header>
@@ -132,9 +141,9 @@
         {% if pagination.pages > 1 %}
           <nav class="booking-pagination" aria-label="{{ t.page }}">
             {% if pagination.has_prev %}
-              <a class="booking-page-link booking-page-prev" href="{{ pagination.prev_url }}">{{ t.previous }}</a>
+              <a class="booking-page-link booking-page-prev" href="{{ pagination.prev_url }}" aria-label="{{ t.previous }}">{{ t.previous }}</a>
             {% else %}
-              <span class="booking-page-link booking-page-prev is-disabled">{{ t.previous }}</span>
+              <span class="booking-page-link booking-page-prev is-disabled" aria-label="{{ t.previous }}" aria-disabled="true">{{ t.previous }}</span>
             {% endif %}
 
             <div class="booking-page-numbers">
@@ -148,9 +157,9 @@
             </div>
 
             {% if pagination.has_next %}
-              <a class="booking-page-link booking-page-next" href="{{ pagination.next_url }}">{{ t.next }}</a>
+              <a class="booking-page-link booking-page-next" href="{{ pagination.next_url }}" aria-label="{{ t.next }}">{{ t.next }}</a>
             {% else %}
-              <span class="booking-page-link booking-page-next is-disabled">{{ t.next }}</span>
+              <span class="booking-page-link booking-page-next is-disabled" aria-label="{{ t.next }}" aria-disabled="true">{{ t.next }}</span>
             {% endif %}
           </nav>
         {% endif %}
@@ -171,6 +180,8 @@
         if (button) {
           button.disabled = true;
           button.textContent = {{ t.searching|tojson }};
+          button.setAttribute("aria-label", {{ t.searching|tojson }});
+          button.setAttribute("aria-busy", "true");
         }
       });
     });

@@ -1,0 +1,16 @@
+{% from 'booking_portal/_navigation_icons.html' import flag %}
+{% set language_names = {'pt': 'Português', 'en': 'English', 'es': 'Español', 'fr': 'Français'} %}
+{% set language_labels = {'pt': 'Idioma', 'en': 'Language', 'es': 'Idioma', 'fr': 'Langue'} %}
+<details class="booking-mobile-language" data-booking-navigation-menu>
+  <summary aria-label="{{ language_labels.get(lang, 'Language') }}: {{ language_names.get(lang, 'Português') }}" title="{{ language_labels.get(lang, 'Language') }}: {{ language_names.get(lang, 'Português') }}">
+    {{ flag(lang) }}
+  </summary>
+  <nav class="booking-mobile-language-dropdown" aria-label="{{ language_labels.get(lang, 'Language') }}">
+    {% for item in language_links %}
+      <a href="{{ item.url }}" lang="{{ item.code }}" hreflang="{{ item.code }}"{% if item.active %} class="is-active" aria-current="true"{% endif %}>
+        {{ flag(item.code) }}<span>{{ language_names.get(item.code, item.label) }}</span>
+        {% if item.active %}<svg class="booking-language-check" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true" focusable="false"><path d="m3 8 3 3 7-7"/></svg>{% endif %}
+      </a>
+    {% endfor %}
+  </nav>
+</details>

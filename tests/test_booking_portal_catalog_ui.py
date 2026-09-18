@@ -3,13 +3,14 @@
 import copy
 from html.parser import HTMLParser
 from pathlib import Path
+import re
 import unittest
 from unittest.mock import patch
 from urllib.parse import parse_qs, urlsplit
 
 from flask import Flask
 
-from blueprints.booking_portal import _pagination_context, bp
+from blueprints.booking_portal import _pagination_context, _t, bp
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -54,6 +55,29 @@ class VisibleBodyText(HTMLParser):
     def handle_data(self, data):
         if self.in_body and not self.hidden_depth:
             self.parts.append(data)
+
+
+class PaginationMarkup(HTMLParser):
+    def __init__(self, markup):
+        super().__init__(convert_charrefs=True)
+        self.items = []
+        self.current = None
+        self.feed(markup)
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        classes = set(attrs.get("class", "").split())
+        if tag in {"a", "span"} and classes.intersection({"booking-page-link", "booking-page-number"}):
+            self.current = {"tag": tag, "attrs": attrs, "classes": classes, "text": ""}
+            self.items.append(self.current)
+
+    def handle_data(self, data):
+        if self.current:
+            self.current["text"] += data
+
+    def handle_endtag(self, tag):
+        if self.current and tag == self.current["tag"]:
+            self.current = None
 
 
 class BookingPortalCatalogUiTests(unittest.TestCase):
@@ -138,6 +162,59 @@ class BookingPortalCatalogUiTests(unittest.TestCase):
         markup = response.get_data(as_text=True)
         self.assertIn('href="/reservas?lang=pt&amp;page=6">6</a>', markup)
         self.assertEqual(markup.count('class="booking-page-number'), 7)  # wrapper plus six pages
+
+    def test_pagination_arrows_keep_localized_labels_disabled_semantics_and_filtered_urls(self):
+        for lang in ("pt", "en", "es", "fr"):
+            for page in (1, 5, 6):
+                with self.subTest(lang=lang, page=page):
+                    query = {
+                        "lang": lang, "page": str(page), "checkin": "2030-10-14", "checkout": "2030-10-18",
+                        "adultos": "2", "criancas": "1", "bebes": "1", "hospedes": "3", "q": "Porto & Centro",
+                    }
+                    response = self.client.get("/reservas", query_string=query)
+                    self.assertEqual(response.status_code, 200)
+                    pagination = PaginationMarkup(response.get_data(as_text=True))
+                    numbers = [item for item in pagination.items if "booking-page-number" in item["classes"]]
+                    self.assertEqual([item["text"].strip() for item in numbers], [str(number) for number in range(1, 7)])
+                    active = [item for item in numbers if item["attrs"].get("aria-current") == "page"]
+                    self.assertEqual([item["text"].strip() for item in active], [str(page)])
+
+                    for direction, key, destination, enabled in (
+                        ("prev", "previous", page - 1, page > 1), ("next", "next", page + 1, page < 6),
+                    ):
+                        controls = [item for item in pagination.items if "booking-page-" + direction in item["classes"]]
+                        self.assertEqual(len(controls), 1)
+                        control = controls[0]
+                        label = _t(lang)[key]
+                        self.assertEqual(control["attrs"].get("aria-label"), label)
+                        self.assertEqual(control["text"].strip(), label)  # retained for the desktop label
+                        if not enabled:
+                            self.assertEqual(control["tag"], "span")
+                            self.assertEqual(control["attrs"].get("aria-disabled"), "true")
+                            self.assertNotIn("href", control["attrs"])
+                            self.assertIn("is-disabled", control["classes"])
+                        else:
+                            self.assertEqual(control["tag"], "a")
+                            self.assertNotEqual(control["attrs"].get("aria-disabled"), "true")
+                            parsed = urlsplit(control["attrs"]["href"])
+                            self.assertEqual(parsed.path, "/reservas")
+                            expected = {name: [value] for name, value in query.items()}
+                            expected["page"] = [str(destination)]
+                            self.assertEqual(parse_qs(parsed.query), expected)
+
+    def test_arrow_only_pagination_presentation_is_limited_to_mobile(self):
+        css = (ROOT / "static/css/booking_portal.css").read_text()
+        desktop, mobile = css.split("@media (max-width: 720px)", 1)
+        selector = ".booking-pagination .booking-page-link::before"
+        self.assertNotIn(selector, desktop)
+        self.assertIn(selector, mobile)
+        rule = re.search(r"\.booking-pagination \.booking-page-link\s*\{([^}]+)\}", mobile)
+        self.assertIsNotNone(rule)
+        self.assertIn("font-size: 0;", rule.group(1))
+        icon = re.search(r"\.booking-pagination \.booking-page-link::before\s*\{([^}]+)\}", mobile)
+        self.assertIsNotNone(icon)
+        self.assertIn("data:image/svg+xml", icon.group(1))
+        self.assertIn('.booking-pagination .booking-page-next::before { transform: rotate(180deg); }', mobile)
 
 
 if __name__ == "__main__":

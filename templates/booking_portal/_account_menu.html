@@ -1,6 +1,7 @@
+{% from 'booking_portal/_navigation_icons.html' import person %}
 {% if portal_user %}
-  <details class="booking-account-menu">
-    <summary>{{ portal_user.nome or t.account }}</summary>
+  <details class="booking-account-menu" data-booking-navigation-menu>
+    <summary aria-label="{{ t.account }}: {{ portal_user.nome or t.account }}" title="{{ portal_user.nome or t.account }}">{{ person() }}</summary>
     <div class="booking-account-dropdown">
       <a href="{{ url_for('booking_portal.my_bookings', lang=lang) }}">{{ t.my_bookings }}</a>
       <form method="post" action="{{ url_for('booking_portal.logout', lang=lang) }}">
@@ -9,5 +10,5 @@
     </div>
   </details>
 {% else %}
-  <a class="booking-account-link" href="{{ url_for('booking_portal.login', lang=lang) }}">{{ t.login }}</a>
+  <a class="booking-account-link" href="{{ url_for('booking_portal.login', lang=lang) }}" aria-label="{{ t.login }}" title="{{ t.login }}">{{ person() }}</a>
 {% endif %}

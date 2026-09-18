@@ -1,0 +1,129 @@
+/* The original detail form stays unchanged unless mobile enhancement is active. */
+.booking-detail-mobile-controls,
+.booking-detail-calendar-dialog { display: none; }
+.booking-detail-inline-slot { display: contents; }
+.booking-detail-update-notice[hidden],
+.booking-cancellation-note[hidden] { display: none; }
+.booking-detail-update-notice {
+  margin: 0;
+  color: var(--bp-muted);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+[data-detail-reserve-action][aria-disabled="true"] { opacity: 0.55; cursor: not-allowed; }
+
+@media (max-width: 720px) {
+  body.booking-detail-calendar-open { overflow: hidden; }
+  [data-mobile-detail-enhanced] [data-detail-static-summary] { display: none; }
+  [data-mobile-detail-enhanced] .booking-detail-mobile-controls {
+    display: grid;
+    gap: 8px;
+    min-width: 0;
+  }
+  .booking-detail-field {
+    position: relative;
+    display: grid;
+    gap: 4px;
+    width: 100%;
+    min-width: 0;
+    min-height: 60px;
+    padding: 10px 42px 10px 10px;
+    border: 1px solid var(--bp-line);
+    border-radius: 8px;
+    background: var(--bp-surface-soft);
+    color: var(--bp-text);
+    text-align: left;
+    cursor: pointer;
+  }
+  .booking-detail-field-label {
+    color: var(--bp-muted);
+    font-size: 0.72rem;
+    font-weight: 800;
+    text-transform: uppercase;
+  }
+  .booking-detail-field-value { font-size: 1rem; font-weight: 800; overflow-wrap: anywhere; }
+  .booking-detail-field-icon { position: absolute; right: 12px; top: calc(50% - 10px); color: var(--bp-accent-dark); }
+  .booking-detail-field:focus-visible { outline: 2px solid var(--bp-accent); outline-offset: 2px; }
+  .booking-detail-field[aria-expanded="true"] { border-color: var(--bp-accent); }
+  .booking-detail-guest-field { position: relative; min-width: 0; }
+  .booking-detail-guest-popover {
+    position: absolute;
+    z-index: 120;
+    top: calc(100% + 8px);
+    left: 0;
+    display: grid;
+    gap: 12px;
+    width: 100%;
+    padding: 12px;
+    border: 1px solid var(--bp-line);
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: var(--bp-shadow);
+  }
+  .booking-detail-guest-popover[hidden] { display: none; }
+  .booking-detail-guest-popover label { display: grid; gap: 6px; min-width: 0; }
+  .booking-detail-guest-popover label > span {
+    color: var(--bp-muted);
+    font-size: 0.65rem;
+    font-weight: 800;
+    text-transform: uppercase;
+  }
+  .booking-detail-guest-popover input {
+    width: 100%;
+    min-width: 0;
+    height: 44px;
+    border: 1px solid var(--bp-line);
+    border-radius: 7px;
+    padding: 0 7px;
+    background: #fff;
+    color: var(--bp-text);
+    font-size: 16px;
+  }
+  .booking-detail-guest-popover input:focus { outline: 2px solid var(--bp-accent); outline-offset: 1px; }
+  .booking-detail-guest-popover [data-detail-guests-close] {
+    background: var(--bp-accent-dark);
+    border-color: transparent;
+    color: #fff;
+  }
+
+  .booking-detail-calendar-dialog[open] {
+    display: flex;
+    flex-direction: column;
+    width: min(440px, calc(100% - 24px));
+    max-width: none;
+    max-height: calc(100dvh - 24px);
+    margin: auto;
+    padding: 0;
+    border: 1px solid var(--bp-line);
+    border-radius: 16px;
+    background: #fff;
+    color: var(--bp-text);
+    box-shadow: var(--bp-shadow);
+    overflow: hidden;
+  }
+  .booking-detail-calendar-dialog::backdrop { background: rgba(17, 31, 44, 0.55); }
+  .booking-detail-calendar-dialog-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--bp-line);
+  }
+  .booking-detail-calendar-dialog-head h2 { margin: 0; font-size: 1.1rem; }
+  .booking-detail-calendar-close {
+    width: 44px;
+    height: 44px;
+    border: 0;
+    border-radius: 8px;
+    background: var(--bp-surface-soft);
+    color: var(--bp-text);
+    font-size: 1.5rem;
+    cursor: pointer;
+  }
+  .booking-detail-calendar-dialog-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+  .booking-detail-calendar-dialog .booking-calendar { border: 0; border-radius: 0; padding: 14px; background: #fff; }
+  .booking-detail-calendar-dialog .booking-calendar-nav { width: 44px; height: 44px; }
+  .booking-detail-calendar-dialog .booking-calendar-day { min-height: 40px; }
+  .booking-detail-calendar-dialog-footer { padding: 10px 14px; border-top: 1px solid var(--bp-line); }
+}

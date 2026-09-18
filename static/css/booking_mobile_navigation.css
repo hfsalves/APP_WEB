@@ -1,0 +1,169 @@
+/* Shared flag/account controls at every width; responsive header grid below 981px. */
+body .booking-mobile-language {
+  position: relative;
+  display: block;
+  flex: 0 0 auto;
+}
+
+body .booking-mobile-language > summary,
+body .booking-account-link,
+body .booking-account-menu > summary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 1px solid var(--bp-line);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.86);
+  color: var(--bp-accent-dark);
+  cursor: pointer;
+  list-style: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body .booking-mobile-language > summary::-webkit-details-marker {
+  display: none;
+}
+
+body .booking-mobile-language > summary::marker {
+  content: "";
+}
+
+body .booking-account-mobile-icon {
+  display: block;
+  flex: 0 0 auto;
+}
+
+body .booking-mobile-language .booking-language-flag {
+  display: block;
+  flex: 0 0 auto;
+  border-radius: 3px;
+  box-shadow: 0 0 0 1px rgba(28, 25, 23, 0.1);
+  overflow: hidden;
+}
+
+body .booking-mobile-language-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 130;
+  display: grid;
+  gap: 2px;
+  min-width: 186px;
+  max-width: calc(100vw - 24px);
+  padding: 6px;
+  border: 1px solid var(--bp-line);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 12px 28px rgba(28, 25, 23, 0.15);
+}
+
+body .booking-mobile-language:not([open]) > .booking-mobile-language-dropdown {
+  display: none;
+}
+
+body .booking-mobile-language-dropdown a {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  color: var(--bp-text);
+  font-size: 0.875rem;
+  font-weight: 650;
+  text-decoration: none;
+}
+
+body .booking-mobile-language-dropdown a.is-active {
+  background: var(--bp-surface-soft);
+  color: var(--bp-accent-dark);
+}
+
+body .booking-mobile-language-dropdown a:hover,
+body .booking-mobile-language-dropdown a:focus-visible {
+  background: var(--bp-surface-soft);
+}
+
+body .booking-language-check {
+  margin-left: auto;
+}
+
+body .booking-mobile-language > summary:focus-visible,
+body .booking-account-link:focus-visible,
+body .booking-account-menu > summary:focus-visible {
+  outline: 2px solid var(--bp-accent-dark);
+  outline-offset: 3px;
+}
+
+body .booking-account-dropdown {
+  min-width: 190px;
+  max-width: calc(100vw - 24px);
+  border-radius: 12px;
+}
+
+body .booking-account-dropdown a,
+body .booking-account-dropdown form button {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+}
+
+@media (max-width: 980px) {
+  body .booking-topbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 12px;
+    row-gap: 14px;
+  }
+
+  body .booking-topbar > .booking-nav {
+    grid-column: 1;
+    grid-row: 1;
+    align-self: center;
+    transform: none;
+  }
+
+  body .booking-topbar .booking-search-stack {
+    display: contents;
+  }
+
+  body .booking-topbar .booking-top-actions {
+    grid-column: 2;
+    grid-row: 1;
+    gap: 8px;
+    align-self: center;
+  }
+
+  body .booking-topbar .booking-search {
+    grid-column: 1 / -1;
+    min-width: 0;
+  }
+
+  body .booking-topbar .booking-brand img {
+    width: min(160px, 100%);
+    max-width: 100%;
+  }
+
+  body .booking-topbar-light .booking-brand img {
+    width: 130px;
+  }
+
+  body .booking-topbar-light {
+    align-items: center;
+    gap: 8px;
+  }
+
+  body .booking-topbar-light .booking-nav-actions {
+    gap: 8px;
+    flex: 0 0 auto;
+  }
+
+  body .booking-topbar-light > .booking-mobile-language {
+    margin-left: auto;
+  }
+}

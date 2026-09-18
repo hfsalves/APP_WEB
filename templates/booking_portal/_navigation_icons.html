@@ -1,0 +1,28 @@
+{% macro flag(code) -%}
+<svg class="booking-language-flag" width="27" height="18" viewBox="0 0 27 18" aria-hidden="true" focusable="false">
+  {% if code == 'pt' %}
+    <path fill="#e51c30" d="M0 0h27v18H0z"/><path fill="#087f43" d="M0 0h11v18H0z"/>
+    <circle cx="11" cy="9" r="4.2" fill="none" stroke="#ffd54b" stroke-width="1.1"/>
+    <path fill="#fff" stroke="#b81729" stroke-width="1.1" d="M8.6 5.7h4.8v4.1c0 1.8-2.4 2.8-2.4 2.8s-2.4-1-2.4-2.8z"/>
+    <path fill="#174d8a" d="M10.4 6.9h1.2v1.2h-1.2zm-1.2 1.5h1.2v1.2H9.2zm2.4 0h1.2v1.2h-1.2zm-1.2 1.5h1.2v1.2h-1.2z"/>
+  {% elif code == 'en' %}
+    <path fill="#153675" d="M0 0h27v18H0z"/>
+    <path stroke="#fff" stroke-width="4" d="m0 0 27 18m0-18L0 18"/>
+    <path stroke="#d8253b" stroke-width="1.4" d="m0 0 27 18m0-18L0 18"/>
+    <path stroke="#fff" stroke-width="6" d="M13.5 0v18M0 9h27"/>
+    <path stroke="#d8253b" stroke-width="3.5" d="M13.5 0v18M0 9h27"/>
+  {% elif code == 'es' %}
+    <path fill="#c61932" d="M0 0h27v18H0z"/><path fill="#ffd54b" d="M0 4.5h27v9H0z"/>
+    <path fill="#b92235" d="M7 7h4v4H7z"/><path fill="#fff" d="M8 7.5h2V11H8z"/>
+    <path fill="#b92235" d="M7.5 6h3v1h-3zM6 8h1v3H6zm5 0h1v3h-1z"/>
+  {% else %}
+    <path fill="#fff" d="M0 0h27v18H0z"/><path fill="#183b8f" d="M0 0h9v18H0z"/><path fill="#e43946" d="M18 0h9v18h-9z"/>
+  {% endif %}
+</svg>
+{%- endmacro %}
+
+{% macro person() -%}
+<svg class="booking-account-mobile-icon" width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+  <circle cx="12" cy="8" r="3.5"/><path d="M4.8 20v-1.2a7.2 7.2 0 0 1 14.4 0V20"/>
+</svg>
+{%- endmacro %}

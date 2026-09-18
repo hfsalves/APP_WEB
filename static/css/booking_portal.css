@@ -2549,13 +2549,39 @@ input {
   }
 
   .booking-section-head,
-  .booking-card-footer,
-  .booking-pagination {
+  .booking-card-footer {
     align-items: stretch;
     flex-direction: column;
   }
 
+  .booking-pagination {
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .booking-pagination .booking-page-link {
+    flex: 0 0 38px;
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    font-size: 0;
+  }
+
+  .booking-pagination .booking-page-link::before {
+    content: "";
+    display: block;
+    width: 18px;
+    height: 18px;
+    background: center / contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231c1917' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M19 12H5m6-6-6 6 6 6'/%3E%3C/svg%3E");
+  }
+
+  .booking-pagination .booking-page-next::before { transform: rotate(180deg); }
+  .booking-pagination .booking-page-link.is-disabled::before { opacity: 0.35; }
+
   .booking-page-numbers {
+    min-width: 0;
+    gap: 4px;
     justify-content: center;
     flex-wrap: wrap;
   }
@@ -2911,4 +2937,17 @@ input {
   .booking-legal-table td {
     padding: 8px 6px;
   }
+}
+
+@media (max-width: 360px) {
+  .booking-pagination .booking-page-link,
+  .booking-pagination .booking-page-number {
+    min-width: 32px;
+    min-height: 32px;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+  }
+  .booking-pagination .booking-page-link { flex-basis: 32px; }
+  .booking-pagination .booking-page-numbers { gap: 3px; }
 }
