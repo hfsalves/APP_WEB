@@ -6,12 +6,14 @@ import os
 import time
 from datetime import date, timedelta
 from urllib.parse import urlsplit
+from xml.etree.ElementTree import Element, SubElement, tostring
 
 from flask import Blueprint, abort, current_app, jsonify, make_response, redirect, render_template, request, session, url_for
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 
 from models import db
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 
 from services.booking_portal_service import (
     alojamento_datas_permitidas,
@@ -23,6 +25,7 @@ from services.booking_portal_service import (
     criar_checkout_teste_portal,
     criar_password_reset_portal,
     get_alojamento,
+    get_public_alojamento_ids,
     get_alojamentos_disponiveis_page,
     get_calendario_ocupacao,
     get_portal_user,
@@ -45,9 +48,70 @@ from services.booking_portal_cookies import (
     apply_language_cookie, cookie_ui, is_same_origin_request,
     read_cookie_consent, save_cookie_consent,
 )
+from services.booking_portal_seo import (
+    PUBLIC_ENDPOINTS, build_booking_seo, is_public_origin, public_url,
+)
 
 
 bp = Blueprint("booking_portal", __name__)
+
+
+@bp.after_request
+def _protect_nonpublic_pages_from_indexing(response):
+    # Includes redirects, JSON APIs and signed guest pages rendered elsewhere.
+    if request.endpoint not in PUBLIC_ENDPOINTS or response.status_code >= 400:
+        response.headers["X-Robots-Tag"] = "noindex, nofollow, noarchive, nosnippet"
+    return response
+
+
+@bp.route("/robots.txt")
+def robots():
+    if is_public_origin():
+        body = f"User-agent: *\nDisallow:\n\nSitemap: {public_url('booking_portal.sitemap')}\n"
+    else:
+        body = "User-agent: *\nDisallow: /\n"
+    response = make_response(body)
+    response.mimetype = "text/plain"
+    # The content depends on the effective host at the reverse proxy.
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@bp.route("/sitemap.xml")
+def sitemap():
+    try:
+        listing_ids = get_public_alojamento_ids()
+    except SQLAlchemyError:
+        current_app.logger.exception("Não foi possível gerar o sitemap PortoBreak")
+        response = make_response("Sitemap temporarily unavailable", 503)
+        response.headers["Retry-After"] = "300"
+        response.headers["Cache-Control"] = "no-store"
+        return response
+
+    root = Element("urlset", xmlns="http://www.sitemaps.org/schemas/sitemap/0.9")
+    endpoints = [
+        (endpoint, {}) for endpoint in (
+            "booking_portal.index", "booking_portal.cancellation_policy",
+            "booking_portal.terms", "booking_portal.privacy",
+            "booking_portal.cookies", "booking_portal.legal",
+        )
+    ]
+    endpoints.extend(
+        ("booking_portal.detail", {"al_id": al_id})
+        for al_id in dict.fromkeys(listing_ids) if al_id
+    )
+    if len(endpoints) * len(SUPPORTED_LANGS) > 50000:
+        # Never publish a silently truncated or invalid discovery document.
+        abort(503)
+    for endpoint, values in endpoints:
+        for lang in SUPPORTED_LANGS:
+            node = SubElement(root, "url")
+            SubElement(node, "loc").text = public_url(endpoint, lang=lang, **values)
+    response = make_response(tostring(root, encoding="utf-8", xml_declaration=True))
+    response.mimetype = "application/xml"
+    response.headers["Cache-Control"] = "public, max-age=300"
+    return response
+
 
 SUPPORTED_LANGS = ("pt", "en", "es", "fr")
 LANG_COOKIE = "portobreak_lang"
@@ -1035,6 +1099,7 @@ def cookie_preferences():
 
 
 def _render_booking_template(template, lang, **context):
+    seo = build_booking_seo(lang, context)
     legal_content = get_legal_content(lang)
     company = get_legal_company(current_app.config)
     return_to = _safe_portal_next(request.args.get("return_to") or "")
@@ -1063,6 +1128,7 @@ def _render_booking_template(template, lang, **context):
     })
     response = make_response(render_template(
         template,
+        seo=seo,
         lang=lang,
         t=_t(lang),
         language_links=_language_links(lang),
@@ -1080,6 +1146,7 @@ def _render_booking_template(template, lang, **context):
     ))
     # Never share cached consent or account state between visitors.
     response.headers["Cache-Control"] = "private, no-store"
+    response.headers["X-Robots-Tag"] = seo["robots"]
     response.vary.add("Cookie")
     return _with_lang_cookie(response, lang)
 
@@ -1209,11 +1276,6 @@ def _pagination_url(page_number: int, lang: str):
 def _pagination_context(pagination: dict, lang: str) -> dict:
     page = int(pagination.get("page") or 1)
     pages = int(pagination.get("pages") or 1)
-    start_page = max(1, page - 2)
-    end_page = min(pages, page + 2)
-    if end_page - start_page < 4:
-        start_page = max(1, min(start_page, end_page - 4))
-        end_page = min(pages, max(end_page, start_page + 4))
     return {
         **pagination,
         "prev_url": _pagination_url(page - 1, lang) if page > 1 else "",
@@ -1224,7 +1286,7 @@ def _pagination_context(pagination: dict, lang: str) -> dict:
                 "url": _pagination_url(page_number, lang),
                 "active": page_number == page,
             }
-            for page_number in range(start_page, end_page + 1)
+            for page_number in range(1, pages + 1)
         ],
     }
 

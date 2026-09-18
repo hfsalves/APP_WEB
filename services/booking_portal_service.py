@@ -19,6 +19,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from models import db
 from services.auth_service import hash_password, verify_password_hash
+from services.booking_portal_pricing import get_from_prices
 
 
 TIPOLOGIA_CAPACIDADE = {
@@ -272,16 +273,9 @@ def _alojamento_base_select(where_sql: str, lang=None) -> str:
             CAST(ISNULL(AL.VALOREXTRA, 0) AS decimal(12, 2)) AS VALOREXTRA,
             CAST(ISNULL(AL.EXTRAMAISQUE, 0) AS int) AS EXTRAMAISQUE,
             CAST(ISNULL(AL.PBASE, 0) AS decimal(12, 2)) AS PBASE,
-            CAST(COALESCE(PA.PRECO_BASE, AL.PBASE, 0) AS decimal(12, 2)) AS PRECO_DESDE,
+            CAST(NULL AS decimal(12, 2)) AS PRECO_DESDE,
             {_descricao_alojamento_sql(lang)} AS DESCRICAO
         FROM dbo.AL AS AL
-        OUTER APPLY (
-            SELECT TOP 1 PA.PRECO_BASE
-            FROM dbo.PR_ALOJAMENTO AS PA
-            WHERE LTRIM(RTRIM(ISNULL(PA.AL_NOME, ''))) COLLATE SQL_Latin1_General_CP1_CI_AI
-                = LTRIM(RTRIM(ISNULL(AL.NOME, ''))) COLLATE SQL_Latin1_General_CP1_CI_AI
-              AND ISNULL(PA.ATIVO, 1) = 1
-        ) AS PA
         WHERE {where_sql}
         ORDER BY COALESCE(
             NULLIF(LTRIM(RTRIM(ISNULL(AL.NMAIRBNB, ''))), ''),
@@ -358,26 +352,28 @@ def _decorate_alojamento(row: dict, include_gallery: bool = False) -> dict:
     lot_criancas = lot_criancas_raw if has_lotacao_detalhada else 0
     capacidade = (lot_adultos + lot_criancas) if has_lotacao_detalhada else capacidade_tipologia
     alstamp = item.get("ALSTAMP")
-    fotos_al = get_fotos_alojamento(alstamp) if include_gallery else []
-    foto_principal = fotos_al[0]["url"] if fotos_al else get_foto_principal(alstamp)
+    fotos_sessao = get_fotos_melhoradas_alojamento(alstamp) if include_gallery else []
+    fotos_al = get_fotos_alojamento(alstamp) if include_gallery and not fotos_sessao else []
+    if include_gallery:
+        fotos_disponiveis = fotos_sessao or fotos_al[:1]
+        foto_principal = fotos_disponiveis[0]["url"] if fotos_disponiveis else PLACEHOLDER_IMAGE
+    else:
+        fotos_disponiveis = []
+        foto_principal = get_foto_principal(alstamp)
     fotos = []
     seen_urls = set()
-    if include_gallery and foto_principal:
+    for photo in fotos_disponiveis:
+        url = _clean(photo.get("url"))
+        if not url or url in seen_urls:
+            continue
         fotos.append({
-            "url": foto_principal,
-            "thumb_url": foto_principal,
-            "alt": _clean(item.get("NOME")) or "Alojamento",
-            "capa": True,
-            "source": "cover",
+            **photo,
+            "thumb_url": photo.get("thumb_url") or url,
+            "alt": photo.get("alt") or _clean(item.get("NOME")) or "Alojamento",
+            "capa": not fotos,
+            "source": photo.get("source") or "cover",
         })
-        seen_urls.add(foto_principal)
-    if include_gallery:
-        for photo in get_fotos_melhoradas_alojamento(alstamp):
-            url = _clean(photo.get("url"))
-            if not url or url in seen_urls:
-                continue
-            fotos.append(photo)
-            seen_urls.add(url)
+        seen_urls.add(url)
     descricao = _clean(item.get("DESCRICAO"))
     lat = _to_float(item.get("LAT"))
     lon = _to_float(item.get("LON"))
@@ -412,6 +408,9 @@ def _decorate_alojamento(row: dict, include_gallery: bool = False) -> dict:
 
 
 def get_foto_principal(al_id) -> str:
+    fotos_sessao = get_fotos_melhoradas_alojamento(al_id)
+    if fotos_sessao:
+        return fotos_sessao[0]["url"]
     if not _clean(al_id) or not _table_exists("AL_FOTOS"):
         return PLACEHOLDER_IMAGE
     row = db.session.execute(
@@ -422,6 +421,7 @@ def get_foto_principal(al_id) -> str:
             WHERE ALSTAMP = :al_id
               AND ISNULL(ATIVO, 1) = 1
               AND ISNULL(CHECKIN, 0) = 0
+              AND LTRIM(RTRIM(ISNULL(CAMINHO, ''))) <> ''
             ORDER BY
               CASE WHEN ISNULL(CAPA, 0) = 1 THEN 0 ELSE 1 END,
               ISNULL(ORDEM, 999999),
@@ -468,6 +468,13 @@ def get_fotos_alojamento(al_id) -> list[dict]:
 
 
 def get_fotos_melhoradas_alojamento(al_id) -> list[dict]:
+    """Latest usable session, with its configured cover before the ready photos.
+
+    A cover can be selected in the photo session before enhancement finishes;
+    in that case its original (or existing JPEG preview for HEIC/HEIF) is
+    preferable to an unrelated property cover.
+    Other unprocessed originals remain unpublished.
+    """
     al_id_clean = _clean(al_id)
     if not al_id_clean or not _table_exists("PHOTO_ENHANCER_SESSION") or not _table_exists("PHOTO_ENHANCER_FILE"):
         return []
@@ -482,8 +489,12 @@ def get_fotos_melhoradas_alojamento(al_id) -> list[dict]:
                   SELECT 1
                   FROM dbo.PHOTO_ENHANCER_FILE AS F
                   WHERE F.SESSION_ID = S.ID
-                    AND LTRIM(RTRIM(ISNULL(F.ENHANCED_PATH, ''))) <> ''
-                    AND LTRIM(RTRIM(ISNULL(F.STATUS, ''))) = 'melhorada'
+                    AND (
+                        (LTRIM(RTRIM(ISNULL(F.ENHANCED_PATH, ''))) <> ''
+                         AND LTRIM(RTRIM(ISNULL(F.STATUS, ''))) = 'melhorada')
+                        OR (ISNULL(F.IS_COVER, 0) = 1
+                            AND LTRIM(RTRIM(ISNULL(F.ORIGINAL_PATH, ''))) <> '')
+                    )
               )
             ORDER BY COALESCE(S.UPDATED_AT, S.CREATED_AT) DESC, S.CREATED_AT DESC, S.ID DESC
             """
@@ -499,28 +510,59 @@ def get_fotos_melhoradas_alojamento(al_id) -> list[dict]:
             """
             SELECT
                 ISNULL(F.ORIGINAL_FILENAME, '') AS ORIGINAL_FILENAME,
+                ISNULL(F.ORIGINAL_PATH, '') AS ORIGINAL_PATH,
                 ISNULL(F.ENHANCED_PATH, '') AS ENHANCED_PATH,
-                ISNULL(F.THUMB_PATH, '') AS THUMB_PATH
+                ISNULL(F.THUMB_PATH, '') AS THUMB_PATH,
+                ISNULL(F.IS_COVER, 0) AS IS_COVER,
+                ISNULL(F.STATUS, '') AS STATUS
             FROM dbo.PHOTO_ENHANCER_FILE AS F
             WHERE F.SESSION_ID = :session_id
-              AND LTRIM(RTRIM(ISNULL(F.ENHANCED_PATH, ''))) <> ''
-              AND LTRIM(RTRIM(ISNULL(F.STATUS, ''))) = 'melhorada'
-            ORDER BY F.CREATED_AT, F.ID
+              AND (
+                  (LTRIM(RTRIM(ISNULL(F.ENHANCED_PATH, ''))) <> ''
+                   AND LTRIM(RTRIM(ISNULL(F.STATUS, ''))) = 'melhorada')
+                  OR (ISNULL(F.IS_COVER, 0) = 1
+                      AND LTRIM(RTRIM(ISNULL(F.ORIGINAL_PATH, ''))) <> '')
+              )
+            ORDER BY CASE WHEN ISNULL(F.IS_COVER, 0) = 1 THEN 0 ELSE 1 END,
+                     F.CREATED_AT, F.ID
             """
         ),
         {"session_id": session_id},
     ).mappings().all()
-    return [
-        {
-            "url": _public_image_url(row.get("ENHANCED_PATH")),
-            "thumb_url": _public_image_url(row.get("THUMB_PATH")) if _clean(row.get("THUMB_PATH")) else _public_image_url(row.get("ENHANCED_PATH")),
+    photos = []
+    for row in rows:
+        path = _clean(row.get("ENHANCED_PATH")) if _clean(row.get("STATUS")) == "melhorada" else ""
+        if not path and bool(row.get("IS_COVER")):
+            original_path = _clean(row.get("ORIGINAL_PATH"))
+            original_filename = original_path.partition("?")[0].partition("#")[0].lower()
+            if original_filename.endswith((".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif")):
+                path = original_path
+            else:
+                path = _clean(row.get("THUMB_PATH"))
+        if not path:
+            continue
+        photos.append({
+            "url": _public_image_url(path),
+            "thumb_url": _public_image_url(row.get("THUMB_PATH")) if _clean(row.get("THUMB_PATH")) else _public_image_url(path),
             "alt": _clean(row.get("ORIGINAL_FILENAME")) or "Alojamento",
-            "capa": False,
+            "capa": bool(row.get("IS_COVER")),
             "source": "photo_enhancer",
-        }
-        for row in rows
-        if _clean(row.get("ENHANCED_PATH"))
-    ]
+        })
+    return photos
+
+
+def get_public_alojamento_ids() -> list[str]:
+    """Public inventory for discovery, without prices, photos or guest data."""
+    rows = db.session.execute(text("""
+        SELECT DISTINCT LTRIM(RTRIM(AL.ALSTAMP)) AS id
+        FROM dbo.AL AS AL
+        WHERE LTRIM(RTRIM(ISNULL(AL.ALSTAMP, ''))) <> ''
+          AND LTRIM(RTRIM(ISNULL(AL.NOME, ''))) <> ''
+          AND ISNULL(AL.INATIVO, 0) = 0
+          AND ISNULL(AL.FECHADO, 0) = 0
+        ORDER BY id
+    """)).scalars().all()
+    return [_clean(value) for value in rows if _clean(value)]
 
 
 def get_alojamento(al_id, lang=None) -> dict | None:
@@ -543,7 +585,8 @@ def get_alojamento(al_id, lang=None) -> dict | None:
     ).mappings().first()
     if not row:
         return None
-    return _decorate_alojamento(row, include_gallery=True)
+    prices = get_from_prices([al_id_clean])
+    return _decorate_alojamento({**row, "PRECO_DESDE": prices.get(al_id_clean)}, include_gallery=True)
 
 
 def get_calendario_ocupacao(al_id, start=None, months=12) -> dict:
@@ -731,7 +774,11 @@ def get_alojamentos_disponiveis_page(checkin=None, checkout=None, hospedes=None,
     start = (page_number - 1) * page_size
     page_params = {**params, "offset": start, "limit": page_size}
     rows = db.session.execute(text(_alojamento_paged_select(where_sql, lang=lang)), page_params).mappings().all()
-    alojamentos = [_decorate_alojamento(row) for row in rows]
+    prices = get_from_prices([row.get("ALSTAMP") for row in rows])
+    alojamentos = [
+        _decorate_alojamento({**row, "PRECO_DESDE": prices.get(_clean(row.get("ALSTAMP")))})
+        for row in rows
+    ]
     return {
         "items": alojamentos,
         "total": total,

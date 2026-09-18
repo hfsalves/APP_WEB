@@ -1,0 +1,31 @@
+{% include 'booking_portal/_favicon.html' %}
+{% if seo is defined %}
+  <title>{{ seo.title }}</title>
+  <meta name="robots" content="{{ seo.robots }}">
+  {% if seo.description %}<meta name="description" content="{{ seo.description }}">{% endif %}
+  {% if seo.canonical %}
+    <link rel="canonical" href="{{ seo.canonical }}">
+    {% for alternate in seo.alternates %}
+      <link rel="alternate" hreflang="{{ alternate.lang }}" href="{{ alternate.url }}">
+    {% endfor %}
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="PortoBreak">
+    <meta property="og:title" content="{{ seo.title }}">
+    <meta property="og:description" content="{{ seo.description }}">
+    <meta property="og:url" content="{{ seo.canonical }}">
+    <meta property="og:locale" content="{{ seo.locale }}">
+    {% for locale in seo.locale_alternates %}<meta property="og:locale:alternate" content="{{ locale }}">{% endfor %}
+    <meta property="og:image" content="{{ seo.image }}">
+    <meta property="og:image:alt" content="{{ seo.image_alt }}">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{ seo.title }}">
+    <meta name="twitter:description" content="{{ seo.description }}">
+    <meta name="twitter:image" content="{{ seo.image }}">
+    <meta name="twitter:image:alt" content="{{ seo.image_alt }}">
+  {% endif %}
+  {% if seo.jsonld %}<script type="application/ld+json">{{ seo.jsonld|tojson }}</script>{% endif %}
+{% else %}
+  {# Safe fallback for an accidental render outside the shared portal helper. #}
+  <title>PortoBreak</title>
+  <meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
+{% endif %}

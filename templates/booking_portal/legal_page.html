@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>PortoBreak.com - {{ legal_document.title }}</title>
+  {% include 'booking_portal/_seo.html' %}
   {% include 'booking_portal/_fonts.html' %}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/booking_portal.css') }}?v={{ config.get('STATIC_VERSION', 1) }}">
 </head>

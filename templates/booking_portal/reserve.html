@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>PortoBreak.com - {{ page_title }}</title>
+  {% include 'booking_portal/_seo.html' %}
   {% include 'booking_portal/_fonts.html' %}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/booking_portal.css') }}?v={{ config.get('STATIC_VERSION', 1) }}">
 </head>
@@ -43,9 +43,6 @@
           <div class="booking-summary-body">
             <p class="booking-kicker booking-kicker-dark">{{ t.stay_label }}</p>
             <h1>{{ alojamento.nome }}</h1>
-            {% if alojamento.licenca %}
-              <p class="booking-license">{{ booking_license_label }}: {{ alojamento.licenca }}</p>
-            {% endif %}
             {% if alojamento.localizacao %}
               <span class="booking-summary-location">{{ alojamento.localizacao }}</span>
             {% endif %}

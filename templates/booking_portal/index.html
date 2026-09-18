@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>PortoBreak.com - {{ page_title or t.page_reservations }}</title>
+  {% include 'booking_portal/_seo.html' %}
   {% include 'booking_portal/_fonts.html' %}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/booking_portal.css') }}?v={{ config.get('STATIC_VERSION', 1) }}">
 </head>
@@ -113,9 +113,6 @@
                 </div>
                 {% if al.descricao_curta %}
                   <p>{{ al.descricao_curta }}</p>
-                {% endif %}
-                {% if al.licenca %}
-                  <p class="booking-license">{{ booking_license_label }}: {{ al.licenca }}</p>
                 {% endif %}
                 <div class="booking-card-footer">
                   <div class="booking-price">

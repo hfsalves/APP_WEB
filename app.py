@@ -541,6 +541,8 @@ def create_app():
     ]
     PORTOBREAK_ALLOWED_EXACT_PATHS = {
         '/favicon.ico',
+        '/robots.txt',
+        '/sitemap.xml',
     }
     PORTOBREAK_BLOCKED_PREFIXES = [
         '/reservas/rs',
@@ -573,6 +575,18 @@ def create_app():
         if any(_path_matches_prefix(path, prefix) for prefix in PORTOBREAK_BLOCKED_PREFIXES):
             return False
         return any(_path_matches_prefix(path, prefix) for prefix in PORTOBREAK_ALLOWED_PREFIXES)
+
+    @app.after_request
+    def _portobreak_private_indexing_headers(response):
+        # These guest routes live outside the booking blueprint. Search-engine
+        # exclusion complements, and never replaces, their access checks.
+        if is_portobreak_domain() and (
+            _path_matches_prefix(request.path, '/r2')
+            or _path_matches_prefix(request.path, '/api/r')
+            or response.status_code >= 400
+        ):
+            response.headers['X-Robots-Tag'] = 'noindex, nofollow, noarchive, nosnippet'
+        return response
 
     @app.before_request
     def _enforce_host_rules():
