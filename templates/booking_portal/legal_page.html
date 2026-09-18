@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="{{ lang }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PortoBreak.com - {{ legal_document.title }}</title>
+  {% include 'booking_portal/_fonts.html' %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/booking_portal.css') }}?v={{ config.get('STATIC_VERSION', 1) }}">
+</head>
+<body>
+  <main class="booking-shell booking-policy-shell">
+    <nav class="booking-nav booking-topbar-light" aria-label="{{ t.page_reservations }}">
+      <a class="booking-brand" href="{{ url_for('booking_portal.index', lang=lang) }}" aria-label="PortoBreak.com">
+        <img src="{{ url_for('static', filename='images/booking_portal/portobreak-logo-simple.png') }}" alt="PortoBreak.com">
+      </a>
+      <div class="booking-nav-actions">
+        <div class="booking-language-switcher booking-language-switcher-nav" aria-label="Language">
+          {% for item in language_links %}
+            <a href="{{ item.url }}" class="{% if item.active %}is-active{% endif %}" lang="{{ item.code }}">{{ item.label }}</a>
+          {% endfor %}
+        </div>
+        {% include 'booking_portal/_account_menu.html' %}
+      </div>
+    </nav>
+
+    <article class="booking-policy-card booking-legal-card">
+      {% if legal_navigation %}
+        <nav class="booking-legal-navigation" aria-label="{{ legal_document.title }}">
+          {% for item in legal_navigation %}
+            <a href="{{ item.url }}"{% if item.active %} class="is-active" aria-current="page"{% endif %}>{{ item.label }}</a>
+          {% endfor %}
+        </nav>
+      {% endif %}
+
+      <header class="booking-legal-header">
+        <p class="booking-kicker booking-kicker-dark">Porto Break</p>
+        <h1>{{ legal_document.title }}</h1>
+        <p class="booking-policy-lead">{{ legal_document.lead }}</p>
+        <div class="booking-legal-metadata">
+          {% if legal_document.updated %}<span>{{ legal_ui.updated }}: {{ legal_document.updated }}</span>{% endif %}
+          {% if legal_document.version %}<span>{{ legal_ui.version }}: {{ legal_document.version }}</span>{% endif %}
+        </div>
+      </header>
+
+      <nav class="booking-legal-contents" aria-labelledby="booking-legal-contents-title">
+        <h2 id="booking-legal-contents-title">{{ legal_ui.contents }}</h2>
+        <ol>
+          {% for section in legal_document.sections %}
+            <li><a href="#{{ section.id }}">{{ section.title }}</a></li>
+          {% endfor %}
+        </ol>
+      </nav>
+
+      <div class="booking-legal-sections">
+        {% for section in legal_document.sections %}
+          <section class="booking-legal-section" id="{{ section.id }}" aria-labelledby="{{ section.id }}-title">
+            <h2 id="{{ section.id }}-title">{{ section.title }}</h2>
+            {% for paragraph in section.paragraphs %}
+              <p>{{ paragraph }}</p>
+            {% endfor %}
+            {% if section.bullets %}
+              <ul>
+                {% for bullet in section.bullets %}<li>{{ bullet }}</li>{% endfor %}
+              </ul>
+            {% endif %}
+            {% if section.table %}
+              <div class="booking-legal-table-wrap">
+                <table class="booking-legal-table" aria-label="{{ section.title }}">
+                  <thead>
+                    <tr>{% for heading in section.table.headers %}<th scope="col">{{ heading }}</th>{% endfor %}</tr>
+                  </thead>
+                  <tbody>
+                    {% for row in section.table.rows %}
+                      <tr>{% for cell in row %}<td data-label="{{ section.table.headers[loop.index0] }}">{{ cell }}</td>{% endfor %}</tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            {% endif %}
+            {% if section.links %}
+              <ul class="booking-legal-links">
+                {% for link in section.links %}<li><a href="{{ link.url }}">{{ link.label }}</a></li>{% endfor %}
+              </ul>
+            {% endif %}
+          </section>
+        {% endfor %}
+      </div>
+
+      <div class="booking-legal-actions">
+        <a class="booking-button booking-button-primary" href="{{ back_url }}">{{ back_label or legal_ui.back }}</a>
+      </div>
+    </article>
+  </main>
+  {% include 'booking_portal/_footer.html' %}
+</body>
+</html>

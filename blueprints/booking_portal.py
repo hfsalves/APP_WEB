@@ -4,7 +4,7 @@ import html
 import json
 import os
 import time
-from datetime import date
+from datetime import date, timedelta
 from urllib.parse import urlsplit
 
 from flask import Blueprint, abort, current_app, jsonify, make_response, redirect, render_template, request, session, url_for
@@ -37,6 +37,14 @@ from services.booking_portal_service import (
     PortalPaymentError,
 )
 from services.email_service import EmailServiceError, queue_email, send_email_now
+from services.booking_portal_legal import (
+    COMPLAINTS_LABELS, LEGAL_ENDPOINTS, LEGAL_UPDATED, LEGAL_VERSION, LICENSE_LABELS,
+    format_legal_content, get_legal_company, get_legal_content,
+)
+from services.booking_portal_cookies import (
+    apply_language_cookie, cookie_ui, is_same_origin_request,
+    read_cookie_consent, save_cookie_consent,
+)
 
 
 bp = Blueprint("booking_portal", __name__)
@@ -56,6 +64,143 @@ PORTAL_INTERNAL_BOOKING_RECIPIENTS = (
     "pedro@guestspa.pt", "hugo@guestspa.pt", "susana@guestspa.pt", "dyhia@guestspa.pt",
     "helpdesk@guestspa.pt", "hfsalves@hotmail.com", "pnalves.pa@gmail.com", "guestspa.pt@gmail.com",
 )
+
+CANCELLATION_POLICY_COPY = {
+    "pt": {
+        "page_title": "Política de cancelamento",
+        "page_lead": "As condições de reembolso dependem da data em que o cancelamento é pedido.",
+        "free_title": "Cancelamento gratuito",
+        "free_rule": "Reembolso total quando o cancelamento é feito antes do período de 50%.",
+        "partial_title": "Reembolso de 50%",
+        "partial_rule": "Desde 10 dias antes do check-in até à véspera da chegada.",
+        "none_title": "Sem reembolso",
+        "none_rule": "No dia do check-in e depois dessa data.",
+        "free_message": "Cancelamento gratuito até {date}.",
+        "partial_message": "A partir de {date} às 00:00, o reembolso é de 50%.",
+        "none_message": "A partir de {date} às 00:00, não existe direito a reembolso.",
+        "example_title": "Condições para estas datas",
+        "timezone_note": "Os prazos são calculados pela data e hora de Portugal continental.",
+        "learn_more": "Consultar política de cancelamento",
+        "policy_link": "Políticas de cancelamento",
+        "back": "Voltar às reservas",
+        "back_to_reservation": "Voltar à Reserva",
+    },
+    "en": {
+        "page_title": "Cancellation policy",
+        "page_lead": "Refund conditions depend on the date when cancellation is requested.",
+        "free_title": "Free cancellation",
+        "free_rule": "Full refund when cancellation is made before the 50% refund period.",
+        "partial_title": "50% refund",
+        "partial_rule": "From 10 days before check-in until the day before arrival.",
+        "none_title": "No refund",
+        "none_rule": "On the check-in date and afterwards.",
+        "free_message": "Free cancellation until {date}.",
+        "partial_message": "From {date} at 00:00, the refund is 50%.",
+        "none_message": "From {date} at 00:00, no refund is due.",
+        "example_title": "Terms for these dates",
+        "timezone_note": "Deadlines use mainland Portugal's date and time.",
+        "learn_more": "View cancellation policy",
+        "policy_link": "Cancellation policy",
+        "back": "Back to bookings",
+        "back_to_reservation": "Back to booking",
+    },
+    "es": {
+        "page_title": "Política de cancelación",
+        "page_lead": "Las condiciones de reembolso dependen de la fecha en que se solicita la cancelación.",
+        "free_title": "Cancelación gratuita",
+        "free_rule": "Reembolso total cuando la cancelación se realiza antes del periodo de reembolso del 50%.",
+        "partial_title": "Reembolso del 50%",
+        "partial_rule": "Desde 10 días antes del check-in hasta la víspera de la llegada.",
+        "none_title": "Sin reembolso",
+        "none_rule": "El día del check-in y después.",
+        "free_message": "Cancelación gratuita hasta el {date}.",
+        "partial_message": "A partir del {date} a las 00:00, el reembolso es del 50%.",
+        "none_message": "A partir del {date} a las 00:00, no hay derecho a reembolso.",
+        "example_title": "Condiciones para estas fechas",
+        "timezone_note": "Los plazos se calculan según la fecha y hora de Portugal continental.",
+        "learn_more": "Consultar política de cancelación",
+        "policy_link": "Política de cancelación",
+        "back": "Volver a las reservas",
+        "back_to_reservation": "Volver a la reserva",
+    },
+    "fr": {
+        "page_title": "Politique d'annulation",
+        "page_lead": "Les conditions de remboursement dépendent de la date de la demande d'annulation.",
+        "free_title": "Annulation gratuite",
+        "free_rule": "Remboursement intégral lorsque l'annulation intervient avant la période de remboursement à 50 %.",
+        "partial_title": "Remboursement de 50 %",
+        "partial_rule": "À partir de 10 jours avant l'arrivée et jusqu'à la veille.",
+        "none_title": "Aucun remboursement",
+        "none_rule": "Le jour de l'arrivée et après cette date.",
+        "free_message": "Annulation gratuite jusqu'au {date}.",
+        "partial_message": "À partir du {date} à 00:00, le remboursement est de 50 %.",
+        "none_message": "À partir du {date} à 00:00, aucun remboursement n'est dû.",
+        "example_title": "Conditions pour ces dates",
+        "timezone_note": "Les délais sont calculés selon la date et l'heure du Portugal continental.",
+        "learn_more": "Consulter la politique d'annulation",
+        "policy_link": "Politique d'annulation",
+        "back": "Retour aux réservations",
+        "back_to_reservation": "Retour à la réservation",
+    },
+}
+
+CANCELLATION_MONTHS = {
+    "pt": ("janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"),
+    "en": ("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"),
+    "es": ("enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"),
+    "fr": ("janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"),
+}
+
+BOOKING_FOOTER_COPY = {
+    "pt": {
+        "tagline": "Alojamentos selecionados para descobrir o Porto com conforto.",
+        "navigation": "Navegação",
+        "reservations": "Reservas",
+        "account": "As minhas reservas",
+        "cancellation": "Políticas de cancelamento",
+        "institutional": "Informação institucional",
+        "address": "Rua Régulo Magauanha, 102, 4000-413 Porto, Portugal",
+        "tax_id": "NIF 518401057",
+        "privacy_note": "Os dados são tratados exclusivamente para gerir reservas, em conformidade com o RGPD.",
+        "rights": "Todos os direitos reservados.",
+    },
+    "en": {
+        "tagline": "Selected stays for discovering Porto in comfort.",
+        "navigation": "Navigation",
+        "reservations": "Bookings",
+        "account": "My bookings",
+        "cancellation": "Cancellation policy",
+        "institutional": "Company information",
+        "address": "Rua Régulo Magauanha, 102, 4000-413 Porto, Portugal",
+        "tax_id": "Tax ID 518401057",
+        "privacy_note": "Data is processed solely to manage bookings, in accordance with the GDPR.",
+        "rights": "All rights reserved.",
+    },
+    "es": {
+        "tagline": "Alojamientos seleccionados para descubrir Oporto con comodidad.",
+        "navigation": "Navegación",
+        "reservations": "Reservas",
+        "account": "Mis reservas",
+        "cancellation": "Política de cancelación",
+        "institutional": "Información institucional",
+        "address": "Rua Régulo Magauanha, 102, 4000-413 Porto, Portugal",
+        "tax_id": "NIF 518401057",
+        "privacy_note": "Los datos se tratan exclusivamente para gestionar reservas, de conformidad con el RGPD.",
+        "rights": "Todos los derechos reservados.",
+    },
+    "fr": {
+        "tagline": "Des hébergements sélectionnés pour découvrir Porto confortablement.",
+        "navigation": "Navigation",
+        "reservations": "Réservations",
+        "account": "Mes réservations",
+        "cancellation": "Politique d'annulation",
+        "institutional": "Informations légales",
+        "address": "Rua Régulo Magauanha, 102, 4000-413 Porto, Portugal",
+        "tax_id": "NIF 518401057",
+        "privacy_note": "Les données sont traitées uniquement pour gérer les réservations, conformément au RGPD.",
+        "rights": "Tous droits réservés.",
+    },
+}
 
 TRANSLATIONS = {
     "pt": {
@@ -733,7 +878,9 @@ LANG_LABELS = {
 
 
 def _resolve_lang():
-    candidate = str(request.args.get("lang") or request.cookies.get(LANG_COOKIE) or "").strip().lower()
+    consent = read_cookie_consent()
+    remembered = request.cookies.get(LANG_COOKIE) if consent and consent["preferences"] else ""
+    candidate = str(request.args.get("lang") or remembered or "").strip().lower()
     if candidate in SUPPORTED_LANGS:
         return candidate
     best = request.accept_languages.best_match(SUPPORTED_LANGS)
@@ -742,6 +889,47 @@ def _resolve_lang():
 
 def _t(lang):
     return TRANSLATIONS.get(lang) or TRANSLATIONS["pt"]
+
+
+def _format_cancellation_date(value: date, lang: str) -> str:
+    months = CANCELLATION_MONTHS.get(lang) or CANCELLATION_MONTHS["pt"]
+    if lang in {"pt", "es"}:
+        return f"{value.day} de {months[value.month - 1]}"
+    return f"{value.day} {months[value.month - 1]}"
+
+
+def _cancellation_policy_context(checkin: date | None, lang: str, *, today: date | None = None) -> dict:
+    copy = dict(CANCELLATION_POLICY_COPY.get(lang) or CANCELLATION_POLICY_COPY["pt"])
+    if not checkin:
+        return {**copy, "has_dates": False}
+
+    # A faixa de 50% começa às 00:00 de D-10. Por isso, o último dia
+    # integralmente reembolsável é D-11 (ex.: 18/09 para check-in em 29/09).
+    partial_from = checkin - timedelta(days=10)
+    free_until = partial_from - timedelta(days=1)
+    current_date = today or date.today()
+    return {
+        **copy,
+        "has_dates": True,
+        "checkin": checkin.isoformat(),
+        "free_until": free_until.isoformat(),
+        "partial_from": partial_from.isoformat(),
+        "no_refund_from": checkin.isoformat(),
+        "show_free_cancellation": current_date <= free_until,
+        "free_message_text": copy["free_message"].format(date=_format_cancellation_date(free_until, lang)),
+        "partial_message_text": copy["partial_message"].format(date=_format_cancellation_date(partial_from, lang)),
+        "none_message_text": copy["none_message"].format(date=_format_cancellation_date(checkin, lang)),
+    }
+
+
+def _cancellation_policy_url(checkin: date | None, lang: str, return_to: str = "") -> str:
+    args = {"lang": lang}
+    if checkin:
+        args["checkin"] = checkin.isoformat()
+    safe_return_to = _safe_portal_next(return_to)
+    if safe_return_to:
+        args["return_to"] = safe_return_to
+    return url_for("booking_portal.cancellation_policy", **args)
 
 
 def _lang_url(lang):
@@ -818,19 +1006,81 @@ def _has_payment_access(kind: str, identifier: str) -> bool:
 
 
 def _with_lang_cookie(response, lang):
-    response.set_cookie(LANG_COOKIE, lang, max_age=60 * 60 * 24 * 365, samesite="Lax")
+    return apply_language_cookie(response, lang, read_cookie_consent())
+
+
+@bp.route("/reservas/preferencias-cookies", methods=["GET", "POST"])
+def cookie_preferences():
+    if request.method == "GET":
+        response = jsonify(consent=read_cookie_consent())
+        _with_lang_cookie(response, _resolve_lang())
+    elif not is_same_origin_request():
+        response = jsonify(error="origin_not_allowed")
+        response.status_code = 403
+    else:
+        values = request.get_json(silent=True)
+        if not isinstance(values, dict) or set(values) != {"preferences", "external_maps"}:
+            response = jsonify(error="invalid_preferences")
+            response.status_code = 400
+        elif any(type(values[key]) is not bool for key in values):
+            response = jsonify(error="invalid_preferences")
+            response.status_code = 400
+        else:
+            response = jsonify({})
+            choice = save_cookie_consent(response, lang=_resolve_lang(), **values)
+            response.set_data(json.dumps({"consent": choice}))
+    response.headers["Cache-Control"] = "private, no-store"
+    response.vary.add("Cookie")
     return response
 
 
 def _render_booking_template(template, lang, **context):
+    legal_content = get_legal_content(lang)
+    company = get_legal_company(current_app.config)
+    return_to = _safe_portal_next(request.args.get("return_to") or "")
+    if request.endpoint in {"booking_portal.detail", "booking_portal.reserve"}:
+        return_to = _safe_portal_next(request.full_path.rstrip("?"))
+    legal_args = {"lang": lang}
+    if return_to:
+        legal_args["return_to"] = return_to
+    legal_links = [
+        {"key": key, "label": legal_content["documents"][key]["title"], "url": url_for(endpoint, **legal_args)}
+        for key, endpoint in LEGAL_ENDPOINTS.items()
+    ]
+    footer_copy = dict(BOOKING_FOOTER_COPY.get(lang) or BOOKING_FOOTER_COPY["pt"])
+    footer_copy.update({
+        "year": date.today().year,
+        "reservations_url": url_for("booking_portal.index", lang=lang),
+        "account_url": url_for("booking_portal.my_bookings", lang=lang),
+        "cancellation_url": url_for("booking_portal.cancellation_policy", lang=lang),
+        "legal": legal_content["ui"]["legal"],
+        "legal_links": legal_links,
+        "privacy_note": legal_content["ui"]["privacy_note"],
+        "privacy_url": url_for("booking_portal.privacy", lang=lang),
+        "complaints": COMPLAINTS_LABELS[lang],
+        "address": company["address"],
+        "tax_id": f"{('Tax ID' if lang == 'en' else 'NIF')} {company['tax_id']}",
+    })
     response = make_response(render_template(
         template,
         lang=lang,
         t=_t(lang),
         language_links=_language_links(lang),
         portal_user=_portal_current_user(),
+        booking_footer=footer_copy,
+        booking_company=company,
+        booking_legal_ui=legal_content["ui"],
+        booking_legal_links={item["key"]: item for item in legal_links},
+        booking_license_label=LICENSE_LABELS[lang],
+        cookie_ui=cookie_ui(lang),
+        cookie_consent=read_cookie_consent(),
+        cookie_preferences_url=url_for("booking_portal.cookie_preferences", lang=lang),
+        cookie_policy_url=url_for("booking_portal.cookies", lang=lang),
         **context,
     ))
+    # Never share cached consent or account state between visitors.
+    response.headers["Cache-Control"] = "private, no-store"
+    response.vary.add("Cookie")
     return _with_lang_cookie(response, lang)
 
 
@@ -1960,6 +2210,74 @@ def my_bookings():
     )
 
 
+def _render_legal_document(document_key):
+    lang = _resolve_lang()
+    content = get_legal_content(lang)
+    return_to = _safe_portal_next(request.args.get("return_to") or "")
+    link_args = {"lang": lang}
+    if return_to:
+        link_args["return_to"] = return_to
+    urls = {f"{key}_url": url_for(endpoint, **link_args) for key, endpoint in LEGAL_ENDPOINTS.items()}
+    urls["cancellation_url"] = url_for("booking_portal.cancellation_policy", **link_args)
+    document = format_legal_content(content["documents"][document_key], {
+        **get_legal_company(current_app.config),
+        **urls,
+        "session_cookie_name": current_app.config.get("SESSION_COOKIE_NAME", "session"),
+    })
+    document.update({"version": LEGAL_VERSION, "updated": LEGAL_UPDATED})
+    policy = CANCELLATION_POLICY_COPY[lang]
+    return _render_booking_template(
+        "booking_portal/legal_page.html",
+        lang,
+        legal_document=document,
+        legal_ui=content["ui"],
+        legal_navigation=[
+            {"label": content["documents"][key]["title"], "url": urls[f"{key}_url"], "active": key == document_key}
+            for key in LEGAL_ENDPOINTS
+        ],
+        back_url=return_to or url_for("booking_portal.index", lang=lang),
+        back_label=policy["back_to_reservation"] if return_to else policy["back"],
+        page_title=document["title"],
+    )
+
+
+@bp.route("/reservas/termos-condicoes")
+def terms():
+    return _render_legal_document("terms")
+
+
+@bp.route("/reservas/politica-privacidade")
+def privacy():
+    return _render_legal_document("privacy")
+
+
+@bp.route("/reservas/politica-cookies")
+def cookies():
+    return _render_legal_document("cookies")
+
+
+@bp.route("/reservas/informacao-legal")
+def legal():
+    return _render_legal_document("legal")
+
+
+@bp.route("/portal-reservas/politica-cancelamento")
+@bp.route("/reservas/politica-cancelamento")
+def cancellation_policy():
+    lang = _resolve_lang()
+    checkin, _ = _parse_date_arg("checkin")
+    policy = _cancellation_policy_context(checkin, lang)
+    return_to = _safe_portal_next(request.args.get("return_to") or "")
+    return _render_booking_template(
+        "booking_portal/cancellation_policy.html",
+        lang,
+        policy=policy,
+        back_url=return_to or url_for("booking_portal.index", lang=lang),
+        back_label=policy["back_to_reservation"] if return_to else policy["back"],
+        page_title=policy["page_title"],
+    )
+
+
 @bp.route("/portal-reservas")
 @bp.route("/reservas")
 def index():
@@ -2037,6 +2355,12 @@ def detail(al_id):
         calendario=calendario,
         reserve_enabled=reserve_enabled,
         reserve_url=url_for("booking_portal.reserve", al_id=al_id, **_reservation_query_args(params, lang)),
+        cancellation_policy=_cancellation_policy_context(params.get("checkin"), lang),
+        cancellation_policy_url=_cancellation_policy_url(
+            params.get("checkin"),
+            lang,
+            request.full_path.rstrip("?"),
+        ),
         page_title=alojamento["nome"],
     )
 
@@ -2143,6 +2467,12 @@ def reserve(al_id):
         preco=preco,
         success=success,
         detail_url=url_for("booking_portal.detail", al_id=al_id, **_reservation_query_args(params, lang)),
+        cancellation_policy=_cancellation_policy_context(params.get("checkin"), lang),
+        cancellation_policy_url=_cancellation_policy_url(
+            params.get("checkin"),
+            lang,
+            request.full_path.rstrip("?"),
+        ),
         login_url=url_for(
             "booking_portal.login",
             lang=lang,

@@ -1,0 +1,39 @@
+<footer class="booking-footer">
+  <div class="booking-footer-main">
+    <section class="booking-footer-brand">
+      <a href="{{ booking_footer.reservations_url }}" aria-label="PortoBreak.com">
+        <img src="{{ url_for('static', filename='images/booking_portal/portobreak-logo-simple.png') }}" alt="PortoBreak.com">
+      </a>
+      <p>{{ booking_footer.tagline }}</p>
+    </section>
+
+    <nav class="booking-footer-links" aria-label="{{ booking_footer.navigation }}">
+      <strong>{{ booking_footer.navigation }}</strong>
+      <a href="{{ booking_footer.reservations_url }}">{{ booking_footer.reservations }}</a>
+      <a href="{{ booking_footer.account_url }}">{{ booking_footer.account }}</a>
+      <a href="{{ booking_footer.cancellation_url }}">{{ booking_footer.cancellation }}</a>
+    </nav>
+
+    <nav class="booking-footer-links" aria-label="{{ booking_footer.legal }}">
+      <strong>{{ booking_footer.legal }}</strong>
+      {% for link in booking_footer.legal_links %}
+        <a href="{{ link.url }}">{{ link.label }}</a>
+      {% endfor %}
+      <a href="{{ booking_company.complaints_url }}">{{ booking_footer.complaints }}</a>
+      <button class="booking-footer-cookie-button" type="button" data-cookie-settings-open hidden>{{ cookie_ui.manage_cookies }}</button>
+    </nav>
+
+    <section class="booking-footer-company">
+      <strong>{{ booking_footer.institutional }}</strong>
+      <span>{{ booking_company.company_name }}</span>
+      <span>{{ booking_footer.address }}</span>
+      <span>{{ booking_footer.tax_id }}</span>
+      <a href="mailto:{{ booking_company.contact_email }}">{{ booking_company.contact_email }}</a>
+    </section>
+  </div>
+  <div class="booking-footer-bottom">
+    <span>&copy; {{ booking_footer.year }} {{ booking_company.company_name }} {{ booking_footer.rights }}</span>
+    <span><a href="{{ booking_footer.privacy_url }}">{{ booking_footer.privacy_note }}</a></span>
+  </div>
+</footer>
+{% include 'booking_portal/_cookie_preferences.html' %}

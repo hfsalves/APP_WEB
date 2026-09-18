@@ -1,0 +1,60 @@
+<link rel="stylesheet" href="{{ url_for('static', filename='css/booking_cookie_preferences.css') }}?v={{ config.get('STATIC_VERSION', 1) }}">
+
+<section class="bp-cookie-banner" id="booking-cookie-banner" aria-labelledby="booking-cookie-banner-title"{% if cookie_consent is not none %} hidden{% endif %}>
+  <div class="bp-cookie-banner-copy">
+    <h2 id="booking-cookie-banner-title">{{ cookie_ui.banner_title }}</h2>
+    <p>{{ cookie_ui.banner_description }} <a href="{{ cookie_policy_url }}">{{ cookie_ui.policy_link }}</a></p>
+    <noscript><p>{{ cookie_ui.no_javascript }}</p></noscript>
+    <p class="bp-cookie-error" id="booking-cookie-banner-error" role="alert" hidden></p>
+  </div>
+  <div class="bp-cookie-banner-actions" data-cookie-enhanced hidden>
+    <button type="button" class="bp-cookie-button" data-cookie-save="accept">{{ cookie_ui.accept_optional }}</button>
+    <button type="button" class="bp-cookie-button" data-cookie-save="reject">{{ cookie_ui.reject_optional }}</button>
+    <button type="button" class="bp-cookie-button bp-cookie-button-settings" data-cookie-settings-open>{{ cookie_ui.settings }}</button>
+  </div>
+</section>
+
+<dialog class="bp-cookie-dialog" id="booking-cookie-dialog" aria-labelledby="booking-cookie-dialog-title" aria-describedby="booking-cookie-dialog-description">
+  <div class="bp-cookie-dialog-header">
+    <h2 id="booking-cookie-dialog-title">{{ cookie_ui.dialog_title }}</h2>
+    <button type="button" class="bp-cookie-close" data-cookie-close aria-label="{{ cookie_ui.close }}">&times;</button>
+  </div>
+  <p id="booking-cookie-dialog-description">{{ cookie_ui.dialog_description }}</p>
+  <fieldset class="bp-cookie-categories">
+    <legend class="bp-cookie-sr-only">{{ cookie_ui.categories }}</legend>
+    <label class="bp-cookie-category">
+      <span class="bp-cookie-category-copy">
+        <span class="bp-cookie-category-heading">{{ cookie_ui.necessary_title }} <span class="bp-cookie-required">{{ cookie_ui.always_active }}</span></span>
+        <span class="bp-cookie-category-description">{{ cookie_ui.necessary_description }}</span>
+      </span>
+      <input type="checkbox" checked disabled aria-label="{{ cookie_ui.necessary_title }} — {{ cookie_ui.always_active }}">
+    </label>
+    <label class="bp-cookie-category">
+      <span class="bp-cookie-category-copy">
+        <span class="bp-cookie-category-heading">{{ cookie_ui.preferences_title }}</span>
+        <span class="bp-cookie-category-description">{{ cookie_ui.preferences_description }}</span>
+      </span>
+      <input type="checkbox" id="booking-cookie-preferences" name="preferences">
+    </label>
+    <label class="bp-cookie-category" id="booking-cookie-maps-category">
+      <span class="bp-cookie-category-copy">
+        <span class="bp-cookie-category-heading">{{ cookie_ui.maps_title }}</span>
+        <span class="bp-cookie-category-description">{{ cookie_ui.maps_description }}</span>
+      </span>
+      <input type="checkbox" id="booking-cookie-external-maps" name="external_maps">
+    </label>
+  </fieldset>
+  <p class="bp-cookie-policy-note">{{ cookie_ui.withdraw_note }} <a href="{{ cookie_policy_url }}">{{ cookie_ui.policy_link }}</a></p>
+  <p class="bp-cookie-error" id="booking-cookie-dialog-error" role="alert" hidden></p>
+  <div class="bp-cookie-dialog-actions">
+    <button type="button" class="bp-cookie-button bp-cookie-button-save" data-cookie-save="selection">{{ cookie_ui.save_selection }}</button>
+    <div class="bp-cookie-optional-actions">
+      <button type="button" class="bp-cookie-button" data-cookie-save="accept">{{ cookie_ui.accept_optional }}</button>
+      <button type="button" class="bp-cookie-button" data-cookie-save="reject">{{ cookie_ui.reject_optional }}</button>
+    </div>
+  </div>
+</dialog>
+
+<p class="bp-cookie-sr-only" id="booking-cookie-status" role="status" aria-live="polite"></p>
+<script type="application/json" id="booking-cookie-config">{{ {'consent': cookie_consent, 'endpoint': cookie_preferences_url, 'ui': cookie_ui}|tojson }}</script>
+<script defer src="{{ url_for('static', filename='js/booking_cookie_preferences.js') }}?v={{ config.get('STATIC_VERSION', 1) }}"></script>

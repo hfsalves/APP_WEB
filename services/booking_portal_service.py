@@ -257,6 +257,7 @@ def _alojamento_base_select(where_sql: str, lang=None) -> str:
                 LTRIM(RTRIM(ISNULL(AL.NOME, '')))
             ) AS NOME,
             LTRIM(RTRIM(ISNULL(AL.TIPOLOGIA, ''))) AS TIPOLOGIA,
+            LTRIM(RTRIM(ISNULL(AL.LICENCA, ''))) AS LICENCA,
             LTRIM(RTRIM(ISNULL(AL.MORADA, ''))) AS MORADA,
             LTRIM(RTRIM(ISNULL(AL.LOCAL, ''))) AS LOCAL,
             LTRIM(RTRIM(ISNULL(AL.CODPOST, ''))) AS CODPOST,
@@ -383,6 +384,7 @@ def _decorate_alojamento(row: dict, include_gallery: bool = False) -> dict:
     return {
         "id": _clean(item.get("ALSTAMP")),
         "nome": _clean(item.get("NOME")),
+        "licenca": _clean(item.get("LICENCA")),
         "nome_interno": _clean(item.get("NOME_INTERNO")),
         "tipologia": tipologia,
         "capacidade": capacidade,

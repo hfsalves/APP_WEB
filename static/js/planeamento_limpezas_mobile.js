@@ -155,20 +155,23 @@
   }
 
   function deferredState(row) {
-    if (!row?.checkout_reservation || cleaningsFor(row).length) return null;
+    // Uma limpeza futura nunca satisfaz um check-in do próprio dia.
+    if (!row?.checkout_reservation || row.checkin_reservation || cleaningsFor(row).length) return null;
+
+    const minNights = Number(row.min_nights || row.al_noites || 0);
+    const nextCheckin = String(row.next_checkin_date || '').trim();
+    const gapDays = daysBetween(state.date, nextCheckin);
+    if (!Number.isFinite(minNights) || minNights <= 0 || gapDays === null || gapDays <= 0 || gapDays >= minNights) return null;
+
     const postponedDate = String(row.postponed_date || '').trim();
     if (postponedDate) {
       return {
         kind: 'future',
         date: postponedDate,
         team: String(row.postponed_team || '').trim(),
-        nextCheckin: String(row.next_checkin_date || '').trim(),
+        nextCheckin,
       };
     }
-    const minNights = Number(row.min_nights || row.al_noites || 0);
-    const nextCheckin = String(row.next_checkin_date || '').trim();
-    const gapDays = daysBetween(state.date, nextCheckin);
-    if (!Number.isFinite(minNights) || minNights <= 0 || gapDays === null || gapDays <= 0 || gapDays >= minNights) return null;
     return { kind: 'pending', nextCheckin };
   }
 

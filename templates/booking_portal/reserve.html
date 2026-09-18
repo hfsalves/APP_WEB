@@ -4,9 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>PortoBreak.com - {{ page_title }}</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  {% include 'booking_portal/_fonts.html' %}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/booking_portal.css') }}?v={{ config.get('STATIC_VERSION', 1) }}">
 </head>
 <body>
@@ -45,6 +43,9 @@
           <div class="booking-summary-body">
             <p class="booking-kicker booking-kicker-dark">{{ t.stay_label }}</p>
             <h1>{{ alojamento.nome }}</h1>
+            {% if alojamento.licenca %}
+              <p class="booking-license">{{ booking_license_label }}: {{ alojamento.licenca }}</p>
+            {% endif %}
             {% if alojamento.localizacao %}
               <span class="booking-summary-location">{{ alojamento.localizacao }}</span>
             {% endif %}
@@ -85,6 +86,18 @@
                 <small>{{ t.from }}</small>
                 <strong>{{ alojamento.preco_desde }}</strong>
                 <span>{{ t.per_night }}</span>
+              </div>
+            {% endif %}
+
+            {% if cancellation_policy.has_dates %}
+              <div class="booking-cancellation-note booking-cancellation-note-summary">
+                <a href="{{ cancellation_policy_url }}">
+                  {% if cancellation_policy.show_free_cancellation %}
+                    {{ cancellation_policy.free_message_text }}
+                  {% else %}
+                    {{ cancellation_policy.policy_link }}
+                  {% endif %}
+                </a>
               </div>
             {% endif %}
           </div>
@@ -188,6 +201,11 @@
               <textarea name="observacoes" rows="4">{{ customer.observacoes }}</textarea>
             </label>
 
+            <div class="booking-form-legal">
+              <p>{{ booking_legal_ui.form_notice }}</p>
+              <a href="{{ booking_legal_links.privacy.url }}">{{ booking_legal_links.privacy.label }}</a>
+              <a href="{{ booking_legal_links.terms.url }}">{{ booking_legal_links.terms.label }}</a>
+            </div>
             <button class="booking-button booking-button-primary booking-button-wide" type="submit" {% if booking_errors %}disabled{% endif %}>
               {{ t.submit_booking_request }}
             </button>
@@ -218,5 +236,6 @@
       syncMode();
     })();
   </script>
+  {% include 'booking_portal/_footer.html' %}
 </body>
 </html>

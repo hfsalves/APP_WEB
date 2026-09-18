@@ -4,11 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>PortoBreak.com - {{ page_title or alojamento.nome }}</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  {% include 'booking_portal/_fonts.html' %}
   {% if alojamento.tem_mapa %}
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/booking_portal/leaflet-1.9.4/leaflet.css') }}">
   {% endif %}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/booking_portal.css') }}?v={{ config.get('STATIC_VERSION', 1) }}">
 </head>
@@ -71,6 +69,9 @@
         <article class="booking-detail-main">
           <p class="booking-kicker booking-kicker-dark">{{ t.stay_label }}</p>
           <h1>{{ alojamento.nome }}</h1>
+          {% if alojamento.licenca %}
+            <p class="booking-license">{{ booking_license_label }}: {{ alojamento.licenca }}</p>
+          {% endif %}
           {% if alojamento.localizacao %}
             <div class="booking-meta booking-meta-large">
               <span>{{ alojamento.localizacao }}</span>
@@ -96,7 +97,13 @@
               {% endif %}
             </div>
             {% if alojamento.tem_mapa %}
-              <button class="booking-map-preview" type="button" data-map-open aria-label="{{ t.open_map }}">
+              <div class="booking-map-consent" data-map-consent-placeholder>
+                <strong>{{ cookie_ui.map_title }}</strong>
+                <p>{{ cookie_ui.map_description }}</p>
+                <button class="booking-button booking-button-map" type="button" data-map-settings hidden>{{ cookie_ui.map_settings }}</button>
+                <a href="{{ cookie_policy_url }}">{{ booking_legal_links.cookies.label }}</a>
+              </div>
+              <button class="booking-map-preview" type="button" data-map-open data-map-preview hidden aria-label="{{ t.open_map }}">
                 <div id="bookingMapPreview" class="booking-map-canvas" data-lat="{{ alojamento.lat }}" data-lon="{{ alojamento.lon }}"></div>
               </button>
             {% else %}
@@ -161,6 +168,18 @@
             <dd>{{ search.guest_summary or t.choose }}</dd>
           </div>
         </dl>
+
+        {% if cancellation_policy.has_dates %}
+          <div class="booking-cancellation-note">
+            <a href="{{ cancellation_policy_url }}">
+              {% if cancellation_policy.show_free_cancellation %}
+                {{ cancellation_policy.free_message_text }}
+              {% else %}
+                {{ cancellation_policy.policy_link }}
+              {% endif %}
+            </a>
+          </div>
+        {% endif %}
 
         {% if search.errors or guest_errors %}
           <div class="booking-alert booking-alert-compact">
@@ -280,7 +299,7 @@
   <script type="application/json" id="booking-i18n">{{ t|tojson }}</script>
   <script type="application/json" id="booking-gallery-photos">{{ alojamento.fotos|tojson }}</script>
   {% if alojamento.tem_mapa %}
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="{{ url_for('static', filename='vendor/booking_portal/leaflet-1.9.4/leaflet.js') }}"></script>
   {% endif %}
   <script>
     (function () {
@@ -852,30 +871,48 @@
       if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
 
       var center = [lat, lon];
-      var tileUrl = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+      var tileUrl = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
       var tileOptions = {
         maxZoom: 19,
-        attribution: "&copy; OpenStreetMap"
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
       };
-
-      var previewMap = L.map(previewEl, {
-        center: center,
-        zoom: 14,
-        zoomControl: false,
-        dragging: false,
-        scrollWheelZoom: false,
-        doubleClickZoom: false,
-        boxZoom: false,
-        keyboard: false,
-        tap: false
-      });
-      L.tileLayer(tileUrl, tileOptions).addTo(previewMap);
-      L.marker(center).addTo(previewMap);
-
+      var placeholder = document.querySelector("[data-map-consent-placeholder]");
+      var previewButton = document.querySelector("[data-map-preview]");
+      var previewMap = null;
       var modalMap = null;
+
+      function mapsAllowed() {
+        return Boolean(window.PortoBreakCookies && window.PortoBreakCookies.allows("external_maps"));
+      }
+
+      function updateConsent() {
+        var allowed = mapsAllowed();
+        if (placeholder) placeholder.hidden = allowed;
+        if (previewButton) previewButton.hidden = !allowed;
+        document.querySelectorAll("[data-map-settings]").forEach(function (button) {
+          button.hidden = !window.PortoBreakCookies;
+        });
+        if (!allowed) {
+          closeModal();
+          if (previewMap) { previewMap.remove(); previewMap = null; }
+          if (modalMap) { modalMap.remove(); modalMap = null; }
+          return;
+        }
+        if (previewMap) return;
+        previewMap = L.map(previewEl, {
+          center: center, zoom: 14, zoomControl: false, dragging: false,
+          scrollWheelZoom: false, doubleClickZoom: false, boxZoom: false,
+          keyboard: false, tap: false
+        });
+        L.tileLayer(tileUrl, tileOptions).addTo(previewMap);
+        L.marker(center).addTo(previewMap);
+      }
+
       function ensureModalMap() {
+        if (!mapsAllowed()) return;
         if (modalMap) {
           setTimeout(function () {
+            if (!modalMap || !mapsAllowed()) return;
             modalMap.invalidateSize();
             modalMap.setView(center, 15);
           }, 60);
@@ -890,6 +927,10 @@
       }
 
       function openModal() {
+        if (!mapsAllowed()) {
+          if (window.PortoBreakCookies) window.PortoBreakCookies.openMapsSettings();
+          return;
+        }
         modalEl.classList.add("is-open");
         modalEl.setAttribute("aria-hidden", "false");
         document.body.classList.add("booking-modal-open");
@@ -908,6 +949,13 @@
       document.querySelectorAll("[data-map-close]").forEach(function (button) {
         button.addEventListener("click", closeModal);
       });
+      document.querySelectorAll("[data-map-settings]").forEach(function (button) {
+        button.addEventListener("click", function () {
+          if (window.PortoBreakCookies) window.PortoBreakCookies.openMapsSettings();
+        });
+      });
+      window.addEventListener("portobreak:consent-changed", updateConsent);
+      document.addEventListener("DOMContentLoaded", updateConsent);
       document.addEventListener("keydown", function (event) {
         if (event.key === "Escape" && modalEl.classList.contains("is-open")) {
           closeModal();
@@ -916,5 +964,6 @@
     })();
     {% endif %}
   </script>
+  {% include 'booking_portal/_footer.html' %}
 </body>
 </html>

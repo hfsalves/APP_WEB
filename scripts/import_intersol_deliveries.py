@@ -11,7 +11,7 @@ from __future__ import annotations
 import argparse
 import sys
 from collections import defaultdict
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 from typing import Any
@@ -65,6 +65,9 @@ def doc_date(value: Any) -> date:
         return value.date()
     if isinstance(value, date):
         return value
+    if isinstance(value, (int, float)):
+        # Excel's 1900 date system, including its historical leap-year offset.
+        return (datetime(1899, 12, 30) + timedelta(days=float(value))).date()
     return datetime.fromisoformat(clean(value)[:10]).date()
 
 
@@ -104,9 +107,13 @@ def read_xlsx(path: Path) -> list[dict[str, Any]]:
         source = dict(zip(headers, values))
         if not clean(source.get("Nº Facture")):
             continue
+        invoice_date = doc_date(source["Date Facture"])
+        delivery = clean(source["Nº BL"])
+        delivery_date_value = source.get("Date BL")
         result.append({
-            "invoice": clean(source["Nº Facture"]), "invoice_date": doc_date(source["Date Facture"]),
-            "delivery": clean(source["Nº BL"]), "delivery_date": doc_date(source["Date BL"]),
+            "invoice": clean(source["Nº Facture"]), "invoice_date": invoice_date,
+            "delivery": delivery, "delivery_date": doc_date(delivery_date_value) if delivery and clean(delivery_date_value) else invoice_date,
+            "direct_pf": not bool(delivery),
             "ref": clean(source["Référence Produit"]), "design": clean(source.get("Produit")),
             "qty": quantity(source["Quant."]), "price": decimal(source["Prix"]),
             "bc": int(decimal(source[bc_column])),
@@ -137,6 +144,14 @@ def load_source(cursor, bcs: set[int], supplier_names: dict[int, set[str]]) -> t
             or (candidate[:3] and candidate[:3] in normalized(row.get("NOME")))
             for candidate in expected
         )]
+        # Older dossier numbers are reused in HSOLS.  When an abbreviated
+        # supplier label (for example, "SBVS") cannot be compared to the
+        # full PHC legal name, the sole open revision is the unambiguous,
+        # current BC.  Never make this fallback where more than one revision
+        # remains open.
+        open_candidates = [row for row in candidates if not bool(row.get("FECHADA"))]
+        if not matched and len(open_candidates) == 1:
+            matched = open_candidates
         open_matched = [row for row in matched if not bool(row.get("FECHADA"))]
         if len(open_matched) == 1:
             matched = open_matched
@@ -180,6 +195,30 @@ def allocate(excel: list[dict[str, Any]], source: list[dict[str, Any]]) -> list[
         candidates = [line for line in by_bc[row["bc"]]
                       if line["remaining"] > ZERO and clean(line["REF"]) == row["ref"]
                       and money(line.get("EDEBITO")) == money(row["price"])]
+        # Suppliers occasionally export a calculated unit price with more
+        # decimals than the BC.  If article and price differ by at most one
+        # cent, the current BC line is still the intended origin; retain the
+        # supplier's invoiced unit price on the imported document.
+        if not candidates:
+            candidates = [line for line in by_bc[row["bc"]]
+                          if line["remaining"] > ZERO and clean(line["REF"]) == row["ref"]
+                          and abs(decimal(line.get("EDEBITO")) - row["price"]) <= Decimal("0.01")]
+        # Some supplier exports label the fuel surcharge as a transport line,
+        # while the approved BC holds it under its dedicated surcharge code.
+        # Match only that unambiguous semantic/price pair, retaining the BC
+        # article on the linked PHC line.
+        if not candidates and "SURCHARGECARBURANT" in normalized(row.get("design")):
+            candidates = [line for line in by_bc[row["bc"]]
+                          if line["remaining"] > ZERO
+                          and money(line.get("EDEBITO")) == money(row["price"])
+                          and "SURCHARGECARBURANT" in normalized(line.get("DESIGN"))]
+        # The environmental contribution has two supplier/article codings in
+        # the HSOLS exports.  On older BCs, .0091 (eco participation) is the
+        # contractual equivalent of exported .0094, at the same unit price.
+        if not candidates and row["ref"] == "S.03.05.000.0094" and "CONTRIBUTIONENVIRONNEMENTALE" in normalized(row.get("design")):
+            candidates = [line for line in by_bc[row["bc"]]
+                          if line["remaining"] > ZERO and clean(line["REF"]) == "S.03.05.000.0091"
+                          and money(line.get("EDEBITO")) == money(row["price"])]
         for line in candidates:
             if remaining <= ZERO:
                 break
@@ -197,7 +236,7 @@ def allocate(excel: list[dict[str, Any]], source: list[dict[str, Any]]) -> list[
 def assert_no_duplicates(cursor, excel: list[dict[str, Any]]) -> None:
     # The external delivery number is the durable, user-visible id.  FREF is
     # intentionally never used by these imports, including on pre-invoices.
-    checks = ((BL_NDOS, "MAQUINA", {row["delivery"] for row in excel}),)
+    checks = ((BL_NDOS, "MAQUINA", {row["delivery"] for row in excel if row["delivery"]}),)
     for ndos, field, values in checks:
         placeholders = ",".join("?" for _ in values)
         found = rows(cursor, f"SELECT OBRANO,{field} FROM dbo.BO WITH (UPDLOCK,HOLDLOCK) WHERE NDOS=? AND LTRIM(RTRIM(ISNULL({field},''))) IN ({placeholders})", tuple([ndos, *sorted(values)]))
@@ -304,7 +343,8 @@ def execute(cursor, allocations: list[dict[str, Any]], headers: dict[int, dict[s
     by_delivery: dict[str, list[dict[str, Any]]] = defaultdict(list)
     by_invoice: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for item in allocations:
-        by_delivery[item["excel"]["delivery"]].append(item)
+        if not item["excel"].get("direct_pf"):
+            by_delivery[item["excel"]["delivery"]].append(item)
         by_invoice[item["excel"]["invoice"]].append(item)
     bl_lines: dict[int, str] = {}
     bl_headers: dict[str, tuple[str, int]] = {}
@@ -347,15 +387,16 @@ def execute(cursor, allocations: list[dict[str, Any]], headers: dict[int, dict[s
         last_bc = ""
         position = 0
         for item in items:
-            delivery = item["excel"]["delivery"]
-            bl_stamp, bl_number = bl_headers[delivery]
             source_header = headers[item["source"]["bc"]]
-            if bl_stamp != last_bl:
-                position += 1
-                create_origin_line(cursor, stamp=stamp, ndos=PF_NDOS, name=names[PF_NDOS], number=number,
-                                   when=when, design=f"{names[BL_NDOS]} nº {bl_number}",
-                                   parent_header=bl_stamp, lordem=position * 1000, initials=initials)
-                last_bl = bl_stamp
+            if not item["excel"].get("direct_pf"):
+                delivery = item["excel"]["delivery"]
+                bl_stamp, bl_number = bl_headers[delivery]
+                if bl_stamp != last_bl:
+                    position += 1
+                    create_origin_line(cursor, stamp=stamp, ndos=PF_NDOS, name=names[PF_NDOS], number=number,
+                                       when=when, design=f"{names[BL_NDOS]} nº {bl_number}",
+                                       parent_header=bl_stamp, lordem=position * 1000, initials=initials)
+                    last_bl = bl_stamp
             current_bc = clean(source_header["BOSTAMP"])
             if current_bc != last_bc:
                 position += 1
@@ -364,9 +405,14 @@ def execute(cursor, allocations: list[dict[str, Any]], headers: dict[int, dict[s
                                    parent_header="", lordem=position * 1000, initials=initials)
                 last_bc = current_bc
             position += 1
-            line = create_line(cursor, item=item, stamp=stamp, ndos=PF_NDOS, name=names[PF_NDOS], number=number, when=when, origin_header=origin,
-                               parent=bl_lines[id(item)], parent_header=bl_stamp, next_ndos=55, next_name="V/Facture", next_number_value=0, initials=initials)
-            cursor.execute("UPDATE dbo.BI SET QTT2=0,FECHADA=0,NDOC=?,NMDOC=?,FNO=?,USRINIS=?,USRDATA=?,USRHORA=? WHERE BISTAMP=?", (PF_NDOS, names[PF_NDOS], number, initials, datetime.now(), datetime.now().strftime('%H:%M:%S'), bl_lines[id(item)]))
+            if item["excel"].get("direct_pf"):
+                create_line(cursor, item=item, stamp=stamp, ndos=PF_NDOS, name=names[PF_NDOS], number=number, when=when, origin_header=origin,
+                            parent=clean(item["source"]["BISTAMP"]), parent_header=current_bc,
+                            next_ndos=55, next_name="V/Facture", next_number_value=0, initials=initials)
+            else:
+                line = create_line(cursor, item=item, stamp=stamp, ndos=PF_NDOS, name=names[PF_NDOS], number=number, when=when, origin_header=origin,
+                                   parent=bl_lines[id(item)], parent_header=bl_stamp, next_ndos=55, next_name="V/Facture", next_number_value=0, initials=initials)
+                cursor.execute("UPDATE dbo.BI SET QTT2=0,FECHADA=0,NDOC=?,NMDOC=?,FNO=?,USRINIS=?,USRDATA=?,USRHORA=? WHERE BISTAMP=?", (PF_NDOS, names[PF_NDOS], number, initials, datetime.now(), datetime.now().strftime('%H:%M:%S'), bl_lines[id(item)]))
     # Imports remain open.  QTT2 is deliberately zero on every imported
     # material line and separator line; source BC state is not forced here.
     placeholders = ",".join("?" for _ in created_headers)
@@ -384,9 +430,14 @@ def main() -> int:
     parser.add_argument("--database", default=DB)
     parser.add_argument("--server", default="")
     parser.add_argument("--remap-bc", action="append", default=[], metavar="FROM:TO")
+    parser.add_argument("--allow-direct-pf", action="store_true", help="Permite linhas sem BL, lançadas diretamente de BC para PF.")
     args = parser.parse_args()
     DB = clean(args.database).upper()
     excel = read_xlsx(args.xlsx)
+    direct_rows = [row for row in excel if row.get("direct_pf")]
+    if direct_rows and not args.allow_direct_pf:
+        refs = ", ".join(f"{row['invoice']} ({row['ref']})" for row in direct_rows[:5])
+        raise ImportValidationError("Linhas sem BL requerem --allow-direct-pf: " + refs)
     for mapping in args.remap_bc:
         try:
             old_value, new_value = clean(mapping).split(":", 1)
@@ -410,7 +461,7 @@ def main() -> int:
             headers, source, names = load_source(cursor, {row["bc"] for row in excel}, supplier_names)
             assert_no_duplicates(cursor, excel)
             allocations = allocate(excel, source)
-            summary = {"bl": len({row["delivery"] for row in excel}), "pf": len({row["invoice"] for row in excel}), "lines": len(allocations)}
+            summary = {"bl": len({row["delivery"] for row in excel if row["delivery"]}), "pf": len({row["invoice"] for row in excel}), "lines": len(allocations)}
             print(f"VALIDAÇÃO OK: {summary['bl']} BL, {summary['pf']} PF, {summary['lines']} linhas.")
             if not args.execute:
                 connection.rollback(); print("DRY-RUN concluído. Sem alterações."); return 0

@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="{{ lang }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PortoBreak.com - {{ page_title }}</title>
+  {% include 'booking_portal/_fonts.html' %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/booking_portal.css') }}?v={{ config.get('STATIC_VERSION', 1) }}">
+</head>
+<body>
+  <main class="booking-shell booking-policy-shell">
+    <nav class="booking-nav booking-topbar-light" aria-label="{{ t.page_reservations }}">
+      <a class="booking-brand" href="{{ url_for('booking_portal.index', lang=lang) }}" aria-label="PortoBreak.com">
+        <img src="{{ url_for('static', filename='images/booking_portal/portobreak-logo-simple.png') }}" alt="PortoBreak.com">
+      </a>
+      <div class="booking-nav-actions">
+        <div class="booking-language-switcher booking-language-switcher-nav" aria-label="Language">
+          {% for item in language_links %}
+            <a href="{{ item.url }}" class="{% if item.active %}is-active{% endif %}" lang="{{ item.code }}">{{ item.label }}</a>
+          {% endfor %}
+        </div>
+        {% include 'booking_portal/_account_menu.html' %}
+      </div>
+    </nav>
+
+    <article class="booking-policy-card">
+      <p class="booking-kicker booking-kicker-dark">Porto Break</p>
+      <h1>{{ policy.page_title }}</h1>
+      <p class="booking-policy-lead">{{ policy.page_lead }}</p>
+
+      <div class="booking-policy-rules">
+        <section>
+          <span class="booking-policy-badge booking-policy-badge-free">100%</span>
+          <div><h2>{{ policy.free_title }}</h2><p>{{ policy.free_rule }}</p></div>
+        </section>
+        <section>
+          <span class="booking-policy-badge booking-policy-badge-partial">50%</span>
+          <div><h2>{{ policy.partial_title }}</h2><p>{{ policy.partial_rule }}</p></div>
+        </section>
+        <section>
+          <span class="booking-policy-badge booking-policy-badge-none">0%</span>
+          <div><h2>{{ policy.none_title }}</h2><p>{{ policy.none_rule }}</p></div>
+        </section>
+      </div>
+
+      {% if policy.has_dates %}
+        <section class="booking-policy-example">
+          <h2>{{ policy.example_title }}</h2>
+          <p><strong>{{ policy.free_message_text }}</strong></p>
+          <p>{{ policy.partial_message_text }}</p>
+          <p>{{ policy.none_message_text }}</p>
+        </section>
+      {% endif %}
+
+      <p class="booking-policy-timezone">{{ policy.timezone_note }}</p>
+      <a class="booking-button booking-button-primary" href="{{ back_url }}">{{ back_label }}</a>
+    </article>
+  </main>
+  {% include 'booking_portal/_footer.html' %}
+</body>
+</html>
