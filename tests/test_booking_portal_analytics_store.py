@@ -66,6 +66,25 @@ class AnalyticsStorageTests(unittest.TestCase):
         self.assertIsNone(visitor["age_band"])
         self.assertEqual(visitor["demographic_source"], "unknown")
 
+    def test_unknown_session_country_can_be_enriched_but_not_overwritten(self):
+        unknown_traits = {**self.traits, "country": "ZZ", "country_source": "unknown"}
+        store.record_pageview(
+            self.engine, visitor_id="visitor-1", session_id="session-1", page_id="page-1",
+            context=self.context, traits=unknown_traits, consent=self.consent, now=self.now,
+        )
+        self.page(page="page-2", seconds=10)
+        session = self.rows(store.sessions)[0]
+        self.assertEqual(session["country"], "PT")
+        self.assertEqual(session["country_source"], "cloudflare")
+
+        other_traits = {**self.traits, "country": "ES", "country_source": "cloudflare"}
+        store.record_pageview(
+            self.engine, visitor_id="visitor-1", session_id="session-1", page_id="page-3",
+            context=self.context, traits=other_traits, consent=self.consent,
+            now=self.now + timedelta(seconds=20),
+        )
+        self.assertEqual(self.rows(store.sessions)[0]["country"], "PT")
+
     def test_no_raw_request_or_unapproved_search_fields_are_saved(self):
         context = {**self.context, "raw_url": "/private/secret", "search": {**self.context["search"], "q": "someone@example.com", "token": "secret"}}
         traits = {**self.traits, "ip": "192.0.2.123", "user_agent": "RAW-UA", "gender": "guessed"}

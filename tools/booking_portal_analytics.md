@@ -21,7 +21,9 @@ local foi atualizado. O domínio público ainda servia a versão sem esta recolh
 4. Para país estimado, confirmar que a Cloudflare envia `CF-IPCountry` e que o
    origin só aceita esse cabeçalho através de proxies confiáveis. Ligações
    diretas dos CIDRs públicos da Cloudflare são reconhecidas. Se existe Nginx
-   ou cloudflared local, configurar `PORTOBREAK_ANALYTICS_TRUSTED_PROXY_CIDRS`
+   ou cloudflared local, a aplicação aceita automaticamente a cadeia local apenas
+   quando o último `X-Forwarded-For`/`X-Real-IP` antes do Nginx pertence aos CIDRs
+   Cloudflare. Para outras topologias, configurar `PORTOBREAK_ANALYTICS_TRUSTED_PROXY_CIDRS`
    com o endereço/CIDR exato **só depois de verificar a proteção do upstream**.
    Não configurar `0.0.0.0/0`, nem confiar em localhost apenas por conveniência.
    Sem esta confirmação o país fica `ZZ`/`unknown`, não é inferido do idioma.

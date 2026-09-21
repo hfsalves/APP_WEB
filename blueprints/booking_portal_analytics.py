@@ -7,7 +7,7 @@ import logging
 from flask import Blueprint, abort, jsonify, render_template, request
 from flask_login import current_user, login_required
 
-from models import db
+from models import Acessos, db
 from services.booking_portal_analytics_dashboard import (
     DashboardPeriodError,
     build_dashboard,
@@ -19,8 +19,18 @@ bp = Blueprint("booking_portal_analytics", __name__)
 logger = logging.getLogger(__name__)
 
 
-def _require_admin() -> None:
-    if not bool(getattr(current_user, "ADMIN", False)):
+def _has_dashboard_access() -> bool:
+    if bool(getattr(current_user, "ADMIN", False)):
+        return True
+    login = str(getattr(current_user, "LOGIN", "") or "").strip()
+    if not login:
+        return False
+    access = Acessos.query.filter_by(utilizador=login, tabela="PB_ANALYTICS").first()
+    return bool(access and access.consultar)
+
+
+def _require_access() -> None:
+    if not _has_dashboard_access():
         abort(403)
 
 
@@ -31,7 +41,7 @@ def _flag(name: str) -> bool:
 @bp.get("/analytics/portobreak")
 @login_required
 def dashboard_page():
-    _require_admin()
+    _require_access()
     period = dashboard_period(request.args.get("start"), request.args.get("end"))
     response = render_template(
         "booking_portal_analytics.html",
@@ -44,7 +54,7 @@ def dashboard_page():
 @bp.get("/api/analytics/portobreak")
 @login_required
 def dashboard_data():
-    _require_admin()
+    _require_access()
     try:
         period = dashboard_period(request.args.get("start"), request.args.get("end"))
         payload = build_dashboard(

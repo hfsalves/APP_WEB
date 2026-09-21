@@ -244,10 +244,18 @@ def record_pageview(engine, *, visitor_id, session_id, page_id, context: dict, t
             search_json=json.dumps(search, ensure_ascii=True, sort_keys=True, separators=(",", ":")),
             active_seconds=0,
         ))
-        conn.execute(update(sessions).where(sessions.c.session_id == session_id).values(
-            page_views=sessions.c.page_views + 1,
-            last_seen_at=case((sessions.c.last_seen_at < now, now), else_=sessions.c.last_seen_at),
-        ))
+        session_updates = {
+            "page_views": sessions.c.page_views + 1,
+            "last_seen_at": case((sessions.c.last_seen_at < now, now), else_=sessions.c.last_seen_at),
+        }
+        # A country header may become available after the session started (for
+        # example after a proxy configuration is corrected). Enrich only an
+        # unknown value; first-touch attribution and known countries stay fixed.
+        observed_country = _country(traits.get("country"))
+        if session is not None and session["country"] == "ZZ" and observed_country != "ZZ":
+            session_updates["country"] = observed_country
+            session_updates["country_source"] = _text(traits.get("country_source"), 24, "unknown")
+        conn.execute(update(sessions).where(sessions.c.session_id == session_id).values(**session_updates))
         return {"accepted": True, "session_id": session_id, "page_id": page_id, "created": True}
 
     return _run(engine, operation)

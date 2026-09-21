@@ -122,6 +122,21 @@ class AnalyticsTests(unittest.TestCase):
             environ_base={"REMOTE_ADDR": "127.0.0.1"}):
             self.assertEqual(analytics.request_traits()["country"], "ES")
 
+    def test_country_accepted_through_verified_local_nginx_cloudflare_chain(self):
+        with self.app.test_request_context("/reservas", headers={
+            "CF-IPCountry": "PT",
+            "X-Forwarded-For": "198.51.100.25, 162.158.0.1",
+        }, environ_base={"REMOTE_ADDR": "127.0.0.1"}):
+            self.assertEqual(analytics.request_traits()["country"], "PT")
+
+        # A caller cannot make itself trusted by prepending a Cloudflare IP;
+        # Nginx appends the actual direct peer as the right-most hop.
+        with self.app.test_request_context("/reservas", headers={
+            "CF-IPCountry": "PT",
+            "X-Forwarded-For": "162.158.0.1, 203.0.113.25",
+        }, environ_base={"REMOTE_ADDR": "127.0.0.1"}):
+            self.assertEqual(analytics.request_traits()["country"], "ZZ")
+
     def test_bad_origin_payloads_signatures_and_durations_are_rejected(self):
         self.consent(True)
         payload = self.page()

@@ -5,10 +5,13 @@ BEGIN
     INSERT INTO dbo.MENU (
         MENUSTAMP, ORDEM, NOME, TABELA, URL, ADMIN, ICONE, FORM, ORDERBY, NOVO, INATIVO
     ) VALUES (
-        'PBANALYTICSGROUP00000001', 1500, 'PortoBreak', '', '', 1,
+        'PBANALYTICSGROUP00000001', 1500, 'PortoBreak', '', '', 0,
         'fa-solid fa-chart-line', '', '', 0, 0
     );
 END;
+
+UPDATE dbo.MENU SET ADMIN = 0
+WHERE MENUSTAMP = 'PBANALYTICSGROUP00000001';
 
 IF NOT EXISTS (
     SELECT 1 FROM dbo.MENU
@@ -20,6 +23,41 @@ BEGIN
         MENUSTAMP, ORDEM, NOME, TABELA, URL, ADMIN, ICONE, FORM, ORDERBY, NOVO, INATIVO
     ) VALUES (
         'PBANALYTICSMENU000000001', 1501, 'Analítica do Portal', 'PB_ANALYTICS',
-        '/analytics/portobreak', 1, 'fa-solid fa-chart-column', '', '', 0, 0
+        '/analytics/portobreak', 0, 'fa-solid fa-chart-column', '', '', 0, 0
     );
 END;
+
+UPDATE dbo.MENU SET ADMIN = 0
+WHERE MENUSTAMP = 'PBANALYTICSMENU000000001'
+   OR LTRIM(RTRIM(ISNULL(URL, ''))) = '/analytics/portobreak';
+
+DECLARE @PortalAnalyticsUsers TABLE (LOGIN varchar(60));
+INSERT INTO @PortalAnalyticsUsers (LOGIN)
+VALUES ('admin'), ('pedro'), ('dyhia'), ('susana');
+
+UPDATE A
+SET A.CONSULTAR = 1,
+    A.USSTAMP = U.USSTAMP
+FROM dbo.ACESSOS AS A
+INNER JOIN @PortalAnalyticsUsers AS W
+    ON LOWER(LTRIM(RTRIM(A.UTILIZADOR))) = W.LOGIN
+INNER JOIN dbo.US AS U
+    ON LOWER(LTRIM(RTRIM(U.LOGIN))) = W.LOGIN
+WHERE UPPER(LTRIM(RTRIM(A.TABELA))) = 'PB_ANALYTICS'
+  AND ISNULL(U.INATIVO, 0) = 0;
+
+INSERT INTO dbo.ACESSOS (
+    ACESSOSSTAMP, UTILIZADOR, TABELA, CONSULTAR,
+    INSERIR, EDITAR, ELIMINAR, USSTAMP
+)
+SELECT LEFT(REPLACE(CONVERT(varchar(36), NEWID()), '-', ''), 25),
+       U.LOGIN, 'PB_ANALYTICS', 1, 0, 0, 0, U.USSTAMP
+FROM dbo.US AS U
+INNER JOIN @PortalAnalyticsUsers AS W
+    ON LOWER(LTRIM(RTRIM(U.LOGIN))) = W.LOGIN
+WHERE ISNULL(U.INATIVO, 0) = 0
+  AND NOT EXISTS (
+      SELECT 1 FROM dbo.ACESSOS AS A
+      WHERE LOWER(LTRIM(RTRIM(A.UTILIZADOR))) = W.LOGIN
+        AND UPPER(LTRIM(RTRIM(A.TABELA))) = 'PB_ANALYTICS'
+  );

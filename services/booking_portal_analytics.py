@@ -44,6 +44,10 @@ CF_NETWORKS = tuple(ipaddress.ip_network(value) for value in (
     "2606:4700::/32", "2803:f800::/32", "2405:b500::/32", "2405:8100::/32",
     "2a06:98c0::/29", "2c0f:f248::/32",
 ))
+LOCAL_PROXY_NETWORKS = (
+    ipaddress.ip_network("127.0.0.0/8"),
+    ipaddress.ip_network("::1/128"),
+)
 BOT = re.compile(r"bot\b|crawler|spider|headless|curl/|wget/|python|httpclient|scanner|preview|facebookexternalhit", re.I)
 _lock = threading.Lock()
 _limits = {}
@@ -192,13 +196,46 @@ def safe_context(lang="pt"):
     }
 
 
+def _address(value):
+    try:
+        return ipaddress.ip_address(str(value or "").strip())
+    except ValueError:
+        return None
+
+
+def _in_networks(address, networks):
+    return address is not None and any(address in network for network in networks)
+
+
+def _cloudflare_reached_local_proxy():
+    """Verify the hop before local Nginx instead of trusting caller headers.
+
+    With ``$proxy_add_x_forwarded_for``, the right-most X-Forwarded-For value is
+    the peer that connected to Nginx. For a genuine proxied request that peer is
+    Cloudflare. A direct caller cannot pass this check merely by prepending a
+    forged Cloudflare address, because Nginx appends its real address last.
+    """
+    peer = _address(request.remote_addr)
+    if not _in_networks(peer, LOCAL_PROXY_NETWORKS):
+        return False
+    forwarded = [
+        _address(value)
+        for value in str(request.headers.get("X-Forwarded-For") or "").split(",")
+        if value.strip()
+    ]
+    forwarded = [value for value in forwarded if value is not None]
+    if forwarded and _in_networks(forwarded[-1], CF_NETWORKS):
+        return True
+    return _in_networks(_address(request.headers.get("X-Real-IP")), CF_NETWORKS)
+
+
 def _trusted_country():
     try:
-        peer = ipaddress.ip_address(request.remote_addr or "")
+        peer = _address(request.remote_addr)
         networks = list(CF_NETWORKS)
         configured = str(_setting("PORTOBREAK_ANALYTICS_TRUSTED_PROXY_CIDRS", ""))
         networks.extend(ipaddress.ip_network(v.strip()) for v in configured.split(",") if v.strip())
-        trusted = any(peer in network for network in networks)
+        trusted = _in_networks(peer, networks) or _cloudflare_reached_local_proxy()
     except ValueError:
         trusted = False
     country = request.headers.get("CF-IPCountry", "").upper()
