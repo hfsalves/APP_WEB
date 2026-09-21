@@ -219,6 +219,13 @@ def allocate(excel: list[dict[str, Any]], source: list[dict[str, Any]]) -> list[
             candidates = [line for line in by_bc[row["bc"]]
                           if line["remaining"] > ZERO and clean(line["REF"]) == "S.03.05.000.0091"
                           and money(line.get("EDEBITO")) == money(row["price"])]
+        # A few quarry exports call their fixed "FRAIS" line an
+        # administrative charge and assign the generic .0093 code.  Preserve
+        # the contractual FRAIS line as the origin when its price is unique.
+        if not candidates and "FRAISADMINISTRATIFS" in normalized(row.get("design")):
+            candidates = [line for line in by_bc[row["bc"]]
+                          if line["remaining"] > ZERO and money(line.get("EDEBITO")) == money(row["price"])
+                          and normalized(line.get("DESIGN")) == "FRAIS"]
         for line in candidates:
             if remaining <= ZERO:
                 break

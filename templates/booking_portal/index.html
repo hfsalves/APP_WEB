@@ -7,7 +7,9 @@
   {% include 'booking_portal/_fonts.html' %}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/booking_portal.css') }}?v={{ config.get('STATIC_VERSION', 1) }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/booking_mobile_search.css') }}?v={{ config.get('STATIC_VERSION', 1) }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/booking_search_calendar.css') }}?v={{ config.get('STATIC_VERSION', 1) }}">
   <script src="{{ url_for('static', filename='js/booking_mobile_search.js') }}?v={{ config.get('STATIC_VERSION', 1) }}" defer></script>
+  <script src="{{ url_for('static', filename='js/booking_search_calendar.js') }}?v={{ config.get('STATIC_VERSION', 1) }}" defer></script>
   {% if catalog_map is defined %}
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/booking_portal/leaflet-1.9.4/leaflet.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/booking_catalog_map.css') }}?v={{ config.get('STATIC_VERSION', 1) }}">
@@ -36,14 +38,22 @@
           <input type="hidden" name="lang" value="{{ lang }}">
           {% if catalog_map is defined and catalog_map.view == 'map' %}<input type="hidden" name="view" value="map" data-catalog-view-input>{% endif %}
           <div class="booking-search-dates">
-            <label>
+            <label data-search-date-native>
               <span>{{ t.checkin }}</span>
               <input type="date" name="checkin" value="{{ search.raw.checkin }}">
             </label>
-            <label>
+            <button class="booking-search-date-toggle" type="button" data-search-date-toggle="checkin" aria-haspopup="dialog" aria-expanded="false" aria-controls="bookingSearchCalendar">
+              <span>{{ t.checkin }}</span>
+              <span class="booking-search-date-value"><b data-search-date-value>{{ t.choose }}</b><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3.5" y="5.5" width="17" height="15" rx="2"/><path d="M7 3v5m10-5v5M3.5 11h17"/></svg></span>
+            </button>
+            <label data-search-date-native>
               <span>{{ t.checkout }}</span>
               <input type="date" name="checkout" value="{{ search.raw.checkout }}">
             </label>
+            <button class="booking-search-date-toggle" type="button" data-search-date-toggle="checkout" aria-haspopup="dialog" aria-expanded="false" aria-controls="bookingSearchCalendar">
+              <span>{{ t.checkout }}</span>
+              <span class="booking-search-date-value"><b data-search-date-value>{{ t.choose }}</b><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3.5" y="5.5" width="17" height="15" rx="2"/><path d="M7 3v5m10-5v5M3.5 11h17"/></svg></span>
+            </button>
           </div>
           <div class="booking-search-party" data-search-party>
             <button class="booking-mobile-party-toggle" type="button" aria-expanded="false" aria-controls="booking-search-party-fields" aria-labelledby="booking-mobile-party-label booking-mobile-party-count" data-party-toggle>
@@ -214,9 +224,12 @@
     </section>
   </main>
 
+  {% include 'booking_portal/_search_calendar.html' %}
+  <script type="application/json" id="booking-search-calendar-config">{{ {'lang': lang, 'labels': {'calendar_start': t.calendar_start, 'calendar_pick_checkout': t.calendar_pick_checkout, 'checkout_after_checkin': t.checkout_after_checkin, 'checkin': t.checkin, 'checkout': t.checkout, 'choose': t.choose, 'previous_month': t.previous_month, 'next_month': t.next_month}}|tojson }}</script>
   <script>
     document.querySelectorAll("[data-search-form]").forEach(function (form) {
-      form.addEventListener("submit", function () {
+      form.addEventListener("submit", function (event) {
+        if (event.defaultPrevented) return;
         var button = form.querySelector("[data-search-button]");
         if (button) {
           button.disabled = true;

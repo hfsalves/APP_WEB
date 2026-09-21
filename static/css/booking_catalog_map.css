@@ -32,6 +32,7 @@
 .booking-catalog-pin-core { display: block; width: 11px; height: 11px; border-radius: 50%; background: #fff; }
 .booking-catalog-marker:focus-visible { outline: 3px solid var(--bp-accent); outline-offset: 3px; border-radius: 50%; }
 .booking-catalog-popup .leaflet-popup-content-wrapper { padding: 1px; border-radius: 13px; box-shadow: 0 5px 30px rgba(12, 37, 59, 0.25); }
+.booking-catalog-popup.is-map-edge .leaflet-popup-tip-container { visibility: hidden; }
 .booking-catalog-popup .leaflet-popup-content { margin: 18px 16px 16px; width: min(306px, calc(100vw - 96px)) !important; font-family: inherit; font-size: 14px; line-height: 1.45; }
 .booking-catalog-popup .leaflet-popup-scrolled { border: 0; padding-right: 5px; overscroll-behavior: contain; }
 .booking-catalog-popup a.leaflet-popup-close-button { right: 3px; top: 3px; width: 32px; height: 32px; color: #123f67; font-size: 24px; z-index: 2; border-radius: 50%; background: rgba(255, 255, 255, 0.94); }

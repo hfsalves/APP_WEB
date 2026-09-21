@@ -107,7 +107,7 @@
 
   function render() {
     if (!state.rows.length) {
-      el.rows.innerHTML = `<div class="expense-state"><i class="fa-solid fa-inbox"></i><span>${archive?'O arquivo está vazio para os filtros atuais.':'Não existem despesas por processar.'}</span></div>`;
+      el.rows.innerHTML = `<div class="expense-state"><i class="fa-solid fa-inbox"></i><span>${archive?'O arquivo está vazio para os filtros atuais.':'Não existem despesas por processar para os filtros atuais.'}</span></div>`;
       state.active = ''; renderPreview(); updateSummary(); return;
     }
     if (!findRow(state.active)) state.active = state.rows[0].stamp;
@@ -257,12 +257,22 @@
     el.user.innerHTML='<option value="">Todos</option>'+list.map(user=>`<option value="${esc(user.login)}" ${user.login===value?'selected':''}>${esc(user.nome||user.login)} · ${esc(user.total)}</option>`).join('');
     if(value&&!list.some(user=>user.login===value))el.user.value='';
   }
-  function saveFilters(){localStorage.setItem(`expense-processing-filters-${archive}`,JSON.stringify({from:el.from.value,to:el.to.value,user:el.user.value}));}
-  function restoreFilters(){try{const saved=JSON.parse(localStorage.getItem(`expense-processing-filters-${archive}`)||'{}');if(saved.from!==undefined)el.from.value=saved.from;if(saved.to!==undefined)el.to.value=saved.to;if(saved.user!==undefined)el.user.value=saved.user;}catch(_error){}}
+  function saveFilters(){
+    if(archive)localStorage.setItem(`expense-processing-filters-${archive}`,JSON.stringify({from:el.from.value,to:el.to.value,user:el.user.value}));
+  }
+  function restoreFilters(){
+    if(!archive){
+      // A saved cutoff date can hide new pending expenses indefinitely.
+      el.from.value='';el.to.value='';el.user.value='';
+      try{localStorage.removeItem('expense-processing-filters-false');}catch(_error){}
+      return;
+    }
+    try{const saved=JSON.parse(localStorage.getItem(`expense-processing-filters-${archive}`)||'{}');if(saved.from!==undefined)el.from.value=saved.from;if(saved.to!==undefined)el.to.value=saved.to;if(saved.user!==undefined)el.user.value=saved.user;}catch(_error){}
+  }
   function clearFilters(){
     localStorage.removeItem(`expense-processing-filters-${archive}`);
-    el.from.value=el.from.defaultValue;
-    el.to.value=el.to.defaultValue;
+    el.from.value=archive?el.from.defaultValue:'';
+    el.to.value=archive?el.to.defaultValue:'';
     el.user.value='';
     load();
   }

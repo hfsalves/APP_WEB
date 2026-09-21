@@ -1,0 +1,26 @@
+{% set clear_dates_labels = {'pt': 'Limpar datas', 'en': 'Clear dates', 'es': 'Borrar fechas', 'fr': 'Effacer les dates'} %}
+<dialog class="booking-search-calendar" id="bookingSearchCalendar" data-search-calendar aria-labelledby="bookingSearchCalendarHeading">
+  <div class="booking-search-calendar-header">
+    <h2 id="bookingSearchCalendarHeading">{{ t.calendar }}</h2>
+    <button class="booking-search-calendar-dismiss" type="button" data-search-calendar-close aria-label="{{ t.close }}">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m6 6 12 12M18 6 6 18"/></svg>
+    </button>
+  </div>
+  <div class="booking-search-calendar-navigation">
+    <button class="booking-calendar-nav" type="button" data-search-calendar-prev aria-label="{{ t.previous_month }}">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m14 6-6 6 6 6"/></svg>
+    </button>
+    <strong data-search-calendar-title></strong>
+    <button class="booking-calendar-nav" type="button" data-search-calendar-next aria-label="{{ t.next_month }}">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m10 6 6 6-6 6"/></svg>
+    </button>
+  </div>
+  <p class="booking-calendar-message booking-search-calendar-message" data-search-calendar-message aria-live="polite">{{ t.calendar_start }}</p>
+  <div class="booking-search-calendar-body">
+    <div class="booking-search-calendar-months" data-search-calendar-months></div>
+  </div>
+  <div class="booking-search-calendar-footer">
+    <button class="booking-search-calendar-clear" type="button" data-search-calendar-clear>{{ clear_dates_labels.get(lang, clear_dates_labels.pt) }}</button>
+    <button class="booking-button booking-button-primary" type="button" data-search-calendar-close>{{ t.close }}</button>
+  </div>
+</dialog>

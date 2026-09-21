@@ -24,6 +24,9 @@
   const missing = root.querySelector("[data-catalog-map-missing]");
   const availableLegend = root.querySelector("[data-map-available-label]");
   const unavailableLegend = root.querySelector("[data-map-unavailable-legend]");
+  const desktopPointer = typeof window.matchMedia === "function"
+    ? window.matchMedia("(min-width: 981px) and (hover: hover) and (pointer: fine)")
+    : null;
   let mapView = false;
   let map = null;
   let tileLayer = null;
@@ -37,6 +40,8 @@
   let catalog = null;
   let retryAction = null;
   let fittingPopup = false;
+  let navigationBounds = null;
+  let updatingNavigation = false;
 
   function label(key, values) {
     let result = String(labels[key] || key);
@@ -53,6 +58,53 @@
   }
   function mapsAllowed() {
     return Boolean(window.PortoBreakCookies && window.PortoBreakCookies.allows("external_maps"));
+  }
+  function wheelZoomAllowed() {
+    return desktopPointer ? desktopPointer.matches : window.innerWidth > 980;
+  }
+  function refreshWheelZoom() {
+    if (!map) return;
+    if (wheelZoomAllowed()) map.scrollWheelZoom.enable();
+    else map.scrollWheelZoom.disable();
+  }
+  function refreshNavigationLimits() {
+    if (!map || !navigationBounds || updatingNavigation) return;
+    const size = canvas.getBoundingClientRect();
+    if (size.width <= 0 || size.height <= 0) return;
+    updatingNavigation = true;
+    try {
+      const center = map.getCenter();
+      const zoom = map.getZoom();
+      map.stop();
+      map.setMaxBounds(navigationBounds);
+      map.stop();
+      // getBoundsZoom respects the current minimum. Reset it so a narrower
+      // viewport can zoom out far enough after switching to mobile/tablet.
+      map.setMinZoom(0);
+      const minimum = Math.max(1, Math.min(14, Math.floor(map.getBoundsZoom(navigationBounds, false, [0, 0]))));
+      map.setMinZoom(minimum);
+      map.setView(center, Math.max(zoom, minimum), { animate: false });
+    } finally {
+      updatingNavigation = false;
+    }
+  }
+  function configureNavigation(items) {
+    // Use the full catalog, including unavailable properties, not just matches.
+    // Keep a useful Porto overview when there are no georeferenced properties.
+    const points = items.length ? items.map(item => [Number(item.lat), Number(item.lon)]) : [[41.123, -8.704], [41.191, -8.568]];
+    const latitudes = points.map(point => point[0]);
+    const longitudes = points.map(point => point[1]);
+    const south = Math.min(...latitudes), north = Math.max(...latitudes);
+    const west = Math.min(...longitudes), east = Math.max(...longitudes);
+    const latitude = (south + north) / 2, longitude = (west + east) / 2;
+    // Single/coincident properties still need a neighbourhood to navigate.
+    const halfHeight = Math.max(north - south, 0.02) / 2;
+    const halfWidth = Math.max(east - west, 0.03) / 2;
+    navigationBounds = window.L.latLngBounds([
+      [latitude - halfHeight, longitude - halfWidth],
+      [latitude + halfHeight, longitude + halfWidth],
+    ]).pad(0.3);
+    refreshNavigationLimits();
   }
   function safeURL(value, sameOrigin) {
     if (typeof value !== "string" || !value) return null;
@@ -106,6 +158,7 @@
     markers = null;
     activePopup = null;
     catalog = null;
+    navigationBounds = null;
     stage.hidden = true;
     root.removeAttribute("aria-busy");
   }
@@ -118,9 +171,10 @@
   }
   function chooseDates() {
     if (map) map.closePopup();
+    form.scrollIntoView({ block: "start", behavior: "smooth" });
+    if (!form.dispatchEvent(new CustomEvent("booking:search-dates-open", { cancelable: true, detail: { field: "checkin" } }))) return;
     const input = form.querySelector('[name="checkin"]');
     if (input) {
-      form.scrollIntoView({ block: "start", behavior: "smooth" });
       input.focus({ preventScroll: true });
     }
   }
@@ -202,33 +256,46 @@
     return card;
   }
   function updatePopupSize(popup) {
-    if (!popup || popup !== activePopup || !map || fittingPopup) return;
+    if (!popup || popup !== activePopup || !map || fittingPopup || updatingNavigation) return;
     fittingPopup = true;
     try {
-    // Focus panning and animated auto-pan can compete with a content update,
-    // leaving tall grouped popups above the clipped map on a narrow screen.
-    // Fit against the map's real box, synchronously, after each content change.
-    map.stop();
-    const mapBounds = canvas.getBoundingClientRect();
-    const padding = 12;
-    popup.options.maxHeight = Math.max(120, Math.min(560, mapBounds.height - 96, window.innerHeight * 0.6));
-    popup.update();
-    const popupElement = popup.getElement();
-    if (!popupElement) return;
-    const popupBounds = popupElement.getBoundingClientRect();
-    const left = mapBounds.left + padding;
-    const right = mapBounds.right - padding;
-    const top = mapBounds.top + padding;
-    const bottom = mapBounds.bottom - padding;
-    let dx = 0;
-    let dy = 0;
-    if (popupBounds.right > right) dx = popupBounds.right - right;
-    if (popupBounds.left - dx < left) dx = popupBounds.left - left;
-    if (popupBounds.bottom > bottom) dy = popupBounds.bottom - bottom;
-    if (popupBounds.top - dy < top) dy = popupBounds.top - top;
-    if (Math.abs(dx) > 1 || Math.abs(dy) > 1) {
-      map.panBy([Math.round(dx), Math.round(dy)], { animate: false });
-    }
+      // Fit synchronously: animated auto-pan competes with popup content updates.
+      map.stop();
+      const mapBounds = canvas.getBoundingClientRect();
+      const padding = 12;
+      popup.options.maxHeight = Math.max(120, Math.min(560, mapBounds.height - 96, window.innerHeight * 0.6));
+      popup.options.offset = [0, 7];
+      popup.update();
+      const popupElement = popup.getElement();
+      if (!popupElement) return;
+      popupElement.classList.remove("is-map-edge");
+      const overflow = () => {
+        const box = popupElement.getBoundingClientRect();
+        const left = mapBounds.left + padding, right = mapBounds.right - padding;
+        const top = mapBounds.top + padding, bottom = mapBounds.bottom - padding;
+        let dx = 0, dy = 0;
+        if (box.right > right) dx = box.right - right;
+        if (box.left - dx < left) dx = box.left - left;
+        if (box.bottom > bottom) dy = box.bottom - bottom;
+        if (box.top - dy < top) dy = box.top - top;
+        return [dx, dy];
+      };
+      const [dx, dy] = overflow();
+      if (Math.abs(dx) > 1 || Math.abs(dy) > 1) {
+        const zoom = map.getZoom();
+        const center = map.unproject(map.project(map.getCenter(), zoom).add([Math.round(dx), Math.round(dy)]), zoom);
+        // Unlike panBy, setView clamps the target centre to maxBounds.
+        map.setView(center, zoom, { animate: false });
+        popup.update();
+        const [remainingX, remainingY] = overflow();
+        if (Math.abs(remainingX) > 1 || Math.abs(remainingY) > 1) {
+          // At the boundary move the card, not the map. Hide its pointer because
+          // the shifted card no longer necessarily points at the marker.
+          popup.options.offset = [-remainingX, 7 - remainingY];
+          popupElement.classList.add("is-map-edge");
+          popup.update();
+        }
+      }
     } finally {
       fittingPopup = false;
     }
@@ -305,7 +372,7 @@
       className: "booking-catalog-popup", maxWidth: 340,
       minWidth: Math.max(210, Math.min(280, window.innerWidth - 80)),
       maxHeight: Math.max(230, Math.min(560, window.innerHeight * 0.6)),
-      autoPan: false, closeButton: true,
+      autoPan: false, closeButton: true, offset: [0, 7],
     }).setLatLng(marker.getLatLng());
     activePopup = popup;
     popup.setContent(element("div"));
@@ -335,6 +402,7 @@
     const items = (Array.isArray(payload.items) ? payload.items : []).filter(item => {
       return Number.isFinite(Number(item.lat)) && Number.isFinite(Number(item.lon)) && item.lat !== null && item.lon !== null && Math.abs(Number(item.lat)) <= 90 && Math.abs(Number(item.lon)) <= 180;
     });
+    configureNavigation(items);
     items.forEach(item => {
       const key = Number(item.lat) + "," + Number(item.lon);
       if (!groups.has(key)) groups.set(key, []);
@@ -359,11 +427,11 @@
       });
     });
     const matches = items.filter(item => item.available === true);
-    if (items.length) {
+    if (camera) map.setView(camera.center, camera.zoom, { animate: false });
+    else if (items.length) {
       const focusItems = payload.has_search && matches.length ? matches : items;
-      if (camera) map.setView(camera.center, camera.zoom, { animate: false });
-      else map.fitBounds(window.L.latLngBounds(focusItems.map(item => [Number(item.lat), Number(item.lon)])), { padding: [36, 36], maxZoom: 14, animate: false });
-    }
+      map.fitBounds(window.L.latLngBounds(focusItems.map(item => [Number(item.lat), Number(item.lon)])), { padding: [36, 36], maxZoom: 14, animate: false });
+    } else map.fitBounds(navigationBounds, { padding: [36, 36], maxZoom: 14, animate: false });
     availableLegend.textContent = label(payload.has_search ? "legend_available" : "legend_all");
     unavailableLegend.hidden = !payload.has_search;
     countElement.textContent = payload.has_search ? label("match_count", { count: matches.length, total: items.length }) : label("all_stays", { count: items.length });
@@ -395,14 +463,22 @@
       catalog = payload;
       if (!map) {
         stage.hidden = false;
-        map = window.L.map(canvas, { scrollWheelZoom: false, keyboard: true, zoomAnimation: false, markerZoomAnimation: false }).setView([41.1579, -8.6291], 12, { animate: false });
+        map = window.L.map(canvas, {
+          scrollWheelZoom: wheelZoomAllowed(), keyboard: true,
+          zoomAnimation: false, markerZoomAnimation: false,
+          maxZoom: 19, maxBoundsViscosity: 1, bounceAtZoomLimits: false,
+        }).setView([41.1579, -8.6291], 12, { animate: false });
         markers = window.L.layerGroup().addTo(map);
         map.on("popupclose", event => {
           if (event.popup === activePopup) { activePopup = null; abortQuote(); }
         });
-        map.on("resize moveend zoomend", () => { if (activePopup) updatePopupSize(activePopup); });
+        map.on("resize", () => {
+          refreshNavigationLimits();
+          if (activePopup) updatePopupSize(activePopup);
+        });
+        map.on("moveend zoomend", () => { if (activePopup) updatePopupSize(activePopup); });
         tileLayer = window.L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-          maxZoom: 19,
+          maxZoom: 19, noWrap: true,
           attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>',
         });
         tileLayer.on("tileerror", () => {
@@ -413,7 +489,6 @@
         tileLayer.addTo(map);
       }
       renderMarkers(payload);
-      if (!payload.items.length && !camera) map.setView([41.1579, -8.6291], 12);
       map.invalidateSize();
     } catch (error) {
       if (error.name !== "AbortError" && token === generation && mapView && mapsAllowed()) showFeedback(label("error"), loadCatalog);
@@ -464,6 +539,13 @@
     if (window.PortoBreakCookies) window.PortoBreakCookies.openMapsSettings();
   });
   retry.addEventListener("click", () => { if (retryAction) retryAction(); });
+  if (desktopPointer && desktopPointer.addEventListener) {
+    desktopPointer.addEventListener("change", refreshWheelZoom);
+  } else if (desktopPointer && desktopPointer.addListener) {
+    desktopPointer.addListener(refreshWheelZoom);
+  } else {
+    window.addEventListener("resize", refreshWheelZoom);
+  }
   window.addEventListener("portobreak:consent-changed", refreshConsent);
   window.addEventListener("popstate", () => setView(new URL(window.location.href).searchParams.get("view") === "map", false));
   window.addEventListener("pagehide", () => destroyMap(true));

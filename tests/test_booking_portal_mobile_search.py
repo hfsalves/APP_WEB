@@ -106,7 +106,11 @@ class BookingPortalMobileSearchTests(unittest.TestCase):
             self.assertEqual(len(form.inputs), len(values))
             self.assertEqual({item["name"]: item["value"] for item in form.inputs}, values)
             self.assertEqual(sum(button.get("type") == "submit" for button in form.buttons), 1)
-            self.assertEqual(sum(button.get("type") == "button" for button in form.buttons), 2)
+            self.assertEqual(sum(button.get("type") == "button" for button in form.buttons), 4)
+            self.assertEqual(
+                {button["data-search-date-toggle"] for button in form.buttons if "data-search-date-toggle" in button},
+                {"checkin", "checkout"},
+            )
 
     def test_dates_and_guest_constraints_remain_native(self):
         response = self.app.test_client().get("/reservas")
