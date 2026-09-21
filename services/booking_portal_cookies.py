@@ -11,7 +11,7 @@ from itsdangerous import BadData, URLSafeTimedSerializer
 
 CONSENT_COOKIE = "portobreak_privacy"
 LANG_COOKIE = "portobreak_lang"
-CONSENT_VERSION = "2026-09-18.1"
+CONSENT_VERSION = "2026-09-21.1"
 CONSENT_MAX_AGE = 180 * 24 * 60 * 60
 LANG_MAX_AGE = 365 * 24 * 60 * 60
 LANGUAGES = {"pt", "en", "es", "fr"}
@@ -59,7 +59,7 @@ def read_cookie_consent():
         return None
     if not isinstance(choice, dict) or choice.get("version") != CONSENT_VERSION:
         return None
-    if any(type(choice.get(key)) is not bool for key in ("preferences", "external_maps")):
+    if any(type(choice.get(key)) is not bool for key in ("preferences", "external_maps", "analytics")):
         return None
     if not isinstance(choice.get("decided_at"), str) or type(choice.get("expires_at")) is not int:
         return None
@@ -68,7 +68,9 @@ def read_cookie_consent():
     return choice
 
 
-def save_cookie_consent(response, *, preferences, external_maps, lang):
+def save_cookie_consent(response, *, preferences, external_maps, lang, analytics=False):
+    if any(type(value) is not bool for value in (preferences, external_maps, analytics)):
+        raise ValueError("Cookie preferences must be boolean values")
     now = datetime.now(timezone.utc)
     choice = {
         "version": CONSENT_VERSION,
@@ -76,6 +78,7 @@ def save_cookie_consent(response, *, preferences, external_maps, lang):
         "expires_at": int(now.timestamp()) + CONSENT_MAX_AGE,
         "preferences": preferences,
         "external_maps": external_maps,
+        "analytics": analytics,
     }
     response.set_cookie(
         CONSENT_COOKIE, _serializer().dumps(choice), max_age=CONSENT_MAX_AGE,

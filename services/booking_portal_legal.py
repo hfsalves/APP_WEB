@@ -4,8 +4,8 @@ import json
 from pathlib import Path
 
 
-LEGAL_VERSION = "2026-09-18.2"
-LEGAL_UPDATED = "2026-09-18"
+LEGAL_VERSION = "2026-09-21.1"
+LEGAL_UPDATED = "2026-09-21"
 LEGAL_CONTENT_DIR = Path(__file__).resolve().parent.parent / "content" / "booking_portal" / "legal"
 LEGAL_ENDPOINTS = {
     "terms": "booking_portal.terms",

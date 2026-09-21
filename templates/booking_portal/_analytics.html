@@ -1,0 +1,4 @@
+{% if booking_analytics is defined and booking_analytics.enabled %}
+<script type="application/json" id="booking-analytics-config">{{ booking_analytics|tojson }}</script>
+<script defer src="{{ url_for('static', filename='js/booking_analytics.js') }}?v={{ config.get('STATIC_VERSION', 1) }}"></script>
+{% endif %}

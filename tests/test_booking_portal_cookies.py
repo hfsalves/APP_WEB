@@ -3,9 +3,10 @@
 import unittest
 from datetime import datetime, timezone
 from http.cookies import SimpleCookie
+from pathlib import Path
 from unittest.mock import patch
 
-from flask import Flask, jsonify
+from flask import Flask, jsonify, render_template
 from itsdangerous import URLSafeTimedSerializer
 
 from blueprints.booking_portal import _resolve_lang, bp
@@ -14,8 +15,11 @@ from services.booking_portal_cookies import (
     CONSENT_MAX_AGE,
     CONSENT_VERSION,
     LANG_COOKIE,
+    cookie_ui,
     read_cookie_consent,
+    save_cookie_consent,
 )
+from services.booking_portal_legal import get_legal_content
 
 
 class BookingPortalCookieTests(unittest.TestCase):
@@ -35,9 +39,9 @@ class BookingPortalCookieTests(unittest.TestCase):
             self.app.secret_key, salt="portobreak-cookie-preferences-v1"
         )
 
-    def post_preferences(self, preferences=False, external_maps=False, **kwargs):
+    def post_preferences(self, preferences=False, external_maps=False, analytics=False, **kwargs):
         options = {
-            "json": {"preferences": preferences, "external_maps": external_maps},
+            "json": {"preferences": preferences, "external_maps": external_maps, "analytics": analytics},
             "headers": {"Origin": "http://localhost", "Sec-Fetch-Site": "same-origin"},
         }
         options.update(kwargs)
@@ -57,6 +61,7 @@ class BookingPortalCookieTests(unittest.TestCase):
             "expires_at": int(now.timestamp()) + CONSENT_MAX_AGE,
             "preferences": True,
             "external_maps": True,
+            "analytics": False,
         }
         choice.update(changes)
         return self.serializer.dumps(choice)
@@ -77,22 +82,38 @@ class BookingPortalCookieTests(unittest.TestCase):
     def test_optional_purposes_are_saved_independently(self):
         for preferences in (False, True):
             for external_maps in (False, True):
-                with self.subTest(preferences=preferences, external_maps=external_maps):
-                    self.client = self.app.test_client()
-                    response = self.post_preferences(preferences, external_maps)
-                    self.assertEqual(response.status_code, 200)
-                    consent = response.json["consent"]
-                    self.assertIs(consent["preferences"], preferences)
-                    self.assertIs(consent["external_maps"], external_maps)
-                    self.assertEqual(consent["version"], CONSENT_VERSION)
-                    self.assertEqual(self.client.get(self.endpoint).json["consent"], consent)
-                    self.assertEqual(LANG_COOKIE in self.cookies_set_by(response), preferences)
-                    self.assert_private_response(response)
+                for analytics in (False, True):
+                    with self.subTest(preferences=preferences, external_maps=external_maps, analytics=analytics):
+                        self.client = self.app.test_client()
+                        response = self.post_preferences(preferences, external_maps, analytics)
+                        self.assertEqual(response.status_code, 200)
+                        consent = response.json["consent"]
+                        self.assertIs(consent["preferences"], preferences)
+                        self.assertIs(consent["external_maps"], external_maps)
+                        self.assertIs(consent["analytics"], analytics)
+                        self.assertEqual(consent["version"], CONSENT_VERSION)
+                        self.assertEqual(self.client.get(self.endpoint).json["consent"], consent)
+                        self.assertEqual(LANG_COOKIE in self.cookies_set_by(response), preferences)
+                        self.assert_private_response(response)
+
+    def test_analytics_defaults_off_for_internal_cookie_writes(self):
+        with self.app.test_request_context("/"):
+            consent = save_cookie_consent(
+                self.app.response_class(), preferences=True, external_maps=True, lang="pt"
+            )
+        self.assertIs(consent["analytics"], False)
+
+    def test_cookie_writer_rejects_non_boolean_analytics(self):
+        with self.app.test_request_context("/"), self.assertRaises(ValueError):
+            save_cookie_consent(
+                self.app.response_class(), preferences=True, external_maps=True,
+                lang="pt", analytics="true",
+            )
 
     def test_accepting_preferences_remembers_selected_language(self):
         response = self.client.post(
             self.endpoint + "?lang=fr",
-            json={"preferences": True, "external_maps": False},
+            json={"preferences": True, "external_maps": False, "analytics": False},
             headers={"Origin": "http://localhost"},
         )
 
@@ -127,14 +148,21 @@ class BookingPortalCookieTests(unittest.TestCase):
             "tampered": self.signed_choice() + "corrupted",
             "decision_expired": self.signed_choice(expires_at=now - 1),
             "obsolete_version": self.signed_choice(version="old-version"),
+            "prior_policy": self.signed_choice(version="2026-09-18.1", analytics=True),
             "integer_boolean": self.signed_choice(preferences=1),
             "string_boolean": self.signed_choice(external_maps="true"),
+            "string_analytics": self.signed_choice(analytics="true"),
+            "integer_analytics": self.signed_choice(analytics=1),
+            "null_analytics": self.signed_choice(analytics=None),
             "missing_timestamp": self.signed_choice(decided_at=None),
             "string_expiration": self.signed_choice(expires_at=str(now + 100)),
             "non_object": self.serializer.dumps([True, True]),
         }
         with patch("itsdangerous.timed.time.time", return_value=now - CONSENT_MAX_AGE - 60):
             tokens["signature_expired"] = self.signed_choice()
+        missing_analytics = self.serializer.loads(self.signed_choice())
+        missing_analytics.pop("analytics")
+        tokens["missing_analytics"] = self.serializer.dumps(missing_analytics)
 
         for reason, token in tokens.items():
             with self.subTest(reason=reason):
@@ -162,11 +190,15 @@ class BookingPortalCookieTests(unittest.TestCase):
 
     def test_non_boolean_missing_extra_or_non_object_choices_are_rejected(self):
         payloads = (
-            {"preferences": "true", "external_maps": False},
-            {"preferences": True, "external_maps": 1},
-            {"preferences": None, "external_maps": False},
+            {"preferences": "true", "external_maps": False, "analytics": False},
+            {"preferences": True, "external_maps": 1, "analytics": False},
+            {"preferences": None, "external_maps": False, "analytics": False},
             {"preferences": False},
-            {"preferences": False, "external_maps": False, "analytics": True},
+            {"preferences": False, "external_maps": False},
+            {"preferences": False, "external_maps": False, "analytics": "true"},
+            {"preferences": False, "external_maps": False, "analytics": 1},
+            {"preferences": False, "external_maps": False, "analytics": None},
+            {"preferences": False, "external_maps": False, "analytics": True, "advertising": True},
             [True, False],
         )
         for payload in payloads:
@@ -222,6 +254,62 @@ class BookingPortalCookieTests(unittest.TestCase):
         self.assertNotIn(CONSENT_COOKIE, self.cookies_set_by(response))
         self.assertEqual(self.client.get_cookie(CONSENT_COOKIE).value, original)
         self.assert_private_response(response)
+
+
+class BookingPortalCookieContentTests(unittest.TestCase):
+    def test_all_locales_render_analytics_as_a_separate_unchecked_choice(self):
+        template_folder = Path(__file__).resolve().parents[1] / "templates"
+        app = Flask(__name__, template_folder=str(template_folder))
+        expected_keys = set(cookie_ui("pt"))
+        for language in ("pt", "en", "es", "fr"):
+            with self.subTest(language=language), app.test_request_context("/"):
+                ui = cookie_ui(language)
+                self.assertEqual(set(ui), expected_keys)
+                self.assertTrue(ui["analytics_title"])
+                self.assertTrue(ui["analytics_description"])
+                html = render_template(
+                    "booking_portal/_cookie_preferences.html",
+                    cookie_consent=None, cookie_ui=ui,
+                    cookie_policy_url="/reservas/politica-cookies",
+                    cookie_preferences_url="/reservas/preferencias-cookies",
+                )
+                self.assertIn('id="booking-cookie-analytics" name="analytics">', html)
+                self.assertNotIn('name="analytics" checked', html)
+                self.assertIn(ui["analytics_title"], html)
+
+    def test_legal_inventory_and_analytics_disclosures_exist_in_every_language(self):
+        inactivity_phrases = {
+            "pt": "180 dias de inatividade",
+            "en": "180 days of inactivity",
+            "es": "180 días de inactividad",
+            "fr": "180 jours d’inactivité",
+        }
+        cleanup_phrases = {
+            "pt": "retomada na utilização seguinte",
+            "en": "resumes on",
+            "es": "se reanuda en su siguiente uso",
+            "fr": "reprend à l’utilisation suivante",
+        }
+        for language in ("pt", "en", "es", "fr"):
+            with self.subTest(language=language):
+                documents = get_legal_content(language)["documents"]
+                cookies = {section["id"]: section for section in documents["cookies"]["sections"]}
+                privacy = {section["id"]: section for section in documents["privacy"]["sections"]}
+                names = {row[0] for row in cookies["inventario"]["table"]["rows"]}
+                self.assertEqual(names, {
+                    "{session_cookie_name}", "portobreak_privacy", "portobreak_lang",
+                    "portobreak_visitor", "portobreak_analytics_session",
+                })
+                self.assertTrue(cookies["analitica-propria"]["paragraphs"])
+                self.assertTrue(privacy["analitica"]["paragraphs"])
+                retention = " ".join(privacy["conservacao"]["paragraphs"])
+                self.assertIn("90", retention)
+                self.assertIn("180", retention)
+                self.assertIn(inactivity_phrases[language], retention)
+                self.assertIn(cleanup_phrases[language], retention)
+                analytics_copy = " ".join(cookies["analitica-propria"]["paragraphs"])
+                self.assertIn(inactivity_phrases[language], analytics_copy)
+                self.assertIn(cleanup_phrases[language], analytics_copy)
 
 
 if __name__ == "__main__":

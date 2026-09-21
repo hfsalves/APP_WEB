@@ -15,6 +15,7 @@
   const dialog = document.getElementById("booking-cookie-dialog");
   const preferencesInput = document.getElementById("booking-cookie-preferences");
   const mapsInput = document.getElementById("booking-cookie-external-maps");
+  const analyticsInput = document.getElementById("booking-cookie-analytics");
   const status = document.getElementById("booking-cookie-status");
   const errors = [
     document.getElementById("booking-cookie-banner-error"),
@@ -33,18 +34,19 @@
   function activeConsent(value) {
     return value && typeof value.preferences === "boolean" &&
       typeof value.external_maps === "boolean" &&
+      typeof value.analytics === "boolean" &&
       typeof value.expires_at === "number" && value.expires_at > Date.now() / 1000
       ? value : null;
   }
 
   function decisionKey(value) {
     return value ? [value.version, value.decided_at, value.expires_at,
-      value.preferences, value.external_maps].join("|") : "";
+      value.preferences, value.external_maps, value.analytics].join("|") : "";
   }
 
   function allows(category) {
     if (category === "necessary") return true;
-    return (category === "preferences" || category === "external_maps") &&
+    return (category === "preferences" || category === "external_maps" || category === "analytics") &&
       activeConsent(consent) !== null && consent[category] === true;
   }
 
@@ -69,6 +71,7 @@
     if (dialog.open && !saving) {
       preferencesInput.checked = allows("preferences");
       mapsInput.checked = allows("external_maps");
+      analyticsInput.checked = allows("analytics");
     }
     if (announce !== false) {
       window.dispatchEvent(new CustomEvent("portobreak:consent-changed", {
@@ -117,6 +120,7 @@
     clearErrors();
     preferencesInput.checked = allows("preferences");
     mapsInput.checked = allows("external_maps");
+    analyticsInput.checked = allows("analytics");
     if (!dialog.open) {
       opener = document.activeElement;
       openedForMaps = focusMaps === true;
@@ -134,6 +138,7 @@
     });
     preferencesInput.disabled = value;
     mapsInput.disabled = value;
+    analyticsInput.disabled = value;
     dialog.setAttribute("aria-busy", String(value));
     banner.setAttribute("aria-busy", String(value));
   }
@@ -142,13 +147,14 @@
     if (saving) return;
     let selection;
     if (choice === "accept") {
-      selection = { preferences: true, external_maps: true };
+      selection = { preferences: true, external_maps: true, analytics: true };
     } else if (choice === "reject") {
-      selection = { preferences: false, external_maps: false };
+      selection = { preferences: false, external_maps: false, analytics: false };
     } else if (choice === "selection") {
       selection = {
         preferences: preferencesInput.checked,
         external_maps: mapsInput.checked,
+        analytics: analyticsInput.checked,
       };
     } else {
       return;

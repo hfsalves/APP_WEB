@@ -1,0 +1,116 @@
+-- PortoBreak first-party analytics: additive SQL Server deployment.
+-- UTC throughout. No IP, raw user agent, URL, query text or customer identity.
+-- Detailed visits require explicit analytics consent; totals are request counts.
+-- Gender/age fields are reserved and MUST remain NULL without voluntarily
+-- supplied demographics and a separately designed, consented collection flow.
+-- Runtime services never execute this migration. Apply explicitly once.
+-- The matching SQLAlchemy metadata lives in booking_portal_analytics_store.py.
+
+SET XACT_ABORT ON;
+BEGIN TRANSACTION;
+
+IF OBJECT_ID(N'PB_ANALYTICS_VISITORS', N'U') IS NULL
+BEGIN
+    CREATE TABLE PB_ANALYTICS_VISITORS (
+        visitor_id VARCHAR(36) NOT NULL PRIMARY KEY,
+        created_at DATETIME2(6) NOT NULL,
+        last_seen_at DATETIME2(6) NOT NULL,
+        gender VARCHAR(32) NULL,
+        age_band VARCHAR(16) NULL,
+        demographic_source VARCHAR(24) NOT NULL DEFAULT 'unknown'
+    );
+END;
+
+IF OBJECT_ID(N'PB_ANALYTICS_SESSIONS', N'U') IS NULL
+BEGIN
+    CREATE TABLE PB_ANALYTICS_SESSIONS (
+        session_id VARCHAR(36) NOT NULL PRIMARY KEY,
+        visitor_id VARCHAR(36) NOT NULL REFERENCES PB_ANALYTICS_VISITORS(visitor_id),
+        started_at DATETIME2(6) NOT NULL,
+        last_seen_at DATETIME2(6) NOT NULL,
+        engagement_seen_at DATETIME2(6) NOT NULL,
+        country VARCHAR(2) NOT NULL DEFAULT 'ZZ',
+        country_source VARCHAR(24) NOT NULL DEFAULT 'unknown',
+        device VARCHAR(16) NOT NULL DEFAULT 'unknown',
+        browser VARCHAR(32) NOT NULL DEFAULT 'unknown',
+        os VARCHAR(32) NOT NULL DEFAULT 'unknown',
+        language VARCHAR(8) NOT NULL,
+        entry_page VARCHAR(32) NOT NULL,
+        referrer_host VARCHAR(253) NOT NULL DEFAULT '',
+        source VARCHAR(128) NOT NULL DEFAULT 'unknown',
+        medium VARCHAR(128) NOT NULL DEFAULT '',
+        campaign VARCHAR(128) NOT NULL DEFAULT '',
+        consent_version VARCHAR(32) NOT NULL,
+        consent_at DATETIME2(6) NOT NULL,
+        active_seconds INTEGER NOT NULL DEFAULT 0,
+        page_views INTEGER NOT NULL DEFAULT 0,
+        CONSTRAINT CK_PB_ANALYTICS_SESSION_COUNTS CHECK (active_seconds >= 0 AND page_views >= 0)
+    );
+END;
+
+IF OBJECT_ID(N'PB_ANALYTICS_PAGEVIEWS', N'U') IS NULL
+BEGIN
+    CREATE TABLE PB_ANALYTICS_PAGEVIEWS (
+        page_id VARCHAR(36) NOT NULL PRIMARY KEY,
+        session_id VARCHAR(36) NOT NULL REFERENCES PB_ANALYTICS_SESSIONS(session_id),
+        created_at DATETIME2(6) NOT NULL,
+        last_seen_at DATETIME2(6) NOT NULL,
+        page_kind VARCHAR(32) NOT NULL,
+        property_id VARCHAR(64) NULL,
+        lang VARCHAR(8) NOT NULL,
+        view_mode VARCHAR(16) NOT NULL,
+        search_json TEXT NOT NULL,
+        active_seconds INTEGER NOT NULL DEFAULT 0,
+        CONSTRAINT CK_PB_ANALYTICS_PAGE_ACTIVE CHECK (active_seconds >= 0)
+    );
+END;
+
+IF OBJECT_ID(N'PB_ANALYTICS_TOTALS', N'U') IS NULL
+BEGIN
+    CREATE TABLE PB_ANALYTICS_TOTALS (
+        bucket_key VARCHAR(64) NOT NULL PRIMARY KEY,
+        hour DATETIME2(6) NOT NULL,
+        page_kind VARCHAR(32) NOT NULL,
+        property_id VARCHAR(64) NOT NULL DEFAULT '',
+        device VARCHAR(16) NOT NULL,
+        country VARCHAR(2) NOT NULL,
+        referrer_host VARCHAR(253) NOT NULL DEFAULT '',
+        source VARCHAR(128) NOT NULL,
+        has_search BIT NOT NULL,
+        is_bot BIT NOT NULL,
+        requests INTEGER NOT NULL DEFAULT 0,
+        CONSTRAINT CK_PB_ANALYTICS_TOTAL_REQUESTS CHECK (requests >= 0)
+    );
+END;
+
+IF OBJECT_ID(N'PB_ANALYTICS_CONVERSIONS', N'U') IS NULL
+BEGIN
+    CREATE TABLE PB_ANALYTICS_CONVERSIONS (
+        booking_id VARCHAR(36) NOT NULL PRIMARY KEY,
+        session_id VARCHAR(36) NOT NULL REFERENCES PB_ANALYTICS_SESSIONS(session_id),
+        created_at DATETIME2(6) NOT NULL
+    );
+END;
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'PB_ANALYTICS_VISITORS') AND name = N'IX_PB_ANALYTICS_VISITORS_LAST')
+    CREATE INDEX IX_PB_ANALYTICS_VISITORS_LAST ON PB_ANALYTICS_VISITORS(last_seen_at);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'PB_ANALYTICS_SESSIONS') AND name = N'IX_PB_ANALYTICS_SESSIONS_VISITOR')
+    CREATE INDEX IX_PB_ANALYTICS_SESSIONS_VISITOR ON PB_ANALYTICS_SESSIONS(visitor_id, started_at);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'PB_ANALYTICS_SESSIONS') AND name = N'IX_PB_ANALYTICS_SESSIONS_LAST')
+    CREATE INDEX IX_PB_ANALYTICS_SESSIONS_LAST ON PB_ANALYTICS_SESSIONS(last_seen_at);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'PB_ANALYTICS_PAGEVIEWS') AND name = N'IX_PB_ANALYTICS_PAGES_SESSION')
+    CREATE INDEX IX_PB_ANALYTICS_PAGES_SESSION ON PB_ANALYTICS_PAGEVIEWS(session_id, created_at);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'PB_ANALYTICS_PAGEVIEWS') AND name = N'IX_PB_ANALYTICS_PAGES_CREATED')
+    CREATE INDEX IX_PB_ANALYTICS_PAGES_CREATED ON PB_ANALYTICS_PAGEVIEWS(created_at);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'PB_ANALYTICS_TOTALS') AND name = N'IX_PB_ANALYTICS_TOTALS_HOUR')
+    CREATE INDEX IX_PB_ANALYTICS_TOTALS_HOUR ON PB_ANALYTICS_TOTALS(hour, page_kind);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'PB_ANALYTICS_CONVERSIONS') AND name = N'IX_PB_ANALYTICS_CONVERSIONS_SESSION')
+    CREATE INDEX IX_PB_ANALYTICS_CONVERSIONS_SESSION ON PB_ANALYTICS_CONVERSIONS(session_id);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'PB_ANALYTICS_CONVERSIONS') AND name = N'IX_PB_ANALYTICS_CONVERSIONS_CREATED')
+    CREATE INDEX IX_PB_ANALYTICS_CONVERSIONS_CREATED ON PB_ANALYTICS_CONVERSIONS(created_at);
+
+COMMIT TRANSACTION;
+
+-- The application's prune(engine, UTC-now) routine deletes detail older than
+-- 90 days (child rows first), hourly totals older than 180 days and orphaned
+-- visitors last seen over 180 days ago. No pre-existing application rows change.

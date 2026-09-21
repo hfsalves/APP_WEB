@@ -53,9 +53,23 @@ from services.booking_portal_seo import (
 )
 from services.booking_portal_map import get_map_catalog
 from services.booking_portal_map_copy import get_map_copy
+from services.booking_portal_analytics import (
+    associate_booking, browser_config as analytics_browser_config,
+    clear_identity_cookies, collect_event, record_response as record_analytics_response,
+)
 
 
 bp = Blueprint("booking_portal", __name__)
+
+
+@bp.after_request
+def _measure_portal_response(response):
+    return record_analytics_response(response)
+
+
+@bp.post("/reservas/analitica/eventos")
+def analytics_events():
+    return collect_event()
 
 
 @bp.after_request
@@ -1089,7 +1103,7 @@ def cookie_preferences():
         response.status_code = 403
     else:
         values = request.get_json(silent=True)
-        if not isinstance(values, dict) or set(values) != {"preferences", "external_maps"}:
+        if not isinstance(values, dict) or set(values) != {"preferences", "external_maps", "analytics"}:
             response = jsonify(error="invalid_preferences")
             response.status_code = 400
         elif any(type(values[key]) is not bool for key in values):
@@ -1099,6 +1113,8 @@ def cookie_preferences():
             response = jsonify({})
             choice = save_cookie_consent(response, lang=_resolve_lang(), **values)
             response.set_data(json.dumps({"consent": choice}))
+            if not choice["analytics"]:
+                clear_identity_cookies(response)
     response.headers["Cache-Control"] = "private, no-store"
     response.vary.add("Cookie")
     return response
@@ -1148,6 +1164,7 @@ def _render_booking_template(template, lang, **context):
         cookie_consent=read_cookie_consent(),
         cookie_preferences_url=url_for("booking_portal.cookie_preferences", lang=lang),
         cookie_policy_url=url_for("booking_portal.cookies", lang=lang),
+        booking_analytics=analytics_browser_config(lang),
         **context,
     ))
     # Never share cached consent or account state between visitors.
@@ -2636,6 +2653,7 @@ def reserve(al_id):
                     success["verification_email_id"] = _send_account_verification_email(verification, lang=lang)
                     success["email_verification_sent"] = bool(success["verification_email_id"])
                 _remember_payment_access("booking", success["id"])
+                associate_booking(success["id"])
                 return _start_portal_payment(success["id"], lang, portal_user)
             except ValueError as exc:
                 db.session.rollback()
