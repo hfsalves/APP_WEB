@@ -706,6 +706,12 @@ def create_app():
     from blueprints.analytics_revpar import bp as analytics_revpar_bp
     app.register_blueprint(analytics_revpar_bp)
 
+    from blueprints.booking_portal_analytics import bp as booking_portal_analytics_bp
+    app.register_blueprint(booking_portal_analytics_bp)
+    from services.booking_portal_analytics_menu import ensure_booking_portal_analytics_menu
+    with app.app_context():
+        ensure_booking_portal_analytics_menu()
+
     from blueprints.predefined_messages import bp as predefined_messages_bp
     app.register_blueprint(predefined_messages_bp)
     from services.predefined_messages_service import ensure_predefined_messages_menu
