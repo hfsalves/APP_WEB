@@ -412,6 +412,14 @@ class DocumentAiPhcOriginTests(unittest.TestCase):
             Decimal('-120.45'),
         )
 
+    def test_provisional_purchase_copies_fl_country_to_fo(self):
+        supplier_source = inspect.getsource(document_ai_service._phc_provisional_supplier)
+        submission_source = inspect.getsource(document_ai_service.submit_provisional_invoice_to_phc)
+
+        self.assertIn("ISNULL(PAIS, '')", supplier_source)
+        self.assertIn("'currency', 'country'", supplier_source)
+        self.assertIn("'pais': str(supplier.get('country') or '').strip()", submission_source)
+
     def test_duplicate_tax_rates_use_the_first_phc_table(self):
         cursor = MagicMock()
         cursor.execute.return_value.fetchall.return_value = [

@@ -3242,6 +3242,7 @@ def submit_provisional_invoice_to_phc(
             'epatotal': gross_total,
             'morada': str(supplier['address'])[:55], 'local': str(supplier['city'])[:43],
             'codpost': str(supplier['postal_code'])[:45], 'ncont': str(supplier['tax_id'])[:20],
+            'pais': str(supplier.get('country') or '').strip(),
             'tpstamp': str(supplier['tpstamp'])[:25], 'tpdesc': str(supplier['tpdesc'])[:30],
             'lang': str(supplier['lang'])[:20], 'aprovado': 0,
             'obs': 'Criado pela Leitura Inteligente com artigo genérico.',
