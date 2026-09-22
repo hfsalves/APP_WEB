@@ -22,6 +22,48 @@ class ExpenseProcessingServiceTests(unittest.TestCase):
             with self.assertRaisesRegex(service.ExpensePhcConfigurationError, 'Empresa sem configuração PHC'):
                 service._expense_phc_target(9)
 
+    def test_cost_center_validation_uses_exact_phc_lookup_without_list_limit(self):
+        class FakeRow:
+            CCUSTO = 'FR1888'
+
+        class FakeCursor:
+            def __init__(self):
+                self.executions = []
+
+            def execute(self, sql, *params):
+                self.executions.append((sql, params))
+                return self
+
+            def fetchall(self):
+                return [('CCUSTO',), ('INACTIVO',)]
+
+            def fetchone(self):
+                return FakeRow()
+
+        class FakeConnection:
+            def __init__(self):
+                self.cursor_instance = FakeCursor()
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def cursor(self):
+                return self.cursor_instance
+
+        connection = FakeConnection()
+        with patch.object(service, '_expense_phc_target', return_value=({}, 'safe-target')), \
+             patch.object(service.pyodbc, 'connect', return_value=connection):
+            result = service._expense_cost_center_by_code(1, ' fr1888 ')
+
+        self.assertEqual('FR1888', result)
+        exact_sql, exact_params = connection.cursor_instance.executions[-1]
+        self.assertIn('UPPER(?)', exact_sql)
+        self.assertIn('INACTIVO', exact_sql)
+        self.assertEqual(('fr1888',), exact_params)
+
     def test_preflight_aggregates_all_local_anomalies_before_phc(self):
         lines = [{
             'DESPLINHASTAMP': 'EXP1', 'DATA_DESPESA': '2026-09-15', 'VALOR': None,

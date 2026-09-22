@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% block title %}Reservas do Portal · PortoBreak{% endblock %}
+
+{% block extra_head %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/booking_portal_analytics_dashboard.css') }}?v={{ static_version }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/booking_portal_reservations_dashboard.css') }}?v={{ static_version }}">
+{% endblock %}
+
+{% block content %}
+<div class="sz_page pb-analytics-page pb-reservations-page" id="pbReservationsDashboard"
+     data-api-url="{{ url_for('booking_portal_reservations.dashboard_data') }}"
+     data-initial-property="{{ selected_property }}">
+  <div class="sz_page_container">
+    <header class="sz_contextbar sz_page_contextbar pb-analytics-contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_breadcrumbs">PortoBreak · Operação</div>
+        <div class="sz_page_title">Reservas do portal</div>
+        <div class="sz_page_subtitle">Pedidos, pagamentos Stripe, reservas confirmadas e valores.</div>
+      </div>
+      <div class="sz_contextbar_right pb-reservations-actions">
+        <a class="sz_button sz_button_secondary" href="{{ url_for('booking_portal_analytics.dashboard_page') }}">
+          <i class="fa-solid fa-chart-column"></i><span>Ver analítica</span>
+        </a>
+      </div>
+    </header>
+
+    <main class="sz_page_body pb-analytics-body">
+      <form class="sz_panel pb-reservations-filter-panel" id="pbReservationsFilters">
+        <div class="pb-filter-grid">
+          <label class="sz_field">
+            <span class="sz_label">Criadas de</span>
+            <input class="sz_input" type="date" id="pbReservationsStart" value="{{ period_start }}">
+          </label>
+          <label class="sz_field">
+            <span class="sz_label">Até</span>
+            <input class="sz_input" type="date" id="pbReservationsEnd" value="{{ period_end }}">
+          </label>
+          <label class="sz_field">
+            <span class="sz_label">Estado</span>
+            <select class="sz_input" id="pbReservationsStatus">
+              <option value="">Todos os estados</option>
+              <option value="pending"{% if selected_status == 'pending' %} selected{% endif %}>Pendente</option>
+              <option value="checkout"{% if selected_status == 'checkout' %} selected{% endif %}>Checkout iniciado</option>
+              <option value="paid"{% if selected_status == 'paid' %} selected{% endif %}>Paga</option>
+              <option value="confirmed"{% if selected_status == 'confirmed' %} selected{% endif %}>Confirmada</option>
+              <option value="failed"{% if selected_status == 'failed' %} selected{% endif %}>Pagamento falhado</option>
+              <option value="expired"{% if selected_status == 'expired' %} selected{% endif %}>Checkout expirado</option>
+              <option value="cancelled"{% if selected_status == 'cancelled' %} selected{% endif %}>Cancelada</option>
+            </select>
+          </label>
+          <label class="sz_field pb-filter-property">
+            <span class="sz_label">Alojamento</span>
+            <select class="sz_input" id="pbReservationsProperty">
+              <option value="">Todos os alojamentos</option>
+            </select>
+          </label>
+          <label class="sz_field">
+            <span class="sz_label">Ambiente</span>
+            <select class="sz_input" id="pbReservationsEnvironment">
+              <option value=""{% if not selected_environment %} selected{% endif %}>Live e teste</option>
+              <option value="LIVE"{% if selected_environment == 'LIVE' %} selected{% endif %}>Produção (LIVE)</option>
+              <option value="TEST"{% if selected_environment == 'TEST' %} selected{% endif %}>Teste</option>
+            </select>
+          </label>
+          <label class="sz_field pb-filter-search">
+            <span class="sz_label">Pesquisar</span>
+            <input class="sz_input" type="search" id="pbReservationsQuery" value="{{ selected_query }}" placeholder="Reserva, hóspede ou email">
+          </label>
+          <div class="pb-filter-buttons">
+            <button class="sz_button sz_button_primary" type="submit"><i class="fa-solid fa-filter"></i><span>Aplicar</span></button>
+            <button class="sz_button sz_button_secondary" type="button" id="pbReservationsClear" title="Limpar filtros"><i class="fa-solid fa-eraser"></i></button>
+          </div>
+        </div>
+      </form>
+
+      <div class="pb-dashboard-status" id="pbReservationsStatusMessage" role="status">A carregar reservas…</div>
+
+      <section class="pb-kpi-grid" aria-label="Indicadores das reservas">
+        <article class="pb-kpi-card pb-kpi-primary">
+          <span class="pb-kpi-icon"><i class="fa-solid fa-inbox"></i></span>
+          <div><span class="pb-kpi-label">Pedidos</span><strong data-kpi="requests">—</strong><small>no período e filtros</small></div>
+        </article>
+        <article class="pb-kpi-card pb-kpi-success">
+          <span class="pb-kpi-icon"><i class="fa-solid fa-circle-check"></i></span>
+          <div><span class="pb-kpi-label">Pagas em produção</span><strong data-kpi="live_paid">—</strong><small>Stripe LIVE</small></div>
+        </article>
+        <article class="pb-kpi-card pb-kpi-success">
+          <span class="pb-kpi-icon"><i class="fa-solid fa-euro-sign"></i></span>
+          <div><span class="pb-kpi-label">Receita recebida</span><strong data-money-kpi="live_revenue">—</strong><small>apenas pagamentos LIVE</small></div>
+        </article>
+        <article class="pb-kpi-card pb-kpi-test">
+          <span class="pb-kpi-icon"><i class="fa-solid fa-flask"></i></span>
+          <div><span class="pb-kpi-label">Pagas em teste</span><strong data-kpi="test_paid">—</strong><small data-money-note="test_revenue">—</small></div>
+        </article>
+        <article class="pb-kpi-card pb-kpi-warning">
+          <span class="pb-kpi-icon"><i class="fa-regular fa-hourglass-half"></i></span>
+          <div><span class="pb-kpi-label">Por concluir</span><strong data-kpi="pending">—</strong><small>pendentes ou em checkout</small></div>
+        </article>
+        <article class="pb-kpi-card">
+          <span class="pb-kpi-icon"><i class="fa-solid fa-moon"></i></span>
+          <div><span class="pb-kpi-label">Noites vendidas</span><strong data-kpi="nights_sold">—</strong><small data-money-note="average_ticket">—</small></div>
+        </article>
+      </section>
+
+      <section class="pb-reservations-summary">
+        <div>
+          <span class="pb-eyebrow">Estados</span>
+          <strong>Distribuição dos pedidos</strong>
+        </div>
+        <div class="pb-status-breakdown" id="pbReservationStatusBreakdown"></div>
+      </section>
+
+      <section class="pb-dashboard-grid pb-reservations-overview-grid">
+        <article class="sz_panel pb-dashboard-card">
+          <header class="pb-card-header">
+            <div><span class="pb-eyebrow">Evolução</span><h2>Pedidos e reservas pagas</h2></div>
+            <div class="pb-chart-legend"><span class="is-visits">Pedidos</span><span class="is-paid">Pagas</span></div>
+          </header>
+          <div class="pb-chart-wrap"><canvas id="pbReservationsTimeline" aria-label="Evolução diária dos pedidos e reservas pagas"></canvas></div>
+        </article>
+        <article class="sz_panel pb-dashboard-card">
+          <header class="pb-card-header">
+            <div><span class="pb-eyebrow">Alojamentos</span><h2>Resultados por alojamento</h2></div>
+          </header>
+          <div class="pb-table-wrap">
+            <table class="sz_table pb-analytics-table pb-property-results">
+              <thead><tr><th>Alojamento</th><th>Pedidos</th><th>Pagas LIVE</th><th>Pagas TEST</th><th>Noites LIVE</th><th>Receita LIVE</th></tr></thead>
+              <tbody id="pbReservationPropertyRows"><tr><td colspan="6">A carregar…</td></tr></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <section class="sz_panel pb-dashboard-card pb-reservations-list-card">
+        <header class="pb-card-header">
+          <div><span class="pb-eyebrow">Reservas</span><h2>Pedidos do portal</h2></div>
+          <small id="pbReservationsResultCount">—</small>
+        </header>
+        <div class="pb-table-wrap">
+          <table class="sz_table pb-analytics-table pb-reservations-table">
+            <thead>
+              <tr><th>Criada</th><th>Estado</th><th>Referência</th><th>Alojamento</th><th>Estadia</th><th>Hóspede</th><th>Hóspedes</th><th>Valor</th><th>Stripe</th><th></th></tr>
+            </thead>
+            <tbody id="pbReservationRows"><tr><td colspan="10">A carregar…</td></tr></tbody>
+          </table>
+        </div>
+        <nav class="pb-reservations-pagination" aria-label="Paginação das reservas">
+          <button class="sz_button sz_button_secondary" type="button" id="pbReservationsPrevious"><i class="fa-solid fa-chevron-left"></i><span>Anterior</span></button>
+          <span id="pbReservationsPage">—</span>
+          <button class="sz_button sz_button_secondary" type="button" id="pbReservationsNext"><span>Seguinte</span><i class="fa-solid fa-chevron-right"></i></button>
+        </nav>
+      </section>
+    </main>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="{{ url_for('static', filename='js/booking_portal_reservations_dashboard.js') }}?v={{ static_version }}"></script>
+{% endblock %}

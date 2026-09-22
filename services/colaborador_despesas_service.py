@@ -855,6 +855,35 @@ def list_expense_cost_centers(limit: int = 500, feid: int = 0, with_description:
     return [str(row.CCUSTO or '').strip() for row in rows if str(row.CCUSTO or '').strip()]
 
 
+def _expense_cost_center_by_code(feid: int, code: str) -> str:
+    """Return the canonical active PHC cost-centre code for an exact match."""
+    clean_code = str(code or '').strip()
+    if not clean_code:
+        return ''
+    _, conn_str = _expense_phc_target(feid)
+    try:
+        with pyodbc.connect(conn_str, timeout=8) as conn:
+            cursor = conn.cursor()
+            columns = _phc_cursor_columns(cursor, 'CCT')
+            if 'CCUSTO' not in columns:
+                raise ExpensePhcQueryError('Erro ao consultar o PHC.')
+            inactive_col = _pick_column(columns, ['INACTIVO', 'INATIVO'])
+            inactive_filter = f"AND ISNULL({_sql_identifier(inactive_col)}, 0) = 0" if inactive_col else ''
+            cursor.execute(f"""
+                SELECT TOP 1 LTRIM(RTRIM(ISNULL(CCUSTO, ''))) AS CCUSTO
+                FROM dbo.CCT
+                WHERE UPPER(LTRIM(RTRIM(ISNULL(CCUSTO, '')))) = UPPER(?)
+                  {inactive_filter}
+            """, clean_code)
+            row = cursor.fetchone()
+    except (ExpensePhcConfigurationError, ExpensePhcQueryError):
+        raise
+    except Exception as exc:
+        current_app.logger.exception('Erro ao validar centro de custo no PHC.')
+        raise ExpensePhcQueryError('Erro ao consultar o PHC.') from exc
+    return str(row.CCUSTO or '').strip() if row else ''
+
+
 def search_expense_articles(feid: int, term: str, limit: int = 12) -> list[dict[str, Any]]:
     ensure_colaborador_despesas_schema()
     clean_term = str(term or '').strip()
@@ -1582,7 +1611,7 @@ def update_expense_processing_classification(line_stamp: str, payload: dict[str,
 
     normalized: list[dict[str, Any]] = []
     seen: set[str] = set()
-    valid_cost_centers = {value.casefold(): value for value in list_expense_cost_centers(feid=feid)}
+    cost_center_cache: dict[str, str] = {}
     valid_rates = {str(value.get('tabiva') or '').strip(): value for value in list_expense_vat_rates(feid)}
     for index, raw in enumerate(lines, start=1):
         raw = raw if isinstance(raw, dict) else {}
@@ -1609,7 +1638,11 @@ def update_expense_processing_classification(line_stamp: str, payload: dict[str,
         if not article:
             raise ValueError('Artigo não encontrado.')
         ccusto = str(raw.get('ccusto') or '').strip()
-        if ccusto and ccusto.casefold() not in valid_cost_centers:
+        ccusto_key = ccusto.casefold()
+        if ccusto_key not in cost_center_cache:
+            cost_center_cache[ccusto_key] = _expense_cost_center_by_code(feid, ccusto)
+        canonical_ccusto = cost_center_cache[ccusto_key]
+        if ccusto and not canonical_ccusto:
             raise ValueError('Centro de Custo não encontrado.')
         plate = str(raw.get('matricula') or '').strip()
         if plate:
@@ -1627,7 +1660,7 @@ def update_expense_processing_classification(line_stamp: str, payload: dict[str,
             'article': str(article.get('ref') or '').strip()[:50],
             'design': str(article.get('design') or '').strip()[:200],
             'reference': str(raw.get('referencia') or '').strip()[:160],
-            'ccusto': valid_cost_centers.get(ccusto.casefold(), ccusto)[:80],
+            'ccusto': canonical_ccusto[:80],
             'plate': plate[:50],
             'tabiva': _safe_int(tabiva),
             'taxaiva': rate,
