@@ -8,6 +8,7 @@ from unittest.mock import patch
 from services.document_ai_service import (
     _has_complete_reception_integration,
     _integrate_reception_document,
+    _reception_integration_incomplete_message,
     submit_provisional_invoice_to_phc,
 )
 
@@ -77,6 +78,37 @@ class DocumentAiReceptionIntegrationTests(unittest.TestCase):
             'original_date': '2026-08-10',
             'operational_date': '2026-09-01',
         }, 'invoice'))
+
+    def test_incomplete_invoice_message_lists_the_exact_missing_results(self):
+        message = _reception_integration_incomplete_message({
+            'status': 'confirmed',
+            'reference': 3649,
+            'year': 2026,
+            'phc_database': 'HSOLS_FR',
+            'crstamp': 'CR-1',
+            'fostamp': 'FO-1',
+            'anexosstamps': ['ANEXO-CR'],
+            'ged_confirmed': False,
+            'original_date': '2026-08-31',
+            'operational_date': '2026-08-31',
+        }, 'invoice')
+
+        self.assertIn('PDF não ficou associado à correspondência e à Fatura Provisória', message)
+        self.assertIn('ficheiro não ficou confirmado no servidor GED', message)
+        self.assertNotIn('base PHC', message)
+
+    def test_incomplete_correspondence_message_does_not_mention_an_invoice(self):
+        message = _reception_integration_incomplete_message({
+            'status': 'confirmed',
+            'reference': 40,
+            'year': 2026,
+            'phc_database': 'HSOLS_FR',
+            'crstamp': 'CR-1',
+            'ged_confirmed': True,
+        }, 'mail')
+
+        self.assertIn('PDF não ficou associado à correspondência', message)
+        self.assertNotIn('Fatura Provisória', message)
 
     @staticmethod
     def _document(path, meta=None):

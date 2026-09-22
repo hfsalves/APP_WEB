@@ -66,6 +66,15 @@ class DocumentAiPdfSplitTests(unittest.TestCase):
         self.assertNotIn('/group`', script)
         self.assertIn('payload.batch_audit?.documents', script)
 
+    def test_frontend_can_persist_the_decision_to_keep_the_complete_pdf(self):
+        template = Path('templates/document_ai_extract.html').read_text(encoding='utf-8')
+        script = Path('static/js/document_ai_extract.js').read_text(encoding='utf-8')
+
+        self.assertIn('id="docAiExtractKeepBatchBtn"', template)
+        self.assertIn('async function keepDocumentBatchTogether()', script)
+        self.assertIn('batch.keep_pdf_together = true;', script)
+        self.assertIn('scheduleAnalysisSave({ immediate: true })', script)
+
 
 if __name__ == '__main__':
     unittest.main()

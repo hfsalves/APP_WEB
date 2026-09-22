@@ -97,6 +97,26 @@ class DocumentAiOriginFamilyTests(unittest.TestCase):
                 {'bc_allocations': [{'origin_stamp': 'BO-1393', 'origin_line_stamp': 'BI-1', 'quantity': 2}]},
                 {'bc_allocations': [{'origin_stamp': 'BO-1393', 'origin_line_stamp': 'BI-1', 'quantity': 2}]},
             ], origins)
+        _validate_origin_allocation_balances([
+            {'bc_allocations': [{'origin_stamp': 'BO-1393', 'origin_line_stamp': 'BI-1',
+                                 'quantity': 4, 'allow_over_delivery': True}]},
+        ], origins)
+
+    def test_manual_origin_allocations_reject_closed_origin(self):
+        origins = [{'stamp': 'BO-1393', 'closed': True, 'lines': [
+            {'line_stamp': 'BI-1', 'pending_qty': 3},
+        ]}]
+        with self.assertRaisesRegex(ValueError, 'está fechado'):
+            _validate_origin_allocation_balances([
+                {'bc_allocations': [{'origin_stamp': 'BO-1393', 'origin_line_stamp': 'BI-1',
+                                     'quantity': 1}]},
+            ], origins)
+
+    def test_origin_selection_is_not_blocked_by_zero_balance_or_line_match(self):
+        service = (Path(__file__).resolve().parents[1] / 'services/document_ai_service.py').read_text(encoding='utf-8')
+        self.assertNotIn("eligibility_reason = 'Origem satisfeita: sem saldo disponível.'", service)
+        self.assertNotIn("eligibility_reason = 'Origem incompatível com as linhas do documento.'", service)
+        self.assertIn("if selected.get('closed') is True:", service)
 
     def test_origin_suggestions_never_write_lineage_automatically(self):
         script = (Path(__file__).resolve().parents[1] / 'static/js/document_ai_extract.js').read_text(encoding='utf-8')

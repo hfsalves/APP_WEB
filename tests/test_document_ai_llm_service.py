@@ -5,6 +5,14 @@ from services import document_ai_llm_service as llm_service
 
 
 class DocumentAiLlmServiceTests(unittest.TestCase):
+    def test_document_type_rules_never_infer_credit_note_from_negative_values(self):
+        rules = ' '.join(llm_service.DOCUMENT_AI_DOCUMENT_TYPE_SIGN_RULES).lower()
+
+        self.assertIn('never determine it only from the sign', rules)
+        self.assertIn('remains document_type invoice', rules)
+        self.assertIn('use document_type credit_note only when', rules)
+        self.assertIn('preserve every visible positive or negative sign', rules)
+
     def test_full_extraction_schema_accepts_extended_document_types(self):
         schema = llm_service._document_full_extraction_schema()
 

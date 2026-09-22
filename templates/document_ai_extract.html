@@ -118,8 +118,12 @@
                 </div>
               </div>
               <div id="docAiExtractBatchDocuments" class="docai-extract-batch-documents"></div>
-              <p class="docai-extract-batch-note">O PDF ainda não foi dividido. Estas páginas ficam preparadas para a próxima fase de separação no inbox.</p>
+              <p id="docAiExtractBatchNote" class="docai-extract-batch-note">O PDF ainda não foi dividido. Podes mantê-lo completo ou separar os documentos.</p>
               <div class="docai-extract-batch-actions">
+                <button id="docAiExtractKeepBatchBtn" type="button" class="sz_button sz_button_secondary">
+                  <i class="fa-solid fa-file-shield"></i>
+                  <span>Manter PDF completo</span>
+                </button>
                 <button id="docAiExtractSplitBtn" type="button" class="sz_button sz_button_primary">
                   <i class="fa-solid fa-scissors"></i>
                   <span>Separar PDFs e enviar para o inbox</span>
@@ -155,6 +159,11 @@
                   <span id="docAiExtractLegalBadge" class="docai-extract-legal-badge" hidden></span>
                   <div id="docAiExtractGedFileRow" class="docai-classification-file" hidden>
                     <strong id="docAiExtractGedFileName"></strong>
+                    <button id="docAiExtractMailTitleEdit" type="button" class="docai-classification-title-edit" hidden>
+                      <i class="fa-solid fa-pen"></i><span>Editar título</span>
+                    </button>
+                    <input id="docAiExtractMailTitleInput" type="text" class="sz_input docai-classification-title-input"
+                           maxlength="25" aria-label="Título curto do correio para o nome do ficheiro" hidden>
                   </div>
                   <div id="docAiExtractGedPath" class="docai-classification-destinations"></div>
                 </div>
@@ -214,19 +223,19 @@
                 <div class="sz_table_wrap">
                   <table class="sz_table sz_table_compact">
                     <colgroup>
-                      <col style="width: 3%">
-                      <col style="width: 8%">
-                      <col style="width: 22%">
-                      <col style="width: 7%">
-                      <col style="width: 7%">
-                      <col style="width: 7%">
-                      <col style="width: 5%">
-                      <col style="width: 8%">
-                      <col style="width: 8%">
-                      <col style="width: 5%">
-                      <col style="width: 5%">
-                      <col style="width: 3%">
-                      <col style="width: 12%">
+                      <col style="width: 1.5rem">
+                      <col style="width: 9.5rem">
+                      <col>
+                      <col style="width: 7rem">
+                      <col style="width: 6rem">
+                      <col style="width: 7rem">
+                      <col style="width: 4rem">
+                      <col style="width: 5.25rem">
+                      <col style="width: 7.8rem">
+                      <col style="width: 2.75rem">
+                      <col style="width: 2.75rem">
+                      <col style="width: 2.25rem">
+                      <col style="width: 4.5rem">
                     </colgroup>
                     <thead class="sz_table_head">
                       <tr>
@@ -281,7 +290,7 @@
     <div class="sz_panel docai-totals-modal" role="dialog" aria-modal="true" aria-labelledby="docAiTotalsModalTitle">
       <div class="sz_modal_header">
         <h3 id="docAiTotalsModalTitle" class="sz_h4 sz_modal_title">Detalhe IVA</h3>
-        <button id="docAiTotalsCloseTop" type="button" class="sz_icon_button" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
+        <button id="docAiTotalsCloseTop" type="button" class="sz_button sz_button_ghost sz_modal_close" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div class="sz_modal_body">
         <div class="sz_table_host"><div class="sz_table_wrap">
@@ -302,7 +311,7 @@
           <h3 id="docAiLineDistributionTitle" class="sz_h4 sz_modal_title">Distribuir por CdC</h3>
           <p id="docAiLineDistributionContext" class="sz_text_muted"></p>
         </div>
-        <button id="docAiLineDistributionCloseTop" type="button" class="sz_icon_button" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
+        <button id="docAiLineDistributionCloseTop" type="button" class="sz_button sz_button_ghost sz_modal_close" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div class="sz_modal_body">
         <div id="docAiLineDistributionMain">
@@ -323,7 +332,7 @@
         </div>
         <div id="docAiLineDistributionSearchPane" class="docai-line-distribution-search" hidden>
           <div class="docai-supplier-match-search">
-            <button id="docAiLineDistributionSearchBack" type="button" class="sz_icon_button" aria-label="Voltar à distribuição"><i class="fa-solid fa-arrow-left"></i></button>
+            <button id="docAiLineDistributionSearchBack" type="button" class="sz_button sz_button_ghost sz_modal_close" aria-label="Voltar à distribuição"><i class="fa-solid fa-arrow-left"></i></button>
             <div class="sz_field">
               <label id="docAiLineDistributionSearchLabel" class="sz_label" for="docAiLineDistributionSearchInput">Pesquisar</label>
               <input id="docAiLineDistributionSearchInput" class="sz_input" type="search">
@@ -349,7 +358,7 @@
           <h3 id="docAiLineCostsTitle" class="sz_h4 sz_modal_title">Custos detalhados</h3>
           <p id="docAiLineCostsContext" class="sz_text_muted"></p>
         </div>
-        <button id="docAiLineCostsCloseTop" type="button" class="sz_icon_button" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
+        <button id="docAiLineCostsCloseTop" type="button" class="sz_button sz_button_ghost sz_modal_close" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div class="sz_modal_body">
         <div id="docAiLineCostsTabs" class="docai-line-costs-tabs" role="tablist" aria-label="Tipos de custos" hidden></div>
@@ -373,13 +382,13 @@
   </div>
 
   <div id="docAiOriginDetailModal" class="sz_modal" aria-hidden="true">
-    <div class="sz_modal_dialog docai-origin-detail-modal" role="dialog" aria-modal="true" aria-labelledby="docAiOriginDetailTitle">
+    <div class="sz_panel docai-origin-detail-modal" role="dialog" aria-modal="true" aria-labelledby="docAiOriginDetailTitle">
       <div class="sz_modal_header">
         <div class="docai-origin-detail-heading">
           <h3 id="docAiOriginDetailTitle" class="sz_h4 sz_modal_title">Origem</h3>
           <p id="docAiOriginDetailSubtitle" class="sz_text_muted" hidden></p>
         </div>
-        <button id="docAiOriginDetailCloseTop" type="button" class="sz_icon_button" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
+        <button id="docAiOriginDetailCloseTop" type="button" class="sz_button sz_button_ghost sz_modal_close" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div class="sz_modal_body">
         <div id="docAiOriginDetailLoading" class="docai-extract-origin-loading">
@@ -391,10 +400,75 @@
             <tbody id="docAiOriginDetailBody"></tbody>
           </table>
         </div></div>
+        <div id="docAiOriginLineMapper" class="docai-origin-line-mapper" hidden>
+          <div class="docai-origin-line-mapper-summary">
+            <span id="docAiOriginLineMapperStatus" class="sz_text_muted">Arrasta uma linha do documento para a linha correspondente da origem.</span>
+            <strong id="docAiOriginLineMapperCount">0 de 0 associadas</strong>
+          </div>
+          <div class="docai-origin-line-mapper-columns">
+            <section class="docai-origin-line-mapper-column" aria-labelledby="docAiOriginSourceTitle">
+              <div class="docai-origin-line-mapper-column-title">
+                <h4 id="docAiOriginSourceTitle" class="sz_h4">Linhas da origem</h4>
+                <span class="sz_text_muted">Quantidade disponível</span>
+              </div>
+              <div id="docAiOriginSourceLines" class="docai-origin-line-mapper-list"></div>
+            </section>
+            <section class="docai-origin-line-mapper-column" aria-labelledby="docAiOriginTargetTitle">
+              <div class="docai-origin-line-mapper-column-title">
+                <h4 id="docAiOriginTargetTitle" class="sz_h4">Documento a importar</h4>
+                <span class="sz_text_muted">Arrastar para a esquerda</span>
+              </div>
+              <div id="docAiOriginTargetLines" class="docai-origin-line-mapper-list"></div>
+            </section>
+          </div>
+          <div id="docAiOriginQuantityWarning" class="docai-origin-quantity-warning" hidden>
+            <div>
+              <strong>Quantidade insuficiente na origem</strong>
+              <p id="docAiOriginQuantityWarningText" class="sz_text_muted"></p>
+            </div>
+            <div class="docai-origin-quantity-actions">
+              <button id="docAiOriginCorrectQuantity" type="button" class="sz_button sz_button_secondary">
+                <i class="fa-solid fa-pen-to-square"></i><span>Corrigir quantidade na origem</span>
+              </button>
+              <button id="docAiOriginOverDeliver" type="button" class="sz_button sz_button_secondary">
+                <i class="fa-solid fa-arrow-trend-up"></i><span>Satisfazer a mais</span>
+              </button>
+              <div class="docai-origin-partial-control">
+                <button id="docAiOriginPartialToggle" type="button" class="sz_button sz_button_primary" aria-haspopup="menu" aria-expanded="false">
+                  <i class="fa-solid fa-code-branch"></i><span>Satisfazer parcialmente</span><i class="fa-solid fa-chevron-down"></i>
+                </button>
+                <div id="docAiOriginPartialMenu" class="docai-origin-partial-menu sz_panel" role="menu" hidden>
+                  <div id="docAiOriginPartialOptions">
+                    <button id="docAiOriginSplitRemainder" type="button" class="docai-origin-partial-option" role="menuitem">
+                      <strong>Satisfazer quantidade disponível</strong>
+                      <span id="docAiOriginPartialAvailableLabel" class="sz_text_muted"></span>
+                    </button>
+                    <button id="docAiOriginPartialCustom" type="button" class="docai-origin-partial-option" role="menuitem">
+                      <strong>Satisfazer outra quantidade…</strong>
+                      <span class="sz_text_muted">Indicar manualmente a quantidade a associar.</span>
+                    </button>
+                  </div>
+                  <div id="docAiOriginPartialEditor" class="docai-origin-partial-editor" hidden>
+                    <label class="sz_label" for="docAiOriginPartialQuantity">Quantidade a satisfazer</label>
+                    <input id="docAiOriginPartialQuantity" class="sz_input" type="number" min="0.0001" step="0.0001" inputmode="decimal">
+                    <p id="docAiOriginPartialError" class="docai-origin-partial-error" hidden></p>
+                    <div class="docai-origin-partial-editor-actions">
+                      <button id="docAiOriginPartialCancel" type="button" class="sz_button sz_button_ghost">Voltar</button>
+                      <button id="docAiOriginPartialApply" type="button" class="sz_button sz_button_primary">Aplicar</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
         <div id="docAiOriginDetailEmpty" class="docai-empty-state" hidden>Sem linhas disponíveis no PHC.</div>
       </div>
       <div class="sz_modal_footer">
         <button id="docAiOriginDetailClose" type="button" class="sz_button sz_button_secondary">Fechar</button>
+        <button id="docAiOriginLineMapperSave" type="button" class="sz_button sz_button_primary" hidden>
+          <i class="fa-solid fa-floppy-disk"></i><span>Guardar associações</span>
+        </button>
         <button id="docAiOriginDetailValidate" type="button" class="sz_button sz_button_primary" hidden>
           <i class="fa-solid fa-check"></i><span>Validar</span>
         </button>
@@ -403,14 +477,14 @@
   </div>
 </div>
 
-<div id="docAiEntityModal" class="sz_modal docai-supplier-match-modal" aria-hidden="true" role="dialog" aria-labelledby="docAiEntityTitle">
-  <div class="sz_panel docai-supplier-match-panel">
+<div id="docAiEntityModal" class="sz_modal docai-supplier-match-modal" aria-hidden="true">
+  <div class="sz_panel docai-supplier-match-panel" role="dialog" aria-modal="true" aria-labelledby="docAiEntityTitle">
     <div class="sz_modal_header">
       <div>
         <h3 id="docAiEntityTitle" class="sz_h4 sz_modal_title">Associar Entidade</h3>
         <p class="sz_text_muted">Seleciona uma empresa do grupo existente na tabela FE.</p>
       </div>
-      <button id="docAiEntityCloseTop" type="button" class="sz_button sz_button_ghost" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
+      <button id="docAiEntityCloseTop" type="button" class="sz_button sz_button_ghost sz_modal_close" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
     </div>
     <div class="sz_modal_body docai-modal-body">
       <div class="docai-supplier-match-search">
@@ -426,14 +500,14 @@
   </div>
 </div>
 
-<div id="docAiSupplierMatchModal" class="sz_modal docai-supplier-match-modal" aria-hidden="true" role="dialog" aria-labelledby="docAiSupplierMatchTitle">
-  <div class="sz_panel docai-supplier-match-panel">
+<div id="docAiSupplierMatchModal" class="sz_modal docai-supplier-match-modal" aria-hidden="true">
+  <div class="sz_panel docai-supplier-match-panel" role="dialog" aria-modal="true" aria-labelledby="docAiSupplierMatchTitle">
     <div class="sz_modal_header">
       <div>
         <h3 id="docAiSupplierMatchTitle" class="sz_h4 sz_modal_title">Associar Fornecedor</h3>
         <p id="docAiSupplierMatchContext" class="sz_text_muted">Fornecedores da empresa cliente identificada.</p>
       </div>
-      <button id="docAiSupplierMatchCloseTop" type="button" class="sz_button sz_button_ghost" aria-label="Fechar">
+      <button id="docAiSupplierMatchCloseTop" type="button" class="sz_button sz_button_ghost sz_modal_close" aria-label="Fechar">
         <i class="fa-solid fa-xmark"></i>
       </button>
     </div>
@@ -461,14 +535,14 @@
 </div>
 
 {% if current_user.ADMIN %}
-<div id="docAiIntegrationAccessModal" class="sz_modal docai-access-modal" aria-hidden="true" role="dialog" aria-labelledby="docAiIntegrationAccessTitle">
-  <div class="sz_panel docai-access-panel">
+<div id="docAiIntegrationAccessModal" class="sz_modal docai-access-modal" aria-hidden="true">
+  <div class="sz_panel docai-access-panel" role="dialog" aria-modal="true" aria-labelledby="docAiIntegrationAccessTitle">
     <div class="sz_modal_header">
       <div>
         <h3 id="docAiIntegrationAccessTitle" class="sz_h4 sz_modal_title">Acessos de integração PHC</h3>
         <p class="sz_text_muted">Define o que cada utilizador pode lançar no PHC.</p>
       </div>
-      <button id="docAiIntegrationAccessCloseTop" type="button" class="sz_button sz_button_ghost docai-access-close" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
+      <button id="docAiIntegrationAccessCloseTop" type="button" class="sz_button sz_button_ghost sz_modal_close" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
     </div>
     <div class="sz_modal_body docai-access-body">
       <section class="docai-access-step docai-access-users">
@@ -523,14 +597,14 @@
 </div>
 {% endif %}
 
-<div id="docAiDuplicateModal" class="sz_modal docai-duplicate-modal" aria-hidden="true" role="dialog" aria-labelledby="docAiDuplicateTitle">
-  <div class="sz_panel docai-duplicate-panel">
+<div id="docAiDuplicateModal" class="sz_modal docai-duplicate-modal" aria-hidden="true">
+  <div class="sz_panel docai-duplicate-panel" role="dialog" aria-modal="true" aria-labelledby="docAiDuplicateTitle">
     <div class="sz_modal_header">
       <div>
         <h3 id="docAiDuplicateTitle" class="sz_h4 sz_modal_title">Verificação de duplicado</h3>
         <p class="sz_text_muted">Compara a correspondência encontrada antes de continuar.</p>
       </div>
-      <button id="docAiDuplicateCloseTop" type="button" class="sz_button sz_button_ghost" aria-label="Fechar">
+      <button id="docAiDuplicateCloseTop" type="button" class="sz_button sz_button_ghost sz_modal_close" aria-label="Fechar">
         <i class="fa-solid fa-xmark"></i>
       </button>
     </div>
@@ -549,8 +623,8 @@
   </div>
 </div>
 
-<div id="docAiConflictModal" class="sz_modal docai-conflict-modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="docAiConflictTitle">
-  <div class="sz_panel docai-conflict-panel">
+<div id="docAiConflictModal" class="sz_modal docai-conflict-modal" aria-hidden="true">
+  <div class="sz_panel docai-conflict-panel" role="dialog" aria-modal="true" aria-labelledby="docAiConflictTitle">
     <div class="sz_modal_header">
       <div>
         <h3 id="docAiConflictTitle" class="sz_h4 sz_modal_title">Documento alterado por outro utilizador.</h3>
@@ -567,14 +641,14 @@
   </div>
 </div>
 
-<div id="docAiProjectModal" class="sz_modal docai-supplier-match-modal" aria-hidden="true" role="dialog" aria-labelledby="docAiProjectTitle">
-  <div class="sz_panel docai-supplier-match-panel">
+<div id="docAiProjectModal" class="sz_modal docai-supplier-match-modal" aria-hidden="true">
+  <div class="sz_panel docai-supplier-match-panel" role="dialog" aria-modal="true" aria-labelledby="docAiProjectTitle">
     <div class="sz_modal_header">
       <div>
         <h3 id="docAiProjectTitle" class="sz_h4 sz_modal_title">Selecionar CdC</h3>
         <p id="docAiProjectContext" class="sz_text_muted">Pesquisa Centros de Custo na Entidade identificada.</p>
       </div>
-      <button id="docAiProjectCloseTop" type="button" class="sz_button sz_button_ghost" aria-label="Fechar">
+      <button id="docAiProjectCloseTop" type="button" class="sz_button sz_button_ghost sz_modal_close" aria-label="Fechar">
         <i class="fa-solid fa-xmark"></i>
       </button>
     </div>
@@ -600,14 +674,14 @@
   </div>
 </div>
 
-<div id="docAiArticleModal" class="sz_modal docai-supplier-match-modal" aria-hidden="true" role="dialog" aria-labelledby="docAiArticleTitle">
-  <div class="sz_panel docai-supplier-match-panel">
+<div id="docAiArticleModal" class="sz_modal docai-supplier-match-modal" aria-hidden="true">
+  <div class="sz_panel docai-supplier-match-panel" role="dialog" aria-modal="true" aria-labelledby="docAiArticleTitle">
     <div class="sz_modal_header">
       <div>
         <h3 id="docAiArticleTitle" class="sz_h4 sz_modal_title">Selecionar artigo</h3>
         <p id="docAiArticleContext" class="sz_text_muted">Pesquisa nos artigos PHC da entidade.</p>
       </div>
-      <button id="docAiArticleCloseTop" type="button" class="sz_button sz_button_ghost" aria-label="Fermer">
+      <button id="docAiArticleCloseTop" type="button" class="sz_button sz_button_ghost sz_modal_close" aria-label="Fechar">
         <i class="fa-solid fa-xmark"></i>
       </button>
     </div>
@@ -625,19 +699,19 @@
       <div id="docAiArticleList" class="docai-supplier-match-list"></div>
     </div>
     <div class="sz_modal_footer">
-      <button id="docAiArticleClose" type="button" class="sz_button sz_button_secondary">Fermer</button>
+      <button id="docAiArticleClose" type="button" class="sz_button sz_button_secondary">Fechar</button>
     </div>
   </div>
 </div>
 
-<div id="docAiVehicleModal" class="sz_modal docai-supplier-match-modal" aria-hidden="true" role="dialog" aria-labelledby="docAiVehicleTitle">
-  <div class="sz_panel docai-supplier-match-panel">
+<div id="docAiVehicleModal" class="sz_modal docai-supplier-match-modal" aria-hidden="true">
+  <div class="sz_panel docai-supplier-match-panel" role="dialog" aria-modal="true" aria-labelledby="docAiVehicleTitle">
     <div class="sz_modal_header">
       <div>
         <h3 id="docAiVehicleTitle" class="sz_h4 sz_modal_title">Selecionar matrícula</h3>
         <p id="docAiVehicleContext" class="sz_text_muted">Pesquisa nas viaturas PHC da entidade.</p>
       </div>
-      <button id="docAiVehicleCloseTop" type="button" class="sz_button sz_button_ghost" aria-label="Fechar">
+      <button id="docAiVehicleCloseTop" type="button" class="sz_button sz_button_ghost sz_modal_close" aria-label="Fechar">
         <i class="fa-solid fa-xmark"></i>
       </button>
     </div>
@@ -667,13 +741,13 @@
   </div>
 </div>
 
-<div id="docAiBcModal" class="sz_modal docai-supplier-match-modal" aria-hidden="true" role="dialog" aria-labelledby="docAiBcTitle">
-  <div class="sz_panel docai-supplier-match-panel">
+<div id="docAiBcModal" class="sz_modal docai-supplier-match-modal" aria-hidden="true">
+  <div class="sz_panel docai-supplier-match-panel" role="dialog" aria-modal="true" aria-labelledby="docAiBcTitle">
     <div class="sz_modal_header">
       <div>
         <h3 id="docAiBcTitle" class="sz_h4 sz_modal_title">Associar dossier, linha e quantidade</h3>
       </div>
-      <button id="docAiBcCloseTop" type="button" class="sz_button sz_button_ghost" aria-label="Fechar">
+      <button id="docAiBcCloseTop" type="button" class="sz_button sz_button_ghost sz_modal_close" aria-label="Fechar">
         <i class="fa-solid fa-xmark"></i>
       </button>
     </div>

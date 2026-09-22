@@ -154,7 +154,7 @@ def plan_preinvoice(document, source_lines, headers):
                 raise ValueError(f'Linha {index}: a distribuicao tem uma quantidade invalida.')
             consumed[stamp] += qty
             already = max(_decimal(source.get('qtt2') or 0), _decimal(source.get('reused_qty') or 0))
-            if consumed[stamp] > _decimal(source['qtt']) - already:
+            if consumed[stamp] > _decimal(source['qtt']) - already and part.get('allow_over_delivery') is not True:
                 raise ValueError(f'Linha {index}: a quantidade disponivel mudou no PHC; atualiza Origem.')
             ccusto = _clean(line.get('cost_center') or line.get('ccusto') or line.get('project_ccusto')
                             or (document.get('origin_project') or {}).get('ccusto'))

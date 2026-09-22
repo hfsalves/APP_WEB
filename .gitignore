@@ -17,3 +17,5 @@ document_ai_robot.local.env
 Thumbs.db
 node_modules
 node_modules
+# Document AI files recovered from the remote GED for local development.
+.document_ai_cache/

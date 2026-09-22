@@ -15,6 +15,14 @@ from sqlalchemy import text
 from models import db
 
 
+DOCUMENT_AI_DOCUMENT_TYPE_SIGN_RULES = (
+    'Determine invoice versus credit note from the explicit legal nature of the document, especially its visible title and labels; never determine it only from the sign of quantities, lines, taxes or totals.',
+    'A document visibly identified as Facture, Invoice or Fatura remains document_type invoice even when one, several or all monetary values are negative.',
+    'Use document_type credit_note only when the document itself is explicitly identified as Avoir, Note de crédit, Credit note, Gutschrift, Nota de crédito or an equivalent credit-note title.',
+    'Preserve every visible positive or negative sign in extracted invoice and credit-note values. PHC posting rules will convert credit-note magnitudes later; do not change signs during extraction.',
+)
+
+
 def _para_value(code: str, default: str = '') -> str:
     key = str(code or '').strip()
     if not key:
@@ -809,6 +817,7 @@ def classify_document_visual(context: dict[str, Any]) -> dict[str, Any]:
             'Use document_type mail for correspondence, notices, declarations, requests, statements, certificates, legal or administrative letters and other incoming mail that is not a commercial document type listed above.',
             'A document titled Note d’honoraires, Note d’honoraires fournisseur, Honoraires or Fee note is a supplier invoice for professional services. Always classify it as document_type invoice, never as mail, credit_note or unknown merely because the word Note is used.',
             'A document titled Avoir, Note de crédit, Credit note, Gutschrift or Nota de crédito is a supplier credit note and belongs to the FAC/commercial circuit; classify it as credit_note, never as mail.',
+            *DOCUMENT_AI_DOCUMENT_TYPE_SIGN_RULES,
             'A Mise en demeure or Rappel without invoice/credit-note evidence is incoming mail (Lettre), even when it refers to unpaid invoices.',
             'Known exception: a Millennium BCP document headed Confirming or charging a commission is a supplier invoice and belongs to FAC, not mail.',
             'Known exception: a Tradsafty document headed Recibo/Receipt is a supplier invoice and belongs to FAC, not mail.',

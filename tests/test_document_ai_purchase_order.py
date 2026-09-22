@@ -111,6 +111,46 @@ class DocumentAiPurchaseOrderTests(unittest.TestCase):
 
         self.assertNotEqual(before, after)
 
+    def test_increase_origin_line_quantity_updates_line_header_and_tax_totals(self):
+        connection = MagicMock()
+        cursor = connection.cursor.return_value
+        cursor.execute.return_value = cursor
+        cursor.fetchone.return_value = (1,)
+        line = {
+            'bistamp': 'BI-1', 'bostamp': 'BO-1', 'qtt': Decimal('21500'),
+            'qtt2': Decimal('0'), 'edebito': Decimal('0.26'), 'debito': Decimal('0.26'),
+            'ettdeb': Decimal('5590'), 'ttdeb': Decimal('5590'), 'iva': Decimal('20'),
+            'tabiva': 2, 'ndos': 102, 'anulado': 0,
+        }
+        totals = {'enet': Decimal('5616'), 'lnet': Decimal('5616'),
+                  'etax': Decimal('1123.20'), 'ltax': Decimal('1123.20')}
+        tax_group = {'codigo': 2, 'taxa': Decimal('20'), 'ebase': Decimal('5616'),
+                     'lbase': Decimal('5616'), 'etax': Decimal('1123.20'), 'ltax': Decimal('1123.20')}
+        updates = []
+        with patch('pyodbc.connect', return_value=connection), patch.object(
+            service, '_source_and_document', return_value=({'phc_db': 'HSOLS_FR'}, {})
+        ), patch.object(
+            service, '_purchase_order_series', return_value={'ndos': 102, 'name': 'Bon Commande Fournisseur'}
+        ), patch.object(
+            service, '_rows', side_effect=[[line], [totals], [tax_group]]
+        ), patch('services.document_ai_service._phc_correspondence_user', return_value={'initials': 'TST'}), patch(
+            'services.document_ai_service._phc_update_values', side_effect=lambda _c, table, values, *_a: updates.append((table, values))
+        ), patch('services.document_ai_service._phc_insert_values'), patch(
+            'services.document_ai_service._new_stamp', return_value='BOT-1'
+        ), patch('services.phc_user_import_service._phc_conn_str', return_value='test'):
+            result = service.increase_origin_line_quantity(
+                {'customer': {}}, 'BO-1', 'BI-1', 100, 'tester', 'purchase_order',
+            )
+
+        self.assertEqual(result['quantity'], 21600.0)
+        self.assertEqual(result['pending_quantity'], 21600.0)
+        bi_values = next(values for table, values in updates if table == 'BI')
+        bo_values = next(values for table, values in updates if table == 'BO')
+        self.assertEqual(bi_values['qtt'], Decimal('21600'))
+        self.assertEqual(bi_values['ettdeb'], Decimal('5616.00'))
+        self.assertEqual(bo_values['etotal'], Decimal('6739.20'))
+        connection.commit.assert_called_once()
+
 
 class DocumentAiPurchaseOrderFrontendTests(unittest.TestCase):
     @classmethod

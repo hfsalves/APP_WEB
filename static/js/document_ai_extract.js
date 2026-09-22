@@ -37,6 +37,8 @@ document.addEventListener('DOMContentLoaded', () => {
     gedStatus: document.getElementById('docAiExtractGedStatus'),
     gedFileName: document.getElementById('docAiExtractGedFileName'),
     gedFileRow: document.getElementById('docAiExtractGedFileRow'),
+    mailTitleEdit: document.getElementById('docAiExtractMailTitleEdit'),
+    mailTitleInput: document.getElementById('docAiExtractMailTitleInput'),
     gedPath: document.getElementById('docAiExtractGedPath'),
     gedFolderControl: document.getElementById('docAiExtractGedFolderControl'),
     gedFolderTrigger: document.getElementById('docAiExtractGedFolderTrigger'),
@@ -60,6 +62,27 @@ document.addEventListener('DOMContentLoaded', () => {
     originDetailTable: document.getElementById('docAiOriginDetailTable'),
     originDetailHead: document.getElementById('docAiOriginDetailHead'),
     originDetailBody: document.getElementById('docAiOriginDetailBody'),
+    originLineMapper: document.getElementById('docAiOriginLineMapper'),
+    originLineMapperStatus: document.getElementById('docAiOriginLineMapperStatus'),
+    originLineMapperCount: document.getElementById('docAiOriginLineMapperCount'),
+    originMapperSourceLines: document.getElementById('docAiOriginSourceLines'),
+    originMapperTargetLines: document.getElementById('docAiOriginTargetLines'),
+    originQuantityWarning: document.getElementById('docAiOriginQuantityWarning'),
+    originQuantityWarningText: document.getElementById('docAiOriginQuantityWarningText'),
+    originCorrectQuantity: document.getElementById('docAiOriginCorrectQuantity'),
+    originOverDeliver: document.getElementById('docAiOriginOverDeliver'),
+    originPartialToggle: document.getElementById('docAiOriginPartialToggle'),
+    originPartialMenu: document.getElementById('docAiOriginPartialMenu'),
+    originPartialOptions: document.getElementById('docAiOriginPartialOptions'),
+    originSplitRemainder: document.getElementById('docAiOriginSplitRemainder'),
+    originPartialAvailableLabel: document.getElementById('docAiOriginPartialAvailableLabel'),
+    originPartialCustom: document.getElementById('docAiOriginPartialCustom'),
+    originPartialEditor: document.getElementById('docAiOriginPartialEditor'),
+    originPartialQuantity: document.getElementById('docAiOriginPartialQuantity'),
+    originPartialError: document.getElementById('docAiOriginPartialError'),
+    originPartialCancel: document.getElementById('docAiOriginPartialCancel'),
+    originPartialApply: document.getElementById('docAiOriginPartialApply'),
+    originLineMapperSave: document.getElementById('docAiOriginLineMapperSave'),
     originDetailEmpty: document.getElementById('docAiOriginDetailEmpty'),
     originDetailCloseTop: document.getElementById('docAiOriginDetailCloseTop'),
     originDetailClose: document.getElementById('docAiOriginDetailClose'),
@@ -113,6 +136,8 @@ document.addEventListener('DOMContentLoaded', () => {
     batchAlert: document.getElementById('docAiExtractBatchAlert'),
     batchMessage: document.getElementById('docAiExtractBatchMessage'),
     batchDocuments: document.getElementById('docAiExtractBatchDocuments'),
+    batchNote: document.getElementById('docAiExtractBatchNote'),
+    keepBatchBtn: document.getElementById('docAiExtractKeepBatchBtn'),
     splitBtn: document.getElementById('docAiExtractSplitBtn'),
     supplierModal: document.getElementById('docAiSupplierMatchModal'),
     supplierModalTitle: document.getElementById('docAiSupplierMatchTitle'),
@@ -217,6 +242,9 @@ document.addEventListener('DOMContentLoaded', () => {
     articleCandidates: [],
     articleSuggestionConfidence: 'none',
     articleTargetLineIndex: null,
+    articleOriginTarget: null,
+    articleSearchTimer: null,
+    articleSearchToken: 0,
     vehicleCandidates: [],
     vehicleTargetLineIndex: null,
     bcTargetLineIndex: null,
@@ -232,6 +260,7 @@ document.addEventListener('DOMContentLoaded', () => {
     originLineMatchByLine: new WeakMap(),
     originLineageChanged: false,
     originLineageSaveScheduled: false,
+    originDetailMapping: null,
     selectedSplitLines: new Set(),
     entityCandidates: [],
     supplierSearchToken: 0,
@@ -266,6 +295,7 @@ document.addEventListener('DOMContentLoaded', () => {
     draftConflict: false,
     pendingManualOverrides: null,
     headerEditing: '',
+    mailTitleEditing: false,
     confirmInvoiceTypeRemoval: false,
     validationVisible: false,
     validationMissing: new Set(),
@@ -1302,9 +1332,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const partyNumber = Number(isCustomerParty ? party.customer_no : party.supplier_no || party.no || 0);
     const partyNumberPart = phcPartyNumber(partyNumber, party.estab) || 'SEM-NUMERO';
     const partyNamePart = gedPartyName(party.short_name || party.name2 || party.name || party.llm_name);
-    const documentNumber = gedSafePart(documentData.document_number, 'SEM-DOCUMENTO');
+    const rawDocumentNumber = gedSafePart(documentData.document_number, 'SEM-DOCUMENTO');
+    const documentNumber = documentData.document_type === 'credit_note'
+      ? `NC-${rawDocumentNumber.replace(/^NC(?:[\s_-]+)?/i, '') || rawDocumentNumber}`
+      : rawDocumentNumber;
     const mailTitlePart = isMail ? gedSafePart(documentData.mail_title, '') : '';
-    const project = gedSafePart(state.selectedProject?.ccusto || documentData.origin_project?.ccusto, '');
     const documentDate = gedSafePart(documentData.document_date, gedSafePart(new Date().toISOString().slice(0, 10), 'SEM-DATA'));
     let prefix = 'DOC';
     let category = 'DOCUMENTS_FOURNISSEURS';
@@ -1341,7 +1373,6 @@ document.addEventListener('DOMContentLoaded', () => {
     fileParts.push(partyNamePart);
     if (mailTitlePart) fileParts.push(mailTitlePart);
     fileParts.push(trailingPart);
-    if (project) fileParts.push(project);
     const fileName = `${fileParts.join('-')}.pdf`;
     const companyFolder = gedCompanyFolder(customer);
     const period = gedPeriodFolders();
@@ -1365,6 +1396,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const originalName = String(state.file?.name || '').trim().toLocaleLowerCase('pt');
     const usefulGedName = Boolean(fileName && fileName.toLocaleLowerCase('pt') !== originalName);
     if (els.gedFileRow) els.gedFileRow.hidden = !usefulGedName;
+    const canEditMailTitle = isMail
+      && !state.readOnly
+      && state.view === 'home'
+      && !state.workflow?.reception_validated
+      && !state.integrationResult;
+    if (els.mailTitleEdit) els.mailTitleEdit.hidden = !canEditMailTitle || state.mailTitleEditing;
+    if (els.mailTitleInput) {
+      els.mailTitleInput.hidden = !canEditMailTitle || !state.mailTitleEditing;
+      if (!els.mailTitleInput.hidden && els.mailTitleInput.value !== String(documentData.mail_title || '')) {
+        els.mailTitleInput.value = String(documentData.mail_title || '').slice(0, 25);
+      }
+    }
     els.gedPath.replaceChildren(...paths.map((destination) => {
       const button = document.createElement('button');
       button.type = 'button';
@@ -1406,6 +1449,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const incompleteDistribution = (documentData.lines || []).some((line) => (
       Array.isArray(line.sub_lines) && line.sub_lines.length && distributionDraftErrors(line, line.sub_lines).length
     ));
+    const hasBlockingDistribution = !isCorrespondence && incompleteDistribution;
     if (els.workflowValidateBtn) {
       const viewLabel = workflowViewLabel();
       const currentAssignment = (state.workflow.assignments || []).find((assignment) => (
@@ -1416,14 +1460,14 @@ document.addEventListener('DOMContentLoaded', () => {
         || !state.documentData
         || state.workflowSubmitting
         || state.submittingPhc
-        || Boolean(state.draftTimer)
-        || Boolean(state.draftRequest)
         || state.draftError
-        || incompleteDistribution
+        || hasBlockingDistribution
         || isAccountingPending;
       els.workflowValidateBtn.dataset.view = state.view;
-      els.workflowValidateBtn.title = incompleteDistribution
+      els.workflowValidateBtn.title = hasBlockingDistribution
         ? 'Completa a distribuição das linhas antes de validar.'
+        : state.draftError
+        ? 'Corrige o erro de gravação antes de validar.'
         : isAccountingPending
         ? 'Pendente: aguarda validação do Controlo de Gestão.'
         : `Validar ${viewLabel}`;
@@ -1474,12 +1518,11 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderDocumentCard() {
     const documentData = state.documentData || {};
     const normalizedDocumentType = String(documentData.document_type || '').trim().toLowerCase();
+    const isCorrespondence = ['mail', 'bank_statement'].includes(normalizedDocumentType);
     const docType = normalizedDocumentType && normalizedDocumentType !== 'unknown'
       ? (typeLabels[normalizedDocumentType] || documentData.document_type)
       : '';
-    const displayedNumber = documentData.document_type === 'mail'
-      ? documentData.mail_title
-      : documentData.document_number;
+    const displayedNumber = documentData.document_number;
     const invoiceType = ['invoice', 'provisional_invoice'].includes(documentData.document_type)
       ? invoiceTypeLabels[String(documentData.invoice_type || '').toLowerCase()]
       : '';
@@ -1496,8 +1539,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const isInvoice = ['invoice', 'provisional_invoice'].includes(documentData.document_type);
     const parts = [
       editing === 'document_type' ? `<select class="sz_select docai-header-inline-input" data-header-input="document_type">${documentTypes}</select>` : text('document_type', docType, 'Tipo de documento'),
-      ...(isInvoice || editing === 'document_type' ? [editing === 'invoice_type' ? `<select class="sz_select docai-header-inline-input" data-header-input="invoice_type">${invoiceTypes}</select>` : text('invoice_type', invoiceType, 'Tipo de fatura')] : []),
-      editing === 'document_number' ? `<input class="sz_input docai-header-inline-input" data-header-input="document_number" value="${escapeHtml(displayedNumber || '')}">` : text('document_number', displayedNumber, 'Nº do documento'),
+      ...(isInvoice ? [editing === 'invoice_type' ? `<select class="sz_select docai-header-inline-input" data-header-input="invoice_type">${invoiceTypes}</select>` : text('invoice_type', invoiceType, 'Tipo de fatura')] : []),
+      ...(!isCorrespondence ? [editing === 'document_number' ? `<input class="sz_input docai-header-inline-input" data-header-input="document_number" value="${escapeHtml(displayedNumber || '')}">` : text('document_number', displayedNumber, 'Nº do documento')] : []),
       editing === 'document_date' ? `<input class="sz_input docai-header-inline-input" data-header-input="document_date" value="${escapeHtml(documentData.document_date ? formatDate(documentData.document_date) : '')}" placeholder="DD/MM/AAAA">` : text('document_date', documentData.document_date ? formatDate(documentData.document_date) : '', 'Data do documento'),
     ];
     els.documentSummary.innerHTML = parts.join('<span class="docai-header-separator"> · </span>');
@@ -1688,6 +1731,7 @@ document.addEventListener('DOMContentLoaded', () => {
     state.submittingControl = false;
     state.workflowSubmitting = false;
     state.workflow = {};
+    state.mailTitleEditing = false;
     state.controlOk = false;
     state.integratedPhc = false;
     state.integrationResult = null;
@@ -1855,7 +1899,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function scheduleAnalysisSave({ immediate = false } = {}) {
     if (state.readOnly || state.view === 'accounting') return Promise.resolve(true);
-    if (!state.currentDocumentId || !state.documentData || state.draftConflict) return Promise.resolve(false);
+    if (!state.documentData || state.draftConflict || (!state.currentDocumentId && !state.file)) return Promise.resolve(false);
     state.draftRevision += 1;
     window.clearTimeout(state.draftTimer);
     setDraftStatus('saving');
@@ -1864,11 +1908,41 @@ document.addEventListener('DOMContentLoaded', () => {
     return Promise.resolve(true);
   }
 
+  async function persistUnsavedAnalysis() {
+    if (state.currentDocumentId) return true;
+    if (!state.file || !state.documentData) return false;
+    const formData = new FormData();
+    formData.append('file', state.file);
+    formData.append('document_data', JSON.stringify(state.documentData));
+    formData.append('matching', JSON.stringify(state.matching || {}));
+    formData.append('view', state.view);
+    const request = fetchJson('/api/document_ai/extract/persist', { method: 'POST', body: formData });
+    state.draftRequest = request;
+    try {
+      const payload = await request;
+      state.currentDocumentId = String(payload.document_id || '');
+      if (!state.currentDocumentId) throw new Error('O documento foi guardado sem identificador.');
+      if (payload.document) state.documentData = payload.document;
+      if (payload.matching) state.matching = payload.matching;
+      state.draftVersion = String(payload.version || payload.updated_at || '');
+      state.draftLastFingerprint = draftFingerprint();
+      window.history.replaceState({}, '', extractUrl(state.currentDocumentId));
+      return true;
+    } catch (error) {
+      setDraftStatus('error');
+      setStatus(error.message || 'Erro ao guardar', true);
+      showMessage(error.message || 'Não foi possível guardar o documento.', 'error');
+      return false;
+    } finally {
+      if (state.draftRequest === request) state.draftRequest = null;
+    }
+  }
+
   async function flushAnalysisSave() {
     if (state.readOnly || state.view === 'accounting') return true;
     window.clearTimeout(state.draftTimer);
     state.draftTimer = null;
-    if (!state.currentDocumentId || !state.documentData || state.draftConflict) return !state.draftError;
+    if (!state.documentData || state.draftConflict) return !state.draftError;
     if (state.draftRequest) {
       try {
         await state.draftRequest;
@@ -1877,6 +1951,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       if (state.draftConflict) return false;
     }
+    if (!state.currentDocumentId && !await persistUnsavedAnalysis()) return false;
     const revision = state.draftRevision;
     const fingerprint = draftFingerprint();
     if (fingerprint === state.draftLastFingerprint && !state.draftError) {
@@ -2325,10 +2400,6 @@ document.addEventListener('DOMContentLoaded', () => {
         ? `<button type="button" class="docai-extract-vehicle-btn is-selected" data-line-vehicle="${lineIndex}" title="${escapeHtml(vehicleTooltip)}" aria-label="${escapeHtml(vehicleTooltip)}"><i class="fa-solid fa-car"></i></button>`
         : `<button type="button" class="docai-extract-vehicle-btn is-empty" data-line-vehicle="${lineIndex}" title="${canonicalValidationTooltips.vehicleToAssociate}" aria-label="${canonicalValidationTooltips.vehicleToAssociate}"></button>`;
       const lineDate = String(line.date || line.data || '').trim().slice(0, 10);
-      const currencyCode = String(currency || '').trim().toUpperCase();
-      const currencySuffix = /^[A-Z]{3}$/.test(currencyCode)
-        ? `<span class="docai-extract-line-currency">${escapeHtml(currencyCode)}</span>`
-        : '';
       const primaryNames = effectivePrimaryFamily === 'contract'
         ? ['Contrato', 'Contratos']
         : effectivePrimaryFamily === 'subcontract'
@@ -2354,8 +2425,8 @@ document.addEventListener('DOMContentLoaded', () => {
         <td><button type="button" class="docai-extract-cell-link${validationClass(validation.article)}" data-line-article="${lineIndex}" title="${validation.article ? 'Artigo não Conforme' : 'Selecionar artigo'}">${escapeHtml(line.article_ref || line.article || 'Selecionar artigo')}</button></td>
         <td><input class="sz_input docai-extract-line-description-input${validationClass(validation.description)}" data-line-description="${lineIndex}" value="${escapeHtml(line.description || '')}" aria-label="Designação da linha"${validationTitle(validation.description, 'Valor não Conforme')}></td>
         <td><input class="sz_input docai-extract-line-number-input${validationClass(validation.quantity)}" inputmode="decimal" data-line-qty="${lineIndex}" value="${escapeHtml(formatEditableAmount(line.qty))}" aria-label="Quantidade"${validationTitle(validation.quantity, 'Valor não Conforme')}></td>
-        <td><span class="docai-extract-line-money-input"><input class="sz_input docai-extract-line-number-input${validationClass(validation.unitPrice)}" inputmode="decimal" data-line-unit-price="${lineIndex}" value="${escapeHtml(formatEditableAmount(line.unit_price))}" aria-label="Preço unitário"${validationTitle(validation.unitPrice, 'Valor não Conforme')}>${currencySuffix}</span></td>
-        <td><span class="docai-extract-line-money-input"><input class="sz_input docai-extract-line-number-input${validationClass(validation.total || validation.value)}" inputmode="decimal" data-line-total="${lineIndex}" value="${escapeHtml(formatEditableAmount(line.net_amount))}" aria-label="Preço total"${validationTitle(validation.total || validation.value, 'Valor não Conforme')}>${currencySuffix}</span></td>
+        <td><input class="sz_input docai-extract-line-number-input${validationClass(validation.unitPrice)}" inputmode="decimal" data-line-unit-price="${lineIndex}" value="${escapeHtml(formatEditableAmount(line.unit_price))}" aria-label="Preço unitário"${validationTitle(validation.unitPrice, 'Valor não Conforme')}></td>
+        <td><input class="sz_input docai-extract-line-number-input${validationClass(validation.total || validation.value)}" inputmode="decimal" data-line-total="${lineIndex}" value="${escapeHtml(formatEditableAmount(line.net_amount))}" aria-label="Preço total"${validationTitle(validation.total || validation.value, 'Valor não Conforme')}></td>
         <td><input class="sz_input docai-extract-line-number-input" inputmode="decimal" data-line-tax-rate="${lineIndex}" value="${escapeHtml(formatEditableAmount(line.tax_rate))}" aria-label="Taxa de IVA"></td>
         <td><button type="button" class="docai-extract-cell-link${validationClass(validation.project)}" data-line-project="${lineIndex}" title="${validation.project ? 'Falta Centro de Custo' : 'Selecionar CdC'}">${escapeHtml(project || 'Selecionar CdC')}</button></td>
         <td><input type="date" class="sz_input docai-extract-line-date-input${validationClass(validation.date)}" data-line-date="${lineIndex}" value="${escapeHtml(lineDate)}" aria-label="Data da linha"${validationTitle(validation.date, 'Valor não Conforme')}></td>
@@ -2463,6 +2534,38 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (_) {
       showMessage('Não foi possível copiar.', 'error');
     }
+  }
+
+  function editMailTitle() {
+    if (!state.documentData || state.documentData.document_type !== 'mail' || state.readOnly) return;
+    state.mailTitleEditing = true;
+    renderGedDestination();
+    window.setTimeout(() => {
+      els.mailTitleInput?.focus();
+      els.mailTitleInput?.select();
+    }, 0);
+  }
+
+  async function saveMailTitle() {
+    if (!state.mailTitleEditing || !state.documentData || !els.mailTitleInput) return;
+    const previous = String(state.documentData.mail_title || '');
+    const value = String(els.mailTitleInput.value || '').replace(/\s+/g, ' ').trim().slice(0, 25);
+    state.documentData.mail_title = value;
+    state.documentData._manual_fields = [...new Set([
+      ...(state.documentData._manual_fields || []), 'mail_title',
+    ])];
+    state.mailTitleEditing = false;
+    renderGedDestination();
+    const saved = await scheduleAnalysisSave({ immediate: true });
+    if (saved) {
+      setStatus('Título do ficheiro guardado.');
+      showMessage('Título do ficheiro atualizado.', 'success');
+      return;
+    }
+    state.documentData.mail_title = previous;
+    state.mailTitleEditing = true;
+    renderGedDestination();
+    setStatus('Erro ao guardar', true);
   }
 
   function renderSupplierCard(supplier = {}, matching = {}) {
@@ -2725,7 +2828,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const hasTotal = candidate.total !== null && candidate.total !== undefined && candidate.total !== '';
         const totalLabel = hasTotal ? formatMoney(candidate.total, state.documentData?.currency) : '';
         const canAssociate = originDisplayStage(String(stage.key || '')) !== 'proforma_invoice'
-          && candidate.selectable !== false && candidate.available_balance !== false;
+          && candidate.closed !== true;
         return `
           <article class="docai-extract-origin-candidate${consulted ? ' is-selected' : ''}${associated ? ' is-associated' : ''}" data-origin-index="${candidateIndex}" ${state.readOnly ? 'aria-readonly="true"' : `role="button" tabindex="0" aria-label="Consultar ${escapeHtml(stage.label || 'origem')} ${escapeHtml(candidate.number || '')}"`}>
             <span class="docai-extract-origin-candidate-top">
@@ -3037,6 +3140,7 @@ document.addEventListener('DOMContentLoaded', () => {
         state.documentData.origin_project = { ...suggestedProject };
         renderProjectCard();
         setStatus(`Obra ${suggestedProject.ccusto} sugerida pela origem ${suggestedProject.suggested_by_document}.`);
+        await scheduleAnalysisSave({ immediate: true });
         await loadOriginCandidates(state.documentData);
         return;
       }
@@ -3176,12 +3280,579 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function originMapperLineQuantity(line) {
+    return Math.abs(Number(line?.qty ?? line?.quantity ?? 0) || 0);
+  }
+
+  function originMapperOtherAllocations(line, originStamp) {
+    return (Array.isArray(line?.bc_allocations) ? line.bc_allocations : [])
+      .filter((allocation) => String(allocation?.origin_stamp || '') !== String(originStamp || ''));
+  }
+
+  function originMapperRequiredQuantity(line, originStamp) {
+    const alreadyCovered = originMapperOtherAllocations(line, originStamp)
+      .reduce((sum, allocation) => sum + Math.abs(Number(allocation.quantity || 0) || 0), 0);
+    return Math.max(0, originMapperLineQuantity(line) - alreadyCovered);
+  }
+
+  function originMapperSourceQuantity(sourceLine) {
+    const value = sourceLine?.pending_quantity ?? sourceLine?.pending_qty ?? sourceLine?.quantity ?? sourceLine?.qty ?? 0;
+    return Math.max(0, Math.abs(Number(value) || 0));
+  }
+
+  function originMapperAssignedQuantity(mapping, sourceStamp, ignoredTargetIndex = null) {
+    let total = 0;
+    mapping.assignments.forEach((assignedSource, targetIndex) => {
+      if (Number(targetIndex) === Number(ignoredTargetIndex) || assignedSource !== sourceStamp) return;
+      const targetLine = mapping.targetLines[Number(targetIndex)];
+      total += originMapperRequiredQuantity(targetLine, mapping.originStamp);
+    });
+    return total;
+  }
+
+  function originMapperAvailableQuantity(mapping, sourceStamp, ignoredTargetIndex = null) {
+    const sourceLine = mapping.sourceLines.find((line) => String(line.line_stamp || '') === String(sourceStamp || ''));
+    return Math.max(0, originMapperSourceQuantity(sourceLine) - originMapperAssignedQuantity(mapping, sourceStamp, ignoredTargetIndex));
+  }
+
+  function originMapperFamilyLabel(family) {
+    if (family === 'contract') return 'Contrato';
+    if (family === 'subcontract') return 'Contrato Sub.Emp.';
+    return 'Nota de Encomenda';
+  }
+
+  function renderOriginLineMapper() {
+    const mapping = state.originDetailMapping;
+    if (!mapping || !els.originLineMapper) return;
+    const editable = Boolean(mapping.editable);
+    const assignedCount = mapping.assignments.size;
+    els.originLineMapperCount.textContent = `${assignedCount} de ${mapping.targetLines.length} associadas`;
+    els.originLineMapperStatus.textContent = editable
+      ? 'Arrasta uma linha do documento para a linha correspondente da origem.'
+      : mapping.closed
+        ? 'Esta origem está fechada no PHC e não permite associações.'
+      : mapping.selected
+        ? 'As associações só podem ser alteradas no Controlo de Gestão.'
+        : 'Seleciona primeiro esta origem para poderes associar as linhas.';
+
+    els.originMapperSourceLines.innerHTML = mapping.sourceLines.map((sourceLine) => {
+      const sourceStamp = String(sourceLine.line_stamp || '');
+      const available = originMapperAvailableQuantity(mapping, sourceStamp);
+      const linkedTargets = [...mapping.assignments.values()].filter((stamp) => stamp === sourceStamp).length;
+      const costCenter = String(sourceLine.project || sourceLine.ccusto || '').trim();
+      const taxTable = Number(sourceLine.tax_table ?? sourceLine.tabiva ?? 0) || 0;
+      const hasTaxRate = sourceLine.tax_rate !== null && sourceLine.tax_rate !== undefined && sourceLine.tax_rate !== '';
+      const taxRate = hasTaxRate ? `${formatNumber(sourceLine.tax_rate, 2)}%` : '';
+      const taxLabel = taxTable
+        ? `IVA Tabela ${formatNumber(taxTable, 0)}${taxRate ? ` (${taxRate})` : ''}`
+        : `IVA${taxRate ? ` (${taxRate})` : ' —'}`;
+      return `<article class="docai-origin-line-mapper-row docai-origin-line-mapper-source${linkedTargets ? ' is-associated' : ''}${editable ? ' is-reference-editable' : ''}"
+          data-origin-source-line="${escapeHtml(sourceStamp)}" ${editable ? `role="button" tabindex="0" title="Alterar referência ${escapeHtml(sourceLine.article || sourceLine.ref || '')}"` : ''}>
+        <span class="docai-origin-line-mapper-row-main">
+          <strong>${escapeHtml(sourceLine.article || sourceLine.ref || 'Sem referência')}</strong>
+          <span>${escapeHtml(sourceLine.description || 'Sem designação')}</span>
+          <small class="docai-origin-line-mapper-meta">
+            <span><i class="fa-solid fa-diagram-project"></i> CdC ${escapeHtml(costCenter || '—')}</span>
+            <span><i class="fa-solid fa-percent"></i> ${escapeHtml(taxLabel)}</span>
+          </small>
+          ${linkedTargets ? `<small class="docai-origin-line-mapper-status"><i class="fa-solid fa-link"></i> ${escapeHtml(countLabel(linkedTargets, 'linha associada', 'linhas associadas'))}</small>` : ''}
+        </span>
+        <span class="docai-origin-line-mapper-row-qty">
+          <strong>${escapeHtml(formatNumber(available))}</strong>
+          <span>de ${escapeHtml(formatNumber(originMapperSourceQuantity(sourceLine)))}</span>
+        </span>
+      </article>`;
+    }).join('');
+
+    els.originMapperTargetLines.innerHTML = mapping.targetLines.map((line, targetIndex) => {
+      const sourceStamp = mapping.assignments.get(targetIndex) || '';
+      const sourceLine = mapping.sourceLines.find((item) => String(item.line_stamp || '') === sourceStamp);
+      const required = originMapperRequiredQuantity(line, mapping.originStamp);
+      const overDelivery = mapping.overDeliveryTargets.has(targetIndex);
+      const reversibleSplit = line.origin_quantity_split?.role === 'covered';
+      const displayReference = sourceLine?.article || sourceLine?.ref || line.article_ref || line.article || 'Sem referência';
+      const directCostCenter = String(line.ccusto || line.project_ccusto || line.cost_center || '').trim();
+      const distributedCostCenters = [...new Set([
+        ...(Array.isArray(line.sub_lines) ? line.sub_lines : []),
+        ...(Array.isArray(line.sublines) ? line.sublines : []),
+      ].map((item) => String(item?.ccusto || item?.project_ccusto || item?.cost_center || '').trim()).filter(Boolean))];
+      const costCenter = distributedCostCenters.length
+        ? distributedCostCenters.join(', ')
+        : (directCostCenter || String(state.selectedProject?.ccusto || '').trim());
+      const hasUnitPrice = line.unit_price !== null && line.unit_price !== undefined && line.unit_price !== '';
+      const targetTaxRate = line.tax_rate;
+      const hasTaxRate = targetTaxRate !== null && targetTaxRate !== undefined && targetTaxRate !== '';
+      const matchingTaxTables = [...new Set(mapping.sourceLines
+        .filter((item) => hasTaxRate && Math.abs(Number(item.tax_rate || 0) - Number(targetTaxRate || 0)) < 0.0001)
+        .map((item) => Number(item.tax_table ?? item.tabiva ?? 0) || 0)
+        .filter(Boolean))];
+      const taxTable = Number(
+        line.tax_table ?? line.tabiva ?? line.tax_code
+        ?? sourceLine?.tax_table ?? sourceLine?.tabiva
+        ?? (matchingTaxTables.length === 1 ? matchingTaxTables[0] : 0),
+      ) || 0;
+      const taxLabel = `IVA Tabela ${taxTable ? formatNumber(taxTable, 0) : '—'}${hasTaxRate ? ` (${formatNumber(targetTaxRate, 2)}%)` : ''}`;
+      return `<article class="docai-origin-line-mapper-row docai-origin-line-mapper-target${sourceLine ? ' is-associated' : ''}"
+          data-origin-target-line="${targetIndex}" ${editable ? 'draggable="true"' : ''}>
+        <span class="docai-origin-line-mapper-row-main">
+          <strong><i class="fa-solid fa-grip-vertical" aria-hidden="true"></i> Linha ${targetIndex + 1} · ${escapeHtml(displayReference)}</strong>
+          <span>${escapeHtml(line.description || 'Sem designação')}</span>
+          <small class="docai-origin-line-mapper-meta">
+            <span><i class="fa-solid fa-diagram-project"></i> CdC ${escapeHtml(costCenter || '—')}</span>
+            <span><i class="fa-solid fa-tag"></i> PU ${escapeHtml(hasUnitPrice ? formatMoney(line.unit_price, state.documentData?.currency) : '—')}</span>
+            <span><i class="fa-solid fa-percent"></i> ${escapeHtml(taxLabel)}</span>
+          </small>
+          ${sourceLine ? `<small class="docai-origin-line-mapper-status"><i class="fa-solid fa-circle-check"></i> Referência PHC atribuída: ${escapeHtml(sourceLine.article || sourceLine.ref || '')}${overDelivery ? ' · Sobre-entrega autorizada' : ''}</small>` : ''}
+        </span>
+        <span class="docai-origin-line-mapper-row-qty">
+          <strong>${escapeHtml(formatNumber(required))}</strong>
+          <span>a associar</span>
+          ${editable && sourceLine ? `<button type="button" class="sz_button sz_button_ghost docai-origin-line-mapper-remove" data-origin-mapping-remove="${targetIndex}" title="${reversibleSplit ? 'Desfazer associação e recompor a linha original' : 'Remover associação'}" aria-label="${reversibleSplit ? 'Desfazer associação e recompor a linha original' : 'Remover associação'}"><i class="fa-solid fa-link-slash"></i></button>` : ''}
+        </span>
+      </article>`;
+    }).join('');
+    els.originLineMapperSave.hidden = !editable;
+    els.originLineMapperSave.disabled = !mapping.dirty;
+  }
+
+  function assignOriginMapperLine(targetIndex, sourceStamp) {
+    const mapping = state.originDetailMapping;
+    if (!mapping?.editable) return;
+    const targetLine = mapping.targetLines[Number(targetIndex)];
+    const sourceLine = mapping.sourceLines.find((line) => String(line.line_stamp || '') === String(sourceStamp || ''));
+    if (!targetLine || !sourceLine) return;
+    const required = originMapperRequiredQuantity(targetLine, mapping.originStamp);
+    const available = originMapperAvailableQuantity(mapping, String(sourceStamp), Number(targetIndex));
+    if (available + 0.00001 < required) {
+      mapping.warning = { targetIndex: Number(targetIndex), sourceStamp: String(sourceStamp), required, available };
+      els.originQuantityWarningText.textContent = `A origem tem ${formatNumber(available)} disponível e a linha necessita de ${formatNumber(required)}.`;
+      const excess = Math.max(0, required - available);
+      const overDeliverLabel = els.originOverDeliver?.querySelector('span');
+      const correctLabel = els.originCorrectQuantity?.querySelector('span');
+      const orderedQuantity = Math.abs(Number(sourceLine.quantity ?? sourceLine.qty ?? 0) || 0);
+      if (correctLabel) correctLabel.textContent = `Corrigir origem para ${formatNumber(orderedQuantity + excess)}`;
+      if (overDeliverLabel) overDeliverLabel.textContent = `Satisfazer ${formatNumber(required)} (excesso ${formatNumber(excess)})`;
+      if (els.originPartialAvailableLabel) els.originPartialAvailableLabel.textContent = `Associar ${formatNumber(available)} e criar nova linha de ${formatNumber(excess)}.`;
+      if (els.originPartialQuantity) {
+        els.originPartialQuantity.value = '';
+        els.originPartialQuantity.max = String(required);
+      }
+      closeOriginPartialMenu();
+      els.originQuantityWarning.hidden = false;
+      return;
+    }
+    mapping.assignments.set(Number(targetIndex), String(sourceStamp));
+    mapping.overDeliveryTargets.delete(Number(targetIndex));
+    mapping.warning = null;
+    mapping.dirty = true;
+    els.originQuantityWarning.hidden = true;
+    renderOriginLineMapper();
+  }
+
+  function legacyOriginSplitRemainderIndex(mapping, coveredIndex) {
+    const line = mapping.targetLines[coveredIndex];
+    const sourceStamp = mapping.assignments.get(coveredIndex) || '';
+    const sourceLine = mapping.sourceLines.find((item) => String(item.line_stamp || '') === sourceStamp);
+    const remainderIndex = coveredIndex + 1;
+    const remainder = mapping.targetLines[remainderIndex];
+    if (!line || !sourceLine || !remainder || mapping.assignments.has(remainderIndex)) return -1;
+    if ((remainder.bc_allocations || []).length || remainder.origin_quantity_split) return -1;
+    const normalize = (value) => String(value || '').trim().replace(/\s+/g, ' ').toLocaleUpperCase('pt-PT');
+    if (!normalize(line.description) || normalize(line.description) !== normalize(remainder.description)) return -1;
+    const lineReference = normalize(line.source_ref || line.extracted_ref || line.ref);
+    const remainderReference = normalize(remainder.source_ref || remainder.extracted_ref || remainder.ref);
+    if (lineReference && remainderReference && lineReference !== remainderReference) return -1;
+    const sameTextField = (fields) => fields.every((field) => (
+      !line[field] || !remainder[field] || normalize(line[field]) === normalize(remainder[field])
+    ));
+    if (!sameTextField(['unit', 'cost_center', 'ccusto', 'project_ccusto', 'registration', 'matricula'])) return -1;
+    const sameNumber = (field, tolerance = 0.0001) => (
+      line[field] === null || line[field] === undefined || remainder[field] === null || remainder[field] === undefined
+      || Math.abs(Number(line[field]) - Number(remainder[field])) <= tolerance
+    );
+    if (!sameNumber('unit_price') || !sameNumber('tax_rate')) return -1;
+    const coveredQuantity = originMapperLineQuantity(line);
+    const sourceQuantity = originMapperSourceQuantity(sourceLine);
+    const remainderQuantity = originMapperLineQuantity(remainder);
+    if (remainderQuantity <= 0 || Math.abs(coveredQuantity - sourceQuantity) > 0.0001) return -1;
+    return remainderIndex;
+  }
+
+  function reconcileReleasedOriginSplits(mapping) {
+    if (!mapping) return false;
+    const splitIds = [...new Set(mapping.targetLines
+      .map((line) => String(line?.origin_quantity_split?.id || ''))
+      .filter(Boolean))];
+    let mergedAny = false;
+    splitIds.forEach((splitId) => {
+      const indexes = mapping.targetLines
+        .map((line, index) => (String(line?.origin_quantity_split?.id || '') === splitId ? index : -1))
+        .filter((index) => index >= 0);
+      if (indexes.length < 2) return;
+      const stillAssociated = indexes.some((index) => (
+        mapping.assignments.has(index)
+        || originMapperOtherAllocations(mapping.targetLines[index], mapping.originStamp).length > 0
+      ));
+      if (stillAssociated) return;
+      const baseIndex = indexes.find((index) => mapping.targetLines[index]?.origin_quantity_split?.role === 'covered') ?? indexes[0];
+      const base = mapping.targetLines[baseIndex];
+      const parts = indexes.map((index) => mapping.targetLines[index]);
+      const mergedQuantity = parts.reduce((sum, line) => sum + originMapperLineQuantity(line), 0);
+      base.qty = mergedQuantity;
+      if (parts.some((line) => Object.prototype.hasOwnProperty.call(line, 'quantity'))) base.quantity = mergedQuantity;
+      ['net_amount', 'pt', 'tax_amount', 'gross_amount'].forEach((field) => {
+        if (!parts.some((line) => line[field] !== null && line[field] !== undefined && line[field] !== '')) return;
+        base[field] = Math.round((parts.reduce((sum, line) => {
+          const value = Number(line[field]);
+          return sum + (Number.isFinite(value) ? value : 0);
+        }, 0) + Number.EPSILON) * 100) / 100;
+      });
+      base.bc_allocations = originMapperOtherAllocations(base, mapping.originStamp);
+      base.article_ref = base.article_ref || base.source_ref || base.extracted_ref || base.ref || '';
+      delete base.origin_quantity_split;
+      [...indexes].filter((index) => index !== baseIndex).sort((left, right) => right - left).forEach((index) => {
+        mapping.targetLines.splice(index, 1);
+        removeOriginMapperIndex(mapping, index);
+      });
+      markLineManualFields(base, 'qty', 'quantity', 'net_amount', 'pt', 'tax_amount', 'gross_amount', 'article_ref', 'bc_allocations', 'origin_quantity_split');
+      mergedAny = true;
+    });
+    if (mergedAny) mapping.dirty = true;
+    return mergedAny;
+  }
+
+  function removeOriginMapperLine(targetIndex) {
+    const mapping = state.originDetailMapping;
+    const currentIndex = Number(targetIndex);
+    if (!mapping?.editable || !mapping.assignments.has(currentIndex)) return;
+    const line = mapping.targetLines[currentIndex];
+    const split = line?.origin_quantity_split;
+    let remainderIndex = split?.role === 'covered'
+      ? mapping.targetLines.findIndex((item, index) => (
+        index !== currentIndex
+        && item?.origin_quantity_split?.id === split.id
+        && item?.origin_quantity_split?.role === 'remainder'
+      ))
+      : -1;
+    if (remainderIndex < 0) remainderIndex = legacyOriginSplitRemainderIndex(mapping, currentIndex);
+    const remainder = remainderIndex >= 0 ? mapping.targetLines[remainderIndex] : null;
+    const remainderIsFree = remainderIndex >= 0
+      && !mapping.assignments.has(remainderIndex)
+      && !(remainder.bc_allocations || []).length;
+
+    mapping.assignments.delete(currentIndex);
+    mapping.overDeliveryTargets.delete(currentIndex);
+    if (remainderIsFree) {
+      const mergedQuantity = originMapperLineQuantity(line) + originMapperLineQuantity(remainder);
+      line.qty = mergedQuantity;
+      if (Object.prototype.hasOwnProperty.call(line, 'quantity') || Object.prototype.hasOwnProperty.call(remainder, 'quantity')) {
+        line.quantity = mergedQuantity;
+      }
+      ['net_amount', 'pt', 'tax_amount', 'gross_amount'].forEach((field) => {
+        const left = Number(line[field]);
+        const right = Number(remainder[field]);
+        if (Number.isFinite(left) || Number.isFinite(right)) {
+          line[field] = Math.round(((Number.isFinite(left) ? left : 0) + (Number.isFinite(right) ? right : 0) + Number.EPSILON) * 100) / 100;
+        }
+      });
+      line.article_ref = line.source_ref || remainder.source_ref || remainder.article_ref || '';
+      delete line.origin_quantity_split;
+      mapping.targetLines.splice(remainderIndex, 1);
+      removeOriginMapperIndex(mapping, remainderIndex);
+      markLineManualFields(line, 'qty', 'quantity', 'net_amount', 'pt', 'tax_amount', 'gross_amount', 'article_ref', 'origin_quantity_split');
+    }
+    reconcileReleasedOriginSplits(mapping);
+    mapping.warning = null;
+    mapping.dirty = true;
+    els.originQuantityWarning.hidden = true;
+    renderOriginLineMapper();
+  }
+
+  function buildOriginLineMapper(candidate, payload) {
+    const originStamp = String(candidate.stamp || payload.origin?.stamp || '');
+    const selectedOrigin = state.selectedOrigins.find((origin) => String(origin.stamp || '') === originStamp);
+    const family = originFamily(selectedOrigin || candidate);
+    const editableFamily = ['bc', 'contract', 'subcontract'].includes(family);
+    const closed = payload.origin?.closed === true || candidate.closed === true || selectedOrigin?.closed === true;
+    const sourceLines = (Array.isArray(payload.lines) ? payload.lines : []).filter((line) => String(line.line_stamp || ''));
+    const targetLines = Array.isArray(state.documentData?.lines)
+      ? JSON.parse(JSON.stringify(state.documentData.lines))
+      : [];
+    const assignments = new Map();
+    const overDeliveryTargets = new Set();
+    targetLines.forEach((line, targetIndex) => {
+      const allocation = (Array.isArray(line.bc_allocations) ? line.bc_allocations : [])
+        .find((item) => String(item.origin_stamp || '') === originStamp && String(item.origin_line_stamp || ''));
+      if (allocation) {
+        assignments.set(targetIndex, String(allocation.origin_line_stamp));
+        if (allocation.allow_over_delivery === true) overDeliveryTargets.add(targetIndex);
+      }
+    });
+    state.originDetailMapping = {
+      candidate: selectedOrigin || candidate,
+      originStamp,
+      family,
+      closed,
+      selected: Boolean(selectedOrigin),
+      editable: Boolean(selectedOrigin && editableFamily && !closed && state.view === 'management' && !state.readOnly),
+      sourceLines,
+      targetLines,
+      assignments,
+      initialAssignments: new Map(assignments),
+      overDeliveryTargets,
+      dirty: false,
+      draggedTargetIndex: null,
+      warning: null,
+    };
+    reconcileReleasedOriginSplits(state.originDetailMapping);
+    els.originDetailTable.hidden = true;
+    els.originLineMapper.hidden = false;
+    els.originQuantityWarning.hidden = true;
+    renderOriginLineMapper();
+  }
+
+  async function saveOriginLineMappings({ close = true } = {}) {
+    const mapping = state.originDetailMapping;
+    if (!mapping?.editable || !mapping.dirty) {
+      if (close) closeOriginDetailModal();
+      return true;
+    }
+    els.originLineMapperSave.disabled = true;
+    mapping.targetLines.forEach((line, targetIndex) => {
+      const sourceStamp = mapping.assignments.get(targetIndex) || '';
+      const initialSourceStamp = mapping.initialAssignments.get(targetIndex) || '';
+      if (!sourceStamp && !initialSourceStamp) return;
+      const sourceLine = mapping.sourceLines.find((item) => String(item.line_stamp || '') === sourceStamp);
+      const otherAllocations = originMapperOtherAllocations(line, mapping.originStamp);
+      if (!line.source_ref) line.source_ref = line.extracted_ref || line.ref || line.article_ref || line.article || '';
+      if (sourceLine) {
+        const quantity = originMapperRequiredQuantity(line, mapping.originStamp);
+        line.bc_allocations = [...otherAllocations, {
+          origin_family: mapping.family,
+          origin_stamp: mapping.originStamp,
+          origin_number: mapping.candidate.number || '',
+          origin_year: mapping.candidate.year || null,
+          origin_line_stamp: sourceLine.line_stamp || '',
+          origin_line_order: Number(sourceLine.line_order || 0),
+          article_ref: sourceLine.article || sourceLine.ref || '',
+          quantity,
+          unit_price: Number(sourceLine.unit_price || 0),
+          total: quantity * Number(sourceLine.unit_price || 0),
+          allow_over_delivery: mapping.overDeliveryTargets.has(targetIndex),
+        }];
+        line.article_ref = sourceLine.article || sourceLine.ref || line.article_ref || '';
+      } else {
+        line.bc_allocations = otherAllocations;
+        line.article_ref = otherAllocations[0]?.article_ref || line.source_ref || '';
+      }
+      applyBcAllocationLineage(line, line.bc_allocations, mapping.family);
+      markLineManualFields(line, 'source_ref', 'article_ref', 'bc_allocations', 'phc_origin_links', 'phc_origin_stamp', 'phc_origin_line_stamp', 'bostamp', 'bistamp', 'sub_lines');
+    });
+    state.documentData.lines = mapping.targetLines;
+    ensureLineIdentities(state.documentData.lines);
+    renderLines(state.documentData.lines || [], state.documentData.currency || '');
+    const saved = await saveAdjustedLines('Associações às linhas da origem guardadas.');
+    if (!saved) {
+      els.originLineMapperSave.disabled = false;
+      return false;
+    }
+    mapping.dirty = false;
+    mapping.initialAssignments = new Map(mapping.assignments);
+    if (close) closeOriginDetailModal();
+    else renderOriginLineMapper();
+    return true;
+  }
+
+  function acceptOriginMapperOverDelivery() {
+    const mapping = state.originDetailMapping;
+    const warning = mapping?.warning;
+    if (!mapping?.editable || !warning) return;
+    mapping.assignments.set(Number(warning.targetIndex), String(warning.sourceStamp));
+    mapping.overDeliveryTargets.add(Number(warning.targetIndex));
+    mapping.warning = null;
+    mapping.dirty = true;
+    els.originQuantityWarning.hidden = true;
+    renderOriginLineMapper();
+  }
+
+  async function correctOriginMapperQuantity() {
+    const mapping = state.originDetailMapping;
+    const warning = mapping?.warning;
+    if (!mapping?.editable || !warning || !state.currentDocumentId) return;
+    const sourceLine = mapping.sourceLines.find((item) => String(item.line_stamp || '') === String(warning.sourceStamp || ''));
+    const additionalQuantity = Math.max(0, Number(warning.required || 0) - Number(warning.available || 0));
+    if (!sourceLine || additionalQuantity <= 0) return;
+    els.originCorrectQuantity.disabled = true;
+    try {
+      const payload = await fetchJson(`/api/document_ai/documents/${encodeURIComponent(state.currentDocumentId)}/origin-line/quantity`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          view: state.view,
+          origin_stamp: mapping.originStamp,
+          origin_line_stamp: warning.sourceStamp,
+          family: mapping.family === 'bc' ? 'purchase_order' : mapping.family,
+          additional_quantity: additionalQuantity,
+        }),
+      });
+      sourceLine.quantity = Number(payload.quantity || 0);
+      sourceLine.qty = Number(payload.quantity || 0);
+      sourceLine.pending_quantity = Number(payload.pending_quantity || 0);
+      sourceLine.pending_qty = Number(payload.pending_quantity || 0);
+      sourceLine.line_total = Number(payload.line_total || sourceLine.line_total || 0);
+      sourceLine.closed = false;
+      mapping.warning = null;
+      els.originQuantityWarning.hidden = true;
+      assignOriginMapperLine(Number(warning.targetIndex), String(warning.sourceStamp));
+      showMessage(payload.message || 'Quantidade da origem corrigida no PHC.', 'success');
+      setStatus(payload.message || 'Quantidade da origem corrigida no PHC.');
+    } catch (error) {
+      showMessage(error.message || 'Não foi possível corrigir a quantidade na origem.', 'error');
+      setStatus(error.message || 'Não foi possível corrigir a quantidade na origem.', true);
+    } finally {
+      els.originCorrectQuantity.disabled = false;
+    }
+  }
+
+  function shiftOriginMapperIndexes(mapping, afterIndex) {
+    const shiftMap = (source) => new Map([...source.entries()].map(([index, value]) => [
+      Number(index) > afterIndex ? Number(index) + 1 : Number(index), value,
+    ]));
+    mapping.assignments = shiftMap(mapping.assignments);
+    mapping.initialAssignments = shiftMap(mapping.initialAssignments);
+    mapping.overDeliveryTargets = new Set([...mapping.overDeliveryTargets].map((index) => (
+      Number(index) > afterIndex ? Number(index) + 1 : Number(index)
+    )));
+  }
+
+  function closeOriginPartialMenu() {
+    if (els.originPartialMenu) els.originPartialMenu.hidden = true;
+    if (els.originPartialToggle) els.originPartialToggle.setAttribute('aria-expanded', 'false');
+    if (els.originPartialOptions) els.originPartialOptions.hidden = false;
+    if (els.originPartialEditor) els.originPartialEditor.hidden = true;
+    if (els.originPartialError) {
+      els.originPartialError.hidden = true;
+      els.originPartialError.textContent = '';
+    }
+  }
+
+  function toggleOriginPartialMenu() {
+    if (!state.originDetailMapping?.warning || !els.originPartialMenu) return;
+    const willOpen = els.originPartialMenu.hidden;
+    closeOriginPartialMenu();
+    els.originPartialMenu.hidden = !willOpen;
+    els.originPartialToggle.setAttribute('aria-expanded', String(willOpen));
+  }
+
+  function openOriginPartialEditor() {
+    const warning = state.originDetailMapping?.warning;
+    if (!warning) return;
+    els.originPartialOptions.hidden = true;
+    els.originPartialEditor.hidden = false;
+    els.originPartialQuantity.value = '';
+    els.originPartialQuantity.max = String(Number(warning.required || 0));
+    window.setTimeout(() => els.originPartialQuantity.focus(), 0);
+  }
+
+  function removeOriginMapperIndex(mapping, removedIndex) {
+    const shrinkMap = (source) => new Map([...source.entries()]
+      .filter(([index]) => Number(index) !== removedIndex)
+      .map(([index, value]) => [Number(index) > removedIndex ? Number(index) - 1 : Number(index), value]));
+    mapping.assignments = shrinkMap(mapping.assignments);
+    mapping.initialAssignments = shrinkMap(mapping.initialAssignments);
+    mapping.overDeliveryTargets = new Set([...mapping.overDeliveryTargets]
+      .filter((index) => Number(index) !== removedIndex)
+      .map((index) => (Number(index) > removedIndex ? Number(index) - 1 : Number(index))));
+  }
+
+  function splitOriginMapperRemainder(requestedQuantity = null) {
+    const mapping = state.originDetailMapping;
+    const warning = mapping?.warning;
+    if (!mapping?.editable || !warning) return;
+    const targetIndex = Number(warning.targetIndex);
+    const line = mapping.targetLines[targetIndex];
+    const originalQuantity = originMapperLineQuantity(line);
+    const coveredQuantity = Math.max(0, Number(requestedQuantity ?? warning.available) || 0);
+    const remainderQuantity = Math.max(0, originalQuantity - coveredQuantity);
+    const maximumQuantity = Number(warning.required || 0);
+    if (!line || coveredQuantity <= 0 || coveredQuantity > maximumQuantity + 0.00001 || remainderQuantity <= 0 || originalQuantity <= 0) return;
+
+    const remainder = JSON.parse(JSON.stringify(line));
+    const splitId = window.crypto.randomUUID();
+    const originalReference = line.source_ref || line.extracted_ref || line.ref || line.article_ref || line.article || '';
+    const splitAmount = (field, decimals = 2) => {
+      if (line[field] === null || line[field] === undefined || line[field] === '') return;
+      const original = Number(line[field]);
+      if (!Number.isFinite(original)) return;
+      const factor = 10 ** decimals;
+      const covered = Math.round((original * coveredQuantity / originalQuantity + Number.EPSILON) * factor) / factor;
+      line[field] = covered;
+      remainder[field] = Math.round((original - covered + Number.EPSILON) * factor) / factor;
+    };
+    line.qty = coveredQuantity;
+    remainder.qty = remainderQuantity;
+    if (Object.prototype.hasOwnProperty.call(line, 'quantity')) {
+      line.quantity = coveredQuantity;
+      remainder.quantity = remainderQuantity;
+    }
+    ['net_amount', 'pt', 'tax_amount', 'gross_amount'].forEach((field) => splitAmount(field));
+    remainder.line_id = window.crypto.randomUUID();
+    remainder.article_ref = originalReference;
+    remainder.source_ref = originalReference;
+    line.origin_quantity_split = { id: splitId, role: 'covered', origin_stamp: mapping.originStamp };
+    remainder.origin_quantity_split = { id: splitId, role: 'remainder', origin_stamp: mapping.originStamp };
+    remainder.bc_allocations = [];
+    remainder.phc_origin_links = [];
+    delete remainder.phc_origin_stamp;
+    delete remainder.phc_origin_line_stamp;
+    delete remainder.bostamp;
+    delete remainder.bistamp;
+    delete remainder.sub_lines;
+    delete remainder.sublines;
+    delete remainder.group_id;
+    delete remainder.group_role;
+    markLineManualFields(line, 'qty', 'quantity', 'net_amount', 'pt', 'tax_amount', 'gross_amount', 'origin_quantity_split');
+    markLineManualFields(remainder, 'line_id', 'qty', 'quantity', 'net_amount', 'pt', 'tax_amount', 'gross_amount', 'article_ref', 'source_ref', 'origin_quantity_split');
+
+    shiftOriginMapperIndexes(mapping, targetIndex);
+    mapping.targetLines.splice(targetIndex + 1, 0, remainder);
+    mapping.assignments.set(targetIndex, String(warning.sourceStamp));
+    if (coveredQuantity > Number(warning.available || 0) + 0.00001) mapping.overDeliveryTargets.add(targetIndex);
+    else mapping.overDeliveryTargets.delete(targetIndex);
+    mapping.warning = null;
+    mapping.dirty = true;
+    closeOriginPartialMenu();
+    els.originQuantityWarning.hidden = true;
+    renderOriginLineMapper();
+  }
+
+  function applyCustomOriginPartialQuantity() {
+    const warning = state.originDetailMapping?.warning;
+    if (!warning) return;
+    const quantity = parseEditableNumber(els.originPartialQuantity.value);
+    const maximum = Number(warning.required || 0);
+    if (quantity <= 0 || quantity >= maximum - 0.00001) {
+      els.originPartialError.textContent = `Indica uma quantidade superior a zero e inferior a ${formatNumber(warning.required)}.`;
+      els.originPartialError.hidden = false;
+      return;
+    }
+    splitOriginMapperRemainder(quantity);
+  }
+
   function closeOriginDetailModal() {
     state.originOperation = null;
+    state.originDetailMapping = null;
     if (els.originDetailValidate) {
       els.originDetailValidate.hidden = true;
       els.originDetailValidate.disabled = false;
     }
+    if (els.originLineMapper) els.originLineMapper.hidden = true;
+    if (els.originLineMapperSave) {
+      els.originLineMapperSave.hidden = true;
+      els.originLineMapperSave.disabled = false;
+    }
+    if (els.originQuantityWarning) els.originQuantityWarning.hidden = true;
+    closeOriginPartialMenu();
     els.originDetailModal?.classList.remove('sz_is_open');
     els.originDetailModal?.querySelector('.docai-origin-detail-modal')?.classList.remove('is-purchase-order-operation');
     els.originDetailModal?.setAttribute('aria-hidden', 'true');
@@ -3207,6 +3878,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     els.originDetailLoading.hidden = false;
     els.originDetailTable.hidden = true;
+    els.originLineMapper.hidden = true;
+    els.originLineMapperSave.hidden = true;
+    els.originQuantityWarning.hidden = true;
     els.originDetailEmpty.hidden = true;
     els.originDetailModal.classList.add('sz_is_open');
     els.originDetailModal.setAttribute('aria-hidden', 'false');
@@ -3235,10 +3909,14 @@ document.addEventListener('DOMContentLoaded', () => {
         els.originDetailSubtitle.title = [els.originDetailSubtitle.textContent, totalsWarning].filter(Boolean).join(' — ');
         els.originDetailSubtitle.hidden = !subtitleParts.length;
       }
-      els.originDetailHead.innerHTML = '<th>Artigo</th><th>Designação</th><th>Quantidade</th><th title="Preço unitário">PU</th><th title="Preço total">PT</th><th>IVA</th><th title="Centro de Custo">CdC</th><th>Data</th><th>Matrícula</th>';
-      els.originDetailBody.innerHTML = rows.map((line) => `<tr><td>${escapeHtml(line.article || '')}</td><td title="${escapeHtml(line.description || '')}">${escapeHtml(line.description || '')}</td><td>${escapeHtml(formatNumber(line.quantity))}</td><td>${escapeHtml(formatMoney(line.unit_price, state.documentData?.currency))}</td><td>${escapeHtml(formatMoney(line.line_total, state.documentData?.currency))}</td><td>${line.tax_rate === null || line.tax_rate === undefined || line.tax_rate === '' ? '' : `${escapeHtml(formatNumber(line.tax_rate, 2))}%`}</td><td>${escapeHtml(line.project || '')}</td><td>${line.date ? escapeHtml(formatDate(line.date)) : ''}</td><td>${escapeHtml(line.registration || '')}</td></tr>`).join('');
       els.originDetailLoading.hidden = true;
-      els.originDetailTable.hidden = !rows.length;
+      if (rows.length && Array.isArray(state.documentData?.lines) && state.documentData.lines.length) {
+        buildOriginLineMapper(candidate, payload);
+      } else {
+        els.originDetailHead.innerHTML = '<th>Artigo</th><th>Designação</th><th>Quantidade</th><th title="Preço unitário">PU</th><th title="Preço total">PT</th><th>IVA</th><th title="Centro de Custo">CdC</th><th>Data</th><th>Matrícula</th>';
+        els.originDetailBody.innerHTML = rows.map((line) => `<tr><td>${escapeHtml(line.article || '')}</td><td title="${escapeHtml(line.description || '')}">${escapeHtml(line.description || '')}</td><td>${escapeHtml(formatNumber(line.quantity))}</td><td>${escapeHtml(formatMoney(line.unit_price, state.documentData?.currency))}</td><td>${escapeHtml(formatMoney(line.line_total, state.documentData?.currency))}</td><td>${line.tax_rate === null || line.tax_rate === undefined || line.tax_rate === '' ? '' : `${escapeHtml(formatNumber(line.tax_rate, 2))}%`}</td><td>${escapeHtml(line.project || '')}</td><td>${line.date ? escapeHtml(formatDate(line.date)) : ''}</td><td>${escapeHtml(line.registration || '')}</td></tr>`).join('');
+        els.originDetailTable.hidden = !rows.length;
+      }
       els.originDetailEmpty.hidden = Boolean(rows.length);
     } catch (error) {
       els.originDetailSubtitle?.classList.remove('is-warning');
@@ -3294,6 +3972,9 @@ document.addEventListener('DOMContentLoaded', () => {
     els.originDetailSubtitle.hidden = true;
     els.originDetailLoading.hidden = false;
     els.originDetailTable.hidden = true;
+    els.originLineMapper.hidden = true;
+    els.originLineMapperSave.hidden = true;
+    els.originQuantityWarning.hidden = true;
     els.originDetailEmpty.hidden = true;
     els.originDetailValidate.hidden = true;
     els.originDetailModal.classList.add('sz_is_open');
@@ -3381,6 +4062,9 @@ document.addEventListener('DOMContentLoaded', () => {
     els.originDetailSubtitle.hidden = true;
     els.originDetailLoading.hidden = false;
     els.originDetailTable.hidden = true;
+    els.originLineMapper.hidden = true;
+    els.originLineMapperSave.hidden = true;
+    els.originQuantityWarning.hidden = true;
     els.originDetailEmpty.hidden = true;
     els.originDetailValidate.hidden = true;
     els.originDetailModal.classList.add('sz_is_open');
@@ -3465,6 +4149,9 @@ document.addEventListener('DOMContentLoaded', () => {
     els.originDetailSubtitle.hidden = true;
     els.originDetailLoading.hidden = false;
     els.originDetailTable.hidden = true;
+    els.originLineMapper.hidden = true;
+    els.originLineMapperSave.hidden = true;
+    els.originQuantityWarning.hidden = true;
     els.originDetailEmpty.hidden = true;
     els.originDetailValidate.hidden = true;
     els.originDetailModal.classList.add('sz_is_open');
@@ -3543,6 +4230,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderDocumentBatch(batch = {}) {
     const documents = Array.isArray(batch.documents) ? batch.documents : [];
     const multiple = Boolean(batch.contains_multiple_documents && documents.length > 1);
+    const keepTogether = Boolean(batch.keep_pdf_together);
     els.batchAlert.hidden = !multiple;
     if (!multiple) {
       els.batchMessage.textContent = '';
@@ -3551,6 +4239,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     els.batchMessage.textContent = batch.message || `Foram detetados ${documents.length} documentos neste PDF.`;
     els.splitBtn.disabled = state.splitting;
+    if (els.keepBatchBtn) {
+      els.keepBatchBtn.disabled = keepTogether || state.splitting || state.readOnly;
+      els.keepBatchBtn.classList.toggle('is-selected', keepTogether);
+      els.keepBatchBtn.innerHTML = keepTogether
+        ? '<i class="fa-solid fa-circle-check"></i><span>PDF completo selecionado</span>'
+        : '<i class="fa-solid fa-file-shield"></i><span>Manter PDF completo</span>';
+    }
+    if (els.batchNote) els.batchNote.textContent = keepTogether
+      ? 'O PDF será guardado e encaminhado completo, com todas as páginas e anexos.'
+      : 'O PDF ainda não foi dividido. Podes mantê-lo completo ou separar os documentos.';
     els.batchDocuments.innerHTML = documents.map((item, index) => {
       const typeLabel = typeLabels[item.document_type] || item.document_type || typeLabels.unknown;
       const startPage = Number(item.start_page || 1);
@@ -3568,6 +4266,28 @@ document.addEventListener('DOMContentLoaded', () => {
         </article>
       `;
     }).join('');
+  }
+
+  async function keepDocumentBatchTogether() {
+    const batch = state.documentData?.document_batch || {};
+    const documents = Array.isArray(batch.documents) ? batch.documents : [];
+    if (!state.documentData || !batch.contains_multiple_documents || documents.length < 2 || batch.keep_pdf_together) return;
+    batch.keep_pdf_together = true;
+    batch.keep_pdf_together_at = new Date().toISOString();
+    state.documentData.document_batch = batch;
+    renderDocumentBatch(batch);
+    setStatus('A guardar a decisão de manter o PDF completo...');
+    const saved = await scheduleAnalysisSave({ immediate: true });
+    if (!saved) {
+      batch.keep_pdf_together = false;
+      delete batch.keep_pdf_together_at;
+      renderDocumentBatch(batch);
+      setStatus('Não foi possível guardar a decisão.', true);
+      return;
+    }
+    setStatus('O PDF será mantido completo.');
+    showMessage('O PDF completo será encaminhado como um único documento.', 'success');
+    updateSubmitPhcButton();
   }
 
   async function splitDocumentBatch() {
@@ -3816,7 +4536,12 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function closeArticleModal() {
+    window.clearTimeout(state.articleSearchTimer);
+    state.articleSearchTimer = null;
+    state.articleSearchToken += 1;
     state.articleTargetLineIndex = null;
+    state.articleOriginTarget = null;
+    state.articleCandidates = [];
     els.articleModal.classList.remove('sz_is_open');
     els.articleModal.setAttribute('aria-hidden', 'true');
   }
@@ -3843,8 +4568,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function searchArticleCandidates() {
     if (!state.documentData?.customer) return;
-    const line = state.documentData?.lines?.[state.articleTargetLineIndex];
+    const originTarget = state.articleOriginTarget;
+    const line = originTarget
+      ? state.originDetailMapping?.sourceLines?.find((item) => String(item.line_stamp || '') === String(originTarget.lineStamp || ''))
+      : state.documentData?.lines?.[state.articleTargetLineIndex];
     if (!line) return;
+    const query = els.articleSearch.value.trim();
+    if (!query) {
+      state.articleSearchToken += 1;
+      state.articleCandidates = [];
+      state.articleSuggestionConfidence = 'none';
+      els.articleList.innerHTML = '';
+      els.articleSearchBtn.disabled = false;
+      return;
+    }
+    const searchToken = ++state.articleSearchToken;
     els.articleSearchBtn.disabled = true;
     els.articleList.innerHTML = '<div class="docai-empty-state">A pesquisar artigos PHC...</div>';
     try {
@@ -3855,35 +4593,39 @@ document.addEventListener('DOMContentLoaded', () => {
           customer: state.documentData.customer || {},
           supplier_no: state.documentData.supplier?.supplier_no || state.documentData.supplier?.no || 0,
           line: {
-            source_ref: line.source_ref || line.extracted_ref || line.ref || '',
+            source_ref: line.source_ref || line.extracted_ref || line.ref || line.article || '',
             description: line.description || '',
             unit: line.unit || '',
             unit_price: line.unit_price,
-            net_amount: line.net_amount,
+            net_amount: line.net_amount ?? line.line_total,
             tax_rate: line.tax_rate,
-            ccusto: line.ccusto || line.project_ccusto || '',
+            ccusto: line.ccusto || line.project_ccusto || line.project || '',
             origin_article_refs: (line.bc_allocations || []).map((item) => item.article_ref || '').filter(Boolean),
           },
-          selected_article_ref: line.article_ref || line.article || '',
-          query: els.articleSearch.value.trim(),
+          selected_article_ref: line.article_ref || line.article || line.ref || '',
+          query,
           limit: 30,
         }),
       });
-      if (line.article_ref && payload.selected_article_valid === false) {
-        line.article_ref = '';
-        line.article_family = '';
-        markLineManualFields(line, 'article_ref', 'article_family');
-        renderLines(state.documentData.lines || [], state.documentData.currency || '');
-        await saveAdjustedLines('Artigo não encontrado. Escolhe um artigo válido para esta entidade.');
-        showMessage('Artigo não encontrado.', 'error');
-      }
+      if (searchToken !== state.articleSearchToken) return;
       renderArticleCandidates(payload.items || [], payload.suggestion_confidence || 'none');
       els.articleContext.textContent = `Artigos de ${state.documentData.customer?.name || 'entidade cliente'} · ${payload.phc_database || 'PHC'}`;
     } catch (error) {
+      if (searchToken !== state.articleSearchToken) return;
       els.articleList.innerHTML = `<div class="docai-empty-state">${escapeHtml(error.message || 'Erreur de recherche.')}</div>`;
     } finally {
-      els.articleSearchBtn.disabled = false;
+      if (searchToken === state.articleSearchToken) els.articleSearchBtn.disabled = false;
     }
+  }
+
+  function scheduleArticleSearch() {
+    window.clearTimeout(state.articleSearchTimer);
+    const query = els.articleSearch.value.trim();
+    if (!query) {
+      searchArticleCandidates();
+      return;
+    }
+    state.articleSearchTimer = window.setTimeout(searchArticleCandidates, 250);
   }
 
   function openArticleModal(lineIndex) {
@@ -3893,18 +4635,111 @@ document.addEventListener('DOMContentLoaded', () => {
       showMessage('Identifica primeiro a entidade cliente.', 'error');
       return;
     }
+    state.articleOriginTarget = null;
     state.articleTargetLineIndex = Number(lineIndex);
-    els.articleSearch.value = line.article_ref || line.source_ref || line.extracted_ref || line.ref || line.description || '';
+    window.clearTimeout(state.articleSearchTimer);
+    state.articleSearchTimer = null;
+    state.articleSearchToken += 1;
+    state.articleCandidates = [];
+    els.articleSearch.value = '';
+    els.articleList.innerHTML = '';
     els.articleModal.classList.add('sz_is_open');
     els.articleModal.setAttribute('aria-hidden', 'false');
     window.setTimeout(() => {
       els.articleSearch.focus();
-      searchArticleCandidates();
     }, 50);
+  }
+
+  function openOriginArticleModal(sourceStamp) {
+    const mapping = state.originDetailMapping;
+    const sourceLine = mapping?.sourceLines?.find((item) => String(item.line_stamp || '') === String(sourceStamp || ''));
+    if (!mapping?.editable || !sourceLine) return;
+    state.articleTargetLineIndex = null;
+    state.articleOriginTarget = {
+      originStamp: mapping.originStamp,
+      lineStamp: String(sourceLine.line_stamp || ''),
+    };
+    window.clearTimeout(state.articleSearchTimer);
+    state.articleSearchTimer = null;
+    state.articleSearchToken += 1;
+    state.articleCandidates = [];
+    els.articleSearch.value = '';
+    els.articleList.innerHTML = '';
+    els.articleContext.textContent = `Alterar referência da origem · ${sourceLine.article || sourceLine.ref || 'Sem referência'}`;
+    els.articleModal.classList.add('sz_is_open');
+    els.articleModal.setAttribute('aria-hidden', 'false');
+    window.setTimeout(() => els.articleSearch.focus(), 50);
+  }
+
+  function updateLinkedOriginArticle(items, originStamp, lineStamp, articleRef) {
+    let updated = 0;
+    (items || []).forEach((line) => {
+      let matched = false;
+      (line.bc_allocations || []).forEach((allocation) => {
+        if (
+          String(allocation.origin_stamp || '') === String(originStamp || '')
+          && String(allocation.origin_line_stamp || '') === String(lineStamp || '')
+        ) {
+          allocation.article_ref = articleRef;
+          matched = true;
+        }
+      });
+      if (matched) {
+        line.article_ref = articleRef;
+        markLineManualFields(line, 'article_ref', 'bc_allocations');
+        updated += 1;
+      }
+      const children = line.sub_lines || line.sublines || [];
+      if (Array.isArray(children)) updated += updateLinkedOriginArticle(children, originStamp, lineStamp, articleRef);
+    });
+    return updated;
   }
 
   async function selectArticle(index) {
     const article = state.articleCandidates[Number(index)];
+    const originTarget = state.articleOriginTarget;
+    if (article && originTarget) {
+      const mapping = state.originDetailMapping;
+      const sourceLine = mapping?.sourceLines?.find((item) => String(item.line_stamp || '') === String(originTarget.lineStamp || ''));
+      if (!mapping?.editable || !sourceLine || !state.currentDocumentId) return;
+      try {
+        const payload = await fetchJson(`/api/document_ai/documents/${encodeURIComponent(state.currentDocumentId)}/origin-line/article`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            view: state.view,
+            origin_stamp: originTarget.originStamp,
+            origin_line_stamp: originTarget.lineStamp,
+            article_ref: article.ref || '',
+          }),
+        });
+        const selectedArticle = payload.article || article;
+        sourceLine.article = selectedArticle.ref || article.ref || '';
+        sourceLine.ref = selectedArticle.ref || article.ref || '';
+        mapping.targetLines.forEach((line, targetIndex) => {
+          if (mapping.assignments.get(targetIndex) === originTarget.lineStamp) {
+            line.article_ref = sourceLine.article;
+            (line.bc_allocations || []).forEach((allocation) => {
+              if (
+                String(allocation.origin_stamp || '') === String(originTarget.originStamp || '')
+                && String(allocation.origin_line_stamp || '') === String(originTarget.lineStamp || '')
+              ) allocation.article_ref = sourceLine.article;
+            });
+            markLineManualFields(line, 'article_ref', 'bc_allocations');
+          }
+        });
+        updateLinkedOriginArticle(state.documentData?.lines || [], originTarget.originStamp, originTarget.lineStamp, sourceLine.article);
+        state.draftVersion = String(payload.version || state.draftVersion || '');
+        closeArticleModal();
+        renderOriginLineMapper();
+        renderLines(state.documentData?.lines || [], state.documentData?.currency || '');
+        showMessage(payload.message || `Referência da origem alterada para ${sourceLine.article}.`, 'success');
+        setStatus(payload.message || `Referência da origem alterada para ${sourceLine.article}.`);
+      } catch (error) {
+        showMessage(error.message || 'Não foi possível alterar a referência da origem.', 'error');
+      }
+      return;
+    }
     const line = state.documentData?.lines?.[state.articleTargetLineIndex];
     if (!article || !line) return;
     detachAssociatedLine(line);
@@ -4145,14 +4980,14 @@ document.addEventListener('DOMContentLoaded', () => {
     return selected.length ? selected : officialLines;
   }
 
-  function bindBcLineage(target, allocations) {
+  function bindBcLineage(target, allocations, family = 'bc') {
     const exact = (allocations || []).filter((allocation) => (
       String(allocation.origin_stamp || '').trim() && String(allocation.origin_line_stamp || '').trim()
     ));
     if (!target || !exact.length) return;
-    const nonBc = (target.phc_origin_links || []).filter((link) => String(link.origin_family || '') !== 'bc');
+    const nonBc = (target.phc_origin_links || []).filter((link) => String(link.origin_family || '') !== family);
     const links = exact.map((allocation) => ({
-      origin_family: 'bc', bostamp: allocation.origin_stamp, bistamp: allocation.origin_line_stamp,
+      origin_family: family, bostamp: allocation.origin_stamp, bistamp: allocation.origin_line_stamp,
       origin_stamp: allocation.origin_stamp, origin_line_stamp: allocation.origin_line_stamp,
       origin_number: allocation.origin_number || '', origin_year: allocation.origin_year || null,
       origin_line_order: Number(allocation.origin_line_order || 0),
@@ -4164,12 +4999,12 @@ document.addEventListener('DOMContentLoaded', () => {
     target.bistamp = links[0].bistamp;
   }
 
-  function applyBcAllocationLineage(line, allocations) {
+  function applyBcAllocationLineage(line, allocations, family = 'bc') {
     const children = Array.isArray(line.sub_lines) ? line.sub_lines : [];
     const clearBc = (target) => {
       const previous = target.phc_origin_links || [];
-      const oldBcStamps = new Set(previous.filter((link) => String(link.origin_family || '') === 'bc').map((link) => String(link.bostamp || link.origin_stamp || '')));
-      const links = previous.filter((link) => String(link.origin_family || '') !== 'bc');
+      const oldBcStamps = new Set(previous.filter((link) => String(link.origin_family || '') === family).map((link) => String(link.bostamp || link.origin_stamp || '')));
+      const links = previous.filter((link) => String(link.origin_family || '') !== family);
       target.phc_origin_links = links;
       if (oldBcStamps.has(String(target.phc_origin_stamp || ''))) {
         target.phc_origin_stamp = '';
@@ -4181,7 +5016,7 @@ document.addEventListener('DOMContentLoaded', () => {
     clearBc(line);
     children.forEach(clearBc);
     if (!children.length) {
-      bindBcLineage(line, allocations);
+      bindBcLineage(line, allocations, family);
       return;
     }
     const unused = [...allocations];
@@ -4189,7 +5024,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const quantity = Number(child.qty ?? child.quantity ?? 0);
       let index = unused.findIndex((allocation) => Math.abs(Number(allocation.quantity || 0) - quantity) <= 0.00001);
       if (index < 0 && unused.length) index = 0;
-      if (index >= 0) bindBcLineage(child, [unused.splice(index, 1)[0]]);
+      if (index >= 0) bindBcLineage(child, [unused.splice(index, 1)[0]], family);
     });
   }
 
@@ -4229,7 +5064,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     line.bc_allocations = allocations;
-    applyBcAllocationLineage(line, allocations);
+    applyBcAllocationLineage(line, allocations, selectedPrimaryOriginFamily() || 'bc');
     markLineManualFields(line, 'bc_allocations', 'phc_origin_links', 'phc_origin_stamp', 'phc_origin_line_stamp', 'bostamp', 'bistamp', 'sub_lines');
     if (line.group_role === 'principal') groupMembers(line).forEach((member) => {
       if (member === line) return;
@@ -4443,6 +5278,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const isReception = state.view === 'home';
 
     state.documentData = documentData;
+    state.mailTitleEditing = false;
     state.draftVersion = String(payload.version || payload.updated_at || '');
     state.draftRevision = 0;
     state.draftSavedRevision = 0;
@@ -4460,7 +5296,10 @@ document.addEventListener('DOMContentLoaded', () => {
       : (state.integratedPhc ? (payload.phc_integration || {}) : null);
     state.gedFolderManuallySelected = Boolean(documentData.customer?.ged_folder_manually_selected);
     state.submittingPhc = false;
-    if (state.selectedProject?.ccusto) state.documentData.origin_project = { ...state.selectedProject };
+    state.selectedProject = documentData.origin_project?.ccusto
+      ? { ...documentData.origin_project }
+      : null;
+    state.projectSuggestionDismissed = Boolean(documentData.origin_project_manually_cleared);
     state.matching = payload.matching || {};
     state.supplierCandidates = state.matching.supplier_candidates || [];
     const duplicateDetection = payload.duplicate_detection || {};
@@ -4474,7 +5313,6 @@ document.addEventListener('DOMContentLoaded', () => {
       window.setTimeout(() => openDuplicateModal(duplicateMatches), 0);
     }
     renderDocumentBatch(documentData.document_batch || {});
-    if (isCorrespondence) els.batchAlert.hidden = true;
     renderCustomerCard(customer, state.matching);
     renderSupplierCard(supplier, state.matching);
     renderProjectCard();
@@ -4484,7 +5322,7 @@ document.addEventListener('DOMContentLoaded', () => {
     els.linesSection.hidden = isCorrespondence || (isReception && !state.readOnly);
     els.notesSection.hidden = true;
     els.persistenceNote.textContent = isMail
-      ? 'O correio foi analisado apenas neste ecrã e não foi adicionado ao inbox.'
+      ? 'O correio e a leitura ficam guardados na Receção até à validação.'
       : (documentData.document_type === 'bank_statement'
         ? 'O extrato fica no inbox e pode ser integrado como correspondência RB no PHC.'
         : 'O PDF e a leitura ficam guardados no inbox.');
@@ -4639,10 +5477,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       renderResult(payload);
       const batch = payload.document?.document_batch || {};
-      if (payload.not_saved_to_inbox) {
-        setStatus('Correio identificado. O PDF não foi adicionado ao inbox.');
-        showMessage('Correio identificado sem criar registo no inbox.', 'success');
-      } else if (batch.contains_multiple_documents) {
+      if (batch.contains_multiple_documents) {
         setStatus(batch.message || 'Foram encontrados vários documentos no PDF.');
         showMessage(`${batch.document_count} documentos encontrados.`, 'warning');
       } else if (payload.cached) {
@@ -5096,6 +5931,19 @@ document.addEventListener('DOMContentLoaded', () => {
   els.gedFileName?.addEventListener('keydown', (event) => {
     if (event.key === 'Enter' || event.key === ' ') copyClassificationValue(els.gedFileName.textContent);
   });
+  els.mailTitleEdit?.addEventListener('click', editMailTitle);
+  els.mailTitleInput?.addEventListener('change', saveMailTitle);
+  els.mailTitleInput?.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      state.mailTitleEditing = false;
+      renderGedDestination();
+      els.mailTitleEdit?.focus();
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      saveMailTitle();
+    }
+  });
   els.gedPath?.addEventListener('click', (event) => {
     const target = event.target.closest('[data-copy-value]');
     if (target) copyClassificationValue(target.dataset.copyValue);
@@ -5107,6 +5955,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (pdfUrl) window.open(pdfUrl, '_blank', 'noopener,noreferrer');
   });
   els.splitBtn?.addEventListener('click', splitDocumentBatch);
+  els.keepBatchBtn?.addEventListener('click', keepDocumentBatchTogether);
   els.splitLineBtn?.addEventListener('click', toggleDeliveryNoteDistribution);
   els.linesBody?.addEventListener('click', (event) => {
     const lineCosts = event.target.closest('[data-line-costs]');
@@ -5357,8 +6206,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (option) selectProject(Number(option.dataset.projectIndex));
   });
   els.articleSearchBtn?.addEventListener('click', searchArticleCandidates);
+  els.articleSearch?.addEventListener('input', scheduleArticleSearch);
   els.articleSearch?.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') searchArticleCandidates();
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      window.clearTimeout(state.articleSearchTimer);
+      searchArticleCandidates();
+    }
   });
   els.articleCloseTop?.addEventListener('click', closeArticleModal);
   els.articleClose?.addEventListener('click', closeArticleModal);
@@ -5489,6 +6343,82 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   els.originDetailCloseTop?.addEventListener('click', closeOriginDetailModal);
   els.originDetailClose?.addEventListener('click', closeOriginDetailModal);
+  els.originLineMapperSave?.addEventListener('click', () => saveOriginLineMappings());
+  els.originCorrectQuantity?.addEventListener('click', correctOriginMapperQuantity);
+  els.originOverDeliver?.addEventListener('click', acceptOriginMapperOverDelivery);
+  els.originPartialToggle?.addEventListener('click', (event) => {
+    event.stopPropagation();
+    toggleOriginPartialMenu();
+  });
+  els.originSplitRemainder?.addEventListener('click', () => splitOriginMapperRemainder());
+  els.originPartialCustom?.addEventListener('click', openOriginPartialEditor);
+  els.originPartialCancel?.addEventListener('click', () => {
+    els.originPartialEditor.hidden = true;
+    els.originPartialOptions.hidden = false;
+    els.originPartialError.hidden = true;
+  });
+  els.originPartialApply?.addEventListener('click', applyCustomOriginPartialQuantity);
+  els.originPartialQuantity?.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      applyCustomOriginPartialQuantity();
+    }
+  });
+  document.addEventListener('click', (event) => {
+    if (!event.target.closest('.docai-origin-partial-control')) closeOriginPartialMenu();
+  });
+  els.originMapperTargetLines?.addEventListener('dragstart', (event) => {
+    const target = event.target.closest('[data-origin-target-line]');
+    const mapping = state.originDetailMapping;
+    if (!target || !mapping?.editable) {
+      event.preventDefault();
+      return;
+    }
+    mapping.draggedTargetIndex = Number(target.dataset.originTargetLine);
+    target.classList.add('is-dragging');
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', String(mapping.draggedTargetIndex));
+  });
+  els.originMapperTargetLines?.addEventListener('dragend', (event) => {
+    event.target.closest('[data-origin-target-line]')?.classList.remove('is-dragging');
+    els.originMapperSourceLines?.querySelectorAll('.is-drop-target').forEach((row) => row.classList.remove('is-drop-target'));
+    if (state.originDetailMapping) state.originDetailMapping.draggedTargetIndex = null;
+  });
+  els.originMapperTargetLines?.addEventListener('click', (event) => {
+    const remove = event.target.closest('[data-origin-mapping-remove]');
+    if (remove) removeOriginMapperLine(Number(remove.dataset.originMappingRemove));
+  });
+  els.originMapperSourceLines?.addEventListener('dragover', (event) => {
+    const source = event.target.closest('[data-origin-source-line]');
+    const mapping = state.originDetailMapping;
+    if (!source || !mapping?.editable || mapping.draggedTargetIndex === null) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    els.originMapperSourceLines.querySelectorAll('.is-drop-target').forEach((row) => row.classList.remove('is-drop-target'));
+    source.classList.add('is-drop-target');
+  });
+  els.originMapperSourceLines?.addEventListener('dragleave', (event) => {
+    event.target.closest('[data-origin-source-line]')?.classList.remove('is-drop-target');
+  });
+  els.originMapperSourceLines?.addEventListener('click', (event) => {
+    const source = event.target.closest('[data-origin-source-line]');
+    if (source) openOriginArticleModal(source.dataset.originSourceLine);
+  });
+  els.originMapperSourceLines?.addEventListener('keydown', (event) => {
+    if (!['Enter', ' '].includes(event.key)) return;
+    const source = event.target.closest('[data-origin-source-line]');
+    if (!source) return;
+    event.preventDefault();
+    openOriginArticleModal(source.dataset.originSourceLine);
+  });
+  els.originMapperSourceLines?.addEventListener('drop', (event) => {
+    const source = event.target.closest('[data-origin-source-line]');
+    const mapping = state.originDetailMapping;
+    if (!source || !mapping?.editable || mapping.draggedTargetIndex === null) return;
+    event.preventDefault();
+    source.classList.remove('is-drop-target');
+    assignOriginMapperLine(mapping.draggedTargetIndex, source.dataset.originSourceLine);
+  });
   els.originDetailValidate?.addEventListener('click', validateOriginOperation);
   els.originDetailModal?.addEventListener('click', (event) => {
     if (event.target === els.originDetailModal) closeOriginDetailModal();
@@ -5504,6 +6434,10 @@ document.addEventListener('DOMContentLoaded', () => {
     renderOriginTabs(stages);
   });
   document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && els.originPartialMenu && !els.originPartialMenu.hidden) {
+      closeOriginPartialMenu();
+      return;
+    }
     if (event.key === 'Escape' && els.accessModal?.classList.contains('sz_is_open')) closeAccessModal();
     if (event.key === 'Escape' && els.supplierModal?.classList.contains('sz_is_open')) closeSupplierModal();
     if (event.key === 'Escape' && els.projectModal?.classList.contains('sz_is_open')) closeProjectModal();

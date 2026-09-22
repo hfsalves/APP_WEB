@@ -40,6 +40,7 @@ from services.document_ai_service import (
     _correspondence_ged_paths,
     _phc_correspondence_agency_origin,
     _phc_text_column_limit,
+    _phc_provisional_purchase_doc_config,
     _phc_provisional_value,
     _provisional_invoice_ged_paths,
     _ensure_phc_provisional_article,
@@ -57,12 +58,13 @@ from services.document_ai_service import (
     _document_inbox_global_total,
     _normalize_document_inbox_view,
     _document_inbox_scope_sql,
+    classify_document_type,
 )
 from services import document_ai_service
 
 
 class DocumentAiPhcOriginTests(unittest.TestCase):
-    def test_provisional_date_moves_to_first_day_of_first_open_month(self):
+    def test_provisional_date_moves_to_first_day_after_the_company_close_date(self):
         cursor = MagicMock()
         cursor.execute.return_value.fetchone.return_value = ('17.08.2026',)
 
@@ -73,7 +75,7 @@ class DocumentAiPhcOriginTests(unittest.TestCase):
             datetime(2026, 9, 1, 14, 23, 45, 123456),
         )
 
-        self.assertEqual(effective_at, datetime(2026, 9, 1, 14, 23, 45, 123456))
+        self.assertEqual(effective_at, datetime(2026, 8, 18, 14, 23, 45, 123456))
 
     def test_provisional_date_after_year_end_closing_uses_next_calendar_day(self):
         cursor = MagicMock()
@@ -207,6 +209,36 @@ class DocumentAiPhcOriginTests(unittest.TestCase):
 
         self.assertEqual(cached['document']['customer']['ged_folder'], 'HSOLS_INTERSOL_LOR')
         self.assertEqual(cached['document']['customer']['phc_database'], 'INTERSOL')
+
+    def test_cached_document_restores_the_stored_fe_entity_for_management(self):
+        moment = datetime(2026, 9, 1, 10, 30, 0)
+        document = SimpleNamespace(
+            docinstamp='DOC-ENTITY', dtalt=moment, dtcri=moment, feid=7,
+            processing_meta_json=json.dumps({'llm_full_extraction': {
+                'version': 4,
+                'document': {'customer': {}},
+                'matching': {'customer_matched': False, 'supplier_query': {}},
+            }}),
+            processing_status='provisional_invoice', reception_validated=True,
+            management_validated=False, accounting_validated=False,
+        )
+        with patch.object(document_ai_service.db.session, 'get', return_value=document), patch.object(
+            document_ai_service, '_fe_entity_by_id', return_value={
+                'feid': 7,
+                'name': 'BETÃOCONCEPT',
+                'tax_id': '507000000',
+                'phc_database': 'HSOLS_PT',
+                'ged_folder': 'HSOLS_PT',
+            }
+        ):
+            cached = get_cached_llm_extraction('DOC-ENTITY')
+
+        customer = cached['document']['customer']
+        self.assertEqual(customer['feid'], 7)
+        self.assertEqual(customer['name'], 'BETÃOCONCEPT')
+        self.assertEqual(customer['tax_id'], '507000000')
+        self.assertTrue(cached['matching']['customer_matched'])
+        self.assertEqual(cached['matching']['supplier_query']['feid'], 7)
 
     def test_document_draft_detects_an_optimistic_lock_conflict(self):
         current = datetime(2026, 9, 1, 10, 31, 0)
@@ -411,6 +443,25 @@ class DocumentAiPhcOriginTests(unittest.TestCase):
             _phc_provisional_value(Decimal('-120.45'), credit_note=False),
             Decimal('-120.45'),
         )
+
+    def test_credit_note_uses_avoir_purchase_type_but_stays_in_fac_correspondence_circuit(self):
+        cursor = MagicMock()
+        cursor.execute.return_value.fetchone.return_value = None
+
+        config = _phc_provisional_purchase_doc_config(cursor, 'HSOLS_FR', 'credit_note')
+
+        self.assertTrue(config['is_credit_note'])
+        self.assertEqual(config['doccode'], 3)
+        self.assertEqual(config['docname'], 'V/Avoir')
+        self.assertEqual(config['file_prefix'], 'FAC')
+        self.assertEqual(config['correspondence_type'], 'FAC')
+
+    def test_negative_invoice_values_do_not_classify_the_document_as_credit_note(self):
+        result = classify_document_type(
+            'FACTURE N° F-2026-15\nTotal HT -120,45 EUR\nTVA -24,09 EUR\nTotal TTC -144,54 EUR'
+        )
+
+        self.assertEqual(result['doc_type'], 'invoice')
 
     def test_provisional_purchase_copies_fl_country_to_fo(self):
         supplier_source = inspect.getsource(document_ai_service._phc_provisional_supplier)
@@ -681,24 +732,43 @@ class DocumentAiPhcOriginTests(unittest.TestCase):
 
         self.assertEqual(_phc_text_column_limit(cursor, 'FN', 'UNIDADE', 6), 4)
 
-    def test_purchase_ged_path_uses_document_month_and_credit_note_prefix(self):
+    def test_credit_note_ged_path_keeps_fac_prefix_and_marks_document_number_as_nc(self):
         application = Flask(__name__)
         with application.app_context():
             result = _provisional_invoice_ged_paths(
                 {
                     'customer': {'ged_folder': 'HSOLS_FR'},
+                    'document_type': 'credit_note',
                     'document_number': '50980',
                 },
                 {'phc_db': 'HSOLS_FR'},
                 {'name': 'GM MECANIQUE', 'no': 31243, 'estab': 0},
                 3268,
                 datetime(2026, 7, 10, 12, 0),
-                'NC',
+                'FAC',
             )
 
         self.assertEqual(len(result), 2)
-        self.assertTrue(all(item['file_name'].startswith('NC-3268-') for item in result))
+        self.assertTrue(all(item['file_name'].startswith('FAC-3268-') for item in result))
+        self.assertTrue(all(item['file_name'].endswith('-NC-50980.pdf') for item in result))
         self.assertTrue(all('\\2026\\7 JUIL 26\\' in item['unc_path'] for item in result))
+
+    def test_credit_note_ged_number_does_not_repeat_existing_nc_prefix(self):
+        application = Flask(__name__)
+        with application.app_context():
+            result = _provisional_invoice_ged_paths(
+                {
+                    'customer': {'ged_folder': 'HSOLS_FR'},
+                    'document_type': 'credit_note',
+                    'document_number': 'NC-50980',
+                },
+                {'phc_db': 'HSOLS_FR'},
+                {'name': 'GM MECANIQUE', 'no': 31243, 'estab': 0},
+                3268,
+                datetime(2026, 7, 10, 12, 0),
+            )
+
+        self.assertTrue(all(item['file_name'].endswith('-NC-50980.pdf') for item in result))
 
     def test_correspondence_ged_path_uses_received_mail_structure(self):
         application = Flask(__name__)

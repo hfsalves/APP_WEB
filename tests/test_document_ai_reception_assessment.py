@@ -46,6 +46,55 @@ class DocumentAiReceptionAssessmentTests(unittest.TestCase):
         self.assertEqual(assessment['state'], 'Bloqueio')
         self.assertIn('Vários documentos no PDF', assessment['reasons'])
 
+    def test_multiple_detected_contents_can_be_kept_as_one_complete_pdf(self):
+        document = self.complete_invoice()
+        document['document_batch'] = {
+            'contains_multiple_documents': True,
+            'document_count': 2,
+            'keep_pdf_together': True,
+        }
+
+        assessment = assess_document_reception(document)
+
+        self.assertEqual(assessment['state'], 'OK')
+        self.assertFalse(assessment['multiple_documents'])
+        self.assertTrue(assessment['detected_multiple_documents'])
+        self.assertTrue(assessment['keep_pdf_together'])
+
+    def test_home_preflight_accepts_multiple_contents_kept_in_the_original_pdf(self):
+        document_data = self.complete_invoice()
+        document_data['document_batch'] = {
+            'contains_multiple_documents': True,
+            'document_count': 2,
+            'keep_pdf_together': True,
+            'documents': [
+                {'document_type': 'invoice', 'start_page': 1, 'end_page': 3},
+                {'document_type': 'mail', 'start_page': 4, 'end_page': 8},
+            ],
+        }
+        document = SimpleNamespace(
+            docinstamp='DOC-1', json_resultado=json.dumps(document_data),
+            feid=1, fornecedor_no=10, processing_status='parsed_ok',
+            processing_meta_json='{}', doc_type_detected='invoice',
+            invoice_type='material',
+        )
+        with patch('services.document_ai_service.db.session.get', return_value=document), patch(
+            'services.document_ai_service._enrich_supplier_classification',
+            side_effect=lambda value, _feid: value,
+        ), patch(
+            'services.document_ai_service._refresh_document_duplicate_state', return_value=[]
+        ), patch(
+            'services.document_ai_required_info_service.required_fields_for',
+            return_value=['entity', 'supplier', 'classification'],
+        ), patch(
+            'services.document_ai_distribution_service.assert_document_distribution_available'
+        ):
+            result = preflight_document_inbox_stage('DOC-1', 'home')
+
+        self.assertTrue(result['ok'])
+        self.assertTrue(result['assessment']['detected_multiple_documents'])
+        self.assertFalse(result['assessment']['multiple_documents'])
+
     def test_advertising_allows_explicit_no_supplier(self):
         document = self.complete_invoice()
         document.update({'document_type': 'advertising', 'supplier': {}, 'supplier_explicitly_absent': True})
@@ -104,6 +153,58 @@ class DocumentAiReceptionAssessmentTests(unittest.TestCase):
 
         self.assertTrue(result['ok'])
         self.assertEqual(result['required_info']['required'], ['entity', 'supplier', 'classification'])
+
+    def test_home_preflight_accepts_financial_mismatch_as_a_warning(self):
+        document_data = self.complete_invoice()
+        document_data.update({
+            'lines': [{'description': 'Material', 'qty': 1, 'unit_price': 80, 'net_amount': 80, 'tax_rate': 20}],
+            'taxes': [{'tax_rate': 20, 'taxable_base': 100, 'tax_amount': 15, 'gross_total': 115}],
+            'totals': {'net_total': 100, 'tax_total': 20, 'gross_total': 120},
+        })
+        document = SimpleNamespace(
+            docinstamp='DOC-1', json_resultado=json.dumps(document_data),
+            feid=1, fornecedor_no=10, processing_status='parsed_ok',
+            processing_meta_json='{}', doc_type_detected='invoice',
+            invoice_type='material',
+        )
+        with patch('services.document_ai_service.db.session.get', return_value=document), patch(
+            'services.document_ai_service._enrich_supplier_classification',
+            side_effect=lambda value, _feid: value,
+        ), patch(
+            'services.document_ai_service._refresh_document_duplicate_state', return_value=[]
+        ), patch(
+            'services.document_ai_required_info_service.required_fields_for',
+            return_value=['entity', 'supplier', 'classification'],
+        ), patch(
+            'services.document_ai_distribution_service.assert_document_distribution_available'
+        ):
+            result = preflight_document_inbox_stage('DOC-1', 'home')
+
+        self.assertTrue(result['ok'])
+        self.assertTrue(result['warnings'])
+        self.assertFalse(result['financial_consistency']['ok'])
+
+    def test_management_preflight_still_blocks_an_uncorrected_financial_mismatch(self):
+        document_data = self.complete_invoice()
+        document_data.update({
+            'lines': [{'description': 'Material', 'qty': 1, 'unit_price': 80, 'net_amount': 80, 'tax_rate': 20}],
+            'taxes': [{'tax_rate': 20, 'taxable_base': 100, 'tax_amount': 15, 'gross_total': 115}],
+            'totals': {'net_total': 100, 'tax_total': 20, 'gross_total': 120},
+        })
+        document = SimpleNamespace(
+            docinstamp='DOC-1', json_resultado=json.dumps(document_data),
+            feid=1, fornecedor_no=10, processing_status='parsed_ok',
+            processing_meta_json='{}', doc_type_detected='invoice',
+            invoice_type='material', reception_validated=True,
+        )
+        with patch('services.document_ai_service.db.session.get', return_value=document), patch(
+            'services.document_ai_service._enrich_supplier_classification',
+            side_effect=lambda value, _feid: value,
+        ):
+            result = preflight_document_inbox_stage('DOC-1', 'management')
+
+        self.assertFalse(result['ok'])
+        self.assertFalse(result['financial_consistency']['ok'])
 
 
 if __name__ == '__main__':

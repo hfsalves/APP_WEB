@@ -9,6 +9,8 @@ from models import Acessos, db
 from services.document_ai_service import (
     classify_document_with_llm,
     clear_document_phc_origin,
+    correct_document_phc_origin_line_article,
+    correct_document_phc_origin_line_quantity,
     delete_document_from_inbox,
     document_belongs_to_inbox_view,
     delete_document_source,
@@ -498,10 +500,6 @@ def api_document_ai_extract():
             reset_llm_extraction(document_id, _current_login())
         cached = None if force_read or not document_id else get_cached_llm_extraction(document_id)
         if cached:
-            is_mail = str((cached.get('document') or {}).get('document_type') or '').strip().lower() == 'mail'
-            if is_mail and not requested_document_id:
-                cached['document_id'] = ''
-                cached['not_saved_to_inbox'] = True
             cached['inbox_created'] = bool(inbox.get('created'))
             cached['duplicate'] = bool(inbox.get('duplicate'))
             return jsonify(cached)
@@ -517,14 +515,6 @@ def api_document_ai_extract():
         reconciled = reconcile_extracted_document(payload.get('document') or {})
         payload['document'] = reconciled.get('document') or payload.get('document') or {}
         payload['matching'] = reconciled.get('matching') or {}
-        is_mail = str(payload['document'].get('document_type') or '').strip().lower() == 'mail'
-        if is_mail and not requested_document_id:
-            payload['document_id'] = ''
-            payload['cached'] = False
-            payload['inbox_created'] = False
-            payload['duplicate'] = bool(inbox.get('duplicate'))
-            payload['not_saved_to_inbox'] = True
-            return jsonify(payload)
 
         if not document_id:
             if not _document_ai_has_access('inserir'):
@@ -545,6 +535,63 @@ def api_document_ai_extract():
         return jsonify(payload)
     except Exception as exc:
         current_app.logger.exception('Erro na leitura integral de documento com LLM')
+        return jsonify({'error': str(exc)}), 500
+
+
+@bp.route('/api/document_ai/extract/persist', methods=['POST'])
+@login_required
+def api_document_ai_extract_persist():
+    """Persist a browser-only extraction without making another LLM request."""
+    if not _document_ai_has_access('consultar'):
+        return jsonify({'error': 'Sem permissão para guardar documentos.'}), 403
+    requested_view = str(request.form.get('view') or '').strip().lower()
+    if not _current_document_ai_permission(requested_view, 'analyze'):
+        return jsonify({'error': 'Sem permissão para alterar documentos nesta visualização.'}), 403
+    uploaded_file = request.files.get('file')
+    if not uploaded_file or not str(uploaded_file.filename or '').strip().lower().endswith('.pdf'):
+        return jsonify({'error': 'O PDF original é obrigatório para guardar a análise.'}), 400
+    file_bytes = uploaded_file.stream.read(50 * 1024 * 1024 + 1)
+    if not file_bytes:
+        return jsonify({'error': 'O ficheiro está vazio.'}), 400
+    if len(file_bytes) > 50 * 1024 * 1024:
+        return jsonify({'error': 'O PDF excede o limite de 50 MB.'}), 413
+    try:
+        document_data = json.loads(str(request.form.get('document_data') or '{}'))
+        matching = json.loads(str(request.form.get('matching') or '{}'))
+        if not isinstance(document_data, dict):
+            raise ValueError('A análise documental é inválida.')
+        document_id = find_llm_inbox_document(file_bytes)
+        if document_id:
+            if not _current_document_access(document_id, requested_view, 'analyze'):
+                return jsonify({'error': 'Sem acesso ao documento já existente.'}), 403
+            cached = get_cached_llm_extraction(document_id)
+            if cached:
+                cached['document_id'] = document_id
+                cached['inbox_created'] = False
+                cached['duplicate'] = True
+                return jsonify(cached)
+        else:
+            if not _document_ai_has_access('inserir'):
+                return jsonify({'error': 'Sem permissão para adicionar o documento ao inbox.'}), 403
+            inbox = ensure_llm_inbox_document(
+                str(uploaded_file.filename or 'documento.pdf'), file_bytes, _current_login(),
+            )
+            document_id = str(inbox.get('id') or '').strip()
+        saved = save_llm_extraction(document_id, {
+            'model': 'Leitura já efetuada',
+            'document': document_data,
+            'matching': matching if isinstance(matching, dict) else {},
+        }, _current_login())
+        saved['document_id'] = document_id
+        saved['inbox_created'] = True
+        saved['duplicate'] = False
+        return jsonify(saved)
+    except (ValueError, json.JSONDecodeError) as exc:
+        db.session.rollback()
+        return jsonify({'error': str(exc)}), 400
+    except Exception as exc:
+        current_app.logger.exception('Erro ao persistir análise documental sem nova leitura LLM')
+        db.session.rollback()
         return jsonify({'error': str(exc)}), 500
 
 
@@ -685,6 +732,55 @@ def api_document_ai_purchase_order_preview(docinstamp: str):
         return jsonify({'error': str(exc)}), 400
     except Exception as exc:
         current_app.logger.exception('Erro ao preparar Nota de Encomenda no PHC')
+        return jsonify({'error': str(exc)}), 500
+
+
+@bp.route('/api/document_ai/documents/<docinstamp>/origin-line/quantity', methods=['POST'])
+@login_required
+def api_document_ai_origin_line_quantity(docinstamp: str):
+    requested_view = _requested_document_ai_view()
+    if requested_view != 'management':
+        return jsonify({'error': 'A quantidade da origem só pode ser corrigida no Controlo de Gestão.'}), 403
+    if not _document_ai_has_access('editar') or not _current_document_access(docinstamp, requested_view, 'associate'):
+        return jsonify({'error': 'Sem permissão para corrigir a linha da origem.'}), 403
+    body = request.get_json(silent=True) or {}
+    try:
+        return jsonify(correct_document_phc_origin_line_quantity(
+            docinstamp,
+            _current_login(),
+            origin_stamp=str(body.get('origin_stamp') or ''),
+            origin_line_stamp=str(body.get('origin_line_stamp') or ''),
+            additional_quantity=body.get('additional_quantity'),
+            family=str(body.get('family') or 'purchase_order'),
+        ))
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception as exc:
+        current_app.logger.exception('Erro ao corrigir quantidade da linha de origem no PHC')
+        return jsonify({'error': str(exc)}), 500
+
+
+@bp.route('/api/document_ai/documents/<docinstamp>/origin-line/article', methods=['POST'])
+@login_required
+def api_document_ai_origin_line_article(docinstamp: str):
+    requested_view = _requested_document_ai_view()
+    if requested_view != 'management':
+        return jsonify({'error': 'A referência da origem só pode ser corrigida no Controlo de Gestão.'}), 403
+    if not _document_ai_has_access('editar') or not _current_document_access(docinstamp, requested_view, 'associate'):
+        return jsonify({'error': 'Sem permissão para corrigir a referência da origem.'}), 403
+    body = request.get_json(silent=True) or {}
+    try:
+        return jsonify(correct_document_phc_origin_line_article(
+            docinstamp,
+            _current_login(),
+            origin_stamp=str(body.get('origin_stamp') or ''),
+            origin_line_stamp=str(body.get('origin_line_stamp') or ''),
+            article_ref=str(body.get('article_ref') or ''),
+        ))
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception as exc:
+        current_app.logger.exception('Erro ao corrigir referência da linha de origem no PHC')
         return jsonify({'error': str(exc)}), 500
 
 

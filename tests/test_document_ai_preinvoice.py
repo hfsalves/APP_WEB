@@ -91,6 +91,16 @@ class PreinvoicePlanningTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 self.plan(document, header, line)
 
+    def test_explicit_over_delivery_is_planned_above_ordered_quantity(self):
+        document, header, line = fixture()
+        line['qtt'] = 1
+        document['lines'][0]['bc_allocations'] = [{
+            'origin_stamp': 'BO-SOURCE', 'origin_line_stamp': 'BI-SOURCE',
+            'quantity': 2, 'allow_over_delivery': True,
+        }]
+        result = self.plan(document, header, line)
+        self.assertEqual(result[0]['quantity'], Decimal(2))
+
     def test_shared_origin_cannot_overallocate_across_sublines(self):
         document, header, line = fixture()
         line['qtt'] = 3

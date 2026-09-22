@@ -67,6 +67,7 @@ def run_document_phc_operation(
     operation_context: dict[str, Any] | None = None,
     legacy_meta_key: str = 'phc_integration',
     on_confirmed: Callable[[dict[str, Any]], None] | None = None,
+    incomplete_message: Callable[[dict[str, Any]], str] | None = None,
 ) -> dict[str, Any]:
     """Run one PHC/GED operation with a durable, reusable recovery record.
 
@@ -147,7 +148,9 @@ def run_document_phc_operation(
         **recovered_identity,
     }
     if not is_complete(confirmed):
-        message = 'A integração PHC/GED não devolveu todos os identificadores obrigatórios.'
+        message = str(incomplete_message(confirmed) if incomplete_message else '').strip()
+        if not message:
+            message = 'A integração PHC/GED ficou incompleta. Tenta novamente; se o erro continuar, contacta o suporte.'
         failed = {
             **confirmed,
             'status': 'failed_recoverable',

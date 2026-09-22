@@ -288,6 +288,161 @@ def _public_line(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def increase_origin_line_quantity(
+    document: dict[str, Any],
+    origin_stamp: str,
+    origin_line_stamp: str,
+    additional_quantity: Any,
+    requested_by: str,
+    family: str = 'purchase_order',
+) -> dict[str, Any]:
+    """Increase one PHC source line and keep BI, BO and BOT totals coherent."""
+    import pyodbc
+    from services import document_ai_service as svc
+    from services.phc_user_import_service import _phc_conn_str
+
+    source, _ = _source_and_document(document)
+    database = _clean(source.get('phc_db'))
+    config = _flow_config(family)
+    clean_origin = _clean(origin_stamp)
+    clean_line = _clean(origin_line_stamp)
+    increment = _decimal(additional_quantity, 'Quantidade adicional')
+    if not clean_origin or not clean_line:
+        raise ValueError('Seleciona a linha da origem que deve ser corrigida.')
+    if increment <= 0 or increment != increment.quantize(Decimal('0.0001')):
+        raise ValueError('A quantidade adicional deve ser positiva e ter no máximo quatro casas decimais.')
+
+    connection = pyodbc.connect(
+        _phc_conn_str(database, source.get('phc_server') or ''), timeout=15, autocommit=False,
+    )
+    try:
+        cursor = connection.cursor()
+        cursor.execute('SET TRANSACTION ISOLATION LEVEL SERIALIZABLE')
+        lock = cursor.execute("""
+            DECLARE @result int;
+            EXEC @result=sp_getapplock @Resource=?,@LockMode='Exclusive',
+                @LockOwner='Transaction',@LockTimeout=15000;
+            SELECT @result;
+        """, f'DOC_AI_{config["lock"]}_{database}_{clean_origin}').fetchone()
+        if not lock or int(lock[0]) < 0:
+            raise ValueError(f"Outra operação está a alterar {config['label']}. Tenta novamente.")
+
+        series = _purchase_order_series(cursor, family)
+        rows = _rows(cursor, """
+            SELECT TOP 1 BI.BISTAMP,BI.BOSTAMP,ISNULL(BI.QTT,0) QTT,ISNULL(BI.QTT2,0) QTT2,
+                ISNULL(BI.EDEBITO,0) EDEBITO,ISNULL(BI.DEBITO,0) DEBITO,
+                ISNULL(BI.ETTDEB,0) ETTDEB,ISNULL(BI.TTDEB,0) TTDEB,
+                ISNULL(BI.DESCONTO,0) DESCONTO,ISNULL(BI.DESC2,0) DESC2,
+                ISNULL(BI.DESC3,0) DESC3,ISNULL(BI.DESC4,0) DESC4,
+                ISNULL(BI.DESC5,0) DESC5,ISNULL(BI.DESC6,0) DESC6,
+                ISNULL(BI.IVA,0) IVA,ISNULL(BI.TABIVA,0) TABIVA,
+                ISNULL(BO.NDOS,0) NDOS,ISNULL(BO.FECHADA,0) BOFECHADA,
+                ISNULL(BO2.ANULADO,0) ANULADO
+            FROM dbo.BI BI WITH (UPDLOCK,HOLDLOCK)
+            INNER JOIN dbo.BO BO WITH (UPDLOCK,HOLDLOCK) ON BO.BOSTAMP=BI.BOSTAMP
+            LEFT JOIN dbo.BO2 BO2 WITH (UPDLOCK,HOLDLOCK) ON BO2.BO2STAMP=BO.BOSTAMP
+            WHERE BI.BISTAMP=? AND BI.BOSTAMP=?
+        """, clean_line, clean_origin)
+        if not rows:
+            raise ValueError('A linha selecionada já não existe na origem PHC.')
+        row = rows[0]
+        if int(row.get('ndos') or 0) != int(series['ndos']):
+            raise ValueError(f"A linha selecionada não pertence à série de {config['label']}.")
+        if bool(row.get('anulado')):
+            raise ValueError(f"{config['label']} está anulada e não pode ser corrigida.")
+        if bool(row.get('bofechada')):
+            raise ValueError(f"{config['label']} está fechada e não pode ser corrigida.")
+
+        current_quantity = _decimal(row.get('qtt') or 0, 'Quantidade atual')
+        satisfied_quantity = _decimal(row.get('qtt2') or 0, 'Quantidade satisfeita')
+        new_quantity = current_quantity + increment
+
+        def scaled_total(total_field: str, price_field: str) -> Decimal:
+            current_total = _decimal(row.get(total_field) or 0, 'Total da linha')
+            if current_quantity:
+                return (current_total * new_quantity / current_quantity).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            result = _decimal(row.get(price_field) or 0, 'Preço unitário') * new_quantity
+            for field in ('desconto', 'desc2', 'desc3', 'desc4', 'desc5', 'desc6'):
+                result *= Decimal('1') - _decimal(row.get(field) or 0, 'Desconto') / Decimal('100')
+            return result.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+        euro_total = scaled_total('ettdeb', 'edebito')
+        local_total = scaled_total('ttdeb', 'debito')
+        now = datetime.now()
+        user = svc._phc_correspondence_user(cursor, requested_by)
+        initials = _clean(user.get('initials') or requested_by or 'DOC')[:3]
+        audit = {'usrinis': initials, 'usrdata': now, 'usrhora': now.strftime('%H:%M:%S')}
+        svc._phc_update_values(cursor, 'BI', {
+            'qtt': new_quantity, 'ettdeb': euro_total, 'ttdeb': local_total,
+            'fechada': 1 if satisfied_quantity >= new_quantity else 0, **audit,
+        }, 'BISTAMP=? AND BOSTAMP=?', [clean_line, clean_origin])
+
+        totals = _rows(cursor, """
+            SELECT ISNULL(SUM(ISNULL(ETTDEB,0)),0) ENET,
+                   ISNULL(SUM(ISNULL(TTDEB,0)),0) LNET,
+                   ISNULL(SUM(ROUND(ISNULL(ETTDEB,0)*ISNULL(IVA,0)/100.0,2)),0) ETAX,
+                   ISNULL(SUM(ROUND(ISNULL(TTDEB,0)*ISNULL(IVA,0)/100.0,2)),0) LTAX
+            FROM dbo.BI WITH (UPDLOCK,HOLDLOCK) WHERE BOSTAMP=?
+        """, clean_origin)[0]
+        euro_net = _money(totals.get('enet') or 0)
+        local_net = _money(totals.get('lnet') or 0)
+        euro_tax = _money(totals.get('etax') or 0)
+        local_tax = _money(totals.get('ltax') or 0)
+        header_values: dict[str, Any] = {
+            'etotaldeb': euro_net, 'totaldeb': local_net,
+            'etotal': euro_net + euro_tax, 'total': local_net + local_tax,
+            'fechada': 0, **audit,
+        }
+        for code in range(1, 10):
+            for suffix in ('1', '2'):
+                header_values.update({
+                    f'ebo{code}{suffix}_bins': 0, f'bo{code}{suffix}_bins': 0,
+                    f'ebo{code}{suffix}_iva': 0, f'bo{code}{suffix}_iva': 0,
+                })
+        tax_groups = _rows(cursor, """
+            SELECT ISNULL(TABIVA,0) CODIGO,ISNULL(IVA,0) TAXA,
+                   ISNULL(SUM(ISNULL(ETTDEB,0)),0) EBASE,
+                   ISNULL(SUM(ISNULL(TTDEB,0)),0) LBASE,
+                   ISNULL(SUM(ROUND(ISNULL(ETTDEB,0)*ISNULL(IVA,0)/100.0,2)),0) ETAX,
+                   ISNULL(SUM(ROUND(ISNULL(TTDEB,0)*ISNULL(IVA,0)/100.0,2)),0) LTAX
+            FROM dbo.BI WITH (UPDLOCK,HOLDLOCK) WHERE BOSTAMP=?
+            GROUP BY ISNULL(TABIVA,0),ISNULL(IVA,0)
+        """, clean_origin)
+        for group in tax_groups:
+            code = int(group.get('codigo') or 0)
+            if 1 <= code <= 9:
+                for suffix in ('1', '2'):
+                    header_values.update({
+                        f'ebo{code}{suffix}_bins': _money(group.get('ebase') or 0),
+                        f'bo{code}{suffix}_bins': _money(group.get('lbase') or 0),
+                        f'ebo{code}{suffix}_iva': _money(group.get('etax') or 0),
+                        f'bo{code}{suffix}_iva': _money(group.get('ltax') or 0),
+                    })
+        svc._phc_update_values(cursor, 'BO', header_values, 'BOSTAMP=?', [clean_origin])
+        cursor.execute('DELETE FROM dbo.BOT WHERE BOSTAMP=?', clean_origin)
+        for group in tax_groups:
+            svc._phc_insert_values(cursor, 'BOT', {
+                'botstamp': svc._new_stamp(), 'bostamp': clean_origin,
+                'codigo': int(group.get('codigo') or 0), 'taxa': _money(group.get('taxa') or 0),
+                'ebaseinc': _money(group.get('ebase') or 0), 'baseinc': _money(group.get('lbase') or 0),
+                'evalor': _money(group.get('etax') or 0), 'valor': _money(group.get('ltax') or 0),
+                **audit,
+            })
+        connection.commit()
+        return {
+            'ok': True, 'origin_stamp': clean_origin, 'origin_line_stamp': clean_line,
+            'quantity': float(new_quantity),
+            'pending_quantity': float(max(Decimal('0'), new_quantity - satisfied_quantity)),
+            'line_total': float(euro_total),
+            'message': f'Quantidade da origem corrigida para {format(new_quantity, "f")} no PHC.',
+        }
+    except Exception:
+        connection.rollback()
+        raise
+    finally:
+        connection.close()
+
+
 def preview_purchase_order(document: dict[str, Any], origin_stamp: str = '', family: str = 'purchase_order') -> dict[str, Any]:
     import pyodbc
     from services.phc_user_import_service import _phc_conn_str

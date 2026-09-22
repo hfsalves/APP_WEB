@@ -31,10 +31,24 @@ class DocumentAiTp067OperationalDateTests(unittest.TestCase):
         )
         self.assertEqual(result, datetime(2026, 9, 10, 11, 22, 33, 456789))
 
-    def test_closed_period_uses_first_day_of_following_open_month(self):
+    def test_closed_period_uses_the_day_immediately_after_the_close_date(self):
         result = _phc_provisional_effective_datetime(
             self.cursor_with(('17/08/2026',)), 'HSOLS_FR',
             datetime(2026, 7, 23), self.received_at,
+        )
+        self.assertEqual(result, datetime(2026, 8, 18, 11, 22, 33, 456789))
+
+    def test_document_on_the_close_date_is_moved_to_the_next_day(self):
+        result = _phc_provisional_effective_datetime(
+            self.cursor_with(('17.08.2026',)), 'HSOLS_FR',
+            datetime(2026, 8, 17), self.received_at,
+        )
+        self.assertEqual(result, datetime(2026, 8, 18, 11, 22, 33, 456789))
+
+    def test_month_end_close_date_rolls_to_the_first_day_of_next_month(self):
+        result = _phc_provisional_effective_datetime(
+            self.cursor_with(('31.08.2026',)), 'HSOLS_FR',
+            datetime(2026, 8, 10), self.received_at,
         )
         self.assertEqual(result, datetime(2026, 9, 1, 11, 22, 33, 456789))
 

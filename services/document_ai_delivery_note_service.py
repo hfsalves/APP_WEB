@@ -1,4 +1,4 @@
-"""Create INTERSOL supplier delivery notes from controlled Contract lines."""
+"""Create supplier delivery notes from controlled Contract lines."""
 
 import hashlib
 from collections import defaultdict
@@ -9,8 +9,11 @@ from typing import Any
 from services.document_ai_purchase_order_service import _clean, _decimal, _rows, _stable_stamp
 
 
+SUPPORTED_PHC_DATABASES = frozenset({'INTERSOL', 'HSOLS_FR', 'HSOLS_DE'})
+
+
 def _intersol_series(cursor) -> dict[str, dict[str, Any]]:
-    """Discover and verify the demonstrated INTERSOL Contract/GdR series."""
+    """Discover and verify the Contract/GdR series used by supported PHC companies."""
     from services.document_ai_service import _normalize_text
 
     rows = _rows(cursor, 'SELECT NDOS,NMDOS FROM dbo.TS WITH (NOLOCK)')
@@ -27,7 +30,7 @@ def _intersol_series(cursor) -> dict[str, dict[str, Any]]:
     ]
     if len(contracts) != 1 or len(deliveries) != 1:
         raise ValueError(
-            'A configuração INTERSOL exige as séries Contrato 119 e Bon Livraison Fourn. 130 em TS.'
+            'A base PHC exige as séries Contrato 119 e Bon Livraison Fourn. 130 em TS.'
         )
     return {
         'contract': {'ndos': 119, 'name': _clean(contracts[0].get('nmdos'))},
@@ -43,10 +46,10 @@ def _source_and_document(document: dict[str, Any]) -> tuple[dict[str, Any], dict
     database = _clean(source.get('phc_db')).upper()
     if source.get('kind') != 'phc' or not database:
         raise ValueError('A Entidade selecionada não tem uma base PHC configurada.')
-    if database != 'INTERSOL':
+    if database not in SUPPORTED_PHC_DATABASES:
         raise ValueError(
-            'Criar GdR a partir de Contrato está disponível apenas em INTERSOL; '
-            'HSOLS_FR/GR360 continuam bloqueadas sem exemplo e configuração comprovados.'
+            'Criar GdR a partir de Contrato está disponível apenas em '
+            'INTERSOL, HSOLS_FR e HSOLS_DE.'
         )
     return source, controlled
 
@@ -113,18 +116,27 @@ def _plan(
     selected = [line for line in effective if _clean(line.get('origin_delivery_note_number')) == number]
     if not selected:
         raise ValueError('A GdR selecionada não contém linhas Portal efetivas.')
+    default_ccusto = _clean(dict(document.get('origin_project') or {}).get('ccusto'))
+    if default_ccusto:
+        for line in selected:
+            if not _clean(line.get('ccusto') or line.get('project_ccusto') or line.get('cost_center')):
+                line['ccusto'] = default_ccusto
+                line['project_ccusto'] = default_ccusto
     selected = svc._assert_effective_portal_lines(
-        selected, require_origin=True, require_cost_center=True,
+        selected, require_origin=False, require_cost_center=True,
     )
     contract_stamps = {_clean(line.get('phc_origin_stamp') or line.get('bostamp')) for line in selected}
     contract_stamps.discard('')
     if len(contract_stamps) != 1:
-        raise ValueError('Cada GdR deve retomar linhas de um único Contrato PHC.')
+        raise ValueError(
+            'Cada GdR deve estar ligada a um único Contrato PHC; '
+            'as linhas adicionais podem ficar sem origem.'
+        )
     contract_stamp = next(iter(contract_stamps))
     series = _intersol_series(cursor)
     contract, source_lines = _load_contract(cursor, contract_stamp, for_update=for_update)
     if int(contract.get('ndos') or 0) != series['contract']['ndos']:
-        raise ValueError('A origem selecionada não é o Contrato INTERSOL da série 119.')
+        raise ValueError('A origem selecionada não é o Contrato da série 119.')
     if bool(contract.get('anulado')):
         raise ValueError('O Contrato selecionado está anulado no PHC.')
     if bool(contract.get('fechada')) and not existing_delivery_stamp:
@@ -140,38 +152,62 @@ def _plan(
     planned = []
     requested_by_source: dict[str, Decimal] = defaultdict(Decimal)
     for position, line in enumerate(selected, start=1):
-        source_stamp = _clean(line.get('phc_origin_line_stamp') or line.get('bistamp'))
-        source_line = source_by_stamp.get(source_stamp)
-        if not source_line:
-            raise ValueError(f'Linha {position}: o BISTAMP do Contrato já não existe.')
         article = _clean(line.get('article_ref') or line.get('article') or line.get('ref'))
-        if article.upper() != _clean(source_line.get('ref')).upper():
-            raise ValueError(f'Linha {position}: o Artigo não coincide com a linha do Contrato.')
         ccusto = _clean(line.get('ccusto') or line.get('project_ccusto') or line.get('cost_center'))
-        if ccusto.upper() != _clean(source_line.get('ccusto')).upper():
-            raise ValueError(f'Linha {position}: o Centro de Custo não coincide com a linha do Contrato.')
         quantity = _decimal(
             line.get('quantity') if line.get('quantity') is not None else line.get('qty'),
             f'Linha {position}: quantidade',
         )
         if quantity <= 0 or quantity != quantity.quantize(Decimal('0.0001')):
             raise ValueError(f'Linha {position}: confirma uma quantidade positiva com até quatro casas decimais.')
-        source_quantity = abs(_decimal(source_line.get('qtt') or 0, 'Quantidade contratada'))
-        if source_quantity <= 0:
-            raise ValueError(f'Linha {position}: a linha do Contrato não tem quantidade válida.')
-        foreign_total = abs(_decimal(
-            source_line.get('ettdeb')
-            if source_line.get('ettdeb') is not None
-            else _decimal(source_line.get('edebito') or source_line.get('pu') or 0, 'PU') * source_quantity,
-            'Total do Contrato',
-        ))
-        local_total = abs(_decimal(
-            source_line.get('ttdeb')
-            if source_line.get('ttdeb') is not None
-            else _decimal(source_line.get('debito') or 0, 'PU local') * source_quantity,
-            'Total local do Contrato',
-        ))
-        requested_by_source[source_stamp] += quantity
+        source_stamp = _clean(line.get('phc_origin_line_stamp') or line.get('bistamp'))
+        if source_stamp:
+            source_line = source_by_stamp.get(source_stamp)
+            if not source_line:
+                raise ValueError(f'Linha {position}: o BISTAMP do Contrato já não existe.')
+            if article.upper() != _clean(source_line.get('ref')).upper():
+                raise ValueError(f'Linha {position}: o Artigo não coincide com a linha do Contrato.')
+            if ccusto.upper() != _clean(source_line.get('ccusto')).upper():
+                raise ValueError(f'Linha {position}: o Centro de Custo não coincide com a linha do Contrato.')
+            source_quantity = abs(_decimal(source_line.get('qtt') or 0, 'Quantidade contratada'))
+            if source_quantity <= 0:
+                raise ValueError(f'Linha {position}: a linha do Contrato não tem quantidade válida.')
+            foreign_total = abs(_decimal(
+                source_line.get('ettdeb')
+                if source_line.get('ettdeb') is not None
+                else _decimal(source_line.get('edebito') or source_line.get('pu') or 0, 'PU') * source_quantity,
+                'Total do Contrato',
+            ))
+            local_total = abs(_decimal(
+                source_line.get('ttdeb')
+                if source_line.get('ttdeb') is not None
+                else _decimal(source_line.get('debito') or 0, 'PU local') * source_quantity,
+                'Total local do Contrato',
+            ))
+            foreign_net = (foreign_total * quantity / source_quantity).quantize(Decimal('0.01'))
+            local_net = (local_total * quantity / source_quantity).quantize(Decimal('0.01'))
+            tax_rate = _decimal(source_line.get('iva') or 0, 'IVA')
+            tax_code = int(source_line.get('tabiva') or 0)
+            requested_by_source[source_stamp] += quantity
+        else:
+            unit_price = _decimal(line.get('unit_price'), f'Linha {position}: PU')
+            foreign_net = _decimal(
+                line.get('net_amount') if line.get('net_amount') is not None else line.get('pt'),
+                f'Linha {position}: PT',
+            ).quantize(Decimal('0.01'))
+            local_net = foreign_net
+            tax_rate = _decimal(line.get('tax_rate') or 0, f'Linha {position}: IVA')
+            tax_code = int(_decimal(
+                line.get('tax_table') or line.get('tabiva') or line.get('tax_code') or 0,
+                f'Linha {position}: Tabela de IVA',
+            ))
+            source_line = {
+                'bistamp': '', 'ref': article,
+                'design': _clean(line.get('description') or article),
+                'unidade': _clean(line.get('unit')),
+                'edebito': unit_price, 'debito': unit_price, 'pu': unit_price,
+                'iva': tax_rate, 'tabiva': tax_code,
+            }
         planned.append({
             'portal_line_index': int(line.get('portal_line_index', position - 1)),
             'portal_subline_index': line.get('portal_subline_index'),
@@ -179,10 +215,11 @@ def _plan(
             'source': source_line,
             'quantity': quantity,
             'ccusto': ccusto,
-            'foreign_net': (foreign_total * quantity / source_quantity).quantize(Decimal('0.01')),
-            'local_net': (local_total * quantity / source_quantity).quantize(Decimal('0.01')),
-            'tax_rate': _decimal(source_line.get('iva') or 0, 'IVA'),
-            'tax_code': int(source_line.get('tabiva') or 0),
+            'foreign_net': foreign_net,
+            'local_net': local_net,
+            'tax_rate': tax_rate,
+            'tax_code': tax_code,
+            'linked_to_contract': bool(source_stamp),
         })
     existing_by_source: dict[str, Decimal] = defaultdict(Decimal)
     if existing_delivery_stamp:
@@ -293,10 +330,13 @@ def preview_delivery_note(document: dict[str, Any], delivery_number: str = '') -
             'article': _clean(row['source'].get('ref')),
             'description': _clean(row['source'].get('design')),
             'quantity': float(row['quantity']),
-            'available_quantity': float(
-                abs(_decimal(row['source'].get('qtt') or 0, 'Quantidade'))
-                - abs(_decimal(row['source'].get('qtt2') or 0, 'Quantidade retomada'))
+            'available_quantity': (
+                float(
+                    abs(_decimal(row['source'].get('qtt') or 0, 'Quantidade'))
+                    - abs(_decimal(row['source'].get('qtt2') or 0, 'Quantidade retomada'))
+                ) if row.get('linked_to_contract') else None
             ),
+            'has_origin': bool(row.get('linked_to_contract')),
             'unit': _clean(row['source'].get('unidade')),
             'project': row['ccusto'],
         } for row in plan['lines']],
@@ -469,7 +509,7 @@ def create_delivery_note(
                 'ettdeb': row['foreign_net'], 'ttdeb': row['local_net'],
                 'ccusto': row['ccusto'], 'lordem': index * 1000,
                 'obistamp': origin.get('bistamp'), 'oobistamp': origin.get('bistamp'),
-                'oobostamp': plan['contract_stamp'], **audit,
+                'oobostamp': plan['contract_stamp'] if origin.get('bistamp') else '', **audit,
             })
             svc._phc_insert_values(cursor, 'BI', copied)
             svc._phc_insert_values(cursor, 'BI2', {'bi2stamp': line_stamp, 'bostamp': stable_header, **audit})

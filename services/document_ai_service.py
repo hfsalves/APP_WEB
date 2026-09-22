@@ -114,7 +114,9 @@ def _normalize_inbox_document_type(value: Any) -> str:
 
 
 DOC_AI_PURCHASE_INVOICE_CORRESPONDENCE_TYPE = 'FAC'
-DOC_AI_PURCHASE_CREDIT_NOTE_CORRESPONDENCE_TYPE = 'NC'
+# An Avoir remains in the FAC correspondence/GED circuit. ``NC`` identifies
+# the supplier document number inside the file name, not the main file type.
+DOC_AI_PURCHASE_CREDIT_NOTE_CORRESPONDENCE_TYPE = 'FAC'
 
 # A pasta-base da GED pertence à empresa configurada na FE. O nome fiscal não
 # é uma chave segura (por exemplo, Betãoconcept usa a base PHC HSOLS_PT).
@@ -723,6 +725,119 @@ def _mapped_document_path(path_value: str) -> str:
     return ''
 
 
+def _document_ged_path_candidates(document: DocInbox) -> list[str]:
+    """Return confirmed GED locations stored with a document, in preference order."""
+    candidates: list[str] = []
+
+    def append_path(value: Any) -> None:
+        path = str(value or '').strip()
+        if path and path not in candidates:
+            candidates.append(path)
+
+    raw_path = str(getattr(document, 'file_path', '') or '').strip()
+    if raw_path.startswith('\\\\'):
+        append_path(raw_path)
+
+    meta = _json_loads(getattr(document, 'processing_meta_json', '{}'), {})
+    payloads: list[dict[str, Any]] = []
+    for key in ('phc_integration', 'phc_purchase_finalization'):
+        value = meta.get(key)
+        if isinstance(value, dict):
+            payloads.append(value)
+    operations = meta.get('phc_operations')
+    if isinstance(operations, dict):
+        payloads.extend(value for value in operations.values() if isinstance(value, dict))
+
+    for payload in payloads:
+        append_path(payload.get('ged_path'))
+        append_path(payload.get('unc_path'))
+        append_path(payload.get('fullname'))
+        for item in payload.get('ged_paths') or []:
+            if isinstance(item, dict):
+                append_path(item.get('path') or item.get('unc_path') or item.get('fullname'))
+            else:
+                append_path(item)
+    return candidates
+
+
+def _document_ged_unc_path(path_value: str) -> str:
+    """Accept only files below the configured GED share."""
+    raw = str(path_value or '').strip().replace('/', '\\')
+    if not raw.startswith('\\\\'):
+        return ''
+    configured_root = str(
+        current_app.config.get('PHC_GED_UNC_ROOT')
+        or os.environ.get('PHC_GED_UNC_ROOT')
+        or r'\\10.0.1.11\ged'
+    ).strip().replace('/', '\\').rstrip('\\')
+    normalized = raw.rstrip('\\').casefold()
+    normalized_root = configured_root.casefold()
+    if normalized == normalized_root or normalized.startswith(f'{normalized_root}\\'):
+        return raw
+    return ''
+
+
+def _document_remote_cache_path(document: DocInbox) -> str:
+    safe_stamp = re.sub(r'[^A-Za-z0-9_-]+', '_', str(getattr(document, 'docinstamp', '') or 'document'))[:80]
+    original_name = str(getattr(document, 'file_name', '') or '').replace('\\', '/')
+    safe_name = re.sub(r'[^A-Za-z0-9._ -]+', '_', os.path.basename(original_name)).strip(' .')
+    if not safe_name:
+        extension = str(getattr(document, 'file_ext', '') or '').strip()
+        safe_name = f'{safe_stamp}{extension if extension.startswith(".") else ".pdf"}'
+    return os.path.join(_document_storage_root(), '.document_ai_cache', safe_stamp, safe_name[:240])
+
+
+def _try_cache_document_from_ged(document: DocInbox) -> str:
+    candidates = _document_ged_path_candidates(document)
+    if not candidates:
+        return ''
+    destination_path = _document_remote_cache_path(document)
+    if os.path.isfile(destination_path) and os.path.getsize(destination_path) > 0:
+        return destination_path
+    try:
+        import smbclient
+    except ImportError:
+        current_app.logger.info('Document AI: smbclient indisponível para recuperar o ficheiro da GED.')
+        return ''
+
+    for stored_path in candidates:
+        unc_path = _document_ged_unc_path(stored_path)
+        if not unc_path:
+            continue
+        temporary_path = ''
+        try:
+            _document_ai_smb_session(unc_path)
+            if not smbclient.path.isfile(unc_path):
+                continue
+            os.makedirs(os.path.dirname(destination_path), exist_ok=True)
+            descriptor, temporary_path = tempfile.mkstemp(
+                prefix='.docai-ged-', suffix='.tmp', dir=os.path.dirname(destination_path),
+            )
+            with os.fdopen(descriptor, 'wb') as destination, smbclient.open_file(unc_path, mode='rb') as source:
+                shutil.copyfileobj(source, destination, length=1024 * 1024)
+                destination.flush()
+                os.fsync(destination.fileno())
+            if os.path.getsize(temporary_path) <= 0:
+                raise OSError('O ficheiro existente na GED está vazio.')
+            os.replace(temporary_path, destination_path)
+            current_app.logger.info(
+                'Document AI: ficheiro %s recuperado da GED para cache local.',
+                getattr(document, 'docinstamp', ''),
+            )
+            return destination_path
+        except Exception:
+            current_app.logger.info(
+                'Document AI: não foi possível recuperar %s da GED.', unc_path, exc_info=True,
+            )
+        finally:
+            if temporary_path and os.path.exists(temporary_path):
+                try:
+                    os.remove(temporary_path)
+                except OSError:
+                    pass
+    return ''
+
+
 def _document_absolute_path(document: DocInbox) -> str:
     raw_path = str(document.file_path or '').strip()
     absolute_path = _document_local_path(raw_path)
@@ -735,6 +850,10 @@ def _document_absolute_path(document: DocInbox) -> str:
 
     if absolute_path and _try_cache_document_from_public_url(raw_path, absolute_path):
         return absolute_path
+
+    ged_cache_path = _try_cache_document_from_ged(document)
+    if ged_cache_path:
+        return ged_cache_path
 
     return absolute_path
 
@@ -2345,7 +2464,7 @@ def _phc_provisional_purchase_doc_config(cursor, database_name: str, document_ty
         'is_credit_note': is_credit_note,
         'doccode': doccode,
         'docname': docname,
-        'file_prefix': 'NC' if is_credit_note else 'FAC',
+        'file_prefix': 'FAC',
         'correspondence_type': DOC_AI_PURCHASE_CREDIT_NOTE_CORRESPONDENCE_TYPE if is_credit_note else DOC_AI_PURCHASE_INVOICE_CORRESPONDENCE_TYPE,
         'label': 'nota de crédito' if is_credit_note else 'fatura',
         'phc_label': 'Nota de Crédito' if is_credit_note else 'Fatura Provisória',
@@ -2358,11 +2477,13 @@ def _phc_provisional_effective_datetime(cursor, database_name: str, document_dat
     A blank GE_FECHO means no accounting close is currently configured. A
     missing, unreadable or invalid parameter is an integration error: silently
     using the invoice date could write FO/GED records into a closed period.
+    The supplier's original date remains the legal document date; only the PHC
+    operational date moves to the first open calendar day (GE_FECHO + 1 day).
     """
     try:
         closed_row = cursor.execute("""
             SELECT TOP 1 LTRIM(RTRIM(ISNULL(VALOR, '')))
-            FROM dbo.PARA1 WITH (NOLOCK)
+            FROM dbo.PARA1 WITH (UPDLOCK, HOLDLOCK)
             WHERE UPPER(LTRIM(RTRIM(ISNULL(DESCRICAO, '')))) = 'GE_FECHO'
         """).fetchone()
     except Exception as exc:
@@ -2402,8 +2523,8 @@ def _phc_provisional_effective_datetime(cursor, database_name: str, document_dat
         return original
     if closed_until.year >= 9999:
         raise ValueError(f'Não existe um período contabilístico aberto posterior em {database_name}.')
-    next_month = (closed_until.replace(day=28) + timedelta(days=4)).replace(day=1)
-    return datetime.combine(next_month, received_at.time())
+    first_open_day = closed_until + timedelta(days=1)
+    return datetime.combine(first_open_day, received_at.time())
 
 
 def _phc_money(value: Any) -> Decimal:
@@ -2691,6 +2812,9 @@ def _provisional_invoice_ged_paths(
         raise ValueError('Não foi possível determinar a pasta GED da entidade.')
     supplier_name = _correspondence_safe_part(supplier.get('short_name') or supplier.get('name2') or supplier.get('name'), 'FORNECEDOR')[:55]
     document_number = _correspondence_safe_part(document.get('document_number'), 'SEM-DOCUMENTO')[:45]
+    if _is_credit_note_source_type(document.get('document_type')):
+        number_without_credit_prefix = re.sub(r'^NC(?:[\s_-]+)?', '', document_number, flags=re.IGNORECASE)
+        document_number = f'NC-{number_without_credit_prefix or document_number}'[:45]
     supplier_number = _phc_party_number(supplier.get('no'), supplier.get('estab'))
     clean_prefix = _correspondence_safe_part(file_prefix, 'FAC')[:12]
     file_name = f'{clean_prefix}-{str(reference).zfill(3)}-{supplier_number}-{supplier_name}-{document_number}.pdf'
@@ -3078,10 +3202,10 @@ def submit_provisional_invoice_to_phc(
     )
     try:
         cursor = connection.cursor()
+        cursor.execute('SET TRANSACTION ISOLATION LEVEL SERIALIZABLE')
         doc_config = _phc_provisional_purchase_doc_config(cursor, database_name, document.get('document_type'))
         effective_at = _phc_provisional_effective_datetime(cursor, database_name, document_date, received_at)
         year = effective_at.year
-        cursor.execute('SET TRANSACTION ISOLATION LEVEL SERIALIZABLE')
         lock = cursor.execute("""
             DECLARE @result int;
             EXEC @result = sp_getapplock @Resource=?, @LockMode='Exclusive', @LockOwner='Transaction', @LockTimeout=15000;
@@ -4062,15 +4186,20 @@ def search_phc_articles(
     if not source.get('phc_db'):
         raise ValueError('A empresa identificada não tem uma base PHC configurada.')
     clean_query = str(query or '').strip()
+    if not clean_query:
+        return {
+            'items': [], 'suggested_article': None, 'suggestion_confidence': 'none',
+            'selected_article_valid': True, 'phc_database': str(source.get('phc_db') or ''),
+        }
     line_data = dict(line or {})
     source_ref = str(line_data.get('source_ref') or line_data.get('extracted_ref') or line_data.get('ref') or '').strip()
     source_description = str(line_data.get('description') or '').strip()
     terms: list[str] = []
-    for value in (selected_article_ref, source_ref, clean_query, source_description):
+    for value in (clean_query,):
         clean_value = str(value or '').strip()
         if clean_value and clean_value not in terms:
             terms.append(clean_value[:100])
-    for token in re.findall(r'[\wÀ-ÿ-]+', f'{source_ref} {source_description} {clean_query}'):
+    for token in re.findall(r'[\wÀ-ÿ-]+', clean_query):
         if len(token) >= 3 and token not in terms:
             terms.append(token[:40])
         if len(terms) >= 10:
@@ -4095,8 +4224,11 @@ def search_phc_articles(
             WHERE ISNULL(ST.INACTIVO, 0) = 0
               AND LTRIM(RTRIM(ISNULL(ST.REF, ''))) <> ''
               {search_sql}
-            ORDER BY LTRIM(RTRIM(ISNULL(ST.REF, '')))
-        """, fetch_limit, *parameters).fetchall()
+            ORDER BY
+                CASE WHEN ST.REF LIKE ? THEN 0 ELSE 1 END,
+                LTRIM(RTRIM(ISNULL(ST.DESIGN, ''))),
+                LTRIM(RTRIM(ISNULL(ST.REF, '')))
+        """, fetch_limit, *parameters, f'%{clean_query}%').fetchall()
     history = _document_article_history(_safe_int(customer.get('feid'), 0), _safe_int(supplier_no, 0))
     candidates = []
     for row in rows:
@@ -4108,7 +4240,17 @@ def search_phc_articles(
         }
         score, reasons = _score_phc_article_candidate(candidate, clean_query, line_data, history)
         candidates.append({**candidate, 'score': score, 'match_reasons': reasons})
-    candidates.sort(key=lambda item: (-float(item.get('score') or 0), str(item.get('ref') or '')))
+    query_key = _normalize_text(clean_query)
+    def result_order(item: dict[str, Any]) -> tuple[int, str, str]:
+        ref_key = _normalize_text(item.get('ref'))
+        reference_priority = (
+            0 if ref_key == query_key
+            else 1 if ref_key.startswith(query_key)
+            else 2 if query_key in ref_key
+            else 3
+        )
+        return reference_priority, _normalize_text(item.get('design')), ref_key
+    candidates.sort(key=result_order)
     candidates = candidates[:safe_limit]
     best_score = float(candidates[0].get('score') or 0) if candidates else 0
     next_score = float(candidates[1].get('score') or 0) if len(candidates) > 1 else 0
@@ -4652,10 +4794,6 @@ def search_phc_document_origins(document_data: dict[str, Any] | None, limit_per_
         eligibility_reason = ''
         if candidate['closed']:
             eligibility_reason = 'Origem fechada.'
-        elif candidate['pending_quantity'] <= 0:
-            eligibility_reason = 'Origem satisfeita: sem saldo disponível.'
-        elif (document.get('lines') or []) and not candidate['line_matches']:
-            eligibility_reason = 'Origem incompatível com as linhas do documento.'
         candidate['selectable'] = not bool(eligibility_reason)
         candidate['eligibility_reason'] = eligibility_reason
         candidate['date'] = candidate['date'].date().isoformat() if isinstance(candidate['date'], datetime) else str(candidate['date'] or '')[:10]
@@ -4704,8 +4842,8 @@ def search_phc_document_origins(document_data: dict[str, Any] | None, limit_per_
         'stages': stages,
         'candidate_count': sum(len(stage.get('candidates') or []) for stage in stages),
         'no_selectable_reason': (
-            'Nenhuma origem com saldo disponível'
-            if candidates and not any(item.get('available_balance') for item in candidates)
+            'Nenhuma origem aberta disponível'
+            if not candidates
             else ''
         ),
     }
@@ -4735,7 +4873,8 @@ def get_phc_document_origin_detail(
             SELECT TOP 1
                 BO.BOSTAMP, BO.NDOS, LTRIM(RTRIM(ISNULL(BO.NMDOS, ''))),
                 BO.OBRANO, BO.BOANO, BO.DATAOBRA,
-                ISNULL(BO.ETOTALDEB, 0), ISNULL(BO.ETOTAL, 0)
+                ISNULL(BO.ETOTALDEB, 0), ISNULL(BO.ETOTAL, 0),
+                ISNULL(BO.FECHADA, 0)
             FROM dbo.BO BO WITH (NOLOCK)
             WHERE BO.BOSTAMP = ?
         """, clean_stamp).fetchone()
@@ -4762,9 +4901,13 @@ def get_phc_document_origin_detail(
                 LTRIM(RTRIM(ISNULL(BI.REF, ''))),
                 LTRIM(RTRIM(ISNULL(BI.DESIGN, ''))),
                 ISNULL(BI.QTT, 0),
+                ISNULL(BI.QTT2, 0),
+                ISNULL(BI.FECHADA, 0),
+                ISNULL(BI.LORDEM, 0),
                 ISNULL(BI.EDEBITO, 0),
                 ISNULL(BI.ETTDEB, 0),
                 ISNULL(BI.IVA, 0),
+                ISNULL(BI.TABIVA, 0),
                 LTRIM(RTRIM(ISNULL(BI.CCUSTO, ''))),
                 {registration_sql},
                 BO.DATAOBRA
@@ -4788,12 +4931,18 @@ def get_phc_document_origin_detail(
         'article': str(row[2] or '').strip(),
         'description': str(row[3] or '').strip(),
         'quantity': float(row[4] or 0),
-        'unit_price': float(row[5] or 0),
-        'line_total': float(row[6] or 0),
-        'tax_rate': float(row[7] or 0),
-        'project': str(row[8] or '').strip(),
-        'registration': str(row[9] or '').strip(),
-        'date': row[10].date().isoformat() if isinstance(row[10], datetime) else str(row[10] or '')[:10],
+        'pending_quantity': (
+            0.0 if bool(row[6] or 0)
+            else max(0.0, abs(float(row[4] or 0)) - abs(float(row[5] or 0)))
+        ),
+        'line_order': float(row[7] or 0),
+        'unit_price': float(row[8] or 0),
+        'line_total': float(row[9] or 0),
+        'tax_rate': float(row[10] or 0),
+        'tax_table': _safe_int(row[11], 0),
+        'project': str(row[12] or '').strip(),
+        'registration': str(row[13] or '').strip(),
+        'date': row[14].date().isoformat() if isinstance(row[14], datetime) else str(row[14] or '')[:10],
     } for row in line_rows]
     line_net_total = sum(Decimal(str(row.get('line_total') or 0)) for row in rows)
     line_tax_total = sum(
@@ -4826,6 +4975,7 @@ def get_phc_document_origin_detail(
             'year': _safe_int(header[4], 0) or None,
             'date': header[5].date().isoformat() if isinstance(header[5], datetime) else str(header[5] or '')[:10],
             'total': float(gross_total),
+            'closed': bool(header[8] or 0),
         },
         'totals': {
             'net_total': float(net_total),
@@ -4861,7 +5011,7 @@ def preview_document_purchase_order(
 
 
 def preview_document_delivery_note(document_stamp: str, delivery_number: str = '') -> dict[str, Any]:
-    """Prepare one INTERSOL Contract -> GdR operation without writing PHC."""
+    """Prepare one Contract -> GdR operation without writing PHC."""
     from services.document_ai_delivery_note_service import preview_delivery_note
 
     cached = get_cached_llm_extraction(document_stamp)
@@ -5203,8 +5353,12 @@ def validate_document_delivery_note(
     *,
     delivery_number: str = '',
 ) -> dict[str, Any]:
-    """Create one INTERSOL GdR and persist exact Contract/GdR lineage per Portal line."""
-    from services.document_ai_delivery_note_service import create_delivery_note, _delivery_number
+    """Create one GdR and persist exact Contract/GdR lineage per Portal line."""
+    from services.document_ai_delivery_note_service import (
+        SUPPORTED_PHC_DATABASES,
+        _delivery_number,
+        create_delivery_note,
+    )
     from services.document_ai_phc_operation_service import run_document_phc_operation
 
     document = db.session.get(DocInbox, str(document_stamp or '').strip())
@@ -5242,7 +5396,7 @@ def validate_document_delivery_note(
             str(value.get('status') or '') == 'confirmed'
             and str(value.get('bostamp') or '').strip()
             and int(value.get('ndos') or 0) == 130
-            and str(value.get('phc_database') or '').strip().upper() == 'INTERSOL'
+            and str(value.get('phc_database') or '').strip().upper() in SUPPORTED_PHC_DATABASES
             and isinstance(value.get('line_stamps'), list)
             and value.get('line_stamps')
         )
@@ -5279,7 +5433,7 @@ def validate_document_delivery_note(
                 raise ValueError('A GdR devolveu uma associação que não corresponde às linhas Portal.')
             gdr_bistamp = str(item.get('line_stamp') or '').strip()
             contract_bistamp = str(item.get('origin_line_stamp') or '').strip()
-            if not gdr_bistamp or gdr_bistamp in seen or not contract_bistamp:
+            if not gdr_bistamp or gdr_bistamp in seen:
                 raise ValueError('A GdR devolveu BISTAMPs vazios ou duplicados.')
             seen.add(gdr_bistamp)
             contract_bostamp = str(target.get('phc_origin_stamp') or target.get('bostamp') or '').strip()
@@ -5405,7 +5559,7 @@ def save_document_phc_origin(
     selected = valid_candidates.get(str(candidate.get('stamp') or '').strip())
     if not selected:
         raise ValueError('A origem selecionada já não está disponível entre os candidatos deste fornecedor.')
-    if selected.get('selectable') is False or selected.get('available_balance') is False:
+    if selected.get('closed') is True:
         raise ValueError(str(selected.get('eligibility_reason') or 'O dossier PHC selecionado não está elegível.'))
     meta = _json_loads(document.processing_meta_json, {})
     selected_origin = {
@@ -5415,13 +5569,6 @@ def save_document_phc_origin(
         'linked_at': _now().isoformat(),
         'linked_by': requested_by or '',
     }
-    if _phc_origin_family(selected_origin) in {'contract', 'subcontract'}:
-        detail = get_phc_document_origin_detail(document_stamp, str(selected_origin.get('stamp') or ''))
-        if detail.get('totals_reconciled') is False:
-            raise ValueError(
-                'Não é possível associar o Contrato: os totais PHC do cabeçalho não coincidem '
-                'com as linhas apresentadas. Consulta o detalhe e corrige o dossier no PHC.'
-            )
     origins = get_phc_origins_from_meta(meta)
     origins = [item for item in origins if str(item.get('stamp') or '').strip() != str(selected_origin.get('stamp') or '').strip()]
     _validate_phc_origin_combination(origins, selected_origin)
@@ -5583,11 +5730,222 @@ def _validate_line_phc_origin_assignments(lines: list[dict[str, Any]], origins: 
         raise ValueError('Uma Linha ou Sublinha referencia uma Origem PHC que não está associada ao documento.')
 
 
+def correct_document_phc_origin_line_quantity(
+    document_stamp: str,
+    requested_by: str,
+    *,
+    origin_stamp: str,
+    origin_line_stamp: str,
+    additional_quantity: Any,
+    family: str = 'purchase_order',
+) -> dict[str, Any]:
+    """Increase a selected source line and refresh the cached origin balance."""
+    from services.document_ai_purchase_order_service import increase_origin_line_quantity
+
+    document = db.session.get(DocInbox, str(document_stamp or '').strip())
+    if not document:
+        raise ValueError('Documento do inbox não encontrado.')
+    cached = get_cached_llm_extraction(document_stamp)
+    document_data = dict((cached or {}).get('document') or {})
+    if not document_data:
+        raise ValueError('O documento ainda não tem dados de Análise guardados.')
+    result = increase_origin_line_quantity(
+        document_data,
+        origin_stamp,
+        origin_line_stamp,
+        additional_quantity,
+        requested_by,
+        family,
+    )
+    meta = _json_loads(document.processing_meta_json, {})
+    origins = get_phc_origins_from_meta(meta)
+    for origin in origins:
+        if str(origin.get('stamp') or '').strip() != str(result.get('origin_stamp') or '').strip():
+            continue
+        for line in origin.get('lines') or []:
+            if str(line.get('line_stamp') or '').strip() != str(result.get('origin_line_stamp') or '').strip():
+                continue
+            line['qty'] = result['quantity']
+            line['quantity'] = result['quantity']
+            line['pending_qty'] = result['pending_quantity']
+            line['pending_quantity'] = result['pending_quantity']
+            line['line_total'] = result['line_total']
+            line['closed'] = False
+        origin['pending_quantity'] = sum(
+            float(line.get('pending_qty') if line.get('pending_qty') is not None else line.get('pending_quantity') or 0)
+            for line in origin.get('lines') or [] if isinstance(line, dict)
+        )
+        origin['closed'] = False
+    meta['phc_origins'] = origins
+    document.processing_meta_json = _json_dumps(meta)
+    document.last_processing_error = ''
+    db.session.commit()
+    return {**result, 'version': _document_draft_version(document)}
+
+
+def correct_document_phc_origin_line_article(
+    document_stamp: str,
+    requested_by: str,
+    *,
+    origin_stamp: str,
+    origin_line_stamp: str,
+    article_ref: str,
+) -> dict[str, Any]:
+    """Change the PHC article on an open origin line and synchronize linked target lines."""
+    import pyodbc
+    from services.phc_user_import_service import _phc_conn_str
+
+    document = db.session.get(DocInbox, str(document_stamp or '').strip())
+    if not document:
+        raise ValueError('Documento do inbox não encontrado.')
+    clean_origin = str(origin_stamp or '').strip()
+    clean_line = str(origin_line_stamp or '').strip()
+    clean_ref = str(article_ref or '').strip()
+    if not clean_origin or not clean_line:
+        raise ValueError('Seleciona a linha da origem que deve ser corrigida.')
+    if not clean_ref:
+        raise ValueError('Seleciona uma referência de artigo válida.')
+
+    meta = _json_loads(document.processing_meta_json, {})
+    origins = get_phc_origins_from_meta(meta)
+    selected_origin = next(
+        (item for item in origins if str(item.get('stamp') or '').strip() == clean_origin),
+        None,
+    )
+    if not selected_origin:
+        raise ValueError('A origem PHC já não está associada ao documento.')
+    cached = meta.get('llm_full_extraction') or {}
+    document_data = dict(cached.get('document') or {}) if isinstance(cached, dict) else {}
+    normalized_cached = get_cached_llm_extraction(document_stamp) or {}
+    normalized_document = dict(normalized_cached.get('document') or {})
+    source = _phc_origin_source(dict(normalized_document.get('customer') or document_data.get('customer') or {}))
+    if not source.get('phc_db'):
+        raise ValueError('A empresa identificada não tem uma base PHC configurada.')
+
+    connection = pyodbc.connect(
+        _phc_conn_str(source['phc_db'], source.get('phc_server') or ''),
+        timeout=15,
+        autocommit=False,
+    )
+    try:
+        cursor = connection.cursor()
+        cursor.execute('SET TRANSACTION ISOLATION LEVEL SERIALIZABLE')
+        row = cursor.execute("""
+            SELECT TOP 1
+                LTRIM(RTRIM(ISNULL(BI.BISTAMP, ''))),
+                CAST(ISNULL(BO.FECHADA, 0) AS bit),
+                CAST(ISNULL(BO2.ANULADO, 0) AS bit)
+            FROM dbo.BI BI WITH (UPDLOCK, HOLDLOCK)
+            INNER JOIN dbo.BO BO WITH (UPDLOCK, HOLDLOCK) ON BO.BOSTAMP = BI.BOSTAMP
+            LEFT JOIN dbo.BO2 BO2 WITH (UPDLOCK, HOLDLOCK) ON BO2.BO2STAMP = BO.BOSTAMP
+            WHERE BI.BISTAMP = ? AND BI.BOSTAMP = ?
+        """, clean_line, clean_origin).fetchone()
+        if not row:
+            raise ValueError('A linha selecionada já não existe na origem PHC.')
+        if bool(row[1] or 0):
+            raise ValueError('O documento de origem está fechado no PHC e não pode ser alterado.')
+        if bool(row[2] or 0):
+            raise ValueError('O documento de origem está anulado no PHC e não pode ser alterado.')
+        article = cursor.execute("""
+            SELECT TOP 1
+                LTRIM(RTRIM(ISNULL(ST.STSTAMP, ''))),
+                LTRIM(RTRIM(ISNULL(ST.REF, ''))),
+                LTRIM(RTRIM(ISNULL(ST.DESIGN, ''))),
+                LTRIM(RTRIM(ISNULL(ST.UNIDADE, '')))
+            FROM dbo.ST ST WITH (NOLOCK)
+            WHERE UPPER(LTRIM(RTRIM(ISNULL(ST.REF, '')))) = UPPER(?)
+              AND ISNULL(ST.INACTIVO, 0) = 0
+        """, clean_ref).fetchone()
+        if not article:
+            raise ValueError('A referência selecionada já não existe ou está inativa no PHC.')
+        now = _now()
+        user = _phc_correspondence_user(cursor, requested_by)
+        _phc_update_values(cursor, 'BI', {
+            'ref': str(article[1] or '').strip(),
+            'ststamp': str(article[0] or '').strip(),
+            'usrinis': str(user.get('initials') or requested_by or 'DOC')[:3],
+            'usrdata': now,
+            'usrhora': now.strftime('%H:%M:%S'),
+        }, 'BISTAMP = ? AND BOSTAMP = ?', [clean_line, clean_origin])
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        raise
+    finally:
+        connection.close()
+
+    normalized_ref = str(article[1] or '').strip()
+    article_payload = {
+        'ref': normalized_ref,
+        'design': str(article[2] or '').strip(),
+        'unit': str(article[3] or '').strip(),
+    }
+    for origin in origins:
+        if str(origin.get('stamp') or '').strip() != clean_origin:
+            continue
+        for line in origin.get('lines') or []:
+            if str(line.get('line_stamp') or '').strip() == clean_line:
+                line['ref'] = normalized_ref
+                line['article'] = normalized_ref
+
+    updated_destinations = 0
+
+    def synchronize_lines(items: list[dict[str, Any]]) -> None:
+        nonlocal updated_destinations
+        for item in items or []:
+            matched = False
+            for allocation in item.get('bc_allocations') or []:
+                if not isinstance(allocation, dict):
+                    continue
+                if (
+                    str(allocation.get('origin_stamp') or '').strip() == clean_origin
+                    and str(allocation.get('origin_line_stamp') or '').strip() == clean_line
+                ):
+                    allocation['article_ref'] = normalized_ref
+                    matched = True
+            if matched:
+                item['article_ref'] = normalized_ref
+                manual_fields = item.setdefault('_manual_fields', [])
+                for field in ('article_ref', 'bc_allocations'):
+                    if field not in manual_fields:
+                        manual_fields.append(field)
+                updated_destinations += 1
+            children = item.get('sub_lines') or item.get('sublines') or []
+            if isinstance(children, list):
+                synchronize_lines([child for child in children if isinstance(child, dict)])
+
+    synchronize_lines(document_data.get('lines') or [])
+    meta['phc_origins'] = origins
+    if isinstance(cached, dict):
+        cached['document'] = document_data
+        cached['adjusted_at'] = _now().isoformat()
+        cached['adjusted_by'] = requested_by or ''
+        meta['llm_full_extraction'] = cached
+    document.processing_meta_json = _json_dumps(meta)
+    document.json_resultado = _json_dumps(document_data)
+    document.dtalt = _now()
+    document.useralteracao = requested_by or document.useralteracao or ''
+    document.last_processing_error = ''
+    db.session.commit()
+    return {
+        'ok': True,
+        'message': f'Referência da origem alterada para {normalized_ref}.',
+        'origin_stamp': clean_origin,
+        'origin_line_stamp': clean_line,
+        'article': article_payload,
+        'updated_destinations': updated_destinations,
+        'version': _document_draft_version(document),
+    }
+
+
 def _validate_origin_allocation_balances(lines: list[dict[str, Any]], origins: list[dict[str, Any]]) -> None:
     """Reject manual allocations that exceed the live balance exposed for one PHC line."""
     capacities: dict[tuple[str, str], Decimal] = {}
+    closed_origins: set[str] = set()
     for origin in origins or []:
         origin_stamp = str(origin.get('stamp') or '').strip()
+        if origin_stamp and bool(origin.get('closed')):
+            closed_origins.add(origin_stamp)
         for source_line in origin.get('lines') or []:
             if not isinstance(source_line, dict):
                 continue
@@ -5599,6 +5957,7 @@ def _validate_origin_allocation_balances(lines: list[dict[str, Any]], origins: l
                     else source_line.get('qty') or 0
                 ))
     allocated: dict[tuple[str, str], Decimal] = defaultdict(Decimal)
+    over_delivery_authorized: set[tuple[str, str]] = set()
 
     def visit(items: list[dict[str, Any]]) -> None:
         for item in items or []:
@@ -5609,10 +5968,14 @@ def _validate_origin_allocation_balances(lines: list[dict[str, Any]], origins: l
                     str(allocation.get('origin_stamp') or '').strip(),
                     str(allocation.get('origin_line_stamp') or '').strip(),
                 )
+                if key[0] in closed_origins:
+                    raise ValueError('O documento de origem está fechado no PHC e não pode receber associações.')
                 quantity = Decimal(str(allocation.get('quantity') or 0))
                 if quantity < 0:
                     raise ValueError('A quantidade distribuída por origem não pode ser negativa.')
                 allocated[key] += quantity
+                if allocation.get('allow_over_delivery') is True:
+                    over_delivery_authorized.add(key)
             children = item.get('sub_lines') or item.get('sublines') or []
             if isinstance(children, list):
                 visit([child for child in children if isinstance(child, dict)])
@@ -5620,7 +5983,7 @@ def _validate_origin_allocation_balances(lines: list[dict[str, Any]], origins: l
     visit(lines)
     tolerance = Decimal('0.0001')
     for key, quantity in allocated.items():
-        if key in capacities and quantity - capacities[key] > tolerance:
+        if key in capacities and quantity - capacities[key] > tolerance and key not in over_delivery_authorized:
             raise ValueError(
                 'A quantidade distribuída excede o saldo disponível da linha PHC selecionada.'
             )
@@ -5747,16 +6110,24 @@ def get_cached_llm_extraction(document_stamp: str) -> dict[str, Any] | None:
         persisted_agency = str(customer.get('ged_folder') or '').strip()
         customer.update({
             'feid': entity.get('feid'),
+            'name': entity.get('name') or customer.get('name') or '',
+            'tax_id': entity.get('tax_id') or customer.get('tax_id') or '',
             'phc_database': customer.get('phc_database') or entity.get('phc_database') or '',
             'ged_folder': persisted_agency if manual_agency and persisted_agency else entity.get('ged_folder') or persisted_agency,
+            'matched_by': customer.get('matched_by') or 'feid',
         })
         cached_document['customer'] = customer
 
     cached_matching = dict(cached.get('matching') or {})
     if entity:
+        cached_matching['customer_matched'] = True
         cached_matching['customer'] = {
             **dict(cached_matching.get('customer') or {}),
             **entity,
+        }
+        cached_matching['supplier_query'] = {
+            **dict(cached_matching.get('supplier_query') or {}),
+            'feid': entity.get('feid'),
         }
 
     workflow = {
@@ -5985,7 +6356,21 @@ def preflight_document_inbox_stage(
                 'message': required_info['messages'][0],
             }
         assert_document_distribution_available(document, stage, document_type)
-        return {'ok': True, 'view': stage, 'assessment': assessment, 'duplicates': duplicates, 'required_info': required_info}
+        reception_warnings = (
+            list(financial_consistency.get('errors') or [])
+            if document_type in {'invoice', 'provisional_invoice', 'credit_note'}
+            and not financial_consistency.get('ok')
+            else []
+        )
+        return {
+            'ok': True,
+            'view': stage,
+            'assessment': assessment,
+            'duplicates': duplicates,
+            'required_info': required_info,
+            'warnings': reception_warnings,
+            'financial_consistency': financial_consistency,
+        }
     if not bool(document.reception_validated):
         raise ValueError('O documento ainda não foi validado pela Receção.')
     if stage == 'management':
@@ -6063,6 +6448,54 @@ def _has_complete_reception_integration(
     return False
 
 
+def _reception_integration_incomplete_message(
+    integration: dict[str, Any] | None,
+    document_type: Any,
+) -> str:
+    """Explain an incomplete Reception integration in user-facing language."""
+    payload = dict(integration or {})
+    clean_type = str(document_type or '').strip().lower()
+    missing: list[str] = []
+
+    if not str(payload.get('phc_database') or '').strip():
+        missing.append('não foi possível determinar a base PHC da entidade')
+    if _safe_int(payload.get('reference'), 0) <= 0 or _safe_int(payload.get('year'), 0) <= 0:
+        missing.append('não ficou confirmado o número/ano da correspondência')
+    if not str(payload.get('crstamp') or '').strip():
+        missing.append('a correspondência não ficou confirmada no PHC')
+
+    if clean_type in {'mail', 'bank_statement'}:
+        if not str(payload.get('anexosstamp') or '').strip():
+            missing.append('o PDF não ficou associado à correspondência')
+    elif _is_provisional_purchase_source_type(clean_type):
+        if not str(payload.get('fostamp') or '').strip():
+            missing.append('a Fatura Provisória não ficou confirmada no PHC')
+        attachment_stamps = [
+            str(value or '').strip() for value in (payload.get('anexosstamps') or [])
+        ]
+        if len(attachment_stamps) < 2 or not all(attachment_stamps[:2]):
+            missing.append('o PDF não ficou associado à correspondência e à Fatura Provisória')
+        if not str(payload.get('original_date') or '').strip():
+            missing.append('não ficou confirmada a data original da fatura')
+        if not str(payload.get('operational_date') or '').strip():
+            missing.append('não ficou confirmada a data de lançamento no PHC')
+
+    if not bool(payload.get('ged_confirmed')):
+        missing.append('o ficheiro não ficou confirmado no servidor GED')
+
+    if not missing:
+        return (
+            'A integração ficou incompleta por uma resposta técnica inesperada. '
+            'Tenta novamente; se o erro continuar, contacta o suporte.'
+        )
+    detail = '; '.join(missing)
+    return (
+        f'Não foi possível concluir a validação: {detail}. '
+        'Corrige os dados indicados quando estiverem disponíveis no ecrã e tenta novamente. '
+        'Se faltar apenas o PDF/servidor GED, tenta novamente sem alterar o documento.'
+    )
+
+
 def _integrate_reception_document(
     document: DocInbox,
     document_data: dict[str, Any],
@@ -6137,6 +6570,9 @@ def _integrate_reception_document(
             'permission': permission_key,
         },
         on_confirmed=on_confirmed,
+        incomplete_message=lambda payload: _reception_integration_incomplete_message(
+            payload, document_type,
+        ),
     )
 
 
@@ -6595,6 +7031,40 @@ def validate_document_inbox_stage(
     document.processing_stage = f'{stage}_validated'
     document.dtalt = transition_now
     document.useralteracao = requested_by or document.useralteracao or ''
+    reception_warnings = list(preflight.get('warnings') or []) if stage == 'home' else []
+    if stage == 'home':
+        current_meta = _json_loads(document.processing_meta_json, {})
+        if reception_warnings:
+            current_meta['reception_financial_warning'] = {
+                'errors': reception_warnings,
+                'validated_at': transition_now.isoformat(),
+                'validated_by': requested_by or '',
+                'requires_human_review': True,
+            }
+            _document_log(
+                document.docinstamp,
+                'reception_financial_warning',
+                'warning',
+                'Receção validada com divergências financeiras para revisão humana.',
+                {'errors': reception_warnings, 'requested_by': requested_by or ''},
+            )
+        else:
+            current_meta.pop('reception_financial_warning', None)
+        document_batch = dict(result.get('document_batch') or {})
+        if document_batch.get('contains_multiple_documents') and document_batch.get('keep_pdf_together'):
+            current_meta['batch_keep_together'] = {
+                'document_count': _safe_int(document_batch.get('document_count'), 0),
+                'validated_at': transition_now.isoformat(),
+                'validated_by': requested_by or '',
+            }
+            _document_log(
+                document.docinstamp,
+                'batch_keep_together',
+                'ok',
+                'PDF com vários conteúdos mantido completo por decisão do utilizador.',
+                current_meta['batch_keep_together'],
+            )
+        document.processing_meta_json = _json_dumps(current_meta)
     version_after = _document_draft_version(document)
     routed_destinations = [
         str(item.get('destination') or '')
@@ -6634,6 +7104,7 @@ def validate_document_inbox_stage(
         'phc_integration': integration if stage == 'home' else dict(
             _json_loads(document.processing_meta_json, {}).get('phc_integration') or {}
         ),
+        'warnings': reception_warnings,
         'phc_purchase_finalization': accounting_integration
         if stage == 'accounting' and document_type != 'credit_note' else dict(
             _json_loads(document.processing_meta_json, {}).get('phc_purchase_finalization') or {}),
@@ -8338,7 +8809,9 @@ def assess_document_reception(
         or supplier.get('without_supplier')
     )
     batch = dict(result.get('document_batch') or {})
-    multiple_documents = bool(batch.get('contains_multiple_documents'))
+    detected_multiple_documents = bool(batch.get('contains_multiple_documents'))
+    keep_pdf_together = bool(batch.get('keep_pdf_together'))
+    multiple_documents = detected_multiple_documents and not keep_pdf_together
     invoice_type = _normalize_invoice_type(result.get('invoice_type'))
 
     missing = []
@@ -8385,6 +8858,8 @@ def assess_document_reception(
         'document_type': document_type,
         'invoice_type': invoice_type,
         'multiple_documents': multiple_documents,
+        'detected_multiple_documents': detected_multiple_documents,
+        'keep_pdf_together': keep_pdf_together,
         'supplier_explicitly_absent': supplier_absent,
     }
 

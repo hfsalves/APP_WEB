@@ -255,7 +255,9 @@ class DocumentAiInboxWorkflowTests(unittest.TestCase):
         extract_script = Path('static/js/document_ai_extract.js').read_text()
         self.assertIn('supplier_no: state.documentData.supplier?.supplier_no', extract_script)
         self.assertIn('selected_article_ref: line.article_ref', extract_script)
-        self.assertIn("showMessage('Artigo não encontrado.', 'error');", extract_script)
+        self.assertIn("els.articleSearch?.addEventListener('input', scheduleArticleSearch);", extract_script)
+        self.assertIn("els.articleSearch.value = '';", extract_script)
+        self.assertIn("els.articleList.innerHTML = '';", extract_script)
 
 
 if __name__ == '__main__':

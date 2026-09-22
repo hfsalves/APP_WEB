@@ -72,11 +72,20 @@ class DocumentAiDeliveryNotePlanningTests(unittest.TestCase):
         self.assertEqual(result['contract']['ndos'], 119)
         self.assertEqual(result['delivery_note']['ndos'], 130)
 
-    def test_other_databases_are_explicitly_blocked(self):
-        with patch('services.document_ai_service._phc_origin_source', return_value={
-            'kind': 'phc', 'phc_db': 'HSOLS_FR',
-        }):
-            with self.assertRaisesRegex(ValueError, 'apenas em INTERSOL'):
+    def test_supported_databases_are_allowed_and_other_databases_are_blocked(self):
+        for database in ('INTERSOL', 'HSOLS_FR', 'HSOLS_DE'):
+            with self.subTest(database=database), patch(
+                'services.document_ai_service._phc_origin_source',
+                return_value={'kind': 'phc', 'phc_db': database},
+            ):
+                source, _document = service._source_and_document({'customer': {'feid': 1}})
+                self.assertEqual(source['phc_db'], database)
+
+        with patch(
+            'services.document_ai_service._phc_origin_source',
+            return_value={'kind': 'phc', 'phc_db': 'GR360'},
+        ):
+            with self.assertRaisesRegex(ValueError, 'INTERSOL, HSOLS_FR e HSOLS_DE'):
                 service._source_and_document({'customer': {'feid': 1}})
 
     def test_plan_aggregates_partial_sublines_against_contract_balance(self):
@@ -100,6 +109,61 @@ class DocumentAiDeliveryNotePlanningTests(unittest.TestCase):
         self.assertEqual(result['requested_by_source']['BI-CONTRACT-1'], Decimal('7'))
         self.assertEqual(len(result['lines']), 2)
         self.assertEqual(sum(row['foreign_net'] for row in result['lines']), Decimal('350.00'))
+
+    def test_plan_uses_document_cost_center_when_effective_line_is_empty(self):
+        line = controlled_line(ccusto='', project_ccusto='', cost_center='')
+        document = {
+            'lines': [line],
+            'supplier': {'supplier_no': 12},
+            'origin_project': {'ccusto': 'FR001'},
+        }
+        contract = {'bostamp': 'BO-CONTRACT', 'ndos': 119, 'no': 12, 'estab': 0, 'anulado': 0}
+        with patch(
+            'services.document_ai_service._phc_provisional_supplier',
+            return_value={'no': 12, 'estab': 0, 'name': 'Supplier'},
+        ), patch.object(service, '_intersol_series', return_value={
+            'contract': {'ndos': 119, 'name': 'Contrat'},
+            'delivery_note': {'ndos': 130, 'name': 'Bon Livraison Fourn.'},
+        }), patch.object(service, '_load_contract', return_value=(contract, [source_line()])):
+            result = service._plan(MagicMock(), document, 'BL-77', for_update=True)
+
+        self.assertEqual(result['lines'][0]['ccusto'], 'FR001')
+
+    def test_plan_accepts_an_additional_line_without_contract_origin(self):
+        linked = controlled_line()
+        additional = controlled_line(
+            portal_line_index=1,
+            portal_line_id='LINE-2',
+            line_id='LINE-2',
+            phc_origin_stamp='',
+            phc_origin_line_stamp='',
+            article_ref='PALETTE',
+            description='Europaletten',
+            unit='UN',
+            qty=2,
+            unit_price=10,
+            net_amount=20,
+            tax_rate=0,
+            tax_table=5,
+        )
+        document = {'lines': [linked, additional], 'supplier': {'supplier_no': 12}}
+        contract = {'bostamp': 'BO-CONTRACT', 'ndos': 119, 'no': 12, 'estab': 0, 'anulado': 0}
+        with patch(
+            'services.document_ai_service._phc_provisional_supplier',
+            return_value={'no': 12, 'estab': 0, 'name': 'Supplier'},
+        ), patch.object(service, '_intersol_series', return_value={
+            'contract': {'ndos': 119, 'name': 'Contrat'},
+            'delivery_note': {'ndos': 130, 'name': 'Bon Livraison Fourn.'},
+        }), patch.object(service, '_load_contract', return_value=(contract, [source_line()])):
+            result = service._plan(MagicMock(), document, 'BL-77', for_update=True)
+
+        self.assertEqual(len(result['lines']), 2)
+        self.assertTrue(result['lines'][0]['linked_to_contract'])
+        self.assertFalse(result['lines'][1]['linked_to_contract'])
+        self.assertEqual(result['lines'][1]['source']['bistamp'], '')
+        self.assertEqual(result['lines'][1]['foreign_net'], Decimal('20.00'))
+        self.assertEqual(result['lines'][1]['tax_code'], 5)
+        self.assertEqual(result['requested_by_source'], {'BI-CONTRACT-1': Decimal('3')})
 
     def test_plan_blocks_quantity_above_remaining_contract_balance(self):
         line = controlled_line(qty=9)
@@ -220,6 +284,42 @@ class DocumentAiDeliveryNoteTransactionTests(unittest.TestCase):
         connection.commit.assert_called_once()
         connection.rollback.assert_not_called()
 
+    def test_creation_writes_additional_line_without_contract_lineage(self):
+        cursor = FakeCursor()
+        connection = self._connection(cursor)
+        plan = plan_for_creation()
+        plan['lines'].append({
+            'portal_line_index': 1,
+            'portal_subline_index': None,
+            'portal_line_id': 'LINE-2',
+            'source': {
+                'bistamp': '', 'ref': 'PALETTE', 'design': 'Europaletten',
+                'unidade': 'UN', 'edebito': Decimal('10'), 'debito': Decimal('10'),
+                'iva': Decimal('0'), 'tabiva': 5,
+            },
+            'quantity': Decimal('2'), 'ccusto': 'FR001',
+            'foreign_net': Decimal('20'), 'local_net': Decimal('20'),
+            'tax_rate': Decimal('0'), 'tax_code': 5,
+            'linked_to_contract': False,
+        })
+        inserted = []
+        patches = self._patches(connection, plan, [[]])
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patch(
+            'services.document_ai_service._phc_insert_values',
+            side_effect=lambda _cursor, table, values: inserted.append((table, values)),
+        ):
+            result = service.create_delivery_note(
+                {'lines': [controlled_line()]}, 'DOC-1', 'BL-77', 'tester',
+            )
+
+        lines = [values for table, values in inserted if table == 'BI']
+        self.assertEqual(len(lines), 2)
+        self.assertEqual(lines[1]['ref'], 'PALETTE')
+        self.assertEqual(lines[1]['obistamp'], '')
+        self.assertEqual(lines[1]['oobistamp'], '')
+        self.assertEqual(lines[1]['oobostamp'], '')
+        self.assertEqual(result['line_stamps'][1]['origin_line_stamp'], '')
+
     def test_repeat_after_lost_response_returns_existing_document(self):
         cursor = FakeCursor()
         connection = self._connection(cursor)
@@ -306,8 +406,16 @@ class DocumentAiDeliveryNoteFrontendTests(unittest.TestCase):
 class DocumentAiDeliveryNoteLineageTests(unittest.TestCase):
     def test_confirmed_gdr_becomes_immediate_origin_and_preserves_contract_link(self):
         line = controlled_line()
+        additional = controlled_line(
+            portal_line_index=1,
+            portal_line_id='LINE-2',
+            line_id='LINE-2',
+            phc_origin_stamp='',
+            phc_origin_line_stamp='',
+            article_ref='PALETTE',
+        )
         document = {
-            'document_date': '2026-09-10', 'lines': [line],
+            'document_date': '2026-09-10', 'lines': [line, additional],
             'customer': {'feid': 8}, 'supplier': {'supplier_no': 12},
         }
         record = type('Document', (), {})()
@@ -332,6 +440,10 @@ class DocumentAiDeliveryNoteLineageTests(unittest.TestCase):
                 'portal_line_index': 0, 'portal_subline_index': None,
                 'portal_line_id': 'LINE-1', 'line_stamp': 'BI-GDR',
                 'origin_line_stamp': 'BI-CONTRACT-1', 'quantity': 3,
+            }, {
+                'portal_line_index': 1, 'portal_subline_index': None,
+                'portal_line_id': 'LINE-2', 'line_stamp': 'BI-GDR-2',
+                'origin_line_stamp': '', 'quantity': 3,
             }],
         }
 
@@ -364,8 +476,18 @@ class DocumentAiDeliveryNoteLineageTests(unittest.TestCase):
         families = {link['origin_family'] for link in saved_line['phc_origin_links']}
         self.assertEqual(families, {'contract', 'delivery_note'})
         self.assertEqual(saved_line['bc_allocations'][0]['origin_line_stamp'], 'BI-GDR')
+        additional_saved = saved['llm_full_extraction']['document']['lines'][1]
+        self.assertEqual(
+            (additional_saved['phc_origin_stamp'], additional_saved['phc_origin_line_stamp']),
+            ('BO-GDR', 'BI-GDR-2'),
+        )
+        self.assertEqual(
+            {link['origin_family'] for link in additional_saved['phc_origin_links']},
+            {'delivery_note'},
+        )
         gdr = next(item for item in saved['phc_origins'] if item['stamp'] == 'BO-GDR')
         self.assertEqual(gdr['lines'][0]['obistamp'], 'BI-CONTRACT-1')
+        self.assertEqual(gdr['lines'][1]['obistamp'], '')
         self.assertTrue(result['ok'])
 
     def test_second_click_reuses_confirmed_portal_operation_without_repreview_or_phc_write(self):

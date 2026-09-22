@@ -126,12 +126,29 @@ class DocumentAiPhcOperationServiceTests(unittest.TestCase):
     def test_incomplete_result_is_kept_for_reconciliation(self, commit):
         document = self.document()
 
-        with self.assertRaisesRegex(RuntimeError, 'identificadores obrigatórios'):
+        with self.assertRaisesRegex(RuntimeError, 'integração PHC/GED ficou incompleta'):
             self.run_operation(document, lambda: {'phc_database': 'HSOLS_FR'})
 
         operation = json.loads(document.processing_meta_json)['phc_operations']['provisional_invoice']
         self.assertEqual(operation['status'], 'failed_recoverable')
         self.assertEqual(operation['phc_database'], 'HSOLS_FR')
+
+    @patch('services.document_ai_phc_operation_service.db.session.commit')
+    def test_incomplete_result_uses_the_specific_user_message(self, _commit):
+        document = self.document()
+
+        with self.assertRaisesRegex(RuntimeError, 'PDF não ficou associado à compra'):
+            run_document_phc_operation(
+                document,
+                operation_type='provisional_invoice',
+                requested_by='tester',
+                execute=lambda: {'phc_database': 'HSOLS_FR'},
+                is_complete=self.is_complete,
+                result_fields=('fostamp', 'phc_database'),
+                incomplete_message=lambda _payload: 'O PDF não ficou associado à compra.',
+            )
+
+        self.assertIn('PDF não ficou associado', document.last_processing_error)
 
     @patch('services.document_ai_phc_operation_service.db.session.commit')
     def test_sensitive_context_is_redacted(self, _commit):
