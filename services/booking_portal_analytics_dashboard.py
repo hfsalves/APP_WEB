@@ -238,8 +238,14 @@ def build_dashboard(engine, period, *, include_bots=False, include_validation=Fa
         property_names = _property_names(conn, property_ids, table_names)
 
     accesses = sum(int(row.get("requests") or 0) for row in total_rows)
+    visit_count = sum(
+        int(row.get("requests") or 0)
+        for row in total_rows
+        if str(row.get("source") or "unknown") != "internal"
+    )
     visitor_count = len({row["visitor_id"] for row in session_rows})
     session_count = len(session_rows)
+    unconsented_visits = max(0, visit_count - session_count)
     pageview_count = len(page_rows)
     booking_count = len(conversion_rows)
     paid_count = sum(1 for row in conversion_rows if booking_details.get(row["booking_id"], {}).get("paid"))
@@ -251,12 +257,14 @@ def build_dashboard(engine, period, *, include_bots=False, include_validation=Fa
     while cursor <= period["end"]:
         days.append(cursor)
         cursor += timedelta(days=1)
-    series = {day: {"date": day.isoformat(), "accesses": 0, "visitors": set(), "sessions": 0,
+    series = {day: {"date": day.isoformat(), "accesses": 0, "visits": 0, "visitors": set(), "sessions": 0,
                     "pageviews": 0, "bookings": 0, "paid": 0} for day in days}
     for row in total_rows:
         day = _local_day(row.get("hour"))
         if day in series:
             series[day]["accesses"] += int(row.get("requests") or 0)
+            if str(row.get("source") or "unknown") != "internal":
+                series[day]["visits"] += int(row.get("requests") or 0)
     for row in session_rows:
         day = _local_day(row.get("started_at"))
         if day in series:
@@ -366,10 +374,13 @@ def build_dashboard(engine, period, *, include_bots=False, include_validation=Fa
         "period": {"start": period["start"].isoformat(), "end": period["end"].isoformat(), "days": period["days"]},
         "filters": {"include_bots": bool(include_bots), "include_validation": bool(include_validation)},
         "kpis": {
+            "visits": visit_count,
             "accesses": accesses,
             "bot_accesses": bot_accesses,
             "visitors": visitor_count,
             "sessions": session_count,
+            "unconsented_visits": unconsented_visits,
+            "consent_coverage_rate": _pct(session_count, visit_count),
             "pageviews": pageview_count,
             "pageviews_per_session": round(pageview_count / session_count, 1) if session_count else None,
             "average_active_seconds": round(active_total / session_count) if session_count else None,
@@ -408,6 +419,7 @@ def build_dashboard(engine, period, *, include_bots=False, include_validation=Fa
             "aggregate_retention_days": 180,
         },
         "definitions": {
+            "visits": "Entradas estimadas no portal: páginas sem referência interna, excluindo bots reconhecidos.",
             "accesses": "Pedidos de páginas públicas, não pessoas únicas.",
             "visitors": "Navegadores com consentimento, não pessoas garantidamente distintas.",
             "active_time": "Tempo estimado com a página visível e atividade recente.",

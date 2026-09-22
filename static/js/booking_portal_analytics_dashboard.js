@@ -105,7 +105,9 @@
       const key = node.dataset.kpi;
       node.textContent = key === "average_active_seconds" ? formatSeconds(kpis[key]) : formatNumber(kpis[key]);
     });
-    $("[data-kpi-note='single_page_rate']").textContent = `${formatPercent(kpis.single_page_rate)} com uma página`;
+    root.querySelectorAll("[data-kpi-percent]").forEach((node) => {
+      node.textContent = formatPercent(kpis[node.dataset.kpiPercent]);
+    });
     $("[data-kpi-note='pageviews_per_session']").textContent = `${decimalFormat.format(kpis.pageviews_per_session || 0)} por sessão`;
     $("[data-kpi-note='session_conversion_rate']").textContent = `${formatPercent(kpis.session_conversion_rate)} das sessões`;
     $("[data-kpi-note='payment_rate']").textContent = `${formatPercent(kpis.payment_rate)} dos pedidos`;
@@ -130,8 +132,8 @@
       data: {
         labels: items.map((item) => new Intl.DateTimeFormat("pt-PT", { day: "2-digit", month: "short", timeZone: "UTC" }).format(new Date(`${item.date}T00:00:00Z`))),
         datasets: [
-          { label: "Acessos", data: items.map((item) => item.accesses), borderColor: "#2f5da8", backgroundColor: "rgba(47,93,168,.1)", fill: true, tension: .32, pointRadius: items.length > 45 ? 0 : 2, borderWidth: 2 },
-          { label: "Sessões", data: items.map((item) => item.sessions), borderColor: "#ff6b18", backgroundColor: "transparent", tension: .32, pointRadius: items.length > 45 ? 0 : 2, borderWidth: 2 },
+          { label: "Visitas", data: items.map((item) => item.visits), borderColor: "#2f5da8", backgroundColor: "rgba(47,93,168,.1)", fill: true, tension: .32, pointRadius: items.length > 45 ? 0 : 2, borderWidth: 2 },
+          { label: "Sessões consentidas", data: items.map((item) => item.sessions), borderColor: "#ff6b18", backgroundColor: "transparent", tension: .32, pointRadius: items.length > 45 ? 0 : 2, borderWidth: 2 },
           { label: "Reservas pagas", data: items.map((item) => item.paid), borderColor: "#188d56", backgroundColor: "transparent", tension: .32, pointRadius: 2, borderWidth: 2 }
         ]
       },

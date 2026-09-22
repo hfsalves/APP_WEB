@@ -303,6 +303,10 @@ def origin_label(header: dict[str, Any], name: str) -> str:
 def pf_machine(items: list[dict[str, Any]], database: str) -> str:
     origins = {clean(item["excel"].get("origin")) for item in items if clean(item["excel"].get("origin"))}
     if database.upper() == "INTERSOL":
+        # Some legacy INTERSOL exports do not include an agency column.  Do
+        # not manufacture a regional machine value from the chantier.
+        if not origins:
+            return ""
         if len(origins) != 1:
             raise ImportValidationError("Uma PF INTERSOL não pode agregar mais de uma agência.")
         return "INTERSOL-" + next(iter(origins)).upper()

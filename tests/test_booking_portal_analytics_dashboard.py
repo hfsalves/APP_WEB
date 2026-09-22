@@ -93,10 +93,13 @@ def test_dashboard_excludes_bots_and_validation_by_default(analytics_engine):
     data = build_dashboard(analytics_engine, period)
 
     assert data["kpis"] == {
+        "visits": 10,
         "accesses": 10,
         "bot_accesses": 5,
         "visitors": 1,
         "sessions": 1,
+        "unconsented_visits": 9,
+        "consent_coverage_rate": 10.0,
         "pageviews": 2,
         "pageviews_per_session": 2.0,
         "average_active_seconds": 120,

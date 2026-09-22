@@ -41,20 +41,16 @@
 
       <section class="pb-kpi-grid" aria-label="Indicadores principais">
         <article class="pb-kpi-card pb-kpi-primary">
+          <span class="pb-kpi-icon"><i class="fa-solid fa-person-walking-arrow-right"></i></span>
+          <div><span class="pb-kpi-label">Visitas totais</span><strong data-kpi="visits">—</strong><small>entradas estimadas, sem cookies</small></div>
+        </article>
+        <article class="pb-kpi-card">
           <span class="pb-kpi-icon"><i class="fa-solid fa-arrow-pointer"></i></span>
-          <div><span class="pb-kpi-label">Acessos</span><strong data-kpi="accesses">—</strong><small>pedidos de páginas públicas</small></div>
-        </article>
-        <article class="pb-kpi-card">
-          <span class="pb-kpi-icon"><i class="fa-solid fa-users"></i></span>
-          <div><span class="pb-kpi-label">Visitantes consentidos</span><strong data-kpi="visitors">—</strong><small>navegadores distintos</small></div>
-        </article>
-        <article class="pb-kpi-card">
-          <span class="pb-kpi-icon"><i class="fa-regular fa-window-restore"></i></span>
-          <div><span class="pb-kpi-label">Sessões</span><strong data-kpi="sessions">—</strong><small data-kpi-note="single_page_rate">—</small></div>
+          <div><span class="pb-kpi-label">Acessos</span><strong data-kpi="accesses">—</strong><small>páginas públicas solicitadas</small></div>
         </article>
         <article class="pb-kpi-card">
           <span class="pb-kpi-icon"><i class="fa-regular fa-file-lines"></i></span>
-          <div><span class="pb-kpi-label">Páginas vistas</span><strong data-kpi="pageviews">—</strong><small data-kpi-note="pageviews_per_session">—</small></div>
+          <div><span class="pb-kpi-label">Páginas consentidas</span><strong data-kpi="pageviews">—</strong><small data-kpi-note="pageviews_per_session">—</small></div>
         </article>
         <article class="pb-kpi-card">
           <span class="pb-kpi-icon"><i class="fa-regular fa-clock"></i></span>
@@ -74,7 +70,7 @@
         <i class="fa-solid fa-circle-info"></i>
         <div>
           <strong>Dois níveis de medição</strong>
-          <p>Os acessos contam todas as páginas, mesmo sem cookies. Visitantes, sessões, duração e percurso só existem quando há consentimento analítico.</p>
+          <p>Visitas e acessos contam sem cookies. Navegadores distintos, duração e percurso detalhado só existem quando há consentimento analítico.</p>
         </div>
         <button type="button" class="pb-filter-details-button" id="pbAnalyticsAdvancedToggle" aria-expanded="false">Opções</button>
         <div class="pb-advanced-filters" id="pbAnalyticsAdvanced" hidden>
@@ -83,13 +79,25 @@
         </div>
       </section>
 
+      <section class="pb-consent-summary" aria-label="Cobertura do consentimento analítico">
+        <div class="pb-consent-intro">
+          <span class="pb-eyebrow">Consentimento</span>
+          <strong>Detalhe das visitas</strong>
+          <p>Uma visita não corresponde necessariamente a uma pessoa única.</p>
+        </div>
+        <div class="pb-consent-metric"><span>Visitantes consentidos</span><strong data-kpi="visitors">—</strong><small>navegadores distintos</small></div>
+        <div class="pb-consent-metric"><span>Sessões consentidas</span><strong data-kpi="sessions">—</strong><small>após aceitar analítica</small></div>
+        <div class="pb-consent-metric"><span>Visitas sem consentimento</span><strong data-kpi="unconsented_visits">—</strong><small>estimativa sem identificação</small></div>
+        <div class="pb-consent-metric"><span>Cobertura analítica</span><strong data-kpi-percent="consent_coverage_rate">—</strong><small>sessões consentidas ÷ visitas</small></div>
+      </section>
+
       <section class="pb-dashboard-grid pb-dashboard-grid-main">
         <article class="sz_panel pb-dashboard-card pb-timeline-card">
           <header class="pb-card-header">
             <div><span class="pb-eyebrow">Evolução</span><h2>Atividade ao longo do tempo</h2></div>
-            <div class="pb-chart-legend"><span class="is-accesses">Acessos</span><span class="is-sessions">Sessões</span><span class="is-paid">Pagas</span></div>
+            <div class="pb-chart-legend"><span class="is-visits">Visitas</span><span class="is-sessions">Sessões consentidas</span><span class="is-paid">Pagas</span></div>
           </header>
-          <div class="pb-chart-wrap"><canvas id="pbTimelineChart" aria-label="Evolução diária de acessos, sessões e reservas pagas"></canvas></div>
+          <div class="pb-chart-wrap"><canvas id="pbTimelineChart" aria-label="Evolução diária de visitas, sessões consentidas e reservas pagas"></canvas></div>
         </article>
 
         <article class="sz_panel pb-dashboard-card">
