@@ -28,6 +28,7 @@ from services.booking_portal_currency import (
     amount_to_minor_units, convert_stay_breakdown, format_money,
     load_currency_snapshot, normalize_currency, validate_currency_snapshot,
 )
+from services.booking_portal_reviews import build_rating_summary, parse_reviews
 
 
 TIPOLOGIA_CAPACIDADE = {
@@ -271,7 +272,11 @@ def _descricao_alojamento_sql(lang=None) -> str:
     return f"COALESCE(NULLIF({translated}, ''), {base})"
 
 
-def _alojamento_base_select(where_sql: str, lang=None) -> str:
+def _alojamento_base_select(where_sql: str, lang=None, include_reviews: bool = False) -> str:
+    reviews_column = (
+        ",\n            CAST(ISNULL(AL.AVALIACOES, N'') AS nvarchar(max)) AS AVALIACOES"
+        if include_reviews else ""
+    )
     return f"""
         SELECT
             AL.ALSTAMP,
@@ -297,6 +302,8 @@ def _alojamento_base_select(where_sql: str, lang=None) -> str:
             CAST(ISNULL(AL.EXTRAMAISQUE, 0) AS int) AS EXTRAMAISQUE,
             CAST(ISNULL(AL.TXLIMPEZA, 0) AS decimal(12, 2)) AS TXLIMPEZA,
             CAST(ISNULL(AL.PBASE, 0) AS decimal(12, 2)) AS PBASE,
+            CAST(ISNULL(AL.AVALIACAO, 0) AS decimal(5, 2)) AS AVALIACAO,
+            CAST(ISNULL(AL.NRAVALIACOES, 0) AS int) AS NRAVALIACOES{reviews_column},
             CAST(NULL AS decimal(12, 2)) AS PRECO_DESDE,
             {_descricao_alojamento_sql(lang)} AS DESCRICAO
         FROM dbo.AL AS AL
@@ -365,7 +372,7 @@ def _alojamento_paged_select(where_sql: str, lang=None) -> str:
     """
 
 
-def _decorate_alojamento(row: dict, include_gallery: bool = False) -> dict:
+def _decorate_alojamento(row: dict, include_gallery: bool = False, lang: str = "pt") -> dict:
     item = _row_dict(row)
     tipologia = _clean(item.get("TIPOLOGIA"))
     capacidade_tipologia = capacidade_por_tipologia(tipologia)
@@ -401,6 +408,8 @@ def _decorate_alojamento(row: dict, include_gallery: bool = False) -> dict:
     descricao = _clean(item.get("DESCRICAO"))
     lat = _to_float(item.get("LAT"))
     lon = _to_float(item.get("LON"))
+    rating = build_rating_summary(item.get("AVALIACAO"), item.get("NRAVALIACOES"), lang)
+    reviews = parse_reviews(item.get("AVALIACOES"), lang) if "AVALIACOES" in item else []
     return {
         "id": _clean(item.get("ALSTAMP")),
         "nome": _clean(item.get("NOME")),
@@ -426,6 +435,8 @@ def _decorate_alojamento(row: dict, include_gallery: bool = False) -> dict:
         "localizacao": ", ".join(part for part in [_clean(item.get("LOCAL")), _clean(item.get("ZONA"))] if part),
         "descricao": descricao,
         "descricao_curta": descricao[:180] + ("..." if len(descricao) > 180 else ""),
+        "rating": rating,
+        "reviews": reviews,
         "pbase": _to_decimal(item.get("PBASE")),
         "preco_desde_valor": _to_decimal(item.get("PRECO_DESDE")),
         "preco_desde": _money(item.get("PRECO_DESDE")),
@@ -606,6 +617,7 @@ def get_alojamento(al_id, lang=None) -> dict | None:
                 AND ISNULL(AL.FECHADO, 0) = 0
                 """,
                 lang=lang,
+                include_reviews=True,
             )
         ),
         {"al_id": al_id_clean},
@@ -613,7 +625,9 @@ def get_alojamento(al_id, lang=None) -> dict | None:
     if not row:
         return None
     prices = get_from_prices([al_id_clean])
-    return _decorate_alojamento({**row, "PRECO_DESDE": prices.get(al_id_clean)}, include_gallery=True)
+    return _decorate_alojamento(
+        {**row, "PRECO_DESDE": prices.get(al_id_clean)}, include_gallery=True, lang=lang or "pt"
+    )
 
 
 def get_calendario_ocupacao(al_id, start=None, months=12) -> dict:
@@ -812,7 +826,7 @@ def get_alojamentos_disponiveis_page(checkin=None, checkout=None, hospedes=None,
         alojamento = _decorate_alojamento({
             **row,
             "PRECO_DESDE": prices.get(_clean(row.get("ALSTAMP"))),
-        })
+        }, lang=lang or "pt")
         comparison = comparisons.get(_clean(row.get("NOME_INTERNO")))
         if comparison:
             quoted_nights = int(comparison["nights"])

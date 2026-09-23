@@ -707,6 +707,12 @@ def create_app():
     from blueprints.analytics_revpar import bp as analytics_revpar_bp
     app.register_blueprint(analytics_revpar_bp)
 
+    from blueprints.amenities import bp as amenities_bp
+    app.register_blueprint(amenities_bp)
+    from services.amenities_service import ensure_amenities_schema
+    with app.app_context():
+        ensure_amenities_schema()
+
     from blueprints.booking_portal_analytics import bp as booking_portal_analytics_bp
     app.register_blueprint(booking_portal_analytics_bp)
     from blueprints.booking_portal_reservations import bp as booking_portal_reservations_bp

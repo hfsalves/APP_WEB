@@ -1,5 +1,6 @@
 {% from "booking_portal/_airbnb_badge.html" import airbnb_badge %}
 {% from "booking_portal/_price_saving.html" import price_saving %}
+{% from "booking_portal/_reviews.html" import rating_summary %}
 <!doctype html>
 <html lang="{{ lang }}">
 <head>
@@ -175,6 +176,7 @@
                     <span class="booking-chip">{{ al.tipologia }}</span>
                   {% endif %}
                 </div>
+                {{ rating_summary(al.rating, t.review_singular, t.review_plural, extra_class='booking-rating-summary-card') }}
                 <div class="booking-meta">
                   <span>{{ al.capacidade }} {% if al.capacidade == 1 %}{{ t.guest }}{% else %}{{ t.guests }}{% endif %}</span>
                   {% if al.localizacao %}<span>{{ al.localizacao }}</span>{% endif %}

@@ -1,5 +1,6 @@
 {% from "booking_portal/_airbnb_badge.html" import airbnb_badge %}
 {% from "booking_portal/_price_saving.html" import price_saving %}
+{% from "booking_portal/_reviews.html" import rating_summary, reviews_section %}
 <!doctype html>
 <html lang="{{ lang }}">
 <head>
@@ -70,6 +71,7 @@
         <article class="booking-detail-main">
           <p class="booking-kicker booking-kicker-dark">{{ t.stay_label }}</p>
           <h1>{{ alojamento.nome }}</h1>
+          {{ rating_summary(alojamento.rating, t.review_singular, t.review_plural, '#avaliacoes' if alojamento.reviews else '', 'booking-rating-summary-detail', t.view_reviews) }}
           {% if alojamento.localizacao %}
             <div class="booking-meta booking-meta-large">
               <span>{{ alojamento.localizacao }}</span>
@@ -124,6 +126,8 @@
             </div>
           {% endif %}
         </article>
+
+        {{ reviews_section(alojamento, t) }}
       </div>
 
       <aside class="booking-reserve-panel">
@@ -373,6 +377,18 @@
 
         refreshToggle();
         window.addEventListener("resize", refreshToggle);
+      });
+    })();
+
+    (function () {
+      document.querySelectorAll("[data-review-toggle]").forEach(function (toggle) {
+        toggle.addEventListener("click", function () {
+          var text = toggle.previousElementSibling;
+          if (!text || !text.matches("[data-review-text]")) return;
+          var collapsed = text.classList.toggle("is-collapsed");
+          toggle.setAttribute("aria-expanded", collapsed ? "false" : "true");
+          toggle.textContent = collapsed ? toggle.dataset.more : toggle.dataset.less;
+        });
       });
     })();
 

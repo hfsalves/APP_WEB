@@ -1,0 +1,62 @@
+{% macro rating_summary(rating, singular, plural, href='', extra_class='', view_label='') -%}
+  {% if rating %}
+    <div class="booking-rating-summary {{ extra_class }}" aria-label="{{ rating.label }}{% if rating.count %}, {{ rating.count }} {{ singular if rating.count == 1 else plural }}{% endif %}">
+      <span class="booking-rating-star" aria-hidden="true">★</span>
+      <span>{{ rating.label }}</span>
+      {% if rating.count %}
+        <span class="booking-rating-separator" aria-hidden="true">·</span>
+        {% if href %}
+          <a href="{{ href }}"{% if view_label %} aria-label="{{ view_label }}: {{ rating.count }} {{ singular if rating.count == 1 else plural }}"{% endif %}>{{ rating.count }} {{ singular if rating.count == 1 else plural }}</a>
+        {% else %}
+          <span>{{ rating.count }} {{ singular if rating.count == 1 else plural }}</span>
+        {% endif %}
+      {% endif %}
+    </div>
+  {% endif %}
+{%- endmacro %}
+
+{% macro reviews_section(alojamento, t) -%}
+  {% if alojamento.reviews %}
+    <section class="booking-reviews" id="avaliacoes" aria-labelledby="booking-reviews-title">
+      <div class="booking-reviews-head">
+        <div class="booking-reviews-heading-copy">
+          <p>{{ t.reviews_eyebrow }}</p>
+          <h2 id="booking-reviews-title">{{ t.reviews_title }}</h2>
+          <span>{{ t.reviews_lead }}</span>
+        </div>
+        {{ rating_summary(alojamento.rating, t.review_singular, t.review_plural, extra_class='booking-rating-summary-review-head') }}
+      </div>
+      <div class="booking-reviews-grid">
+        {% for review in alojamento.reviews %}
+          <article class="booking-review-card">
+            <header class="booking-review-card-head">
+              <div class="booking-review-author">
+                {% if review.author_initial %}<span class="booking-review-avatar" aria-hidden="true">{{ review.author_initial }}</span>{% endif %}
+                <div>
+                  {% if review.author %}<h3>{{ review.author }}</h3>{% endif %}
+                  {% if review.profile %}<p>{{ review.profile }}</p>{% endif %}
+                </div>
+              </div>
+              {% if review.rating_label %}
+                <span class="booking-review-rating" aria-label="{{ review.rating_label }}">★ {{ review.rating_label }}</span>
+              {% endif %}
+            </header>
+            {% if review.text %}
+              <p class="booking-review-text{% if review.expandable %} is-collapsed{% endif %}" data-review-text>{{ review.text }}</p>
+              {% if review.expandable %}
+                <button class="booking-review-toggle" type="button" data-review-toggle data-more="{{ t.review_read_more }}" data-less="{{ t.review_read_less }}" aria-expanded="false">{{ t.review_read_more }}</button>
+              {% endif %}
+            {% endif %}
+            {% if review.date_label or review.stay_label %}
+              <footer>
+                {% if review.date_label %}<span>{{ review.date_label }}</span>{% endif %}
+                {% if review.date_label and review.stay_label %}<span aria-hidden="true">·</span>{% endif %}
+                {% if review.stay_label %}<span>{{ review.stay_label }}</span>{% endif %}
+              </footer>
+            {% endif %}
+          </article>
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+{%- endmacro %}

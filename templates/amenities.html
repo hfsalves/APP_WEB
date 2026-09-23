@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Comodidades dos Alojamentos{% endblock %}
+
+{% block extra_head %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/amenities.css') }}?v={{ static_version }}">
+{% endblock %}
+
+{% block content %}
+<div class="sz_page amenities-page" id="amenitiesApp"
+     data-state-url="{{ url_for('amenities.state') }}"
+     data-relation-url="{{ url_for('amenities.relation') }}"
+     data-bulk-url="{{ url_for('amenities.bulk_relation') }}"
+     data-catalog-url="{{ url_for('amenities.catalog_create') }}">
+  <div class="sz_page_container amenities-container">
+    <header class="sz_contextbar sz_page_contextbar amenities-contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_breadcrumbs">Alojamentos · Configuração</div>
+        <h1 class="sz_page_title">Comodidades dos Alojamentos</h1>
+        <p class="sz_page_subtitle">Associe comodidades aos alojamentos e configure o catálogo mestre.</p>
+      </div>
+      <div class="sz_contextbar_right amenities-actions">
+        <button class="sz_button sz_button_secondary" type="button" id="amenitiesReload">
+          <i class="fa-solid fa-rotate"></i><span>Atualizar</span>
+        </button>
+        <button class="sz_button sz_button_primary" type="button" id="amenitiesManage">
+          <i class="fa-solid fa-sliders"></i><span>Gerir comodidades</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="sz_page_body amenities-body">
+      <section class="sz_panel amenities-toolbar" aria-label="Filtros da matriz">
+        <label class="sz_field amenities-search-field">
+          <span class="sz_label">Alojamento</span>
+          <span class="amenities-input-icon"><i class="fa-solid fa-magnifying-glass"></i><input class="sz_input" id="amenitiesSearch" type="search" placeholder="Pesquisar alojamento…"></span>
+        </label>
+        <label class="sz_field">
+          <span class="sz_label">Categoria</span>
+          <select class="sz_select" id="amenitiesCategory"><option value="">Todas as categorias</option></select>
+        </label>
+        <label class="sz_field">
+          <span class="sz_label">Zona</span>
+          <select class="sz_select" id="amenitiesZone"><option value="">Todas as zonas</option></select>
+        </label>
+        <div class="amenities-toolbar-summary" id="amenitiesSummary" role="status">A carregar…</div>
+      </section>
+
+      <section class="sz_panel amenities-matrix-panel" aria-label="Matriz de comodidades">
+        <div class="amenities-status" id="amenitiesStatus" role="status">A carregar comodidades…</div>
+        <div class="amenities-matrix-wrap" id="amenitiesMatrixWrap" hidden>
+          <table class="amenities-matrix" id="amenitiesMatrix">
+            <thead id="amenitiesMatrixHead"></thead>
+            <tbody id="amenitiesMatrixBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <dialog class="amenities-dialog" id="amenitiesDialog" aria-labelledby="amenitiesDialogTitle">
+    <div class="amenities-dialog-shell">
+      <header class="amenities-dialog-head">
+        <div><span class="amenities-eyebrow">Catálogo mestre</span><h2 id="amenitiesDialogTitle">Gerir comodidades</h2></div>
+        <button class="amenities-icon-button" type="button" id="amenitiesDialogClose" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
+      </header>
+      <div class="amenities-catalog-tools">
+        <label class="amenities-catalog-search"><i class="fa-solid fa-magnifying-glass"></i><input type="search" id="catalogSearch" placeholder="Código ou designação…"></label>
+        <select id="catalogCategory" aria-label="Filtrar por categoria"><option value="">Todas as categorias</option></select>
+        <select id="catalogActive" aria-label="Filtrar por estado"><option value="">Ativas e inativas</option><option value="1">Ativas</option><option value="0">Inativas</option></select>
+        <select id="catalogPortal" aria-label="Filtrar por utilização no PortoBreak"><option value="">Todas no PortoBreak</option><option value="show">Mostradas no PortoBreak</option><option value="filter">Filtros PortoBreak</option></select>
+        <button class="sz_button sz_button_primary" type="button" id="amenityNew"><i class="fa-solid fa-plus"></i><span>Nova comodidade</span></button>
+      </div>
+      <div class="amenities-catalog-layout">
+        <div class="amenities-catalog-table-wrap">
+          <table class="sz_table amenities-catalog-table">
+            <thead><tr><th>Comodidade</th><th>Traduções</th><th>Categoria</th><th>Ordem</th><th>Ativa</th><th>PortoBreak</th><th>Filtro</th><th></th></tr></thead>
+            <tbody id="amenitiesCatalogBody"></tbody>
+          </table>
+          <div class="amenities-empty" id="amenitiesCatalogEmpty" hidden>Sem comodidades para os filtros selecionados.</div>
+        </div>
+
+        <form class="amenities-editor" id="amenityForm" hidden novalidate>
+          <div class="amenities-editor-head"><div><span class="amenities-eyebrow" id="amenityFormMode">Nova</span><h3 id="amenityFormTitle">Comodidade</h3></div><button class="amenities-icon-button" type="button" id="amenityFormClose" aria-label="Fechar edição"><i class="fa-solid fa-xmark"></i></button></div>
+          <input type="hidden" id="amenityId">
+          <label><span>Código técnico</span><input id="amenityCode" maxlength="60" autocomplete="off" placeholder="EXEMPLO_COMODIDADE" required><small>Fica bloqueado depois da criação.</small></label>
+          <div class="amenities-language-grid">
+            <label><span>Português</span><input id="amenityPt" maxlength="120" required></label>
+            <label><span>English</span><input id="amenityEn" maxlength="120" required></label>
+            <label><span>Español</span><input id="amenityEs" maxlength="120" required></label>
+            <label><span>Français</span><input id="amenityFr" maxlength="120" required></label>
+          </div>
+          <div class="amenities-editor-grid">
+            <label><span>Categoria</span><select id="amenityCategory" required></select></label>
+            <label><span>Ordem</span><input id="amenityOrder" type="number" step="1" value="10" required></label>
+          </div>
+          <fieldset class="amenities-icon-fieldset"><legend>Ícone</legend><button class="amenities-icon-current" id="amenityIconButton" type="button" aria-expanded="false"><i class="fa-solid fa-circle-question" id="amenityIconPreview"></i><span id="amenityIconName">Escolher ícone</span><i class="fa-solid fa-chevron-down"></i></button><div class="amenities-icon-picker" id="amenityIconPicker" hidden></div><input type="hidden" id="amenityIcon" required></fieldset>
+          <div class="amenities-flag-grid">
+            <label><input id="amenityActive" type="checkbox" checked><span>Ativa</span></label>
+            <label><input id="amenityShow" type="checkbox" checked><span>Mostrar no PortoBreak</span></label>
+            <label><input id="amenityFilter" type="checkbox"><span>Filtro PortoBreak</span></label>
+          </div>
+          <p class="amenities-editor-note"><i class="fa-solid fa-circle-info"></i> Ao ativar “Filtro PortoBreak”, a comodidade fica automaticamente ativa e visível no portal.</p>
+          <div class="amenities-form-error" id="amenityFormError" role="alert" hidden></div>
+          <footer><button class="sz_button sz_button_secondary" type="button" id="amenityCancel">Cancelar</button><button class="sz_button sz_button_primary" type="submit" id="amenitySave"><i class="fa-solid fa-floppy-disk"></i><span>Guardar</span></button></footer>
+        </form>
+      </div>
+    </div>
+  </dialog>
+
+  <div class="amenities-toast" id="amenitiesToast" role="status" aria-live="polite" hidden></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script src="{{ url_for('static', filename='js/amenities.js') }}?v={{ static_version }}"></script>
+{% endblock %}
