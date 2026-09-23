@@ -625,9 +625,47 @@ def get_alojamento(al_id, lang=None) -> dict | None:
     if not row:
         return None
     prices = get_from_prices([al_id_clean])
-    return _decorate_alojamento(
+    alojamento = _decorate_alojamento(
         {**row, "PRECO_DESDE": prices.get(al_id_clean)}, include_gallery=True, lang=lang or "pt"
     )
+    alojamento["comodidades"] = get_public_amenities(alojamento.get("nome_interno"), lang=lang)
+    return alojamento
+
+
+def get_public_amenities(alojamento: str, lang: str | None = None) -> list[dict]:
+    property_name = _clean(alojamento)
+    if not property_name or not _table_exists("COMODIDADES") or not _table_exists("AL_COMODIDADES"):
+        return []
+    name_column = {
+        "en": "NOME_EN",
+        "es": "NOME_ES",
+        "fr": "NOME_FR",
+    }.get(_clean(lang).lower(), "NOME_PT")
+    rows = db.session.execute(text(f"""
+        SELECT C.CODIGO,
+               COALESCE(NULLIF(LTRIM(RTRIM(C.{name_column})), ''), LTRIM(RTRIM(C.NOME_PT))) AS NOME,
+               C.CATEGORIA,C.ICONE,C.ORDEM
+        FROM dbo.AL_COMODIDADES AC
+        INNER JOIN dbo.COMODIDADES C ON C.ID=AC.COMODIDADE_ID
+        WHERE LTRIM(RTRIM(AC.ALOJAMENTO))=:alojamento
+          AND C.ATIVA=1
+          AND C.MOSTRA_PORTOBREAK=1
+        ORDER BY CASE C.CATEGORIA
+          WHEN 'CLIMATIZACAO' THEN 1 WHEN 'COZINHA' THEN 2 WHEN 'LAVANDARIA' THEN 3
+          WHEN 'QUARTO_BANHO' THEN 4 WHEN 'TECNOLOGIA' THEN 5 WHEN 'EXTERIOR' THEN 6
+          WHEN 'EDIFICIO_ACESSO' THEN 7 WHEN 'BEBE' THEN 8 ELSE 9 END,
+          C.ORDEM,C.NOME_PT
+    """), {"alojamento": property_name}).mappings().all()
+    amenities = []
+    for row in rows:
+        icon = _clean(row.get("ICONE"))
+        amenities.append({
+            "codigo": _clean(row.get("CODIGO")),
+            "nome": _clean(row.get("NOME")),
+            "categoria": _clean(row.get("CATEGORIA")),
+            "icone": icon if re.fullmatch(r"fa-[a-z0-9-]+", icon) else "fa-circle-check",
+        })
+    return [item for item in amenities if item["nome"]]
 
 
 def get_calendario_ocupacao(al_id, start=None, months=12) -> dict:

@@ -32,7 +32,8 @@ ICON_OPTIONS = (
     "fa-snowflake", "fa-temperature-half", "fa-fan", "fa-kitchen-set",
     "fa-utensils", "fa-box", "fa-icicles", "fa-fire-burner", "fa-fire",
     "fa-wave-square", "fa-mug-hot", "fa-mug-saucer", "fa-bread-slice",
-    "fa-sink", "fa-shirt", "fa-person-booth", "fa-soap", "fa-bed",
+    "fa-sink", "fa-shirt", "fa-person-booth", "fa-soap", "fa-pump-soap",
+    "fa-bottle-droplet", "fa-bed",
     "fa-bath", "fa-shower", "fa-sun", "fa-wifi", "fa-tv", "fa-display",
     "fa-satellite-dish", "fa-building", "fa-umbrella-beach", "fa-tree",
     "fa-chair", "fa-elevator", "fa-square-parking", "fa-car", "fa-house",
@@ -65,6 +66,9 @@ INITIAL_AMENITIES = (
     ("BANHEIRA", "Banheira", "Bathtub", "Bañera", "Baignoire", "QUARTO_BANHO", "fa-bath", 40, 1, 1),
     ("DUCHE", "Duche", "Shower", "Ducha", "Douche", "QUARTO_BANHO", "fa-shower", 50, 1, 0),
     ("BLACKOUT", "Blackout / estores opacos", "Blackout blinds", "Persianas opacas", "Stores occultants", "QUARTO_BANHO", "fa-sun", 60, 1, 0),
+    ("GEL_DUCHE", "Gel de duche", "Shower gel", "Gel de ducha", "Gel douche", "QUARTO_BANHO", "fa-pump-soap", 70, 1, 0),
+    ("SHAMPOO", "Shampoo", "Shampoo", "Champú", "Shampoing", "QUARTO_BANHO", "fa-bottle-droplet", 80, 1, 0),
+    ("SABONETE_LIQUIDO", "Sabonete líquido", "Liquid soap", "Jabón líquido", "Savon liquide", "QUARTO_BANHO", "fa-pump-soap", 90, 1, 0),
     ("WIFI", "Wi-Fi", "Wi-Fi", "Wi-Fi", "Wi-Fi", "TECNOLOGIA", "fa-wifi", 10, 1, 1),
     ("TELEVISAO", "Televisão", "Television", "Televisión", "Télévision", "TECNOLOGIA", "fa-tv", 20, 1, 0),
     ("SMART_TV", "Smart TV", "Smart TV", "Smart TV", "Smart TV", "TECNOLOGIA", "fa-display", 30, 1, 1),
@@ -142,14 +146,16 @@ def ensure_amenities_schema() -> None:
         batches = [part.strip() for part in re.split(r"^\s*GO\s*$", handle.read(), flags=re.MULTILINE | re.IGNORECASE) if part.strip()]
     for batch in batches:
         db.session.execute(text(batch))
-    for item in INITIAL_AMENITIES:
-        db.session.execute(text("""
-            IF NOT EXISTS (SELECT 1 FROM dbo.COMODIDADES WHERE CODIGO = :codigo)
-            INSERT INTO dbo.COMODIDADES
-                (CODIGO,NOME_PT,NOME_EN,NOME_ES,NOME_FR,CATEGORIA,ICONE,ORDEM,ATIVA,MOSTRA_PORTOBREAK,FILTRO_PORTOBREAK)
-            VALUES
-                (:codigo,:pt,:en,:es,:fr,:categoria,:icone,:ordem,1,:mostra,:filtro)
-        """), dict(zip(("codigo", "pt", "en", "es", "fr", "categoria", "icone", "ordem", "mostra", "filtro"), item)))
+    # A carga é apenas inicial. Se voltássemos a inserir por código em todos os
+    # arranques, uma comodidade eliminada pelo utilizador reapareceria.
+    if not db.session.execute(text("SELECT TOP 1 1 FROM dbo.COMODIDADES")).scalar():
+        for item in INITIAL_AMENITIES:
+            db.session.execute(text("""
+                INSERT INTO dbo.COMODIDADES
+                    (CODIGO,NOME_PT,NOME_EN,NOME_ES,NOME_FR,CATEGORIA,ICONE,ORDEM,ATIVA,MOSTRA_PORTOBREAK,FILTRO_PORTOBREAK)
+                VALUES
+                    (:codigo,:pt,:en,:es,:fr,:categoria,:icone,:ordem,1,:mostra,:filtro)
+            """), dict(zip(("codigo", "pt", "en", "es", "fr", "categoria", "icone", "ordem", "mostra", "filtro"), item)))
     # Corrige apenas os dois identificadores iniciais que não existem no
     # Font Awesome Free 6.4; não substitui escolhas posteriores do utilizador.
     db.session.execute(text("""
@@ -172,7 +178,8 @@ def list_amenities(*, include_inactive: bool = True) -> list[dict]:
     rows = db.session.execute(text(f"""
         SELECT ID,CODIGO,NOME_PT,NOME_EN,NOME_ES,NOME_FR,CATEGORIA,ICONE,ORDEM,
                CAST(ATIVA AS int) ATIVA,CAST(MOSTRA_PORTOBREAK AS int) MOSTRA_PORTOBREAK,
-               CAST(FILTRO_PORTOBREAK AS int) FILTRO_PORTOBREAK
+               CAST(FILTRO_PORTOBREAK AS int) FILTRO_PORTOBREAK,
+               (SELECT COUNT(*) FROM dbo.AL_COMODIDADES AC WHERE AC.COMODIDADE_ID=COMODIDADES.ID) ASSOCIACOES
         FROM dbo.COMODIDADES {where}
         ORDER BY CASE CATEGORIA
           WHEN 'CLIMATIZACAO' THEN 1 WHEN 'COZINHA' THEN 2 WHEN 'LAVANDARIA' THEN 3
@@ -258,6 +265,25 @@ def update_amenity(amenity_id: int, payload: dict) -> dict:
     """), clean)
     db.session.commit()
     return next(item for item in list_amenities() if int(item["id"]) == int(amenity_id))
+
+
+def delete_amenity(amenity_id: int) -> dict:
+    row = db.session.execute(text(
+        "SELECT ID,NOME_PT FROM dbo.COMODIDADES WHERE ID=:id"
+    ), {"id": int(amenity_id)}).mappings().first()
+    if not row:
+        raise LookupError("Comodidade não encontrada.")
+    relations = int(db.session.execute(text(
+        "SELECT COUNT(*) FROM dbo.AL_COMODIDADES WHERE COMODIDADE_ID=:id"
+    ), {"id": int(amenity_id)}).scalar() or 0)
+    db.session.execute(text(
+        "DELETE FROM dbo.AL_COMODIDADES WHERE COMODIDADE_ID=:id"
+    ), {"id": int(amenity_id)})
+    db.session.execute(text(
+        "DELETE FROM dbo.COMODIDADES WHERE ID=:id"
+    ), {"id": int(amenity_id)})
+    db.session.commit()
+    return {"id": int(row["ID"]), "nome_pt": row["NOME_PT"], "associacoes_removidas": relations}
 
 
 def bulk_set_relations(alojamentos: list[str], amenity_id: int, enabled: bool, feid: int) -> int:

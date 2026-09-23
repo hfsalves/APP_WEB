@@ -609,6 +609,8 @@ TRANSLATIONS = {
         "view_reviews": "Ver avaliações",
         "review_read_more": "Ver mais",
         "review_read_less": "Ver menos",
+        "amenities_eyebrow": "Comodidades",
+        "amenities_title": "O que este alojamento oferece",
     },
     "en": {
         "page_reservations": "Bookings",
@@ -818,6 +820,8 @@ TRANSLATIONS = {
         "view_reviews": "View reviews",
         "review_read_more": "Read more",
         "review_read_less": "Show less",
+        "amenities_eyebrow": "Amenities",
+        "amenities_title": "What this stay offers",
     },
     "es": {
         "page_reservations": "Reservas",
@@ -1027,6 +1031,8 @@ TRANSLATIONS = {
         "view_reviews": "Ver reseñas",
         "review_read_more": "Ver más",
         "review_read_less": "Ver menos",
+        "amenities_eyebrow": "Comodidades",
+        "amenities_title": "Qué ofrece este alojamiento",
     },
     "fr": {
         "page_reservations": "Reservations",
@@ -1236,6 +1242,8 @@ TRANSLATIONS = {
         "view_reviews": "Voir les avis",
         "review_read_more": "Lire plus",
         "review_read_less": "Lire moins",
+        "amenities_eyebrow": "Équipements",
+        "amenities_title": "Ce que propose ce logement",
     },
 }
 

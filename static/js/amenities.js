@@ -7,7 +7,7 @@
     reload: $('amenitiesReload'), manage: $('amenitiesManage'), search: $('amenitiesSearch'),
     category: $('amenitiesCategory'), zone: $('amenitiesZone'), summary: $('amenitiesSummary'),
     status: $('amenitiesStatus'), wrap: $('amenitiesMatrixWrap'), head: $('amenitiesMatrixHead'), body: $('amenitiesMatrixBody'),
-    dialog: $('amenitiesDialog'), dialogClose: $('amenitiesDialogClose'), catalogBody: $('amenitiesCatalogBody'),
+    dialog: $('amenitiesDialog'), catalogBody: $('amenitiesCatalogBody'),
     catalogEmpty: $('amenitiesCatalogEmpty'), catalogSearch: $('catalogSearch'), catalogCategory: $('catalogCategory'),
     catalogActive: $('catalogActive'), catalogPortal: $('catalogPortal'), newButton: $('amenityNew'),
     form: $('amenityForm'), formClose: $('amenityFormClose'), cancel: $('amenityCancel'), save: $('amenitySave'),
@@ -19,6 +19,7 @@
   };
 
   const state = { properties: [], amenities: [], relations: new Set(), categories: [], icons: [], zones: [], canEdit: false };
+  const catalogModal = window.bootstrap?.Modal ? window.bootstrap.Modal.getOrCreateInstance(els.dialog) : null;
   const esc = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
   const relationKey = (propertyName, amenityId) => `${propertyName}\u0001${amenityId}`;
   const categoryLabel = (code) => state.categories.find((item) => item.code === code)?.label || code;
@@ -55,6 +56,18 @@
     return state.properties.filter((item) => (!term || item.NOME.toLocaleLowerCase('pt').includes(term)) && (!zone || String(item.ZONA || '') === zone));
   }
 
+  function updateColumnTooltips() {
+    els.head.querySelectorAll('.amenities-column-label').forEach((label) => {
+      const truncated = label.scrollWidth > label.clientWidth;
+      if (truncated) label.setAttribute('title', label.dataset.fullLabel || label.textContent.trim());
+      else label.removeAttribute('title');
+    });
+  }
+
+  function scheduleColumnTooltips() {
+    window.requestAnimationFrame(updateColumnTooltips);
+  }
+
   function renderMatrix() {
     const amenities = activeAmenities();
     const properties = visibleProperties();
@@ -64,17 +77,18 @@
       if (!group) { group = {code: amenity.categoria, items: []}; groups.push(group); }
       group.items.push(amenity);
     });
-    els.head.innerHTML = `<tr><th class="amenities-property-column" rowspan="2">Alojamento</th>${groups.map((group) => `<th colspan="${group.items.length}">${esc(categoryLabel(group.code))}</th>`).join('')}</tr><tr>${amenities.map((item) => `
-      <th title="${esc(item.nome_pt)}">
-        <div class="amenities-column-head"><i class="fa-solid ${esc(item.icone)}"></i><span>${esc(item.nome_pt)}</span>
+    els.head.innerHTML = `<tr><th class="amenities-property-column" data-column-index="0" rowspan="2">Alojamento</th>${groups.map((group) => `<th colspan="${group.items.length}">${esc(categoryLabel(group.code))}</th>`).join('')}</tr><tr>${amenities.map((item, index) => `
+      <th data-column-index="${index + 1}">
+        <div class="amenities-column-head"><i class="fa-solid ${esc(item.icone)}"></i><span class="amenities-column-label" data-full-label="${esc(item.nome_pt)}">${esc(item.nome_pt)}</span>
           ${state.canEdit ? `<div class="amenities-column-actions"><button type="button" data-bulk="1" data-id="${item.id}" title="Marcar nos alojamentos visíveis" aria-label="Marcar ${esc(item.nome_pt)} em todos os alojamentos visíveis"><i class="fa-solid fa-check"></i></button><button type="button" data-bulk="0" data-id="${item.id}" title="Desmarcar nos alojamentos visíveis" aria-label="Desmarcar ${esc(item.nome_pt)} em todos os alojamentos visíveis"><i class="fa-solid fa-minus"></i></button></div>` : ''}
         </div>
       </th>`).join('')}</tr>`;
     els.body.innerHTML = properties.length && amenities.length ? properties.map((property) => `<tr data-property="${esc(property.NOME)}">
-      <td class="amenities-property-column"><span class="amenities-property-name" title="${esc(property.NOME)}">${esc(property.NOME)}</span><span class="amenities-property-meta">${esc([property.ZONA, property.LOCAL].filter(Boolean).join(' · '))}</span></td>
-      ${amenities.map((item) => { const checked = state.relations.has(relationKey(property.NOME, item.id)); return `<td><label class="amenities-check"><input type="checkbox" data-property="${esc(property.NOME)}" data-id="${item.id}" ${checked ? 'checked' : ''} ${state.canEdit ? '' : 'disabled'} aria-label="${esc(property.NOME)}: ${esc(item.nome_pt)}"></label></td>`; }).join('')}
+      <td class="amenities-property-column" data-column-index="0"><span class="amenities-property-name" title="${esc(property.NOME)}">${esc(property.NOME)}</span><span class="amenities-property-meta">${esc([property.ZONA, property.LOCAL].filter(Boolean).join(' · '))}</span></td>
+      ${amenities.map((item, index) => { const checked = state.relations.has(relationKey(property.NOME, item.id)); return `<td class="amenities-value-cell" data-column-index="${index + 1}"><label class="amenities-check"><input type="checkbox" data-property="${esc(property.NOME)}" data-id="${item.id}" ${checked ? 'checked' : ''} ${state.canEdit ? '' : 'disabled'} aria-label="${esc(property.NOME)}: ${esc(item.nome_pt)}"></label></td>`; }).join('')}
     </tr>`).join('') : `<tr><td class="amenities-property-column">Sem resultados</td><td colspan="${Math.max(amenities.length, 1)}">Ajuste os filtros para ver alojamentos e comodidades.</td></tr>`;
     els.summary.textContent = `${properties.length} alojamentos · ${amenities.length} comodidades`;
+    scheduleColumnTooltips();
   }
 
   function renderCatalog() {
@@ -95,7 +109,7 @@
       <td data-label="Estado"><span class="amenities-state ${Number(item.ativa) ? 'is-on' : ''}"><i class="fa-solid ${Number(item.ativa) ? 'fa-check' : 'fa-pause'}"></i>${Number(item.ativa) ? 'Ativa' : 'Inativa'}</span></td>
       <td data-label="PortoBreak"><span class="amenities-state ${Number(item.mostra_portobreak) ? 'is-on' : ''}">${Number(item.mostra_portobreak) ? 'Sim' : 'Não'}</span></td>
       <td data-label="Filtro"><span class="amenities-state ${Number(item.filtro_portobreak) ? 'is-on' : ''}">${Number(item.filtro_portobreak) ? 'Sim' : 'Não'}</span></td>
-      <td>${state.canEdit ? `<button class="amenities-edit-button" type="button" data-edit="${item.id}" aria-label="Editar ${esc(item.nome_pt)}"><i class="fa-solid fa-pen"></i></button>` : ''}</td>
+      <td>${state.canEdit ? `<div class="amenities-catalog-actions"><button class="amenities-edit-button" type="button" data-edit="${item.id}" aria-label="Editar ${esc(item.nome_pt)}"><i class="fa-solid fa-pen"></i></button><button class="amenities-delete-button" type="button" data-delete="${item.id}" aria-label="Eliminar ${esc(item.nome_pt)}"><i class="fa-solid fa-trash-can"></i></button></div>` : ''}</td>
     </tr>`).join('');
     els.catalogEmpty.hidden = items.length > 0;
   }
@@ -153,6 +167,7 @@
       els.iconPicker.innerHTML = state.icons.map((icon) => `<button type="button" data-icon="${esc(icon)}" title="${esc(icon)}" aria-label="${esc(icon)}"><i class="fa-solid ${esc(icon)}"></i></button>`).join('');
       renderMatrix(); renderCatalog();
       els.status.hidden = true; els.wrap.hidden = false;
+      scheduleColumnTooltips();
       els.newButton.hidden = !state.canEdit;
     } catch (error) {
       els.status.textContent = error.message; toast(error.message, true);
@@ -176,6 +191,45 @@
     } finally { wrapper.classList.remove('is-saving'); input.disabled = !state.canEdit; }
   });
 
+  let hoverColumn = null;
+  let hoverRow = null;
+  function clearMatrixHover() {
+    if (hoverColumn !== null) {
+      els.head.querySelectorAll('.is-hover-column').forEach((cell) => cell.classList.remove('is-hover-column'));
+      els.body.querySelectorAll('.is-hover-column').forEach((cell) => cell.classList.remove('is-hover-column'));
+    }
+    if (hoverRow) hoverRow.classList.remove('is-hover-row');
+    hoverColumn = null;
+    hoverRow = null;
+  }
+
+  els.wrap.addEventListener('pointerover', (event) => {
+    const cell = event.target.closest('[data-column-index]');
+    if (!cell || !els.wrap.contains(cell)) return;
+    const column = cell.dataset.columnIndex;
+    const row = cell.closest('tbody tr');
+    if (hoverColumn !== column) {
+      els.head.querySelectorAll('.is-hover-column').forEach((item) => item.classList.remove('is-hover-column'));
+      els.body.querySelectorAll('.is-hover-column').forEach((item) => item.classList.remove('is-hover-column'));
+      els.head.querySelectorAll(`[data-column-index="${column}"]`).forEach((item) => item.classList.add('is-hover-column'));
+      els.body.querySelectorAll(`[data-column-index="${column}"]`).forEach((item) => item.classList.add('is-hover-column'));
+      hoverColumn = column;
+    }
+    if (hoverRow !== row) {
+      if (hoverRow) hoverRow.classList.remove('is-hover-row');
+      hoverRow = row;
+      if (hoverRow) hoverRow.classList.add('is-hover-row');
+    }
+  });
+  els.wrap.addEventListener('pointerleave', clearMatrixHover);
+
+  els.body.addEventListener('click', (event) => {
+    if (event.target.closest('input, label, button, a')) return;
+    const cell = event.target.closest('.amenities-value-cell');
+    const input = cell?.querySelector('input[type="checkbox"]');
+    if (input && !input.disabled) input.click();
+  });
+
   els.head.addEventListener('click', async (event) => {
     const button = event.target.closest('button[data-bulk]');
     if (!button) return;
@@ -194,13 +248,39 @@
   });
 
   [els.search, els.category, els.zone].forEach((element) => element.addEventListener(element.tagName === 'INPUT' ? 'input' : 'change', renderMatrix));
+  window.addEventListener('resize', scheduleColumnTooltips);
   [els.catalogSearch, els.catalogCategory, els.catalogActive, els.catalogPortal].forEach((element) => element.addEventListener(element.tagName === 'INPUT' ? 'input' : 'change', renderCatalog));
   els.reload.addEventListener('click', () => loadState(true));
-  els.manage.addEventListener('click', () => { renderCatalog(); els.dialog.showModal(); });
-  els.dialogClose.addEventListener('click', () => els.dialog.close());
-  els.dialog.addEventListener('click', (event) => { if (event.target === els.dialog) els.dialog.close(); });
+  els.manage.addEventListener('click', () => { renderCatalog(); catalogModal?.show(); });
+  els.dialog.addEventListener('hidden.bs.modal', closeEditor);
   els.newButton.addEventListener('click', () => openEditor());
-  els.catalogBody.addEventListener('click', (event) => { const button = event.target.closest('[data-edit]'); if (button) openEditor(state.amenities.find((item) => Number(item.id) === Number(button.dataset.edit))); });
+  els.catalogBody.addEventListener('click', async (event) => {
+    const editButton = event.target.closest('[data-edit]');
+    if (editButton) {
+      openEditor(state.amenities.find((item) => Number(item.id) === Number(editButton.dataset.edit)));
+      return;
+    }
+    const deleteButton = event.target.closest('[data-delete]');
+    if (!deleteButton) return;
+    const item = state.amenities.find((candidate) => Number(candidate.id) === Number(deleteButton.dataset.delete));
+    if (!item) return;
+    const associations = Number(item.associacoes || 0);
+    const impact = associations
+      ? ` Esta ação também remove a associação em ${associations} alojamento${associations === 1 ? '' : 's'}.`
+      : '';
+    if (!window.confirm(`Eliminar “${item.nome_pt}” permanentemente?${impact} Esta ação não pode ser anulada.`)) return;
+    deleteButton.disabled = true;
+    try {
+      const data = await request(`${root.dataset.catalogUrl}/${item.id}`, {method:'DELETE'});
+      closeEditor();
+      await loadState(true);
+      renderCatalog();
+      toast(`Comodidade eliminada${data.deleted.associacoes_removidas ? ` e removida de ${data.deleted.associacoes_removidas} alojamento${data.deleted.associacoes_removidas === 1 ? '' : 's'}` : ''}.`);
+    } catch (error) {
+      deleteButton.disabled = false;
+      toast(error.message, true);
+    }
+  });
   [els.formClose, els.cancel].forEach((button) => button.addEventListener('click', closeEditor));
   els.iconButton.addEventListener('click', () => { els.iconPicker.hidden = !els.iconPicker.hidden; els.iconButton.setAttribute('aria-expanded', String(!els.iconPicker.hidden)); });
   els.iconPicker.addEventListener('click', (event) => { const button = event.target.closest('[data-icon]'); if (button) { chooseIcon(button.dataset.icon); els.iconPicker.hidden = true; els.iconButton.setAttribute('aria-expanded','false'); } });

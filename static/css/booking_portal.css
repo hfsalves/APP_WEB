@@ -2025,6 +2025,74 @@ a.booking-airbnb-badge:focus-visible {
   background: #fff;
 }
 
+.booking-amenities {
+  margin-top: 30px;
+  padding-top: 26px;
+  border-top: 1px solid var(--bp-line);
+}
+
+.booking-amenities-head {
+  margin-bottom: 17px;
+}
+
+.booking-amenities-head .booking-kicker {
+  margin-top: 0;
+}
+
+.booking-amenities-head h2 {
+  margin: 0;
+  font-size: 1.45rem;
+  line-height: 1.2;
+}
+
+.booking-amenities-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 28px;
+}
+
+.booking-amenity-item {
+  display: flex;
+  min-width: 0;
+  min-height: 54px;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 2px;
+  border-bottom: 1px solid color-mix(in srgb, var(--bp-line) 72%, transparent);
+  color: var(--bp-text);
+  font-weight: 700;
+}
+
+.booking-amenity-icon {
+  display: inline-grid;
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--bp-surface-soft);
+  color: var(--bp-accent-dark);
+  place-items: center;
+}
+
+.booking-amenity-icon i {
+  font-size: 1rem;
+}
+
+@media (max-width: 640px) {
+  .booking-amenities {
+    margin-top: 24px;
+    padding-top: 22px;
+  }
+
+  .booking-amenities-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .booking-amenity-item {
+    min-height: 50px;
+  }
+}
+
 .booking-rules {
   margin-top: 34px;
 }

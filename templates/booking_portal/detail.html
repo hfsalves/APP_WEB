@@ -8,6 +8,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   {% include 'booking_portal/_seo.html' %}
   {% include 'booking_portal/_fonts.html' %}
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous">
   {% if alojamento.tem_mapa %}
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/booking_portal/leaflet-1.9.4/leaflet.css') }}">
   {% endif %}
@@ -124,6 +125,23 @@
                 {{ t.read_more }}
               </button>
             </div>
+          {% endif %}
+
+          {% if alojamento.comodidades %}
+            <section class="booking-amenities" aria-labelledby="bookingAmenitiesTitle">
+              <header class="booking-amenities-head">
+                <p class="booking-kicker booking-kicker-dark">{{ t.amenities_eyebrow }}</p>
+                <h2 id="bookingAmenitiesTitle">{{ t.amenities_title }}</h2>
+              </header>
+              <div class="booking-amenities-grid">
+                {% for comodidade in alojamento.comodidades %}
+                  <div class="booking-amenity-item">
+                    <span class="booking-amenity-icon" aria-hidden="true"><i class="fa-solid {{ comodidade.icone }}"></i></span>
+                    <span>{{ comodidade.nome }}</span>
+                  </div>
+                {% endfor %}
+              </div>
+            </section>
           {% endif %}
         </article>
 

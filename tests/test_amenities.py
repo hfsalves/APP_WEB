@@ -32,10 +32,10 @@ def _payload(**overrides):
 
 
 def test_initial_catalog_has_exact_requested_physical_amenities_and_translations():
-    assert len(INITIAL_AMENITIES) == 41
+    assert len(INITIAL_AMENITIES) == 44
     codes = [item[0] for item in INITIAL_AMENITIES]
     assert len(codes) == len(set(codes))
-    assert {"AR_CONDICIONADO", "WIFI", "ELEVADOR", "BERCO", "COFRE"}.issubset(codes)
+    assert {"AR_CONDICIONADO", "WIFI", "ELEVADOR", "BERCO", "COFRE", "GEL_DUCHE", "SHAMPOO", "SABONETE_LIQUIDO"}.issubset(codes)
     assert not {"ANIMAIS", "FUMADORES", "VISTA_RIO", "VISTA_MAR", "LAREIRA"}.intersection(codes)
     for code, pt, en, es, fr, category, icon, order, show, filtering in INITIAL_AMENITIES:
         assert code and pt and en and es and fr
@@ -78,17 +78,49 @@ def test_migration_uses_al_name_and_enforces_catalog_and_relation_constraints():
     assert "FILTRO_PORTOBREAK = 0 OR (ATIVA = 1 AND MOSTRA_PORTOBREAK = 1)" in sql
 
 
-def test_public_portobreak_templates_do_not_reference_amenities_module():
-    for relative in ("templates/booking_portal/index.html", "templates/booking_portal/detail.html"):
-        assert "comodidade" not in (ROOT / relative).read_text(encoding="utf-8").lower()
+def test_public_catalog_does_not_load_amenities_and_detail_does():
+    catalog = (ROOT / "templates/booking_portal/index.html").read_text(encoding="utf-8").lower()
+    detail = (ROOT / "templates/booking_portal/detail.html").read_text(encoding="utf-8").lower()
+    assert "comodidade" not in catalog
+    assert "alojamento.comodidades" in detail
 
 
 def test_backoffice_matrix_is_dynamic_and_uses_immediate_api_saves():
     template = (ROOT / "templates/amenities.html").read_text(encoding="utf-8")
     script = (ROOT / "static/js/amenities.js").read_text(encoding="utf-8")
+    styles = (ROOT / "static/css/amenities.css").read_text(encoding="utf-8")
     assert 'id="amenitiesMatrix"' in template
     assert 'id="amenitiesDialog"' in template
+    assert 'class="modal fade amenities-modal"' in template
+    assert "modal-dialog-centered" in template
+    assert "bootstrap?.Modal" in script
+    assert "var(--sz-color-surface)" in styles
+    assert "var(--sz-color-text)" in styles
+    assert "overflow-x: scroll" in styles
     assert "data-bulk" in script
     assert "root.dataset.relationUrl" in script
     assert "alojamento:input.dataset.property" in script
     assert "window.confirm" in script
+    assert 'data-delete=' in script
+    assert "method:'DELETE'" in script
+    assert 'data-column-index=' in script
+    assert "is-hover-column" in script
+    assert "is-hover-row" in script
+    assert "amenities-value-cell" in script
+    assert "input.click()" in script
+    assert "scrollWidth > label.clientWidth" in script
+    assert "data-full-label" in script
+    assert "label.removeAttribute('title')" in script
+
+
+def test_deleted_initial_amenities_are_not_reseeded_on_restart():
+    service = (ROOT / "services/amenities_service.py").read_text(encoding="utf-8")
+    assert "SELECT TOP 1 1 FROM dbo.COMODIDADES" in service
+    assert "IF NOT EXISTS (SELECT 1 FROM dbo.COMODIDADES WHERE CODIGO" not in service
+
+
+def test_delete_removes_relations_before_catalogue_record():
+    service = (ROOT / "services/amenities_service.py").read_text(encoding="utf-8")
+    relation_delete = service.index("DELETE FROM dbo.AL_COMODIDADES WHERE COMODIDADE_ID=:id")
+    catalogue_delete = service.index("DELETE FROM dbo.COMODIDADES WHERE ID=:id")
+    assert relation_delete < catalogue_delete

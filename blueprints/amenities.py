@@ -16,6 +16,7 @@ from services.amenities_service import (
     amenity_exists,
     bulk_set_relations,
     create_amenity,
+    delete_amenity,
     list_amenities,
     list_matrix,
     property_in_scope,
@@ -163,3 +164,19 @@ def catalog_update(amenity_id: int):
         db.session.rollback()
         logger.exception("Erro ao editar comodidade")
         return jsonify({"ok": False, "error": "Não foi possível guardar a comodidade."}), 500
+
+
+@bp.delete("/api/alojamentos/comodidades/catalog/<int:amenity_id>")
+@login_required
+def catalog_delete(amenity_id: int):
+    _require_edit()
+    try:
+        deleted = delete_amenity(amenity_id)
+        return jsonify({"ok": True, "deleted": deleted})
+    except LookupError as exc:
+        db.session.rollback()
+        return jsonify({"ok": False, "error": str(exc)}), 404
+    except Exception:
+        db.session.rollback()
+        logger.exception("Erro ao eliminar comodidade")
+        return jsonify({"ok": False, "error": "Não foi possível eliminar a comodidade."}), 500

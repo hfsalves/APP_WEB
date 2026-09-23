@@ -58,11 +58,12 @@
     </main>
   </div>
 
-  <dialog class="amenities-dialog" id="amenitiesDialog" aria-labelledby="amenitiesDialogTitle">
-    <div class="amenities-dialog-shell">
+  <div class="modal fade amenities-modal" id="amenitiesDialog" tabindex="-1" aria-labelledby="amenitiesDialogTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered amenities-dialog">
+      <div class="modal-content amenities-dialog-shell">
       <header class="amenities-dialog-head">
         <div><span class="amenities-eyebrow">Catálogo mestre</span><h2 id="amenitiesDialogTitle">Gerir comodidades</h2></div>
-        <button class="amenities-icon-button" type="button" id="amenitiesDialogClose" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
+        <button class="amenities-icon-button" type="button" id="amenitiesDialogClose" data-bs-dismiss="modal" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
       </header>
       <div class="amenities-catalog-tools">
         <label class="amenities-catalog-search"><i class="fa-solid fa-magnifying-glass"></i><input type="search" id="catalogSearch" placeholder="Código ou designação…"></label>
@@ -105,8 +106,9 @@
           <footer><button class="sz_button sz_button_secondary" type="button" id="amenityCancel">Cancelar</button><button class="sz_button sz_button_primary" type="submit" id="amenitySave"><i class="fa-solid fa-floppy-disk"></i><span>Guardar</span></button></footer>
         </form>
       </div>
+      </div>
     </div>
-  </dialog>
+  </div>
 
   <div class="amenities-toast" id="amenitiesToast" role="status" aria-live="polite" hidden></div>
 </div>
