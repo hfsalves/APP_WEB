@@ -27,6 +27,7 @@ from services.booking_portal_service import (
     criar_password_reset_portal,
     get_alojamento,
     get_public_alojamento_ids,
+    get_public_amenity_filters,
     get_alojamentos_disponiveis_page,
     get_calendario_ocupacao,
     get_portal_user,
@@ -413,6 +414,15 @@ TRANSLATIONS = {
         "availability": "Disponibilidade",
         "results_found": "Resultados encontrados",
         "available_stays": "Alojamentos disponiveis",
+        "amenity_filters": "Comodidades",
+        "amenity_filters_title": "Filtrar por comodidades",
+        "amenity_filters_apply": "Aplicar filtros",
+        "amenity_filters_clear": "Limpar",
+        "amenity_filters_selected": "selecionadas",
+        "amenity_matches": "correspondem aos filtros",
+        "other_available_stays": "Outros alojamentos disponíveis para a mesma pesquisa",
+        "other_available_stays_lead": "Estas opções continuam disponíveis, mas não incluem todas as comodidades selecionadas.",
+        "missing_amenities": "Não inclui",
         "stay": "alojamento",
         "stays": "alojamentos",
         "checkin": "Check-in",
@@ -624,6 +634,15 @@ TRANSLATIONS = {
         "availability": "Availability",
         "results_found": "Results found",
         "available_stays": "Available stays",
+        "amenity_filters": "Amenities",
+        "amenity_filters_title": "Filter by amenities",
+        "amenity_filters_apply": "Apply filters",
+        "amenity_filters_clear": "Clear",
+        "amenity_filters_selected": "selected",
+        "amenity_matches": "match your filters",
+        "other_available_stays": "Other stays available for the same search",
+        "other_available_stays_lead": "These options are still available, but do not include all selected amenities.",
+        "missing_amenities": "Not included",
         "stay": "stay",
         "stays": "stays",
         "checkin": "Check-in",
@@ -835,6 +854,15 @@ TRANSLATIONS = {
         "availability": "Disponibilidad",
         "results_found": "Resultados encontrados",
         "available_stays": "Alojamientos disponibles",
+        "amenity_filters": "Comodidades",
+        "amenity_filters_title": "Filtrar por comodidades",
+        "amenity_filters_apply": "Aplicar filtros",
+        "amenity_filters_clear": "Limpiar",
+        "amenity_filters_selected": "seleccionadas",
+        "amenity_matches": "cumplen tus filtros",
+        "other_available_stays": "Otros alojamientos disponibles para la misma búsqueda",
+        "other_available_stays_lead": "Estas opciones siguen disponibles, pero no incluyen todas las comodidades seleccionadas.",
+        "missing_amenities": "No incluye",
         "stay": "alojamiento",
         "stays": "alojamientos",
         "checkin": "Entrada",
@@ -1046,6 +1074,15 @@ TRANSLATIONS = {
         "availability": "Disponibilite",
         "results_found": "Resultats trouves",
         "available_stays": "Logements disponibles",
+        "amenity_filters": "Équipements",
+        "amenity_filters_title": "Filtrer par équipements",
+        "amenity_filters_apply": "Appliquer les filtres",
+        "amenity_filters_clear": "Effacer",
+        "amenity_filters_selected": "sélectionnés",
+        "amenity_matches": "correspondent à vos filtres",
+        "other_available_stays": "Autres logements disponibles pour la même recherche",
+        "other_available_stays_lead": "Ces options restent disponibles, mais n'incluent pas tous les équipements sélectionnés.",
+        "missing_amenities": "Non inclus",
         "stay": "logement",
         "stays": "logements",
         "checkin": "Arrivee",
@@ -1563,6 +1600,12 @@ def _search_params(lang):
     if bebes:
         guest_summary.append(f"{bebes} {t['babies']}")
 
+    requested_amenities = list(dict.fromkeys(
+        str(value or "").strip().upper()
+        for value in request.args.getlist("amenity")
+        if str(value or "").strip()
+    ))
+
     return {
         "checkin": checkin,
         "checkout": checkout,
@@ -1573,7 +1616,8 @@ def _search_params(lang):
         "query": query,
         "errors": errors,
         "guest_summary": " / ".join(guest_summary),
-        "has_search": any([checkin, checkout, hospedes, bebes, query]),
+        "amenities": requested_amenities,
+        "has_search": any([checkin, checkout, hospedes, bebes, query, requested_amenities]),
         "raw": {
             "checkin": request.args.get("checkin", ""),
             "checkout": request.args.get("checkout", ""),
@@ -1583,8 +1627,22 @@ def _search_params(lang):
             "bebes": request.args.get("bebes", ""),
             "query": query,
             "lang": lang,
+            "amenities": requested_amenities,
         },
     }
+
+
+def _amenity_filter_context(lang: str, params: dict) -> list[dict]:
+    filters = get_public_amenity_filters(lang)
+    allowed = {item["codigo"] for item in filters}
+    selected = [code for code in params.get("amenities", []) if code in allowed]
+    params["amenities"] = selected
+    params["raw"]["amenities"] = selected
+    params["has_search"] = bool(params.get("has_search") or selected)
+    selected_set = set(selected)
+    for item in filters:
+        item["selected"] = item["codigo"] in selected_set
+    return filters
 
 
 def _parse_page_arg():
@@ -1603,6 +1661,8 @@ def _detail_url(al_id: str, params: dict):
     lang = (params.get("raw") or {}).get("lang")
     if lang:
         query["lang"] = lang
+    if params.get("amenities"):
+        query["amenity"] = params["amenities"]
     return url_for("booking_portal.detail", al_id=al_id, **query)
 
 
@@ -1612,6 +1672,8 @@ def _reservation_query_args(params: dict, lang: str) -> dict:
         value = (params.get("raw") or {}).get(key)
         if value:
             query[key] = value
+    if params.get("amenities"):
+        query["amenity"] = params["amenities"]
     return query
 
 
@@ -1641,6 +1703,9 @@ def _pagination_url(page_number: int, lang: str):
         value = request.args.get(key)
         if value:
             args[key] = value
+    amenities = [value for value in request.args.getlist("amenity") if value]
+    if amenities:
+        args["amenity"] = amenities
     args["lang"] = lang
     args["page"] = max(1, int(page_number or 1))
     return url_for("booking_portal.index", **args)
@@ -1662,6 +1727,16 @@ def _pagination_context(pagination: dict, lang: str) -> dict:
             for page_number in range(1, pages + 1)
         ],
     }
+
+
+def _clear_amenities_url(lang: str) -> str:
+    args = {}
+    for key in ("checkin", "checkout", "adultos", "criancas", "bebes", "hospedes", "q", "view"):
+        value = request.args.get(key)
+        if value:
+            args[key] = value
+    args["lang"] = lang
+    return url_for("booking_portal.index", **args)
 
 
 def _translate_price(preco, t):
@@ -2724,6 +2799,7 @@ def index():
     lang = _resolve_lang()
     currency = _currency_context()
     params = _search_params(lang)
+    amenity_filters = _amenity_filter_context(lang, params)
     page = _parse_page_arg()
     query_allowed = not params["errors"]
     pagination = get_alojamentos_disponiveis_page(
@@ -2737,10 +2813,13 @@ def index():
         page=page,
         per_page=BOOKING_PAGE_SIZE,
         lang=lang,
+        amenities=params["amenities"] if query_allowed else [],
     )
     alojamentos = [_present_alojamento(item, currency) for item in pagination["items"]]
     for alojamento in alojamentos:
         alojamento["detail_url"] = _detail_url(alojamento["id"], params)
+        missing = set(alojamento.get("missing_amenity_codes") or [])
+        alojamento["missing_amenities"] = [item for item in amenity_filters if item["codigo"] in missing]
 
     return _render_booking_template(
         "booking_portal/index.html",
@@ -2748,6 +2827,9 @@ def index():
         alojamentos=alojamentos,
         pagination=_pagination_context(pagination, lang),
         search=params,
+        amenity_filters=amenity_filters,
+        amenity_filters_selected=[item for item in amenity_filters if item["selected"]],
+        clear_amenities_url=_clear_amenities_url(lang),
         catalog_map={
             "view": "map" if request.args.get("view") == "map" else "list",
             "lang": lang,
@@ -2762,6 +2844,7 @@ def index():
 def map_catalog():
     lang = _resolve_lang()
     params = _search_params(lang)
+    _amenity_filter_context(lang, params)
     try:
         catalog = get_map_catalog(params)
     except SQLAlchemyError:

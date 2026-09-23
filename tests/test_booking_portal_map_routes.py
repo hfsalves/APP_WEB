@@ -97,6 +97,7 @@ class BookingPortalMapRouteTests(unittest.TestCase):
         }
         fixtures = {
             "_portal_current_user": {"return_value": None},
+            "get_public_amenity_filters": {"return_value": []},
             "get_map_catalog": {"side_effect": lambda *_a, **_k: copy.deepcopy(self.catalog_data)},
             "get_alojamento": {"side_effect": lambda *_a, **_k: copy.deepcopy(self.property)},
             "alojamento_disponivel": {"return_value": True},

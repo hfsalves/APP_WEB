@@ -193,6 +193,19 @@ class MapCatalogTests(unittest.TestCase):
         self.assertTrue(result["has_search"])
         self.assertEqual(self.session.execute.call_count,2)
 
+    def test_amenity_filters_keep_nonmatching_properties_as_grey(self):
+        self.inventory = [
+            property_row("with", AMENITY_MATCH=1),
+            property_row("without", PUBLIC_NAME="Alternative", AMENITY_MATCH=0),
+        ]
+        result = self.result(amenities=["WIFI", "AR_CONDICIONADO"], has_search=True)
+        self.assertEqual(self.available(result), {"with": True, "without": False})
+        sql, values = self.session.execute.call_args.args
+        self.assertIn("dbo.AL_COMODIDADES", str(sql))
+        self.assertIn("C.FILTRO_PORTOBREAK=1", str(sql))
+        self.assertEqual(values, {"amenity_0": "WIFI", "amenity_1": "AR_CONDICIONADO"})
+        self.assertEqual(self.session.execute.call_count,1)
+
     def test_seasonal_short_gaps_block_checkin_and_checkout(self):
         self.inventory = [property_row("previous",MIN_NIGHTS=3),property_row("next",MIN_NIGHTS=3),property_row("adjacent",MIN_NIGHTS=3)]
         self.bookings = [stay("previous","2030-09-05","2030-09-09"),stay("next","2030-09-14","2030-09-18"),stay("adjacent","2030-09-07","2030-09-10")]

@@ -108,6 +108,7 @@ class BookingPortalCatalogUiTests(unittest.TestCase):
         self.client = self.app.test_client()
         fixtures = {
             "_portal_current_user": {"return_value": None},
+            "get_public_amenity_filters": {"return_value": []},
             "get_alojamento": {"side_effect": lambda *_a, **_k: copy.deepcopy(PROPERTY)},
             "get_alojamentos_disponiveis_page": {"side_effect": self.catalog},
             "get_calendario_ocupacao": {"return_value": {
@@ -193,7 +194,8 @@ class BookingPortalCatalogUiTests(unittest.TestCase):
             "criancas": "1", "bebes": "1", "hospedes": "3", "q": "Porto & Centro",
             "lang": "fr", "page": "3",
         }
-        with self.app.test_request_context("/reservas", query_string=filters):
+        query_filters = [*filters.items(), ("amenity", "WIFI"), ("amenity", "AR_CONDICIONADO")]
+        with self.app.test_request_context("/reservas", query_string=query_filters):
             pagination = _pagination_context({"page": 3, "pages": 6}, "fr")
         for page, url in [
             *((item["page"], item["url"]) for item in pagination["page_links"]),
@@ -204,7 +206,29 @@ class BookingPortalCatalogUiTests(unittest.TestCase):
                 self.assertEqual(parsed.path, "/reservas")
                 expected = {key: [value] for key, value in filters.items()}
                 expected["page"] = [str(page)]
+                expected["amenity"] = ["WIFI", "AR_CONDICIONADO"]
                 self.assertEqual(parse_qs(parsed.query), expected)
+
+    def test_amenity_matches_are_followed_by_clearly_marked_available_alternatives(self):
+        amenity = {"codigo": "AR_CONDICIONADO", "nome": "Air conditioning", "categoria": "CLIMATIZACAO", "icone": "fa-snowflake"}
+        matching = {**copy.deepcopy(PROPERTY), "id": "match", "nome": "Matching stay", "amenity_match": True, "missing_amenity_codes": []}
+        alternative = {**copy.deepcopy(PROPERTY), "id": "alternative", "nome": "Alternative stay", "amenity_match": False, "missing_amenity_codes": ["AR_CONDICIONADO"]}
+        catalog = {
+            "items": [matching, alternative], "total": 2, "matching_total": 1,
+            "alternative_start_index": 1, "page": 1, "pages": 1, "per_page": 18,
+            "has_prev": False, "has_next": False,
+        }
+        with patch("blueprints.booking_portal.get_public_amenity_filters", return_value=[amenity]), \
+             patch("blueprints.booking_portal.get_alojamentos_disponiveis_page", return_value=catalog) as search:
+            response = self.client.get("/reservas", query_string=[("lang", "en"), ("amenity", "AR_CONDICIONADO")])
+        self.assertEqual(response.status_code, 200)
+        markup = response.get_data(as_text=True)
+        self.assertIn("Other stays available for the same search", markup)
+        self.assertLess(markup.index("Matching stay"), markup.index("Other stays available"))
+        self.assertLess(markup.index("Other stays available"), markup.index("Alternative stay"))
+        self.assertIn("<s>Air conditioning</s>", markup)
+        self.assertIn('value="AR_CONDICIONADO" form="bookingSearchForm" checked', markup)
+        self.assertEqual(search.call_args.kwargs["amenities"], ["AR_CONDICIONADO"])
 
     def test_registration_is_not_visible_in_catalog_detail_or_reservation(self):
         for lang in ("pt", "en", "es", "fr"):

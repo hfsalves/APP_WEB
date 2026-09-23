@@ -272,7 +272,12 @@ def _descricao_alojamento_sql(lang=None) -> str:
     return f"COALESCE(NULLIF({translated}, ''), {base})"
 
 
-def _alojamento_base_select(where_sql: str, lang=None, include_reviews: bool = False) -> str:
+def _alojamento_base_select(
+    where_sql: str,
+    lang=None,
+    include_reviews: bool = False,
+    amenity_match_sql: str | None = None,
+) -> str:
     reviews_column = (
         ",\n            CAST(ISNULL(AL.AVALIACOES, N'') AS nvarchar(max)) AS AVALIACOES"
         if include_reviews else ""
@@ -304,11 +309,12 @@ def _alojamento_base_select(where_sql: str, lang=None, include_reviews: bool = F
             CAST(ISNULL(AL.PBASE, 0) AS decimal(12, 2)) AS PBASE,
             CAST(ISNULL(AL.AVALIACAO, 0) AS decimal(5, 2)) AS AVALIACAO,
             CAST(ISNULL(AL.NRAVALIACOES, 0) AS int) AS NRAVALIACOES{reviews_column},
+            {f'CAST(CASE WHEN {amenity_match_sql} THEN 1 ELSE 0 END AS bit)' if amenity_match_sql else 'CAST(1 AS bit)'} AS AMENITY_MATCH,
             CAST(NULL AS decimal(12, 2)) AS PRECO_DESDE,
             {_descricao_alojamento_sql(lang)} AS DESCRICAO
         FROM dbo.AL AS AL
         WHERE {where_sql}
-        ORDER BY COALESCE(
+        ORDER BY {f'CASE WHEN {amenity_match_sql} THEN 0 ELSE 1 END,' if amenity_match_sql else ''} COALESCE(
             NULLIF(LTRIM(RTRIM(ISNULL(AL.NMAIRBNB, ''))), ''),
             LTRIM(RTRIM(ISNULL(AL.NOME, '')))
         )
@@ -364,8 +370,8 @@ def _alojamento_adult_capacity_sql() -> str:
     """
 
 
-def _alojamento_paged_select(where_sql: str, lang=None) -> str:
-    base_sql = _alojamento_base_select(where_sql, lang=lang).rstrip()
+def _alojamento_paged_select(where_sql: str, lang=None, amenity_match_sql: str | None = None) -> str:
+    base_sql = _alojamento_base_select(where_sql, lang=lang, amenity_match_sql=amenity_match_sql).rstrip()
     return f"""
         {base_sql}
         OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY
@@ -668,6 +674,82 @@ def get_public_amenities(alojamento: str, lang: str | None = None) -> list[dict]
     return [item for item in amenities if item["nome"]]
 
 
+def get_public_amenity_filters(lang: str | None = None) -> list[dict]:
+    """Active public amenities explicitly enabled as catalog filters."""
+    if not _table_exists("COMODIDADES"):
+        return []
+    name_column = {
+        "en": "NOME_EN", "es": "NOME_ES", "fr": "NOME_FR",
+    }.get(_clean(lang).lower(), "NOME_PT")
+    rows = db.session.execute(text(f"""
+        SELECT C.CODIGO,
+               COALESCE(NULLIF(LTRIM(RTRIM(C.{name_column})), ''), LTRIM(RTRIM(C.NOME_PT))) AS NOME,
+               C.CATEGORIA,C.ICONE,C.ORDEM
+        FROM dbo.COMODIDADES C
+        WHERE C.ATIVA=1 AND C.MOSTRA_PORTOBREAK=1 AND C.FILTRO_PORTOBREAK=1
+        ORDER BY CASE C.CATEGORIA
+          WHEN 'CLIMATIZACAO' THEN 1 WHEN 'COZINHA' THEN 2 WHEN 'LAVANDARIA' THEN 3
+          WHEN 'QUARTO_BANHO' THEN 4 WHEN 'TECNOLOGIA' THEN 5 WHEN 'EXTERIOR' THEN 6
+          WHEN 'EDIFICIO_ACESSO' THEN 7 WHEN 'BEBE' THEN 8 ELSE 9 END,
+          C.ORDEM,C.NOME_PT
+    """)).mappings().all()
+    result = []
+    for row in rows:
+        code, name, icon = _clean(row.get("CODIGO")), _clean(row.get("NOME")), _clean(row.get("ICONE"))
+        if code and name:
+            result.append({
+                "codigo": code, "nome": name, "categoria": _clean(row.get("CATEGORIA")),
+                "icone": icon if re.fullmatch(r"fa-[a-z0-9-]+", icon) else "fa-circle-check",
+            })
+    return result
+
+
+def _amenity_match_sql(codes: list[str], params: dict) -> str | None:
+    clauses = []
+    for index, code in enumerate(codes):
+        key = f"amenity_{index}"
+        params[key] = code
+        clauses.append(f"""
+            EXISTS (
+                SELECT 1 FROM dbo.AL_COMODIDADES AC
+                INNER JOIN dbo.COMODIDADES C ON C.ID=AC.COMODIDADE_ID
+                WHERE LTRIM(RTRIM(AC.ALOJAMENTO)) COLLATE SQL_Latin1_General_CP1_CI_AI
+                    = LTRIM(RTRIM(AL.NOME)) COLLATE SQL_Latin1_General_CP1_CI_AI
+                  AND C.CODIGO=:{key} AND C.ATIVA=1
+                  AND C.MOSTRA_PORTOBREAK=1 AND C.FILTRO_PORTOBREAK=1
+            )
+        """)
+    return " AND ".join(clauses) or None
+
+
+def _page_amenity_codes(property_names: list[str], selected_codes: list[str]) -> dict[str, set[str]]:
+    if not property_names or not selected_codes:
+        return {}
+    params = {}
+    property_tokens = []
+    for index, name in enumerate(property_names):
+        key = f"property_{index}"
+        params[key] = name
+        property_tokens.append(f":{key}")
+    amenity_tokens = []
+    for index, code in enumerate(selected_codes):
+        key = f"selected_amenity_{index}"
+        params[key] = code
+        amenity_tokens.append(f":{key}")
+    rows = db.session.execute(text(f"""
+        SELECT LTRIM(RTRIM(AC.ALOJAMENTO)) AS ALOJAMENTO, C.CODIGO
+        FROM dbo.AL_COMODIDADES AC
+        INNER JOIN dbo.COMODIDADES C ON C.ID=AC.COMODIDADE_ID
+        WHERE LTRIM(RTRIM(AC.ALOJAMENTO)) IN ({','.join(property_tokens)})
+          AND C.CODIGO IN ({','.join(amenity_tokens)})
+          AND C.ATIVA=1 AND C.MOSTRA_PORTOBREAK=1 AND C.FILTRO_PORTOBREAK=1
+    """), params).mappings().all()
+    matched = {}
+    for row in rows:
+        matched.setdefault(_clean(row.get("ALOJAMENTO")), set()).add(_clean(row.get("CODIGO")))
+    return matched
+
+
 def get_calendario_ocupacao(al_id, start=None, months=12) -> dict:
     al_id_clean = _clean(al_id)
     start_date = _to_date(start) or date.today()
@@ -777,13 +859,14 @@ def alojamento_datas_permitidas(al_id, checkin, checkout) -> dict:
     return {"allowed": not errors, "errors": errors, "min_nights": min_nights}
 
 
-def get_alojamentos_disponiveis_page(checkin=None, checkout=None, hospedes=None, query=None, page=1, per_page=18, lang=None, adultos=None, criancas=None, bebes=None) -> dict:
+def get_alojamentos_disponiveis_page(checkin=None, checkout=None, hospedes=None, query=None, page=1, per_page=18, lang=None, adultos=None, criancas=None, bebes=None, amenities=None) -> dict:
     checkin_date = _to_date(checkin)
     checkout_date = _to_date(checkout)
     guest_count = _to_int(hospedes)
     adult_count = _to_count(adultos)
     child_count = _to_count(criancas, default=0) or 0
     query_clean = _clean(query)
+    selected_amenities = list(dict.fromkeys(_clean(code) for code in (amenities or []) if _clean(code)))
     try:
         page_number = max(1, int(page or 1))
     except Exception:
@@ -847,17 +930,28 @@ def get_alojamentos_disponiveis_page(checkin=None, checkout=None, hospedes=None,
         params["guest_count"] = guest_count
 
     where_sql = " AND ".join(where)
+    amenity_match_sql = _amenity_match_sql(selected_amenities, params)
     total = int(db.session.execute(text(_alojamento_count_select(where_sql)), params).scalar() or 0)
+    matching_total = total
+    if amenity_match_sql:
+        matching_total = int(db.session.execute(
+            text(_alojamento_count_select(f"({where_sql}) AND ({amenity_match_sql})")), params
+        ).scalar() or 0)
     total_pages = max(1, ((total + page_size - 1) // page_size))
     page_number = min(page_number, total_pages)
     start = (page_number - 1) * page_size
     page_params = {**params, "offset": start, "limit": page_size}
-    rows = db.session.execute(text(_alojamento_paged_select(where_sql, lang=lang)), page_params).mappings().all()
+    rows = db.session.execute(
+        text(_alojamento_paged_select(where_sql, lang=lang, amenity_match_sql=amenity_match_sql)), page_params
+    ).mappings().all()
     prices = get_from_prices([row.get("ALSTAMP") for row in rows])
     comparisons = get_stay_price_comparisons(
         [row.get("NOME_INTERNO") for row in rows], checkin_date, checkout_date
     ) if checkin_date and checkout_date and checkout_date > checkin_date else {}
     alojamentos = []
+    amenity_codes_by_property = _page_amenity_codes(
+        [_clean(row.get("NOME_INTERNO")) for row in rows], selected_amenities
+    ) if selected_amenities else {}
     quoted_guest_count = _to_int(hospedes, default=1) or 1
     quoted_adults = adult_count or guest_count or 1
     for row in rows:
@@ -865,6 +959,11 @@ def get_alojamentos_disponiveis_page(checkin=None, checkout=None, hospedes=None,
             **row,
             "PRECO_DESDE": prices.get(_clean(row.get("ALSTAMP"))),
         }, lang=lang or "pt")
+        present_codes = amenity_codes_by_property.get(alojamento.get("nome_interno"), set())
+        alojamento["amenity_match"] = bool(row.get("AMENITY_MATCH"))
+        alojamento["missing_amenity_codes"] = [
+            code for code in selected_amenities if code not in present_codes
+        ]
         comparison = comparisons.get(_clean(row.get("NOME_INTERNO")))
         if comparison:
             quoted_nights = int(comparison["nights"])
@@ -909,6 +1008,11 @@ def get_alojamentos_disponiveis_page(checkin=None, checkout=None, hospedes=None,
         else:
             alojamento["preco_estadia"] = None
         alojamentos.append(alojamento)
+    alternative_start_index = None
+    if selected_amenities and matching_total < total:
+        alternative_start_index = max(0, matching_total - start)
+        if alternative_start_index >= len(alojamentos):
+            alternative_start_index = None
     return {
         "items": alojamentos,
         "total": total,
@@ -919,10 +1023,12 @@ def get_alojamentos_disponiveis_page(checkin=None, checkout=None, hospedes=None,
         "has_next": page_number < total_pages,
         "prev_page": page_number - 1 if page_number > 1 else None,
         "next_page": page_number + 1 if page_number < total_pages else None,
+        "matching_total": matching_total,
+        "alternative_start_index": alternative_start_index,
     }
 
 
-def get_alojamentos_disponiveis(checkin=None, checkout=None, hospedes=None, query=None, lang=None, adultos=None, criancas=None, bebes=None) -> list[dict]:
+def get_alojamentos_disponiveis(checkin=None, checkout=None, hospedes=None, query=None, lang=None, adultos=None, criancas=None, bebes=None, amenities=None) -> list[dict]:
     return get_alojamentos_disponiveis_page(
         checkin=checkin,
         checkout=checkout,
@@ -932,6 +1038,7 @@ def get_alojamentos_disponiveis(checkin=None, checkout=None, hospedes=None, quer
         adultos=adultos,
         criancas=criancas,
         bebes=bebes,
+        amenities=amenities,
         page=1,
         per_page=10000,
     )["items"]

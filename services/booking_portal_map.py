@@ -30,7 +30,23 @@ _PUBLIC_WHERE = """
 _SEARCH_COLUMNS = ("NOME", "NMAIRBNB", "NMPESQUISA", "LOCAL", "MORADA", "ZONA")
 
 
-def _inventory_sql(has_query):
+def _amenity_match_sql(codes):
+    clauses = []
+    for index, _code in enumerate(codes):
+        clauses.append(f"""
+            EXISTS (
+                SELECT 1 FROM dbo.AL_COMODIDADES AC
+                INNER JOIN dbo.COMODIDADES C ON C.ID=AC.COMODIDADE_ID
+                WHERE LTRIM(RTRIM(AC.ALOJAMENTO)) COLLATE SQL_Latin1_General_CP1_CI_AI
+                    = LTRIM(RTRIM(AL.NOME)) COLLATE SQL_Latin1_General_CP1_CI_AI
+                  AND C.CODIGO=:amenity_{index} AND C.ATIVA=1
+                  AND C.MOSTRA_PORTOBREAK=1 AND C.FILTRO_PORTOBREAK=1
+            )
+        """)
+    return " AND ".join(clauses) or "1 = 1"
+
+
+def _inventory_sql(has_query, amenity_codes=()):
     # Compute the same CI/AI LIKE match in SQL without returning private search
     # fields (including the exact address or the internal reservation name).
     matches = " OR ".join(
@@ -38,6 +54,7 @@ def _inventory_sql(has_query):
         "LIKE :query COLLATE SQL_Latin1_General_CP1_CI_AI"
         for column in _SEARCH_COLUMNS
     ) if has_query else "1 = 1"
+    amenity_match = _amenity_match_sql(amenity_codes)
     return f"""
         SELECT
             LTRIM(RTRIM(AL.ALSTAMP)) AS ID,
@@ -49,7 +66,8 @@ def _inventory_sql(has_query):
             CAST(({_alojamento_adult_capacity_sql()}) AS int) AS ADULT_CAPACITY,
             CAST(({_alojamento_capacity_sql()}) AS int) AS TOTAL_CAPACITY,
             CAST(ISNULL(AL.NOITES, 1) AS int) AS MIN_NIGHTS,
-            CASE WHEN ({matches}) THEN 1 ELSE 0 END AS QUERY_MATCH
+            CASE WHEN ({matches}) THEN 1 ELSE 0 END AS QUERY_MATCH,
+            CASE WHEN ({amenity_match}) THEN 1 ELSE 0 END AS AMENITY_MATCH
         FROM dbo.AL AS AL
         WHERE {_PUBLIC_WHERE}
         ORDER BY PUBLIC_NAME, ID
@@ -167,6 +185,9 @@ def get_map_catalog(params: dict) -> dict:
     No persistent cache is used. Exceptions propagate for the route's error UI.
     """
     query = str(params.get("query") or "").strip()
+    amenity_codes = list(dict.fromkeys(
+        str(code or "").strip().upper() for code in (params.get("amenities") or []) if str(code or "").strip()
+    ))
     counts = [_count(params.get(key)) for key in ("adultos", "criancas", "hospedes", "bebes")]
     adults, children, guests, babies = [value or 0 for value in counts]
     checkin = _to_date(params.get("checkin"))
@@ -177,9 +198,13 @@ def get_map_catalog(params: dict) -> dict:
     # _search_params rejects an unaccompanied child/baby. Preserve that safety
     # even when the helper is called directly with an incomplete parameter dict.
     errors = errors or bool((children or babies) and not adults)
-    has_search = bool(params.get("has_search") or query or any(counts) or checkin or checkout or errors)
+    has_search = bool(params.get("has_search") or query or amenity_codes or any(counts) or checkin or checkout or errors)
 
-    rows = db.session.execute(text(_inventory_sql(bool(query))), {"query": f"%{query}%"} if query else {}).mappings().all()
+    inventory_params = {"query": f"%{query}%"} if query else {}
+    inventory_params.update({f"amenity_{index}": code for index, code in enumerate(amenity_codes)})
+    rows = db.session.execute(
+        text(_inventory_sql(bool(query), amenity_codes)), inventory_params
+    ).mappings().all()
     inventory = []
     seen = set()
     for row in rows:
@@ -216,6 +241,7 @@ def get_map_catalog(params: dict) -> dict:
         available = not errors and (
             not has_search or (
                 (not query or _truthy_flag(row.get("QUERY_MATCH")))
+                and (not amenity_codes or _truthy_flag(row.get("AMENITY_MATCH")))
                 and _capacity_match(row, adults, children, guests, babies)
                 and (not has_dates or _date_match(
                     checkin, checkout, max(1, _count(row.get("MIN_NIGHTS")) or 1),

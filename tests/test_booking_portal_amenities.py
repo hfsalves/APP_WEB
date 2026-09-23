@@ -38,6 +38,7 @@ def test_detail_template_renders_only_real_assigned_amenities():
     assert "{% if alojamento.comodidades %}" in template
     assert "{% for comodidade in alojamento.comodidades %}" in template
     assert "booking-amenities-grid" in template
-    assert "font-awesome/6.4.0/css/all.min.css" in template
+    shared_fonts = (ROOT / "templates/booking_portal/_fonts.html").read_text(encoding="utf-8")
+    assert "font-awesome/6.4.0/css/all.min.css" in shared_fonts
     assert "comodidade.icone" in template
     assert "comodidade.nome" in template

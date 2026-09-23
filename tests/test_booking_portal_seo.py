@@ -132,6 +132,7 @@ class BookingPortalSeoTests(unittest.TestCase):
 
         fixtures = {
             "_portal_current_user": {"return_value": None},
+            "get_public_amenity_filters": {"return_value": []},
             "get_alojamento": {"side_effect": lambda *_args, **_kwargs: copy.deepcopy(self.property)},
             "get_alojamentos_disponiveis_page": {"side_effect": self.catalog},
             "get_calendario_ocupacao": {"return_value": {

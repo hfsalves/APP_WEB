@@ -617,6 +617,176 @@ input {
   white-space: nowrap;
 }
 
+.booking-amenity-filter {
+  position: relative;
+  z-index: 30;
+}
+
+.booking-amenity-filter > summary {
+  gap: 8px;
+  min-height: 42px;
+  list-style: none;
+  white-space: nowrap;
+}
+
+.booking-amenity-filter > summary::-webkit-details-marker { display: none; }
+.booking-amenity-filter > summary svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
+.booking-amenity-filter > summary b {
+  display: inline-grid;
+  min-width: 22px;
+  height: 22px;
+  place-items: center;
+  border-radius: 999px;
+  padding: 0 6px;
+  background: var(--bp-accent);
+  color: #fff;
+  font-size: 0.72rem;
+}
+
+.booking-amenity-filter[open] > summary {
+  border-color: var(--bp-accent);
+  color: var(--bp-accent-dark);
+}
+
+.booking-amenity-filter-panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: min(620px, calc(100vw - 32px));
+  border: 1px solid var(--bp-line);
+  border-radius: 12px;
+  padding: 18px;
+  background: #fff;
+  box-shadow: 0 22px 60px rgba(28, 25, 23, 0.2);
+}
+
+.booking-amenity-filter-head,
+.booking-amenity-filter-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.booking-amenity-filter-head span {
+  color: var(--bp-muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.booking-amenity-filter-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  max-height: min(52vh, 430px);
+  margin: 15px 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.booking-amenity-filter-options label {
+  display: grid;
+  grid-template-columns: 20px 22px minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  min-height: 44px;
+  border: 1px solid var(--bp-line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: var(--bp-text);
+  cursor: pointer;
+}
+
+.booking-amenity-filter-options label:hover,
+.booking-amenity-filter-options label:has(input:focus-visible) {
+  border-color: rgba(15, 118, 110, 0.55);
+  background: #f7fcfa;
+}
+
+.booking-amenity-filter-options label:has(input:checked) {
+  border-color: rgba(15, 118, 110, 0.48);
+  background: #eef9f5;
+}
+
+.booking-amenity-filter-options input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--bp-accent);
+}
+
+.booking-amenity-filter-options i {
+  color: var(--bp-accent-dark);
+  text-align: center;
+}
+
+.booking-amenity-filter-options span {
+  min-width: 0;
+  font-size: 0.86rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.booking-amenity-filter-actions {
+  justify-content: flex-end;
+  border-top: 1px solid var(--bp-line);
+  padding-top: 14px;
+}
+
+.booking-alternatives-divider {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(24px, 1fr) auto minmax(24px, 1fr);
+  align-items: center;
+  gap: 16px;
+  margin: 12px 0 4px;
+  text-align: center;
+}
+
+.booking-alternatives-divider > span {
+  height: 1px;
+  background: var(--bp-line);
+}
+
+.booking-alternatives-divider strong {
+  display: block;
+  color: var(--bp-text);
+  font-size: 1rem;
+}
+
+.booking-alternatives-divider p {
+  margin: 4px 0 0;
+  color: var(--bp-muted);
+  font-size: 0.8rem;
+}
+
+.booking-card-missing-amenities {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.booking-card-missing-amenities span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 999px;
+  padding: 5px 8px;
+  background: #f3f0eb;
+  color: #8a8178;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.booking-card-missing-amenities s { text-decoration-thickness: 1.5px; }
+
 .booking-alert {
   margin: 0 0 18px;
   border: 1px solid rgba(185, 28, 28, 0.26);
@@ -3447,6 +3617,35 @@ a.booking-airbnb-badge:focus-visible {
 
   .booking-count {
     width: fit-content;
+  }
+
+  .booking-amenity-filter-panel {
+    position: fixed;
+    inset: auto 10px 10px;
+    width: auto;
+    max-height: calc(100svh - 90px);
+    border-radius: 14px;
+    padding: 16px;
+    overflow: hidden;
+  }
+
+  .booking-amenity-filter-options {
+    grid-template-columns: 1fr;
+    max-height: calc(100svh - 245px);
+  }
+
+  .booking-amenity-filter-actions .booking-button { flex: 1; }
+
+  body:has(.booking-amenity-filter[open]) .booking-whatsapp-fab {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(10px);
+  }
+
+  .booking-alternatives-divider {
+    grid-template-columns: 24px minmax(0, 1fr) 24px;
+    gap: 9px;
+    margin-top: 8px;
   }
 
   .booking-gallery-main,

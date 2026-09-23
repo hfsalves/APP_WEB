@@ -88,6 +88,7 @@ class BookingPortalMobileSearchTests(unittest.TestCase):
         self.app.register_blueprint(bp)
         for name, result in (
             ("_portal_current_user", None),
+            ("get_public_amenity_filters", []),
             ("get_alojamentos_disponiveis_page", {"items": [], "total": 0, "page": 1, "pages": 1}),
         ):
             patcher = patch("blueprints.booking_portal." + name, return_value=result)

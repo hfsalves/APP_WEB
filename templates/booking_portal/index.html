@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/booking_search_calendar.css') }}?v={{ config.get('STATIC_VERSION', 1) }}">
   <script src="{{ url_for('static', filename='js/booking_mobile_search.js') }}?v={{ config.get('STATIC_VERSION', 1) }}" defer></script>
   <script src="{{ url_for('static', filename='js/booking_search_calendar.js') }}?v={{ config.get('STATIC_VERSION', 1) }}" defer></script>
+  <script src="{{ url_for('static', filename='js/booking_amenity_filters.js') }}?v={{ config.get('STATIC_VERSION', 1) }}" defer></script>
   {% if catalog_map is defined %}
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/booking_portal/leaflet-1.9.4/leaflet.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/booking_catalog_map.css') }}?v={{ config.get('STATIC_VERSION', 1) }}">
@@ -38,7 +39,7 @@
           {% include 'booking_portal/_account_menu.html' %}
         </div>
 
-        <form class="booking-search" method="get" action="{{ url_for('booking_portal.index') }}" data-search-form>
+        <form class="booking-search" id="bookingSearchForm" method="get" action="{{ url_for('booking_portal.index') }}" data-search-form>
           <input type="hidden" name="lang" value="{{ lang }}">
           {% if catalog_map is defined and catalog_map.view == 'map' %}<input type="hidden" name="view" value="map" data-catalog-view-input>{% endif %}
           <div class="booking-search-dates">
@@ -111,7 +112,38 @@
           <h2>{% if search.has_search and not search.errors %}{{ t.results_found }}{% else %}{{ t.available_stays }}{% endif %}</h2>
         </div>
         <div class="booking-catalog-actions">
-          <span class="booking-count" data-catalog-count>{{ pagination.total }} {% if pagination.total == 1 %}{{ t.stay }}{% else %}{{ t.stays }}{% endif %}</span>
+          <span class="booking-count" data-catalog-count>
+            {% if amenity_filters_selected %}{{ pagination.matching_total }} / {% endif %}{{ pagination.total }}
+            {% if pagination.total == 1 %}{{ t.stay }}{% else %}{{ t.stays }}{% endif %}
+          </span>
+          {% if amenity_filters %}
+            <details class="booking-amenity-filter" data-amenity-filter>
+              <summary class="booking-button" aria-label="{{ t.amenity_filters_title }}">
+                <svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true"><path d="M4 7h10m4 0h2M4 17h2m4 0h10M14 4v6M6 14v6"/></svg>
+                <span>{{ t.amenity_filters }}</span>
+                {% if amenity_filters_selected %}<b>{{ amenity_filters_selected|length }}</b>{% endif %}
+              </summary>
+              <div class="booking-amenity-filter-panel">
+                <div class="booking-amenity-filter-head">
+                  <strong>{{ t.amenity_filters_title }}</strong>
+                  {% if amenity_filters_selected %}<span>{{ amenity_filters_selected|length }} {{ t.amenity_filters_selected }}</span>{% endif %}
+                </div>
+                <div class="booking-amenity-filter-options">
+                  {% for amenity in amenity_filters %}
+                    <label class="{% if amenity.selected %}is-selected{% endif %}">
+                      <input type="checkbox" name="amenity" value="{{ amenity.codigo }}" form="bookingSearchForm" {% if amenity.selected %}checked{% endif %}>
+                      <i class="fa-solid {{ amenity.icone }}" aria-hidden="true"></i>
+                      <span>{{ amenity.nome }}</span>
+                    </label>
+                  {% endfor %}
+                </div>
+                <div class="booking-amenity-filter-actions">
+                  <a class="booking-button" href="{{ clear_amenities_url }}">{{ t.amenity_filters_clear }}</a>
+                  <button class="booking-button booking-button-primary" type="submit" form="bookingSearchForm">{{ t.amenity_filters_apply }}</button>
+                </div>
+              </div>
+            </details>
+          {% endif %}
           {% if catalog_map is defined %}
             <button class="booking-button booking-catalog-view-toggle" type="button" data-catalog-view-toggle data-map-open aria-controls="bookingCatalogMap" aria-pressed="false" hidden>
               <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path d="m9 18-6 3V6l6-3 6 3 6-3v15l-6 3-6-3Zm0 0V3m6 3v15"/></svg>
@@ -159,6 +191,16 @@
       {% if alojamentos %}
         <div class="booking-grid" data-catalog-list>
           {% for al in alojamentos %}
+            {% if amenity_filters_selected and pagination.alternative_start_index is not none and loop.index0 == pagination.alternative_start_index %}
+              <div class="booking-alternatives-divider">
+                <span aria-hidden="true"></span>
+                <div>
+                  <strong>{{ t.other_available_stays }}</strong>
+                  <p>{{ t.other_available_stays_lead }}</p>
+                </div>
+                <span aria-hidden="true"></span>
+              </div>
+            {% endif %}
             <article class="booking-card">
               <a class="booking-card-media" href="{{ al.detail_url }}" aria-label="{{ t.view_stay }} {{ al.nome }}">
                 {% if al.foto_principal %}
@@ -183,6 +225,13 @@
                 </div>
                 {% if al.descricao_curta %}
                   <p>{{ al.descricao_curta }}</p>
+                {% endif %}
+                {% if al.missing_amenities %}
+                  <div class="booking-card-missing-amenities" aria-label="{{ t.missing_amenities }}">
+                    {% for amenity in al.missing_amenities %}
+                      <span><i class="fa-solid {{ amenity.icone }}" aria-hidden="true"></i><s>{{ amenity.nome }}</s></span>
+                    {% endfor %}
+                  </div>
                 {% endif %}
                 <div class="booking-card-footer">
                   <div class="booking-price">
