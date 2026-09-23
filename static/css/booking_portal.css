@@ -462,6 +462,39 @@ input {
   line-height: 1.5;
 }
 
+.booking-hero-trust {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  margin: 16px 0 0;
+  padding: 13px 0 0;
+  border-top: 1px solid rgba(255, 250, 242, 0.24);
+  list-style: none;
+}
+
+.booking-hero-trust li {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: rgba(255, 250, 242, 0.94);
+  font-size: 0.82rem;
+  font-weight: 750;
+  line-height: 1.3;
+}
+
+.booking-hero-trust li span {
+  display: inline-grid;
+  flex: 0 0 19px;
+  width: 19px;
+  height: 19px;
+  place-items: center;
+  border-radius: 50%;
+  color: #10233d;
+  background: #f7d08a;
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
 .booking-search {
   position: static;
   display: grid;
@@ -2467,6 +2500,30 @@ input {
 
   .booking-hero h1 {
     font-size: clamp(1.85rem, 9vw, 2.8rem);
+  }
+
+  .booking-lead {
+    margin-top: 8px;
+    font-size: 0.9rem;
+    line-height: 1.4;
+  }
+
+  .booking-hero-trust {
+    gap: 7px 14px;
+    margin-top: 12px;
+    padding-top: 11px;
+  }
+
+  .booking-hero-trust li {
+    gap: 5px;
+    font-size: 0.74rem;
+  }
+
+  .booking-hero-trust li span {
+    flex-basis: 17px;
+    width: 17px;
+    height: 17px;
+    font-size: 0.65rem;
   }
 
   .booking-brand {

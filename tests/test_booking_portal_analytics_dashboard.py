@@ -149,6 +149,19 @@ def test_dashboard_frontend_does_not_render_private_identifiers():
     assert "textContent" in javascript
 
 
+def test_dashboard_mobile_layout_is_compact_and_uses_card_tables():
+    project = Path(__file__).resolve().parents[1]
+    template = (project / "templates" / "booking_portal_analytics.html").read_text()
+    stylesheet = (project / "static" / "css" / "booking_portal_analytics_dashboard.css").read_text()
+    javascript = (project / "static" / "js" / "booking_portal_analytics_dashboard.js").read_text()
+
+    assert ".pb-analytics-contextbar .sz_contextbar_left { flex: 0 0 auto; }" in stylesheet
+    assert ".pb-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }" in stylesheet
+    assert "grid-template-areas: \"breadcrumbs\" \"title\" \"subtitle\"" in stylesheet
+    assert template.count("pb-mobile-card-table") == 2
+    assert "cell.dataset.label = label" in javascript
+
+
 def test_dashboard_page_requires_an_admin_login():
     app = Flask(__name__)
     app.secret_key = "test"

@@ -165,8 +165,9 @@
     $("span", host).textContent = formatNumber(total);
   }
 
-  function appendCell(row, value, className) {
+  function appendCell(row, value, className, label) {
     const cell = create("td", className, value);
+    if (label) cell.dataset.label = label;
     row.appendChild(cell);
     return cell;
   }
@@ -183,12 +184,12 @@
     }
     items.forEach((item) => {
       const row = create("tr");
-      appendCell(row, item.name);
-      appendCell(row, formatNumber(item.views));
-      appendCell(row, formatSeconds(item.active_seconds));
-      appendCell(row, formatNumber(item.bookings));
-      appendCell(row, formatNumber(item.paid));
-      appendCell(row, formatPercent(item.conversion_rate));
+      appendCell(row, item.name, "", "Alojamento");
+      appendCell(row, formatNumber(item.views), "", "Visualizações");
+      appendCell(row, formatSeconds(item.active_seconds), "", "Tempo ativo");
+      appendCell(row, formatNumber(item.bookings), "", "Pedidos");
+      appendCell(row, formatNumber(item.paid), "", "Pagas");
+      appendCell(row, formatPercent(item.conversion_rate), "", "Conversão");
       body.appendChild(row);
     });
   }
@@ -212,14 +213,14 @@
     }
     items.forEach((item) => {
       const row = create("tr");
-      appendCell(row, formatDate(item.started_at));
-      appendCell(row, sessionSource(item));
-      appendCell(row, countryLabel(item.country));
-      appendCell(row, deviceLabels[item.device] || item.device);
-      appendCell(row, [item.browser, item.os].filter(Boolean).join(" · "));
-      appendCell(row, formatNumber(item.page_views));
-      appendCell(row, formatSeconds(item.active_seconds));
-      const result = appendCell(row, "");
+      appendCell(row, formatDate(item.started_at), "", "Início");
+      appendCell(row, sessionSource(item), "", "Origem");
+      appendCell(row, countryLabel(item.country), "", "País");
+      appendCell(row, deviceLabels[item.device] || item.device, "", "Dispositivo");
+      appendCell(row, [item.browser, item.os].filter(Boolean).join(" · "), "", "Browser");
+      appendCell(row, formatNumber(item.page_views), "", "Páginas");
+      appendCell(row, formatSeconds(item.active_seconds), "", "Tempo ativo");
+      const result = appendCell(row, "", "", "Resultado");
       const chip = create("span", `pb-status-chip${item.paid ? " is-paid" : item.converted ? " is-converted" : ""}`, item.paid ? "Paga" : item.converted ? "Pedido" : "Navegação");
       result.appendChild(chip);
       body.appendChild(row);
