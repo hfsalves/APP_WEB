@@ -1,0 +1,6 @@
+{% macro price_saving(text, info_label) -%}
+  <span class="booking-price-saving-group">
+    <span class="booking-price-saving">{{ text }}</span>
+    <button class="booking-price-info-button" type="button" data-price-info-open aria-label="{{ info_label }}" aria-haspopup="dialog" aria-controls="bookingPriceInfoDialog">?</button>
+  </span>
+{%- endmacro %}

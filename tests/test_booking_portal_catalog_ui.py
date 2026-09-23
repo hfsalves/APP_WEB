@@ -1,6 +1,7 @@
 """Catalog presentation checks without a live database or booking writes."""
 
 import copy
+from decimal import Decimal
 from html.parser import HTMLParser
 from pathlib import Path
 import re
@@ -29,6 +30,21 @@ PROPERTY = {
     "fotos": [{"url": "/static/stay.jpg", "alt": "Estúdio"}],
     "tem_mapa": False,
     "preco_desde": "99 €",
+    "airbnb_room_id": "21329922",
+}
+SEARCH_PRICE = {
+    "nights": 2,
+    "airbnb": Decimal("96.00"),
+    "portobreak": Decimal("92.00"),
+    "saving": Decimal("4.00"),
+    "airbnb_label": "96.00 EUR",
+    "portobreak_label": "92.00 EUR",
+    "airbnb_total": Decimal("132.00"),
+    "portobreak_total": Decimal("128.00"),
+    "airbnb_total_label": "132.00 EUR",
+    "portobreak_total_label": "128.00 EUR",
+    "saving_label": "4.00 EUR",
+    "airbnb_url": "https://www.airbnb.pt/rooms/21329922?adults=2&check_in=2030-10-14&check_out=2030-10-16",
 }
 
 
@@ -110,10 +126,56 @@ class BookingPortalCatalogUiTests(unittest.TestCase):
 
     def catalog(self, **kwargs):
         page = max(1, min(int(kwargs.get("page") or 1), 6))
+        item = copy.deepcopy(PROPERTY)
+        if kwargs.get("checkin") and kwargs.get("checkout"):
+            item["preco_estadia"] = copy.deepcopy(SEARCH_PRICE)
         return {
-            "items": [copy.deepcopy(PROPERTY)], "total": 100, "page": page,
+            "items": [item], "total": 100, "page": page,
             "pages": 6, "per_page": 18, "has_prev": page > 1, "has_next": page < 6,
         }
+
+    def test_dated_catalog_shows_real_stay_comparison_instead_of_from_price(self):
+        response = self.client.get("/reservas", query_string={
+            "lang": "pt", "checkin": "2030-10-14", "checkout": "2030-10-16",
+        })
+        self.assertEqual(response.status_code, 200)
+        markup = response.get_data(as_text=True)
+        self.assertIn('class="booking-card-price-reference"', markup)
+        self.assertIn("Preço Airbnb", markup)
+        self.assertIn('class="booking-airbnb-badge"', markup)
+        self.assertIn('href="https://www.airbnb.pt/rooms/21329922?adults=2&amp;check_in=2030-10-14&amp;check_out=2030-10-16"', markup)
+        self.assertIn('<span class="booking-airbnb-price">132.00 EUR</span>', markup)
+        self.assertNotIn("<del>132.00 EUR</del>", markup)
+        self.assertIn("Reserva direta", markup)
+        self.assertIn("128.00 EUR", markup)
+        self.assertIn("Poupa 4.00 EUR", markup)
+        self.assertIn("2 noites", markup)
+        self.assertNotIn("<small>desde</small>", markup)
+
+    def test_undated_catalog_keeps_from_price_without_total_saving(self):
+        response = self.client.get("/reservas", query_string={"lang": "pt"})
+        self.assertEqual(response.status_code, 200)
+        markup = response.get_data(as_text=True)
+        self.assertIn("<small>desde</small>", markup)
+        self.assertIn("<strong>99 €</strong>", markup)
+        self.assertNotIn('class="booking-card-price-reference"', markup)
+        self.assertNotIn('class="booking-price-saving"', markup)
+
+    def test_commercial_price_copy_exists_in_every_portal_language(self):
+        expected = {
+            "pt": ("Preço Airbnb", "Reserva direta", "Poupa 4.00 EUR"),
+            "en": ("Airbnb price", "Direct booking", "You save 4.00 EUR"),
+            "es": ("Precio en Airbnb", "Reserva directa", "Ahorras 4.00 EUR"),
+            "fr": ("Prix Airbnb", "Réservation directe", "Vous économisez 4.00 EUR"),
+        }
+        for lang, labels in expected.items():
+            with self.subTest(lang=lang):
+                response = self.client.get("/reservas", query_string={
+                    "lang": lang, "checkin": "2030-10-14", "checkout": "2030-10-16",
+                })
+                markup = response.get_data(as_text=True)
+                for label in labels:
+                    self.assertIn(label, markup)
 
     def test_every_page_is_shown_from_first_middle_and_last_page(self):
         for pages, page in ((6, 1), (6, 3), (6, 6), (1, 1), (12, 6)):

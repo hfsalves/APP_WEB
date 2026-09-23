@@ -1,3 +1,5 @@
+{% from "booking_portal/_airbnb_badge.html" import airbnb_badge %}
+{% from "booking_portal/_price_saving.html" import price_saving %}
 <!doctype html>
 <html lang="{{ lang }}">
 <head>
@@ -181,9 +183,22 @@
                 {% endif %}
                 <div class="booking-card-footer">
                   <div class="booking-price">
-                    {% if al.preco_desde %}
+                    {% if al.preco_estadia %}
+                      <div class="booking-card-price-reference">
+                        {{ airbnb_badge(al.preco_estadia.airbnb_url, al.preco_estadia.airbnb_total_label, t.airbnb_price) }}
+                      </div>
+                      <small>{{ t.direct_booking }}</small>
+                      <strong>{{ al.preco_estadia.portobreak_total_label }}</strong>
+                      <div class="booking-card-price-meta">
+                        {{ price_saving(t.you_save.format(value=al.preco_estadia.saving_label), t.saving_info_open) }}
+                        <span>{{ al.preco_estadia.nights }} {% if al.preco_estadia.nights == 1 %}{{ t.night }}{% else %}{{ t.nights }}{% endif %}</span>
+                      </div>
+                    {% elif search.checkin and search.checkout %}
+                      <strong>{{ t.price_on_request }}</strong>
+                    {% elif al.preco_desde %}
                       <small>{{ t.from }}</small>
                       <strong>{{ al.preco_desde }}</strong>
+                      <span>{{ t.per_night }}</span>
                     {% else %}
                       <strong>{{ t.price_on_request }}</strong>
                     {% endif %}
@@ -230,6 +245,7 @@
   </main>
 
   {% include 'booking_portal/_search_calendar.html' %}
+  {% include 'booking_portal/_price_info_modal.html' %}
   <script type="application/json" id="booking-search-calendar-config">{{ {'lang': lang, 'labels': {'calendar_start': t.calendar_start, 'calendar_pick_checkout': t.calendar_pick_checkout, 'checkout_after_checkin': t.checkout_after_checkin, 'checkin': t.checkin, 'checkout': t.checkout, 'choose': t.choose, 'previous_month': t.previous_month, 'next_month': t.next_month}}|tojson }}</script>
   <script>
     document.querySelectorAll("[data-search-form]").forEach(function (form) {

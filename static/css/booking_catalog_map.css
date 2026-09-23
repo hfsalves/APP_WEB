@@ -55,6 +55,12 @@
 .booking-map-quote-guests { color: var(--bp-text); font-size: 0.82rem; font-weight: 700; }
 .booking-map-quote-pricing { margin-top: 12px; border-top: 1px solid var(--bp-line); padding-top: 10px; }
 .booking-map-quote-pricing h4 { margin: 0 0 10px; color: #123f67; font-size: 0.84rem; }
+.booking-map-quote-comparison { display: grid; gap: 4px; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--bp-line); }
+.booking-map-quote-comparison > div { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; font-size: 0.8rem; }
+.booking-map-quote-comparison span, .booking-map-quote-comparison del { color: var(--bp-muted); }
+.booking-map-quote-comparison .booking-airbnb-badge span { color: #fff; }
+.booking-map-quote-direct strong { color: var(--bp-text); font-size: 1rem; }
+.booking-map-quote-saving { margin: 2px 0 0 !important; color: var(--bp-ok); font-size: 0.8rem; font-weight: 800; }
 .booking-map-quote-lines { display: grid; gap: 6px; margin: 0; }
 .booking-map-quote-lines > div { display: flex; justify-content: space-between; gap: 14px; font-size: 0.8rem; }
 .booking-map-quote-lines dt { color: var(--bp-muted); }

@@ -6,7 +6,11 @@ import re
 import unittest
 from unittest.mock import Mock, patch
 
-from services.booking_portal_pricing import get_from_prices, select_from_prices
+from services.booking_portal_pricing import (
+    get_from_prices,
+    portobreak_nightly_price,
+    select_from_prices,
+)
 
 
 TODAY = date(2030, 9, 18)
@@ -103,7 +107,7 @@ class GetFromPricesTests(unittest.TestCase):
             row("one", 0, "105"), row("one", 30, "1"), row("two", 45, "75"),
         ]
         self.assertEqual(get_from_prices(["one", "two"], today=TODAY), {
-            "one": Decimal("105"), "two": Decimal("75"),
+            "one": Decimal("101"), "two": Decimal("72"),
         })
         self.db.session.execute.assert_called_once()
         statement, params = self.db.session.execute.call_args.args
@@ -140,6 +144,34 @@ class GetFromPricesTests(unittest.TestCase):
         day_expression = r"(?:CAST\(D\.\[DATA\] AS DATE\)|D\.\[DATA\])"
         self.assertRegex(sql, r"CAST\(RS\.DATAIN AS DATE\)\s*<=\s*" + day_expression)
         self.assertRegex(sql, r"CAST\(RS\.DATAOUT AS DATE\)\s*>\s*" + day_expression)
+
+
+class PortoBreakNightlyPriceTests(unittest.TestCase):
+    def test_expected_whole_euro_examples(self):
+        expected = {
+            40: 38,
+            50: 48,
+            80: 77,
+            100: 96,
+            120: 115,
+            150: 144,
+            300: 288,
+        }
+        for airbnb_price, direct_price in expected.items():
+            with self.subTest(airbnb_price=airbnb_price):
+                result = portobreak_nightly_price(airbnb_price)
+                self.assertEqual(result, Decimal(direct_price))
+                self.assertEqual(result, result.to_integral_value())
+                self.assertLessEqual(result, Decimal(airbnb_price) - Decimal("1"))
+
+    def test_rounding_is_half_up_then_capped_for_the_minimum_saving(self):
+        self.assertEqual(portobreak_nightly_price("117.86"), Decimal("113"))
+        self.assertEqual(portobreak_nightly_price("40.90"), Decimal("39"))
+
+    def test_invalid_or_impossible_prices_are_not_sellable(self):
+        for value in (None, "", "invalid", 0, -5, "0.99", Decimal("NaN")):
+            with self.subTest(value=value):
+                self.assertEqual(portobreak_nightly_price(value), Decimal("0"))
 
 
 if __name__ == "__main__":

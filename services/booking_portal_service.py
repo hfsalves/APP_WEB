@@ -19,7 +19,11 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from models import db
 from services.auth_service import hash_password, verify_password_hash
-from services.booking_portal_pricing import get_from_prices
+from services.booking_portal_pricing import (
+    get_from_prices,
+    get_stay_price_comparisons,
+    portobreak_nightly_price,
+)
 
 
 TIPOLOGIA_CAPACIDADE = {
@@ -33,7 +37,6 @@ TIPOLOGIA_CAPACIDADE = {
 PLACEHOLDER_IMAGE = ""
 PUBLIC_STATIC_BASE_URL = "https://szeroapp.com/static/"
 _DEC2 = Decimal("0.01")
-CLEANING_FEE = Decimal("30.00")
 TOURIST_TAX_PER_GUEST_NIGHT = Decimal("3.00")
 TOURIST_TAX_MAX_DAYS = 7
 _TABLE_EXISTS_CACHE = {}
@@ -66,6 +69,22 @@ def _to_date(value):
         return date.fromisoformat(str(value or "").strip()[:10])
     except Exception:
         return None
+
+
+def build_airbnb_search_url(room_id, checkin=None, checkout=None, adults=None) -> str:
+    """Build a canonical Airbnb room URL using only validated public search data."""
+    room_id = _clean(room_id)
+    checkin_date = _to_date(checkin)
+    checkout_date = _to_date(checkout)
+    if not room_id.isdigit() or not checkin_date or not checkout_date or checkout_date <= checkin_date:
+        return ""
+    adult_count = max(1, _to_int(adults, default=1) or 1)
+    query = urlencode({
+        "adults": adult_count,
+        "check_in": checkin_date.isoformat(),
+        "check_out": checkout_date.isoformat(),
+    })
+    return f"https://www.airbnb.pt/rooms/{room_id}?{query}"
 
 
 def _to_int(value, default=None):
@@ -272,6 +291,7 @@ def _alojamento_base_select(where_sql: str, lang=None) -> str:
             CAST(ISNULL(AL.NOITES, 1) AS int) AS NOITES,
             CAST(ISNULL(AL.VALOREXTRA, 0) AS decimal(12, 2)) AS VALOREXTRA,
             CAST(ISNULL(AL.EXTRAMAISQUE, 0) AS int) AS EXTRAMAISQUE,
+            CAST(ISNULL(AL.TXLIMPEZA, 0) AS decimal(12, 2)) AS TXLIMPEZA,
             CAST(ISNULL(AL.PBASE, 0) AS decimal(12, 2)) AS PBASE,
             CAST(NULL AS decimal(12, 2)) AS PRECO_DESDE,
             {_descricao_alojamento_sql(lang)} AS DESCRICAO
@@ -390,6 +410,8 @@ def _decorate_alojamento(row: dict, include_gallery: bool = False) -> dict:
         "noites_minimas": max(1, _to_count(item.get("NOITES"), default=1) or 1),
         "valor_extra": _to_decimal(item.get("VALOREXTRA")),
         "extra_mais_que": _to_count(item.get("EXTRAMAISQUE"), default=0) or 0,
+        "taxa_limpeza": _to_decimal(item.get("TXLIMPEZA")),
+        "airbnb_room_id": _clean(item.get("NMPESQUISA")),
         "morada": _clean(item.get("MORADA")),
         "local": _clean(item.get("LOCAL")),
         "codpost": _clean(item.get("CODPOST")),
@@ -775,10 +797,56 @@ def get_alojamentos_disponiveis_page(checkin=None, checkout=None, hospedes=None,
     page_params = {**params, "offset": start, "limit": page_size}
     rows = db.session.execute(text(_alojamento_paged_select(where_sql, lang=lang)), page_params).mappings().all()
     prices = get_from_prices([row.get("ALSTAMP") for row in rows])
-    alojamentos = [
-        _decorate_alojamento({**row, "PRECO_DESDE": prices.get(_clean(row.get("ALSTAMP")))})
-        for row in rows
-    ]
+    comparisons = get_stay_price_comparisons(
+        [row.get("NOME_INTERNO") for row in rows], checkin_date, checkout_date
+    ) if checkin_date and checkout_date and checkout_date > checkin_date else {}
+    alojamentos = []
+    quoted_guest_count = _to_int(hospedes, default=1) or 1
+    quoted_adults = adult_count or guest_count or 1
+    for row in rows:
+        alojamento = _decorate_alojamento({
+            **row,
+            "PRECO_DESDE": prices.get(_clean(row.get("ALSTAMP"))),
+        })
+        comparison = comparisons.get(_clean(row.get("NOME_INTERNO")))
+        if comparison:
+            quoted_nights = int(comparison["nights"])
+            tourist_days = min(quoted_nights, TOURIST_TAX_MAX_DAYS)
+            tourist_tax = (
+                TOURIST_TAX_PER_GUEST_NIGHT
+                * Decimal(quoted_guest_count)
+                * Decimal(tourist_days)
+            ).quantize(_DEC2)
+            extra_rate = _to_decimal(alojamento.get("valor_extra"))
+            extra_threshold = _to_count(alojamento.get("extra_mais_que"), default=0) or 0
+            extra_guest_count = (
+                max(0, quoted_guest_count - extra_threshold)
+                if extra_rate > 0 and extra_threshold > 0
+                else 0
+            )
+            extra_guest_total = (
+                extra_rate * Decimal(extra_guest_count) * Decimal(quoted_nights)
+            ).quantize(_DEC2)
+            cleaning_fee = _to_decimal(alojamento.get("taxa_limpeza"))
+            common_total = (extra_guest_total + cleaning_fee + tourist_tax).quantize(_DEC2)
+            airbnb_total = (comparison["airbnb"] + common_total).quantize(_DEC2)
+            portobreak_total = (comparison["portobreak"] + common_total).quantize(_DEC2)
+            alojamento["preco_estadia"] = {
+                **comparison,
+                "airbnb_label": _money(comparison["airbnb"]),
+                "portobreak_label": _money(comparison["portobreak"]),
+                "airbnb_total": airbnb_total,
+                "airbnb_total_label": _money(airbnb_total),
+                "portobreak_total": portobreak_total,
+                "portobreak_total_label": _money(portobreak_total),
+                "saving_label": _money(comparison["saving"]),
+                "airbnb_url": build_airbnb_search_url(
+                    alojamento.get("airbnb_room_id"), checkin_date, checkout_date, quoted_adults
+                ),
+            }
+        else:
+            alojamento["preco_estadia"] = None
+        alojamentos.append(alojamento)
     return {
         "items": alojamentos,
         "total": total,
@@ -854,11 +922,14 @@ def _price_manager_nightly_prices(alojamento_nome, checkin, checkout) -> list[di
     fallback_price = _price_manager_base_price(alojamento_nome)
     nightly = []
     for day_value in _daterange(checkin_date, checkout_date):
-        price = prices_by_day.get(day_value) or fallback_price
+        airbnb_price = prices_by_day.get(day_value) or fallback_price
+        price = portobreak_nightly_price(airbnb_price)
         nightly.append({
             "data": day_value.isoformat(),
             "valor": price,
             "label": _money(price) or "0.00 EUR",
+            "valor_airbnb": airbnb_price,
+            "label_airbnb": _money(airbnb_price) or "0.00 EUR",
             "fallback": day_value not in prices_by_day,
         })
     return nightly
@@ -883,6 +954,10 @@ def calcular_preco(al_id, checkin=None, checkout=None, hospedes=None):
     guest_count = _to_int(hospedes, default=1) or 1
     nightly_prices = _price_manager_nightly_prices(alojamento.get("nome_interno"), checkin_date, checkout_date)
     subtotal_noites = sum((_to_decimal(item.get("valor")) for item in nightly_prices), Decimal("0.00")).quantize(_DEC2)
+    subtotal_noites_airbnb = sum(
+        (_to_decimal(item.get("valor_airbnb")) for item in nightly_prices),
+        Decimal("0.00"),
+    ).quantize(_DEC2)
     if subtotal_noites <= 0:
         return {"valor": None, "label": "Preco sob consulta", "noites": noites, "linhas": []}
 
@@ -892,7 +967,11 @@ def calcular_preco(al_id, checkin=None, checkout=None, hospedes=None):
     extra_threshold = _to_count(alojamento.get("extra_mais_que"), default=0) or 0
     extra_guest_count = max(0, guest_count - extra_threshold) if extra_rate > 0 and extra_threshold > 0 else 0
     extra_guest_total = (extra_rate * Decimal(extra_guest_count) * Decimal(noites)).quantize(_DEC2)
-    total = (subtotal_noites + extra_guest_total + CLEANING_FEE + tourist_tax).quantize(_DEC2)
+    cleaning_fee = _to_decimal(alojamento.get("taxa_limpeza"))
+    total = (subtotal_noites + extra_guest_total + cleaning_fee + tourist_tax).quantize(_DEC2)
+    total_airbnb = (
+        subtotal_noites_airbnb + extra_guest_total + cleaning_fee + tourist_tax
+    ).quantize(_DEC2)
     linhas = [
         {"label": f"Noites ({noites})", "value": _money(subtotal_noites)},
     ]
@@ -902,7 +981,7 @@ def calcular_preco(al_id, checkin=None, checkout=None, hospedes=None):
             "value": _money(extra_guest_total),
         })
     linhas.extend([
-        {"label": "Taxa de limpeza", "value": _money(CLEANING_FEE)},
+        {"label": "Taxa de limpeza", "value": _money(cleaning_fee)},
         {"label": f"Taxa turistica ({guest_count} hospede{'s' if guest_count != 1 else ''} x {tourist_days} dia{'s' if tourist_days != 1 else ''})", "value": _money(tourist_tax)},
     ])
 
@@ -914,14 +993,22 @@ def calcular_preco(al_id, checkin=None, checkout=None, hospedes=None):
         "precos_noite": nightly_prices,
         "preco_noites": subtotal_noites,
         "preco_noites_label": _money(subtotal_noites),
+        "preco_noites_airbnb": subtotal_noites_airbnb,
+        "preco_noites_airbnb_label": _money(subtotal_noites_airbnb),
+        "preco_total_airbnb": total_airbnb,
+        "preco_total_airbnb_label": _money(total_airbnb),
+        "preco_total_portobreak": total,
+        "preco_total_portobreak_label": _money(total),
+        "poupanca_noites": (subtotal_noites_airbnb - subtotal_noites).quantize(_DEC2),
+        "poupanca_noites_label": _money(subtotal_noites_airbnb - subtotal_noites),
         "hospedes_extra": extra_guest_count,
         "hospedes_extra_valor_noite": extra_rate,
         "hospedes_extra_valor_noite_label": _money(extra_rate),
         "hospedes_extra_total": extra_guest_total,
         "hospedes_extra_total_label": _money(extra_guest_total),
         "hospedes_extra_limite": extra_threshold,
-        "limpeza": CLEANING_FEE,
-        "limpeza_label": _money(CLEANING_FEE),
+        "limpeza": cleaning_fee,
+        "limpeza_label": _money(cleaning_fee),
         "taxa_turistica": tourist_tax,
         "taxa_turistica_label": _money(tourist_tax),
         "taxa_turistica_dias": tourist_days,
@@ -1373,6 +1460,7 @@ def criar_pedido_reserva(
         "preco": {
             "valor": str(preco.get("valor") or ""),
             "label": preco.get("label") or "",
+            "limpeza": str(preco.get("limpeza") or "0.00"),
             "linhas": preco.get("linhas") or [],
         },
     }
@@ -1946,7 +2034,8 @@ def registar_reserva_portal_pagamento(payment_id: str) -> dict | None:
                 P.PBPAYSTAMP, P.PBBKSTAMP, P.RSSTAMP, P.ESTADO AS PAGAMENTO_ESTADO,
                 B.ALSTAMP, B.CHECKIN, B.CHECKOUT, B.NOITES, B.ADULTOS, B.CRIANCAS, B.BEBES,
                 B.CLIENTE_NOME, B.CLIENTE_EMAIL, B.CLIENTE_TELEFONE, B.CLIENTE_MORADA,
-                B.CLIENTE_PAIS, B.CLIENTE_NIF, B.PRECO_ESTIMADO, B.OBSERVACOES,
+                B.CLIENTE_PAIS, B.CLIENTE_NIF, B.PRECO_ESTIMADO, B.OBSERVACOES, B.DADOS_JSON,
+                CAST(ISNULL(AL.TXLIMPEZA, 0) AS decimal(12, 2)) AS TXLIMPEZA,
                 LTRIM(RTRIM(ISNULL(AL.NOME, ''))) AS ALOJAMENTO_INTERNO
             FROM dbo.PB_STRIPE_TEST_PAYMENTS AS P
             INNER JOIN dbo.PB_BOOKING_REQUESTS AS B ON B.PBBKSTAMP = P.PBBKSTAMP
@@ -1994,7 +2083,15 @@ def registar_reserva_portal_pagamento(payment_id: str) -> dict | None:
     rsstamp = _new_stamp().replace("-", "")[:25].upper()
     reservation_code = f"PB{payment['PBPAYSTAMP'].replace('-', '')[:12].upper()}"
     total = _to_decimal(payment.get("PRECO_ESTIMADO"))
-    cleaning = CLEANING_FEE if total >= CLEANING_FEE else Decimal("0.00")
+    cleaning = _to_decimal(payment.get("TXLIMPEZA"))
+    try:
+        booking_snapshot = json.loads(payment.get("DADOS_JSON") or "{}")
+        price_snapshot = booking_snapshot.get("preco") or {}
+        if "limpeza" in price_snapshot:
+            cleaning = _to_decimal(price_snapshot.get("limpeza"))
+    except (TypeError, ValueError, json.JSONDecodeError):
+        pass
+    cleaning = min(cleaning, total)
     stay_value = (total - cleaning).quantize(_DEC2)
     obs = f"PortoBreak online | Stripe {payment['PBPAYSTAMP']}"
     extra_obs = _clean(payment.get("OBSERVACOES"))

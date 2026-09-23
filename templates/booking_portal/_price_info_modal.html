@@ -1,0 +1,19 @@
+<dialog class="booking-price-info-dialog" id="bookingPriceInfoDialog" data-price-info-dialog aria-labelledby="bookingPriceInfoTitle">
+  <div class="booking-price-info-panel">
+    <div class="booking-price-info-head">
+      <span class="booking-price-info-mark" aria-hidden="true">?</span>
+      <div>
+        <span class="booking-price-info-eyebrow">PORTOBREAK</span>
+        <h2 id="bookingPriceInfoTitle">{{ t.saving_info_title }}</h2>
+      </div>
+      <button class="booking-price-info-close" type="button" data-price-info-close aria-label="{{ t.saving_info_close }}">×</button>
+    </div>
+    <div class="booking-price-info-copy">
+      <p>{{ t.saving_info_body_1 }}</p>
+      <p>{{ t.saving_info_body_2 }}</p>
+      <p class="booking-price-info-conclusion">{{ t.saving_info_body_3 }}</p>
+    </div>
+    <button class="booking-button booking-button-primary booking-price-info-action" type="button" data-price-info-close>{{ t.saving_info_close }}</button>
+  </div>
+</dialog>
+<script src="{{ url_for('static', filename='js/booking_price_info.js') }}?v={{ config.get('STATIC_VERSION', 1) }}" defer></script>

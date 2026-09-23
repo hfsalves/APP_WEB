@@ -19,6 +19,7 @@ from services.booking_portal_service import (
     alojamento_datas_permitidas,
     alojamento_disponivel,
     autenticar_portal_user,
+    build_airbnb_search_url,
     calcular_preco,
     confirmar_email_portal,
     criar_pedido_reserva,
@@ -316,6 +317,16 @@ TRANSLATIONS = {
         "clear_search": "Limpar pesquisa",
         "stay_label": "Alojamento",
         "estimate": "Estimativa",
+        "airbnb_price": "Preço Airbnb",
+        "direct_booking": "Reserva direta",
+        "you_save": "Poupa {value}",
+        "saving_info_open": "Saber porque poupa na reserva direta",
+        "saving_info_title": "Porque poupa na reserva direta",
+        "saving_info_body_1": "O PortoBreak é a equipa local responsável pelos alojamentos apresentados neste portal. Somos proprietários ou coanfitriões destes alojamentos no Airbnb e na Booking.com.",
+        "saving_info_body_2": "Ao reservar diretamente connosco, evitamos parte dos custos e comissões das plataformas e conseguimos refletir essa diferença no preço da sua estadia. Continua a beneficiar de pagamento seguro e do mesmo apoio local, antes, durante e depois da estadia.",
+        "saving_info_body_3": "Muda apenas o canal da reserva: o alojamento e a equipa que cuida de si são os mesmos.",
+        "saving_info_close": "Fechar",
+        "total": "Total",
         "night": "noite",
         "nights": "noites",
         "per_night": "por noite",
@@ -487,6 +498,16 @@ TRANSLATIONS = {
         "clear_search": "Clear search",
         "stay_label": "Stay",
         "estimate": "Estimate",
+        "airbnb_price": "Airbnb price",
+        "direct_booking": "Direct booking",
+        "you_save": "You save {value}",
+        "saving_info_open": "Learn why you save by booking direct",
+        "saving_info_title": "Why you save by booking direct",
+        "saving_info_body_1": "PortoBreak is the local team responsible for every stay shown on this portal. We are the owners or co-hosts of these properties on Airbnb and Booking.com.",
+        "saving_info_body_2": "When you book directly with us, we avoid part of the platform costs and commissions and can pass that difference on in the price of your stay. You still benefit from secure payment and the same local support before, during and after your stay.",
+        "saving_info_body_3": "Only the booking channel changes: the accommodation and the team looking after you remain the same.",
+        "saving_info_close": "Close",
+        "total": "Total",
         "night": "night",
         "nights": "nights",
         "per_night": "per night",
@@ -658,6 +679,16 @@ TRANSLATIONS = {
         "clear_search": "Limpiar busqueda",
         "stay_label": "Alojamiento",
         "estimate": "Estimacion",
+        "airbnb_price": "Precio en Airbnb",
+        "direct_booking": "Reserva directa",
+        "you_save": "Ahorras {value}",
+        "saving_info_open": "Descubre por qué ahorras al reservar directamente",
+        "saving_info_title": "Por qué ahorras al reservar directamente",
+        "saving_info_body_1": "PortoBreak es el equipo local responsable de todos los alojamientos que aparecen en este portal. Somos propietarios o coanfitriones de estos alojamientos en Airbnb y Booking.com.",
+        "saving_info_body_2": "Al reservar directamente con nosotros, evitamos parte de los costes y comisiones de las plataformas y podemos trasladar esa diferencia al precio de tu estancia. Sigues beneficiándote de un pago seguro y del mismo apoyo local antes, durante y después de la estancia.",
+        "saving_info_body_3": "Solo cambia el canal de reserva: el alojamiento y el equipo que te atiende siguen siendo los mismos.",
+        "saving_info_close": "Cerrar",
+        "total": "Total",
         "night": "noche",
         "nights": "noches",
         "per_night": "por noche",
@@ -829,6 +860,16 @@ TRANSLATIONS = {
         "clear_search": "Effacer la recherche",
         "stay_label": "Logement",
         "estimate": "Estimation",
+        "airbnb_price": "Prix Airbnb",
+        "direct_booking": "Réservation directe",
+        "you_save": "Vous économisez {value}",
+        "saving_info_open": "Découvrez pourquoi vous économisez en réservant directement",
+        "saving_info_title": "Pourquoi vous économisez en réservant directement",
+        "saving_info_body_1": "PortoBreak est l’équipe locale responsable de tous les hébergements présentés sur ce portail. Nous sommes propriétaires ou co-hôtes de ces logements sur Airbnb et Booking.com.",
+        "saving_info_body_2": "En réservant directement auprès de nous, nous évitons une partie des frais et commissions des plateformes et pouvons répercuter cette différence sur le prix de votre séjour. Vous bénéficiez toujours d’un paiement sécurisé et du même accompagnement local avant, pendant et après votre séjour.",
+        "saving_info_body_3": "Seul le canal de réservation change : l’hébergement et l’équipe qui s’occupe de vous restent les mêmes.",
+        "saving_info_close": "Fermer",
+        "total": "Total",
         "night": "nuit",
         "nights": "nuits",
         "per_night": "par nuit",
@@ -2495,6 +2536,14 @@ def map_quote(al_id):
                 if calculated and calculated.get("valor"):
                     price = {
                         "label": calculated["label"],
+                        "airbnb_total_label": calculated.get("preco_total_airbnb_label") or "",
+                        "airbnb_url": build_airbnb_search_url(
+                            alojamento.get("airbnb_room_id"),
+                            params["checkin"], params["checkout"],
+                            params["adultos"] or params["hospedes"] or 1,
+                        ),
+                        "direct_total_label": calculated.get("preco_total_portobreak_label") or "",
+                        "saving_label": calculated.get("poupanca_noites_label") or "",
                         "lines": [
                             {"label": line["label"], "value": line["value"]}
                             for line in calculated.get("linhas", [])
@@ -2560,6 +2609,12 @@ def detail(al_id):
         preco = _translate_price(calcular_preco(al_id, params["checkin"], params["checkout"], params["hospedes"]), t)
     if params["checkin"] and params["checkout"] and not params["errors"] and not blocking_errors:
         disponibilidade = alojamento_disponivel(al_id, params["checkin"], params["checkout"])
+    if preco.get("valor"):
+        preco["airbnb_url"] = build_airbnb_search_url(
+            alojamento.get("airbnb_room_id"),
+            params["checkin"], params["checkout"],
+            params["adultos"] or params["hospedes"] or 1,
+        )
 
     calendar_start = (params["checkin"] or date.today()).replace(day=1)
     calendario = get_calendario_ocupacao(al_id, start=calendar_start, months=12)
@@ -2618,6 +2673,12 @@ def reserve(al_id):
         preco = _translate_price(calcular_preco(al_id, None, None, None), t)
     else:
         preco = _translate_price(calcular_preco(al_id, params["checkin"], params["checkout"], params["hospedes"]), t)
+    if preco.get("valor"):
+        preco["airbnb_url"] = build_airbnb_search_url(
+            alojamento.get("airbnb_room_id"),
+            params["checkin"], params["checkout"],
+            params["adultos"] or params["hospedes"] or 1,
+        )
 
     customer = {
         "nome": "",

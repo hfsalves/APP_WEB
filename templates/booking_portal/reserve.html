@@ -1,3 +1,5 @@
+{% from "booking_portal/_airbnb_badge.html" import airbnb_badge %}
+{% from "booking_portal/_price_saving.html" import price_saving %}
 <!doctype html>
 <html lang="{{ lang }}">
 <head>
@@ -60,8 +62,12 @@
 
             {% if preco.valor %}
               <div class="booking-panel-price booking-panel-price-summary">
-                <small>{{ t.estimate }}</small>
-                <strong>{{ preco.label }}</strong>
+                <div class="booking-price-reference">
+                  {{ airbnb_badge(preco.airbnb_url, preco.preco_total_airbnb_label, t.airbnb_price) }}
+                </div>
+                <small>{{ t.direct_booking }}</small>
+                <strong>{{ preco.preco_total_portobreak_label }}</strong>
+                {{ price_saving(t.you_save.format(value=preco.poupanca_noites_label), t.saving_info_open) }}
                 <span>{{ preco.noites }} {% if preco.noites == 1 %}{{ t.night }}{% else %}{{ t.nights }}{% endif %}</span>
               </div>
               {% if preco.linhas %}
@@ -72,6 +78,10 @@
                       <strong>{{ linha.value }}</strong>
                     </div>
                   {% endfor %}
+                  <div class="booking-price-total">
+                    <span>{{ t.total }}</span>
+                    <strong>{{ preco.label }}</strong>
+                  </div>
                 </div>
               {% endif %}
             {% elif alojamento.preco_desde %}
@@ -229,6 +239,7 @@
       syncMode();
     })();
   </script>
+  {% include 'booking_portal/_price_info_modal.html' %}
   {% include 'booking_portal/_footer.html' %}
 </body>
 </html>

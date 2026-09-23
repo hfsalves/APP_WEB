@@ -31,6 +31,7 @@ PROPERTY = {
     "foto_principal": "/static/map-stay.jpg",
     "fotos": [{"url": "/static/map-stay.jpg", "alt": "Sala"}],
     "preco_desde": "95 EUR",
+    "airbnb_room_id": "21329922",
     "licenca": PRIVATE_MARKER,
     "morada": PRIVATE_MARKER,
     "nome_interno": PRIVATE_MARKER,
@@ -39,17 +40,21 @@ PROPERTY = {
     "access_code": PRIVATE_MARKER,
 }
 QUOTE = {
-    "valor": Decimal("450.00"),
-    "label": "450.00 EUR",
+    "valor": Decimal("444.00"),
+    "label": "444.00 EUR",
     "noites": 3,
     "hospedes": 3,
-    "preco_noites_label": "330.00 EUR",
+    "preco_noites_airbnb_label": "336.00 EUR",
+    "preco_noites_label": "324.00 EUR",
+    "preco_total_airbnb_label": "456.00 EUR",
+    "preco_total_portobreak_label": "444.00 EUR",
+    "poupanca_noites_label": "12.00 EUR",
     "hospedes_extra": 1,
     "hospedes_extra_total_label": "60.00 EUR",
     "limpeza_label": "33.00 EUR",
     "taxa_turistica_label": "27.00 EUR",
     "taxa_turistica_dias": 3,
-    "linhas": [{"label": "old untranslated line", "value": "450.00 EUR"}],
+    "linhas": [{"label": "old untranslated line", "value": "444.00 EUR"}],
     "precos_noite": [{"internal_price_manager_id": PRIVATE_MARKER}],
     "internal": PRIVATE_MARKER,
 }
@@ -202,8 +207,18 @@ class BookingPortalMapRouteTests(unittest.TestCase):
         self.assertEqual(set(data), QUOTE_KEYS)
         self.assertEqual((data["id"], data["name"], data["image"]), (PROPERTY["id"], PROPERTY["nome"], PROPERTY["foto_principal"]))
         self.assertEqual((data["capacity"], data["location"], data["tipologia"]), (4, "Porto", "T2"))
-        self.assertEqual(set(data["price"]), {"label", "lines", "nights", "is_estimate"})
-        self.assertEqual(data["price"]["label"], "450.00 EUR")
+        self.assertEqual(set(data["price"]), {
+            "label", "airbnb_total_label", "airbnb_url", "direct_total_label", "saving_label",
+            "lines", "nights", "is_estimate",
+        })
+        self.assertEqual(data["price"]["label"], "444.00 EUR")
+        self.assertEqual(data["price"]["airbnb_total_label"], "456.00 EUR")
+        self.assertEqual(
+            data["price"]["airbnb_url"],
+            "https://www.airbnb.pt/rooms/21329922?adults=2&check_in=2035-10-14&check_out=2035-10-17",
+        )
+        self.assertEqual(data["price"]["direct_total_label"], "444.00 EUR")
+        self.assertEqual(data["price"]["saving_label"], "12.00 EUR")
         self.assertEqual(data["price"]["nights"], 3)
         self.assertIs(data["price"]["is_estimate"], True)
         self.assertIs(data["available"], True)
@@ -213,7 +228,7 @@ class BookingPortalMapRouteTests(unittest.TestCase):
         self.assertEqual(data["errors"], [])
         lines = data["price"]["lines"]
         self.assertEqual(len(lines), 4)
-        self.assertEqual([line["value"] for line in lines], ["330.00 EUR", "60.00 EUR", "33.00 EUR", "27.00 EUR"])
+        self.assertEqual([line["value"] for line in lines], ["324.00 EUR", "60.00 EUR", "33.00 EUR", "27.00 EUR"])
         self.assertTrue(all(set(line) == {"label", "value"} for line in lines))
         self.assertEqual(lines[0]["label"], _t("en")["nights_line"] + " (3)")
         self.assertEqual(lines[2]["label"], _t("en")["cleaning_fee"])

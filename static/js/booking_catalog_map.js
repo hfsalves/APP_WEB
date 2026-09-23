@@ -56,6 +56,16 @@
     if (text !== undefined && text !== null) node.textContent = String(text);
     return node;
   }
+  function airbnbIcon() {
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("focusable", "false");
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", "M12 3.1c-1.8 0-2.9 1.8-3.7 3.6l-4 9.1c-.9 2.1.2 4.6 2.5 5.1 2.2.5 3.8-1.6 5.2-3.8 1.4 2.2 3 4.3 5.2 3.8 2.3-.5 3.4-3 2.5-5.1l-4-9.1c-.8-1.8-1.9-3.6-3.7-3.6Zm0 5.4c1.5 2.2 2.8 4.2 2.8 5.7a2.8 2.8 0 1 1-5.6 0c0-1.5 1.3-3.5 2.8-5.7Z");
+    svg.appendChild(path);
+    return svg;
+  }
   function mapsAllowed() {
     return Boolean(window.PortoBreakCookies && window.PortoBreakCookies.allows("external_maps"));
   }
@@ -215,6 +225,37 @@
     if (quote.price && quote.price.label) {
       const pricing = element("section", "booking-map-quote-pricing");
       pricing.appendChild(element("h4", "", label("simulation")));
+      if (quote.price.airbnb_total_label && quote.price.direct_total_label && quote.price.saving_label) {
+        const comparison = element("div", "booking-map-quote-comparison");
+        const reference = element("div");
+        const badge = element(quote.price.airbnb_url ? "a" : "span", "booking-airbnb-badge" + (quote.price.airbnb_url ? "" : " booking-airbnb-badge-static"));
+        if (quote.price.airbnb_url) {
+          badge.href = quote.price.airbnb_url;
+          badge.target = "_blank";
+          badge.rel = "noopener noreferrer";
+        }
+        badge.setAttribute("aria-label", label("airbnb_price") + ": " + quote.price.airbnb_total_label);
+        badge.appendChild(airbnbIcon());
+        badge.appendChild(element("span", "", "Airbnb:"));
+        badge.appendChild(element("span", "booking-airbnb-price", quote.price.airbnb_total_label));
+        reference.appendChild(badge);
+        comparison.appendChild(reference);
+        const direct = element("div", "booking-map-quote-direct");
+        direct.appendChild(element("span", "", label("direct_booking")));
+        direct.appendChild(element("strong", "", quote.price.direct_total_label));
+        comparison.appendChild(direct);
+        const savingGroup = element("div", "booking-price-saving-group booking-map-quote-saving");
+        savingGroup.appendChild(element("span", "booking-price-saving", label("you_save").replace("{value}", quote.price.saving_label)));
+        const savingInfo = element("button", "booking-price-info-button", "?");
+        savingInfo.type = "button";
+        savingInfo.setAttribute("data-price-info-open", "");
+        savingInfo.setAttribute("aria-label", label("saving_info_open"));
+        savingInfo.setAttribute("aria-haspopup", "dialog");
+        savingInfo.setAttribute("aria-controls", "bookingPriceInfoDialog");
+        savingGroup.appendChild(savingInfo);
+        comparison.appendChild(savingGroup);
+        pricing.appendChild(comparison);
+      }
       const lines = element("dl", "booking-map-quote-lines");
       (Array.isArray(quote.price.lines) ? quote.price.lines : []).forEach(line => {
         const row = element("div");
