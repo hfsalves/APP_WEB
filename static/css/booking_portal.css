@@ -993,6 +993,201 @@ a.booking-airbnb-badge:focus-visible {
   }
 }
 
+.booking-whatsapp-fab {
+  position: fixed;
+  right: 22px;
+  bottom: var(--booking-whatsapp-bottom, 24px);
+  z-index: 1150;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 50px;
+  border: 0;
+  border-radius: 999px;
+  padding: 11px 17px 11px 13px;
+  background: #128c5b;
+  color: #fff;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 850;
+  line-height: 1;
+  box-shadow: 0 9px 26px rgba(18, 140, 91, 0.3);
+  cursor: pointer;
+  transition: bottom 0.18s ease, background-color 0.16s ease, opacity 0.16s ease, transform 0.16s ease, visibility 0.16s ease;
+}
+
+.booking-whatsapp-fab:hover,
+.booking-whatsapp-fab:focus-visible {
+  background: #0f734a;
+  transform: translateY(-2px);
+}
+
+.booking-whatsapp-fab svg {
+  width: 27px;
+  height: 27px;
+  flex: 0 0 27px;
+  fill: currentColor;
+}
+
+.booking-whatsapp-fab.is-collision-hidden {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(18px);
+}
+
+.booking-whatsapp-dialog {
+  width: min(510px, calc(100vw - 32px));
+  max-width: none;
+  border: 0;
+  border-radius: 18px;
+  padding: 0;
+  background: transparent;
+  color: var(--bp-text);
+  box-shadow: 0 24px 70px rgba(20, 32, 46, 0.28);
+}
+
+.booking-whatsapp-dialog::backdrop {
+  background: rgba(17, 24, 39, 0.56);
+  backdrop-filter: blur(3px);
+}
+
+.booking-whatsapp-dialog-panel {
+  border: 1px solid var(--bp-line);
+  border-radius: inherit;
+  padding: 25px;
+  background: var(--bp-surface);
+}
+
+.booking-whatsapp-dialog-head {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: start;
+  gap: 13px;
+}
+
+.booking-whatsapp-dialog-icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: #e5f8ef;
+  color: #128c5b;
+}
+
+.booking-whatsapp-dialog-icon svg {
+  width: 27px;
+  height: 27px;
+  fill: currentColor;
+}
+
+.booking-whatsapp-dialog-head h2 {
+  margin: 2px 0 0;
+  font-size: clamp(1.3rem, 3vw, 1.65rem);
+  line-height: 1.18;
+}
+
+.booking-whatsapp-dialog-close {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--bp-line);
+  border-radius: 50%;
+  padding: 0;
+  background: var(--bp-surface);
+  color: var(--bp-text);
+  font-size: 1.35rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.booking-whatsapp-dialog-panel > p {
+  margin: 20px 0 22px;
+  color: var(--bp-muted);
+  font-size: 0.96rem;
+  line-height: 1.62;
+}
+
+.booking-whatsapp-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.booking-whatsapp-dialog-actions .booking-whatsapp-continue {
+  border-color: #128c5b;
+  background: #128c5b;
+  color: #fff;
+}
+
+.booking-whatsapp-dialog-actions .booking-whatsapp-continue:hover,
+.booking-whatsapp-dialog-actions .booking-whatsapp-continue:focus-visible {
+  border-color: #0f734a;
+  background: #0f734a;
+  color: #fff;
+}
+
+@media (min-width: 641px) and (max-width: 1600px) {
+  .booking-whatsapp-fab {
+    min-width: 54px;
+    width: 54px;
+    min-height: 54px;
+    height: 54px;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .booking-whatsapp-fab span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 640px) {
+  .booking-whatsapp-fab {
+    right: 15px;
+    min-width: 54px;
+    width: 54px;
+    min-height: 54px;
+    height: 54px;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .booking-whatsapp-fab span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .booking-whatsapp-dialog {
+    width: calc(100vw - 24px);
+  }
+
+  .booking-whatsapp-dialog-panel {
+    padding: 20px;
+  }
+
+  .booking-whatsapp-dialog-actions {
+    display: grid;
+  }
+
+  .booking-whatsapp-dialog-actions .booking-button {
+    width: 100%;
+  }
+}
+
 .booking-price > span {
   color: var(--bp-muted);
   font-size: 0.72rem;

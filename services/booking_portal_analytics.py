@@ -52,6 +52,9 @@ BOT = re.compile(r"bot\b|crawler|spider|headless|curl/|wget/|python|httpclient|s
 _lock = threading.Lock()
 _limits = {}
 _last_prune = 0.0
+INTERACTION_EVENTS = frozenset({
+    "WHATSAPP_CLICK", "WHATSAPP_OUT_OF_HOURS", "WHATSAPP_CONTINUE",
+})
 
 
 def _now():
@@ -371,6 +374,27 @@ def collect_event():
                 return reply(409, error="session_expired")
             result = store.record_engagement(db.engine, visitor_id=visitor_id, session_id=session_id,
                 page_id=_uuid(payload["page_id"]), active_seconds=seconds, now=now)
+        elif payload.get("type") == "interaction" and set(payload) == {
+            "type", "page_id", "event_id", "event_name", "event_data",
+        }:
+            event_id = _uuid(payload.get("event_id"))
+            event_name = str(payload.get("event_name") or "")
+            event_data = payload.get("event_data")
+            if (
+                not event_id
+                or event_name not in INTERACTION_EVENTS
+                or not isinstance(event_data, dict)
+                or set(event_data) != {"within_hours"}
+                or type(event_data.get("within_hours")) is not bool
+            ):
+                return reply(400, error="invalid_event")
+            if not visitor_id or not session_id:
+                return reply(409, error="session_expired")
+            result = store.record_event(
+                db.engine, visitor_id=visitor_id, session_id=session_id,
+                page_id=_uuid(payload["page_id"]), event_id=event_id,
+                event_name=event_name, event_data=event_data, now=now,
+            )
         else:
             return reply(400, error="invalid_event")
         response = reply(200, accepted=True, page_id=payload["page_id"])

@@ -92,6 +92,35 @@ class AnalyticsTests(unittest.TestCase):
         self.assertEqual(self.event(payload).status_code, 403)
         self.assertEqual(len(self.rows(store.pageviews)), 1)
 
+    def test_whatsapp_interactions_use_the_existing_consented_page_context(self):
+        self.consent(True)
+        with self.app.test_request_context(
+            "/reservas/property-123?lang=pt&checkin=2027-02-01&checkout=2027-02-04&adultos=2"
+        ):
+            config = analytics.browser_config("pt")
+        page = self.page(config)
+        self.assertEqual(self.event(page).status_code, 200)
+        for event_name, within_hours in (
+            ("WHATSAPP_CLICK", False),
+            ("WHATSAPP_OUT_OF_HOURS", False),
+            ("WHATSAPP_CONTINUE", False),
+        ):
+            response = self.event({
+                "type": "interaction", "page_id": page["page_id"],
+                "event_id": str(uuid.uuid4()), "event_name": event_name,
+                "event_data": {"within_hours": within_hours},
+            })
+            self.assertEqual(response.status_code, 200, response.json)
+        events = self.rows(store.events)
+        self.assertEqual([row["event_name"] for row in events], [
+            "WHATSAPP_CLICK", "WHATSAPP_OUT_OF_HOURS", "WHATSAPP_CONTINUE",
+        ])
+        page_row = self.rows(store.pageviews)[0]
+        self.assertEqual(page_row["property_id"], "property-123")
+        self.assertEqual(json.loads(page_row["search_json"]), {
+            "adultos": 2, "checkin": "2027-02-01", "checkout": "2027-02-04",
+        })
+
     def test_untrusted_country_and_sensitive_parameters_are_not_retained(self):
         self.consent(True)
         config = self.config("/reservas?checkin=2026-10-12&checkout=2026-10-14&adultos=2"

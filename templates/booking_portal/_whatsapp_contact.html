@@ -1,0 +1,29 @@
+{% if booking_whatsapp.enabled %}
+<button class="booking-whatsapp-fab" type="button" data-whatsapp-open aria-label="{{ t.whatsapp_open }}">
+  <svg viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+    <path d="M16 3.2A12.5 12.5 0 0 0 5.2 22l-1.7 6.3 6.5-1.7A12.5 12.5 0 1 0 16 3.2Zm0 22.7c-2 0-3.9-.6-5.5-1.5l-.4-.2-3.8 1 1-3.7-.2-.4A10.2 10.2 0 1 1 16 25.9Z"/>
+    <path d="M21.8 18.2c-.3-.2-1.8-.9-2.1-1-.3-.1-.5-.2-.7.2-.2.3-.8 1-.9 1.2-.2.2-.3.2-.6.1-1.8-.9-3-1.7-4.2-3.8-.3-.6.3-.6.9-1.7.1-.2.1-.4 0-.6l-1-2.5c-.3-.6-.6-.5-.9-.5h-.7c-.2 0-.6.1-1 .5-.3.4-1.3 1.3-1.3 3.2 0 1.9 1.4 3.7 1.6 4 .2.2 2.7 4.2 6.6 5.8.9.4 1.6.6 2.2.7.9.3 1.8.2 2.4.1.7-.1 1.8-.8 2.1-1.5.3-.7.3-1.4.2-1.5-.1-.2-.3-.2-.6-.4Z"/>
+  </svg>
+  <span>{{ t.whatsapp_help }}</span>
+</button>
+
+<dialog class="booking-whatsapp-dialog" data-whatsapp-dialog aria-labelledby="bookingWhatsappDialogTitle">
+  <div class="booking-whatsapp-dialog-panel">
+    <div class="booking-whatsapp-dialog-head">
+      <span class="booking-whatsapp-dialog-icon" aria-hidden="true">
+        <svg viewBox="0 0 32 32"><path d="M16 3.2A12.5 12.5 0 0 0 5.2 22l-1.7 6.3 6.5-1.7A12.5 12.5 0 1 0 16 3.2Zm0 22.7c-2 0-3.9-.6-5.5-1.5l-.4-.2-3.8 1 1-3.7-.2-.4A10.2 10.2 0 1 1 16 25.9Z"/><path d="M21.8 18.2c-.3-.2-1.8-.9-2.1-1-.3-.1-.5-.2-.7.2-.2.3-.8 1-.9 1.2-.2.2-.3.2-.6.1-1.8-.9-3-1.7-4.2-3.8-.3-.6.3-.6.9-1.7.1-.2.1-.4 0-.6l-1-2.5c-.3-.6-.6-.5-.9-.5h-.7c-.2 0-.6.1-1 .5-.3.4-1.3 1.3-1.3 3.2 0 1.9 1.4 3.7 1.6 4 .2.2 2.7 4.2 6.6 5.8.9.4 1.6.6 2.2.7.9.3 1.8.2 2.4.1.7-.1 1.8-.8 2.1-1.5.3-.7.3-1.4.2-1.5-.1-.2-.3-.2-.6-.4Z"/></svg>
+      </span>
+      <h2 id="bookingWhatsappDialogTitle">{{ t.whatsapp_offline_title }}</h2>
+      <button class="booking-whatsapp-dialog-close" type="button" data-whatsapp-close aria-label="{{ t.whatsapp_close }}">×</button>
+    </div>
+    <p>{{ t.whatsapp_offline_text }}</p>
+    <div class="booking-whatsapp-dialog-actions">
+      <button class="booking-button booking-whatsapp-continue" type="button" data-whatsapp-continue>{{ t.whatsapp_continue }}</button>
+      <button class="booking-button" type="button" data-whatsapp-close>{{ t.whatsapp_close }}</button>
+    </div>
+  </div>
+</dialog>
+
+<script type="application/json" id="booking-whatsapp-config">{{ {'url': booking_whatsapp.url, 'timezone': booking_whatsapp.timezone, 'open_minute': booking_whatsapp.open_minute, 'close_minute': booking_whatsapp.close_minute, 'server_open': booking_whatsapp.server_open}|tojson }}</script>
+<script defer src="{{ url_for('static', filename='js/booking_whatsapp.js') }}?v={{ config.get('STATIC_VERSION', 1) }}"></script>
+{% endif %}

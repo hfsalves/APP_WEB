@@ -72,6 +72,7 @@
       lastSample: time, lastInteraction: time, lastReport: time,
       nextAttempt: 0, pendingFlush: false, inFlight: false,
       visible: visible(), paused: false, timer: null, controller: null,
+      events: [],
       recoveries: recoveries || recoveryOnResume,
     };
     recoveryOnResume = 0;
@@ -121,7 +122,10 @@
         return;
       }
       if (!response.ok) throw new Error("Analytics unavailable");
-      if (isPageview) state.pageAcknowledged = true;
+      if (isPageview) {
+        state.pageAcknowledged = true;
+        flushEvents(state);
+      }
       else {
         state.acknowledgedSeconds = Math.max(state.acknowledgedSeconds, seconds);
         // A completed heartbeat proves the renewed session works. A later
@@ -139,6 +143,32 @@
       state.controller = null;
       pump(state);
     });
+  }
+
+  function flushEvents(state) {
+    if (!isCurrent(state) || !state.pageAcknowledged || !state.events.length) return;
+    var pending = state.events.splice(0, state.events.length);
+    pending.forEach(function (item) {
+      window.fetch(config.endpoint, {
+        method: "POST", credentials: "same-origin", cache: "no-store",
+        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify({
+          type: "interaction", page_id: state.pageId, event_id: item.id,
+          event_name: item.name, event_data: item.data,
+        }),
+        keepalive: true,
+      }).catch(function () {});
+    });
+  }
+
+  function track(name, data) {
+    if (!["WHATSAPP_CLICK", "WHATSAPP_OUT_OF_HOURS", "WHATSAPP_CONTINUE"].includes(name)) return false;
+    if (!data || typeof data.within_hours !== "boolean" || !allowed()) return false;
+    if (!current) start();
+    if (!current) return false;
+    current.events.push({ id: window.crypto.randomUUID(), name: name, data: { within_hours: data.within_hours } });
+    flushEvents(current);
+    return true;
   }
 
   function flush(state) {
@@ -200,5 +230,6 @@
     startTimer(current);
     pump(current);
   });
+  window.PortoBreakAnalytics = { track: track };
   start();
 })();

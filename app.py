@@ -184,6 +184,7 @@ def create_app():
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key')
     # Cache-busting para assets estÃ¡ticos (evita o browser usar JS antigo)
     app.config['STATIC_VERSION'] = int(time.time())
+    app.config['PORTOBREAK_WHATSAPP_NUMBER'] = os.environ.get('PORTOBREAK_WHATSAPP_NUMBER', '')
     configure_i18n(app)
 
     db_target_session_key = 'DB_TARGET'

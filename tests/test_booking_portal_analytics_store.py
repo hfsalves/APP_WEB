@@ -49,7 +49,7 @@ class AnalyticsStorageTests(unittest.TestCase):
     def test_schema_is_explicit_additive_and_repeatable(self):
         store.ensure_schema(self.engine)
         self.assertEqual(set(inspect(self.engine).get_table_names()), {t.name for t in store.metadata.tables.values()})
-        self.assertEqual(len(store.metadata.tables), 5)
+        self.assertEqual(len(store.metadata.tables), 6)
 
     def test_idempotent_page_and_first_touch_session(self):
         self.assertTrue(self.page()["created"])
@@ -176,6 +176,21 @@ class AnalyticsStorageTests(unittest.TestCase):
             store.link_booking(self.engine, **{**args, "now": self.now + timedelta(minutes=31)})
         self.assertEqual(len(self.rows(store.conversions)), 1)
 
+    def test_whatsapp_event_is_owned_idempotent_and_keeps_only_approved_data(self):
+        self.page()
+        args = dict(
+            visitor_id="visitor-1", session_id="session-1", page_id="page-1",
+            event_id="event-1", event_name="WHATSAPP_CLICK",
+            event_data={"within_hours": True}, now=self.now,
+        )
+        self.assertTrue(store.record_event(self.engine, **args)["created"])
+        self.assertFalse(store.record_event(self.engine, **args)["created"])
+        event = self.rows(store.events)[0]
+        self.assertEqual(event["event_name"], "WHATSAPP_CLICK")
+        self.assertEqual(json.loads(event["event_json"]), {"within_hours": True})
+        with self.assertRaises(store.AnalyticsConflict):
+            store.record_event(self.engine, **{**args, "session_id": "another"})
+
     def test_prune_child_first_with_foreign_keys_and_retention_boundaries(self):
         for label, days in (("old", 181), ("expired", 91), ("boundary", 90), ("recent", 1)):
             created = self.now - timedelta(days=days)
@@ -184,7 +199,7 @@ class AnalyticsStorageTests(unittest.TestCase):
             store.link_booking(self.engine, visitor_id=label, session_id=label, booking_id=label, now=created)
             store.record_total(self.engine, {"page_kind": "catalog"}, created)
         removed = store.prune(self.engine, self.now)
-        self.assertEqual(removed, {"conversions": 2, "pageviews": 2, "sessions": 2, "totals": 1, "visitors": 1})
+        self.assertEqual(removed, {"events": 0, "conversions": 2, "pageviews": 2, "sessions": 2, "totals": 1, "visitors": 1})
         self.assertEqual({row["session_id"] for row in self.rows(store.sessions)}, {"boundary", "recent"})
         self.assertEqual({row["visitor_id"] for row in self.rows(store.visitors)}, {"expired", "boundary", "recent"})
 
@@ -196,8 +211,8 @@ class AnalyticsStorageTests(unittest.TestCase):
     def test_mssql_metadata_and_migration_use_microsecond_datetime2(self):
         ddl = "\n".join(str(CreateTable(table).compile(dialect=mssql.dialect())) for table in store.metadata.sorted_tables)
         migration = (Path(__file__).resolve().parents[1] / "migrations" / "booking_portal_analytics.sql").read_text()
-        self.assertEqual(ddl.count("DATETIME2(6)"), 10)
-        self.assertEqual(migration.count("DATETIME2(6)"), 10)
+        self.assertEqual(ddl.count("DATETIME2(6)"), 11)
+        self.assertEqual(migration.count("DATETIME2(6)"), 11)
         self.assertNotIn(" DATETIME ", ddl)
 
     def test_replayed_page_cannot_overwrite_original_payload(self):

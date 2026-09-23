@@ -91,6 +91,15 @@ conversions = Table(
     Column("session_id", String(36), ForeignKey(sessions.c.session_id), nullable=False),
     Column("created_at", UTCDateTime, nullable=False),
 )
+events = Table(
+    "PB_ANALYTICS_EVENTS", metadata,
+    Column("event_id", String(36), primary_key=True),
+    Column("session_id", String(36), ForeignKey(sessions.c.session_id), nullable=False),
+    Column("page_id", String(36), ForeignKey(pageviews.c.page_id), nullable=False),
+    Column("created_at", UTCDateTime, nullable=False),
+    Column("event_name", String(48), nullable=False),
+    Column("event_json", Text, nullable=False),
+)
 Index("IX_PB_ANALYTICS_VISITORS_LAST", visitors.c.last_seen_at)
 Index("IX_PB_ANALYTICS_SESSIONS_VISITOR", sessions.c.visitor_id, sessions.c.started_at)
 Index("IX_PB_ANALYTICS_SESSIONS_LAST", sessions.c.last_seen_at)
@@ -99,6 +108,8 @@ Index("IX_PB_ANALYTICS_PAGES_CREATED", pageviews.c.created_at)
 Index("IX_PB_ANALYTICS_TOTALS_HOUR", totals.c.hour, totals.c.page_kind)
 Index("IX_PB_ANALYTICS_CONVERSIONS_SESSION", conversions.c.session_id)
 Index("IX_PB_ANALYTICS_CONVERSIONS_CREATED", conversions.c.created_at)
+Index("IX_PB_ANALYTICS_EVENTS_SESSION", events.c.session_id, events.c.created_at)
+Index("IX_PB_ANALYTICS_EVENTS_NAME", events.c.event_name, events.c.created_at)
 
 SESSION_TIMEOUT = timedelta(minutes=30)
 SEARCH_KEYS = frozenset(("checkin", "checkout", "adultos", "criancas", "bebes", "has_query"))
@@ -130,7 +141,7 @@ def _country(value):
 
 
 def ensure_schema(engine):
-    """Add only these five analytics tables; never change existing app tables."""
+    """Add only the dedicated analytics tables; never change existing app tables."""
     metadata.create_all(engine)
 
 
@@ -314,6 +325,34 @@ def link_booking(engine, *, visitor_id, session_id, booking_id, now):
     return _run(engine, operation)
 
 
+def record_event(engine, *, visitor_id, session_id, page_id, event_id, event_name, event_data, now):
+    """Store an idempotent, allowlisted interaction against its owned page."""
+    now = _utc(now)
+    serialized = json.dumps(event_data, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
+
+    def operation(conn):
+        _touch_visitor(conn, visitor_id, now)
+        session = _session(conn, session_id, visitor_id, now)
+        page = _locked(conn, pageviews, pageviews.c.page_id == page_id)
+        if session is None or page is None or page["session_id"] != session_id:
+            raise AnalyticsConflict("Unknown session or page ownership mismatch")
+        existing = _locked(conn, events, events.c.event_id == event_id)
+        if existing is not None:
+            if existing["session_id"] != session_id or existing["page_id"] != page_id:
+                raise AnalyticsConflict("Event belongs to another page")
+            return {"accepted": True, "created": False, "session_id": session_id}
+        conn.execute(insert(events).values(
+            event_id=event_id, session_id=session_id, page_id=page_id,
+            created_at=now, event_name=_text(event_name, 48), event_json=serialized,
+        ))
+        conn.execute(update(sessions).where(sessions.c.session_id == session_id).values(
+            last_seen_at=max(now, session["last_seen_at"]),
+        ))
+        return {"accepted": True, "created": True, "session_id": session_id}
+
+    return _run(engine, operation)
+
+
 def prune(engine, now):
     """Retain granular events 90 days, aggregates and orphan visitors 180 days."""
     now = _utc(now)
@@ -322,6 +361,9 @@ def prune(engine, now):
     def operation(conn):
         expired_sessions = select(sessions.c.session_id).where(sessions.c.last_seen_at < granular_cutoff)
         removed = {}
+        removed["events"] = conn.execute(delete(events).where(
+            (events.c.created_at < granular_cutoff) | events.c.session_id.in_(expired_sessions)
+        )).rowcount
         removed["conversions"] = conn.execute(delete(conversions).where(
             (conversions.c.created_at < granular_cutoff) | conversions.c.session_id.in_(expired_sessions)
         )).rowcount

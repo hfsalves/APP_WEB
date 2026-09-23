@@ -54,6 +54,7 @@ from services.booking_portal_seo import (
 )
 from services.booking_portal_map import get_map_catalog
 from services.booking_portal_map_copy import get_map_copy
+from services.booking_portal_whatsapp import build_whatsapp_context
 from services.booking_portal_analytics import (
     associate_booking, browser_config as analytics_browser_config,
     clear_identity_cookies, collect_event, record_response as record_analytics_response,
@@ -326,6 +327,22 @@ TRANSLATIONS = {
         "saving_info_body_2": "Ao reservar diretamente connosco, evitamos parte dos custos e comissões das plataformas e conseguimos refletir essa diferença no preço da sua estadia. Continua a beneficiar de pagamento seguro e do mesmo apoio local, antes, durante e depois da estadia.",
         "saving_info_body_3": "Muda apenas o canal da reserva: o alojamento e a equipa que cuida de si são os mesmos.",
         "saving_info_close": "Fechar",
+        "whatsapp_help": "Precisa de ajuda?",
+        "whatsapp_open": "Contactar pelo WhatsApp",
+        "whatsapp_offline_title": "O nosso apoio está offline neste momento",
+        "whatsapp_offline_text": "A nossa equipa está disponível diariamente das 09:30 às 23:00 (hora de Portugal). Pode enviar-nos a sua mensagem agora e responderemos assim que estivermos disponíveis.",
+        "whatsapp_continue": "Enviar mensagem na mesma",
+        "whatsapp_close": "Fechar",
+        "whatsapp_guest": "hóspede",
+        "whatsapp_guests": "hóspedes",
+        "whatsapp_property": "Olá! Estou interessado no {property}.",
+        "whatsapp_property_dates": "Olá! Estou interessado no {property}, de {checkin} a {checkout}.",
+        "whatsapp_property_guests": "Olá! Estou interessado no {property}, para {guests} {guest_label}.",
+        "whatsapp_property_dates_guests": "Olá! Estou interessado no {property}, de {checkin} a {checkout}, para {guests} {guest_label}.",
+        "whatsapp_generic": "Olá! Preciso de ajuda para encontrar um alojamento no Porto.",
+        "whatsapp_generic_dates": "Olá! Procuro alojamento no Porto de {checkin} a {checkout}.",
+        "whatsapp_generic_guests": "Olá! Procuro alojamento no Porto para {guests} {guest_label}.",
+        "whatsapp_generic_dates_guests": "Olá! Procuro alojamento no Porto de {checkin} a {checkout} para {guests} {guest_label}.",
         "total": "Total",
         "night": "noite",
         "nights": "noites",
@@ -507,6 +524,22 @@ TRANSLATIONS = {
         "saving_info_body_2": "When you book directly with us, we avoid part of the platform costs and commissions and can pass that difference on in the price of your stay. You still benefit from secure payment and the same local support before, during and after your stay.",
         "saving_info_body_3": "Only the booking channel changes: the accommodation and the team looking after you remain the same.",
         "saving_info_close": "Close",
+        "whatsapp_help": "Need help?",
+        "whatsapp_open": "Contact us on WhatsApp",
+        "whatsapp_offline_title": "Our support team is currently offline",
+        "whatsapp_offline_text": "Our team is available every day from 09:30 to 23:00 (Portugal time). You can send us your message now and we will reply as soon as we are available.",
+        "whatsapp_continue": "Send message anyway",
+        "whatsapp_close": "Close",
+        "whatsapp_guest": "guest",
+        "whatsapp_guests": "guests",
+        "whatsapp_property": "Hi! I'm interested in {property}.",
+        "whatsapp_property_dates": "Hi! I'm interested in {property}, from {checkin} to {checkout}.",
+        "whatsapp_property_guests": "Hi! I'm interested in {property}, for {guests} {guest_label}.",
+        "whatsapp_property_dates_guests": "Hi! I'm interested in {property}, from {checkin} to {checkout}, for {guests} {guest_label}.",
+        "whatsapp_generic": "Hi! I need some help finding a place to stay in Porto.",
+        "whatsapp_generic_dates": "Hi! I'm looking for a place to stay in Porto from {checkin} to {checkout}.",
+        "whatsapp_generic_guests": "Hi! I'm looking for a place to stay in Porto for {guests} {guest_label}.",
+        "whatsapp_generic_dates_guests": "Hi! I'm looking for a place to stay in Porto from {checkin} to {checkout} for {guests} {guest_label}.",
         "total": "Total",
         "night": "night",
         "nights": "nights",
@@ -688,6 +721,22 @@ TRANSLATIONS = {
         "saving_info_body_2": "Al reservar directamente con nosotros, evitamos parte de los costes y comisiones de las plataformas y podemos trasladar esa diferencia al precio de tu estancia. Sigues beneficiándote de un pago seguro y del mismo apoyo local antes, durante y después de la estancia.",
         "saving_info_body_3": "Solo cambia el canal de reserva: el alojamiento y el equipo que te atiende siguen siendo los mismos.",
         "saving_info_close": "Cerrar",
+        "whatsapp_help": "¿Necesita ayuda?",
+        "whatsapp_open": "Contactar por WhatsApp",
+        "whatsapp_offline_title": "Nuestro equipo de atención no está disponible en este momento",
+        "whatsapp_offline_text": "Nuestro equipo está disponible todos los días de 09:30 a 23:00 (hora de Portugal). Puede enviarnos su mensaje ahora y responderemos en cuanto volvamos a estar disponibles.",
+        "whatsapp_continue": "Enviar mensaje de todos modos",
+        "whatsapp_close": "Cerrar",
+        "whatsapp_guest": "huésped",
+        "whatsapp_guests": "huéspedes",
+        "whatsapp_property": "¡Hola! Me interesa {property}.",
+        "whatsapp_property_dates": "¡Hola! Me interesa {property}, del {checkin} al {checkout}.",
+        "whatsapp_property_guests": "¡Hola! Me interesa {property}, para {guests} {guest_label}.",
+        "whatsapp_property_dates_guests": "¡Hola! Me interesa {property}, del {checkin} al {checkout}, para {guests} {guest_label}.",
+        "whatsapp_generic": "¡Hola! Necesito ayuda para encontrar alojamiento en Oporto.",
+        "whatsapp_generic_dates": "¡Hola! Busco alojamiento en Oporto del {checkin} al {checkout}.",
+        "whatsapp_generic_guests": "¡Hola! Busco alojamiento en Oporto para {guests} {guest_label}.",
+        "whatsapp_generic_dates_guests": "¡Hola! Busco alojamiento en Oporto del {checkin} al {checkout} para {guests} {guest_label}.",
         "total": "Total",
         "night": "noche",
         "nights": "noches",
@@ -869,6 +918,22 @@ TRANSLATIONS = {
         "saving_info_body_2": "En réservant directement auprès de nous, nous évitons une partie des frais et commissions des plateformes et pouvons répercuter cette différence sur le prix de votre séjour. Vous bénéficiez toujours d’un paiement sécurisé et du même accompagnement local avant, pendant et après votre séjour.",
         "saving_info_body_3": "Seul le canal de réservation change : l’hébergement et l’équipe qui s’occupe de vous restent les mêmes.",
         "saving_info_close": "Fermer",
+        "whatsapp_help": "Besoin d’aide ?",
+        "whatsapp_open": "Nous contacter sur WhatsApp",
+        "whatsapp_offline_title": "Notre assistance est actuellement hors ligne",
+        "whatsapp_offline_text": "Notre équipe est disponible tous les jours de 09:30 à 23:00 (heure du Portugal). Vous pouvez nous envoyer votre message maintenant et nous vous répondrons dès que nous serons disponibles.",
+        "whatsapp_continue": "Envoyer quand même",
+        "whatsapp_close": "Fermer",
+        "whatsapp_guest": "voyageur",
+        "whatsapp_guests": "voyageurs",
+        "whatsapp_property": "Bonjour ! Je suis intéressé(e) par {property}.",
+        "whatsapp_property_dates": "Bonjour ! Je suis intéressé(e) par {property}, du {checkin} au {checkout}.",
+        "whatsapp_property_guests": "Bonjour ! Je suis intéressé(e) par {property}, pour {guests} {guest_label}.",
+        "whatsapp_property_dates_guests": "Bonjour ! Je suis intéressé(e) par {property}, du {checkin} au {checkout}, pour {guests} {guest_label}.",
+        "whatsapp_generic": "Bonjour ! J’ai besoin d’aide pour trouver un hébergement à Porto.",
+        "whatsapp_generic_dates": "Bonjour ! Je cherche un hébergement à Porto du {checkin} au {checkout}.",
+        "whatsapp_generic_guests": "Bonjour ! Je cherche un hébergement à Porto pour {guests} {guest_label}.",
+        "whatsapp_generic_dates_guests": "Bonjour ! Je cherche un hébergement à Porto du {checkin} au {checkout} pour {guests} {guest_label}.",
         "total": "Total",
         "night": "nuit",
         "nights": "nuits",
@@ -1179,6 +1244,7 @@ def cookie_preferences():
 
 def _render_booking_template(template, lang, **context):
     seo = build_booking_seo(lang, context)
+    translations = _t(lang)
     legal_content = get_legal_content(lang)
     company = get_legal_company(current_app.config)
     return_to = _safe_portal_next(request.args.get("return_to") or "")
@@ -1205,11 +1271,18 @@ def _render_booking_template(template, lang, **context):
         "address": company["address"],
         "tax_id": f"{('Tax ID' if lang == 'en' else 'NIF')} {company['tax_id']}",
     })
+    alojamento = context.get("alojamento") or {}
+    whatsapp = build_whatsapp_context(
+        current_app.config,
+        translations,
+        property_name=alojamento.get("nome") or "",
+        search=context.get("search") or {},
+    )
     response = make_response(render_template(
         template,
         seo=seo,
         lang=lang,
-        t=_t(lang),
+        t=translations,
         language_links=_language_links(lang),
         portal_user=_portal_current_user(),
         booking_footer=footer_copy,
@@ -1222,6 +1295,7 @@ def _render_booking_template(template, lang, **context):
         cookie_preferences_url=url_for("booking_portal.cookie_preferences", lang=lang),
         cookie_policy_url=url_for("booking_portal.cookies", lang=lang),
         booking_analytics=analytics_browser_config(lang),
+        booking_whatsapp=whatsapp,
         **context,
     ))
     # Never share cached consent or account state between visitors.
