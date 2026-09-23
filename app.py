@@ -771,6 +771,14 @@ def create_app():
             detail = item.get('smtp_response') if item.get('ok') else item.get('error')
             click.echo(f"{status} email_id={item.get('email_id')} {detail or ''}")
 
+    @app.cli.command('portobreak-update-fx')
+    def portobreak_update_fx_command():
+        """Atualiza localmente as taxas EUR/GBP/USD de referência do BCE."""
+        from services.booking_portal_currency import refresh_fx_rates
+
+        result = refresh_fx_rates()
+        click.echo(f"ECB {result['date']}: {result['rates']}")
+
     @app.route('/service-worker.js')
     def service_worker():
         response = send_from_directory(app.static_folder, 'service-worker.js')

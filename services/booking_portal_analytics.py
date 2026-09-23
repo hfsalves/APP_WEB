@@ -14,7 +14,7 @@ import uuid
 from datetime import date, datetime, timezone
 from urllib.parse import urlsplit
 
-from flask import current_app, jsonify, request, url_for
+from flask import current_app, g, jsonify, request, url_for
 from itsdangerous import BadData, URLSafeTimedSerializer
 
 from models import db
@@ -166,7 +166,15 @@ def _source(host):
     return "referral"
 
 
-def safe_context(lang="pt"):
+def _currency_code(value=None):
+    candidate = value
+    if not candidate:
+        candidate = (getattr(g, "portobreak_currency", None) or {}).get("code")
+    code = str(candidate or "EUR").strip().upper()
+    return code if code in {"EUR", "GBP", "USD"} else "EUR"
+
+
+def safe_context(lang="pt", currency=None):
     suffix = (request.endpoint or "").removeprefix("booking_portal.")
     kind = PAGE_KINDS.get(suffix)
     if not kind:
@@ -192,6 +200,7 @@ def safe_context(lang="pt"):
     return {
         "page_kind": kind, "property_id": property_id,
         "lang": lang if lang in {"pt", "en", "es", "fr"} else "pt",
+        "currency": _currency_code(currency),
         "view_mode": "map" if request.args.get("view") == "map" else "list",
         "search": search, "referrer_host": host,
         "source": _campaign("source") or _source(host),
@@ -266,8 +275,8 @@ def request_traits():
             "country": country, "country_source": country_source}
 
 
-def browser_config(lang):
-    context = safe_context(lang)
+def browser_config(lang, currency=None):
+    context = safe_context(lang, currency)
     active = enabled() and context is not None and not BOT.search(request.user_agent.string)
     return {"enabled": bool(active),
             "endpoint": url_for("booking_portal.analytics_events"),
@@ -293,7 +302,9 @@ def record_response(response):
     if not (response.mimetype == "text/html" or context["page_kind"] == "map_quote"):
         return response
     traits = request_traits()
-    dimensions = {key: context[key] for key in ("page_kind", "property_id", "referrer_host", "source")}
+    dimensions = {key: context[key] for key in (
+        "page_kind", "property_id", "referrer_host", "source", "currency",
+    )}
     # Aggregate arbitrary campaign sources into a bounded acquisition category.
     dimensions["source"] = _source(context["referrer_host"])
     dimensions.update(device=traits["device"], country=traits["country"],

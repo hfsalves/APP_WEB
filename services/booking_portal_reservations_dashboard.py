@@ -154,6 +154,18 @@ def _empty_payload(period, filters):
 
 
 def _fetch_rows(conn, period, prefix):
+    payment_columns = {
+        str(column["name"]).upper()
+        for column in inspect(conn).get_columns("PB_STRIPE_TEST_PAYMENTS")
+    }
+    eur_value = (
+        "COALESCE(P.VALOR_EUR, B.PRECO_ESTIMADO)"
+        if "VALOR_EUR" in payment_columns else "B.PRECO_ESTIMADO"
+    )
+    stripe_net = "P.STRIPE_LIQUIDO" if "STRIPE_LIQUIDO" in payment_columns else "NULL"
+    stripe_net_currency = (
+        "P.STRIPE_LIQUIDO_MOEDA" if "STRIPE_LIQUIDO_MOEDA" in payment_columns else "NULL"
+    )
     statement = text(f"""
         WITH payment_ranked AS (
             SELECT P.*,
@@ -184,7 +196,10 @@ def _fetch_rows(conn, period, prefix):
             P.ESTADO AS payment_status,
             P.AMBIENTE AS environment,
             P.MOEDA AS currency,
-            P.VALOR AS paid_value,
+            P.VALOR AS payment_value,
+            {eur_value} AS paid_value,
+            {stripe_net} AS stripe_net,
+            {stripe_net_currency} AS stripe_net_currency,
             P.STRIPE_STATUS AS stripe_status,
             P.RSSTAMP AS rsstamp,
             R.RESERVA AS reservation_code,
@@ -253,7 +268,10 @@ def _serialize(row):
         "payment_status": payment_status,
         "environment": environment,
         "currency": str(row.get("currency") or "EUR").strip().upper(),
+        "payment_value": _money(row.get("payment_value")) if row.get("payment_value") is not None else None,
         "paid_value": _money(row.get("paid_value")) if row.get("paid_value") is not None else None,
+        "stripe_net": _money(row.get("stripe_net")) if row.get("stripe_net") is not None else None,
+        "stripe_net_currency": str(row.get("stripe_net_currency") or "").strip().upper(),
         "paid": paid,
         "live_paid": paid and environment == "LIVE",
         "test_paid": paid and environment == "TEST",

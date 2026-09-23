@@ -97,24 +97,53 @@
     grid-column: 3;
     grid-row: 1;
     align-self: stretch;
+    display: grid;
+    grid-template-columns: 34px minmax(62px, auto);
+    grid-template-rows: 30px 30px;
     align-items: center;
-    justify-content: center;
-    gap: 4px;
-    padding: 12px 8px;
+    align-content: center;
+    justify-items: center;
+    gap: 3px;
+    padding: 6px 7px;
     border: 1px solid rgba(222, 214, 203, 0.8);
     border-radius: 8px;
     background: rgba(255, 255, 255, 0.98);
     box-shadow: var(--bp-shadow);
   }
+  body .booking-top-actions > .booking-mobile-language { grid-column: 1; grid-row: 1; }
+  body .booking-top-actions > .booking-currency-switcher { grid-column: 2; grid-row: 1; }
+  body .booking-top-actions > .booking-account-link,
+  body .booking-top-actions > .booking-account-menu {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
   body .booking-top-actions .booking-mobile-language > summary,
+  body .booking-top-actions .booking-currency-switcher > summary,
   body .booking-top-actions .booking-account-link,
   body .booking-top-actions .booking-account-menu > summary {
     border-color: transparent;
     border-radius: 7px;
     background: transparent;
   }
+  body .booking-top-actions .booking-mobile-language > summary,
+  body .booking-top-actions .booking-account-link,
+  body .booking-top-actions .booking-account-menu > summary {
+    width: 30px;
+    min-width: 30px;
+    height: 30px;
+    min-height: 30px;
+  }
+  body .booking-top-actions .booking-currency-switcher > summary {
+    width: auto;
+    min-width: 60px;
+    height: 30px;
+    min-height: 30px;
+    padding: 0 8px;
+  }
   body .booking-top-actions .booking-mobile-language > summary:hover,
   body .booking-top-actions .booking-mobile-language[open] > summary,
+  body .booking-top-actions .booking-currency-switcher > summary:hover,
+  body .booking-top-actions .booking-currency-switcher[open] > summary,
   body .booking-top-actions .booking-account-link:hover,
   body .booking-top-actions .booking-account-menu > summary:hover,
   body .booking-top-actions .booking-account-menu[open] > summary {
@@ -134,7 +163,7 @@
     gap: 10px;
   }
   body .booking-topbar .booking-brand img { width: 180px; }
-  body .booking-topbar .booking-top-actions { padding: 10px 6px; }
+  body .booking-topbar .booking-top-actions { padding: 6px; }
   .booking-search .booking-mobile-party-value { height: 44px; padding: 0 10px; }
 }
 

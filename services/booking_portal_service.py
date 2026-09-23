@@ -24,6 +24,10 @@ from services.booking_portal_pricing import (
     get_stay_price_comparisons,
     portobreak_nightly_price,
 )
+from services.booking_portal_currency import (
+    amount_to_minor_units, convert_stay_breakdown, format_money,
+    load_currency_snapshot, normalize_currency, validate_currency_snapshot,
+)
 
 
 TIPOLOGIA_CAPACIDADE = {
@@ -423,6 +427,7 @@ def _decorate_alojamento(row: dict, include_gallery: bool = False) -> dict:
         "descricao": descricao,
         "descricao_curta": descricao[:180] + ("..." if len(descricao) > 180 else ""),
         "pbase": _to_decimal(item.get("PBASE")),
+        "preco_desde_valor": _to_decimal(item.get("PRECO_DESDE")),
         "preco_desde": _money(item.get("PRECO_DESDE")),
         "foto_principal": foto_principal,
         "fotos": fotos,
@@ -833,6 +838,11 @@ def get_alojamentos_disponiveis_page(checkin=None, checkout=None, hospedes=None,
             portobreak_total = (comparison["portobreak"] + common_total).quantize(_DEC2)
             alojamento["preco_estadia"] = {
                 **comparison,
+                "preco_noites": comparison["portobreak"],
+                "preco_noites_airbnb": comparison["airbnb"],
+                "hospedes_extra_total": extra_guest_total,
+                "limpeza": cleaning_fee,
+                "taxa_turistica": tourist_tax,
                 "airbnb_label": _money(comparison["airbnb"]),
                 "portobreak_label": _money(comparison["portobreak"]),
                 "airbnb_total": airbnb_total,
@@ -1097,9 +1107,11 @@ def get_portal_user_bookings(pbuserstamp: str, *, lang: str = "pt") -> list[dict
         booking["foto"] = alojamento.get("foto") or ""
         booking["localizacao"] = alojamento.get("localizacao") or ""
         booking["reservation_code"] = _clean(booking.get("RESERVA"))
-        total = _clean(booking.get("PRECO_LABEL"))
-        if not total and booking.get("VALOR") is not None:
-            total = _money(booking.get("VALOR"))
+        total = ""
+        if booking.get("VALOR") is not None:
+            total = format_money(booking.get("VALOR"), booking.get("MOEDA") or "EUR")
+        if not total:
+            total = _clean(booking.get("PRECO_LABEL"))
         if not total and booking.get("PRECO_ESTIMADO") is not None:
             total = _money(booking.get("PRECO_ESTIMADO"))
         booking["total"] = total
@@ -1388,6 +1400,7 @@ def criar_pedido_reserva(
     authenticated_user_id=None,
     ip="",
     user_agent="",
+    currency_snapshot=None,
 ) -> dict:
     alojamento = get_alojamento(al_id)
     if not alojamento:
@@ -1409,6 +1422,12 @@ def criar_pedido_reserva(
     bebes = _to_count(params.get("bebes"), default=0) or 0
     hospedes = adultos + criancas
     preco = calcular_preco(al_id, checkin_date, checkout_date, hospedes)
+    currency = validate_currency_snapshot(currency_snapshot) or load_currency_snapshot("EUR")
+    converted = convert_stay_breakdown(
+        direct_nights=preco.get("preco_noites"), airbnb_nights=preco.get("preco_noites_airbnb"),
+        extra=preco.get("hospedes_extra_total"), cleaning=preco.get("limpeza"),
+        tourist_tax=preco.get("taxa_turistica"), snapshot=currency,
+    )
     noites = (checkout_date - checkin_date).days
 
     pbuserstamp = None
@@ -1462,6 +1481,11 @@ def criar_pedido_reserva(
             "label": preco.get("label") or "",
             "limpeza": str(preco.get("limpeza") or "0.00"),
             "linhas": preco.get("linhas") or [],
+            "moeda_pagamento": currency["code"],
+            "valor_pagamento": str(converted["direct_total"]),
+            "cambio_pagamento": currency["effective_rate"],
+            "cambio_base": currency["rate"],
+            "margem_cambial": currency["margin_percent"],
         },
     }
     db.session.execute(
@@ -1472,12 +1496,16 @@ def criar_pedido_reserva(
                 ADULTOS, CRIANCAS, BEBES,
                 CLIENTE_NOME, CLIENTE_EMAIL, CLIENTE_TELEFONE, CLIENTE_MORADA, CLIENTE_PAIS, CLIENTE_NIF,
                 CRIOU_CONTA, PRECO_ESTIMADO, PRECO_LABEL, OBSERVACOES, DADOS_JSON, IP_CLIENTE, USER_AGENT
+                , MOEDA_APRESENTACAO, VALOR_APRESENTADO, CAMBIO_APRESENTACAO, CAMBIO_BASE,
+                  FX_MARGIN_PERCENT, FX_DATA_TAXA, FX_FONTE
             )
             VALUES (
                 :stamp, :user_stamp, :alstamp, :al_nome, :checkin, :checkout, :noites,
                 :adultos, :criancas, :bebes,
                 :nome, :email, :telefone, :morada, :pais, :nif,
                 :criou_conta, :preco_estimado, :preco_label, :observacoes, :dados_json, :ip, :user_agent
+                , :moeda_apresentacao, :valor_apresentado, :cambio_apresentacao, :cambio_base,
+                  :fx_margin_percent, :fx_data_taxa, :fx_fonte
             )
             """
         ),
@@ -1505,6 +1533,13 @@ def criar_pedido_reserva(
             "dados_json": json.dumps(dados, ensure_ascii=False),
             "ip": _clean(ip)[:80],
             "user_agent": _clean(user_agent)[:500],
+            "moeda_apresentacao": currency["code"],
+            "valor_apresentado": converted["direct_total"],
+            "cambio_apresentacao": currency["effective_rate"],
+            "cambio_base": currency["rate"],
+            "fx_margin_percent": currency["margin_percent"],
+            "fx_data_taxa": _to_date(currency.get("rate_date")),
+            "fx_fonte": _clean(currency.get("source"))[:120] or None,
         },
     )
     db.session.commit()
@@ -1513,6 +1548,12 @@ def criar_pedido_reserva(
         "user_id": pbuserstamp,
         "created_account": bool(create_account),
         "preco": preco,
+        "payment": {
+            "currency": currency["code"],
+            "amount": converted["direct_total"],
+            "label": format_money(converted["direct_total"], currency["code"]),
+            "exchange_rate": Decimal(currency["effective_rate"]),
+        },
         "alojamento": alojamento,
         "checkin": checkin_date,
         "checkout": checkout_date,
@@ -1654,7 +1695,9 @@ def _portal_test_payment_booking(request_id: str, user_id: str | None = None) ->
         text(
             f"""
             SELECT TOP 1 PBBKSTAMP, PBUSERSTAMP, AL_NOME, CHECKIN, CHECKOUT,
-                   CLIENTE_EMAIL, PRECO_ESTIMADO, PRECO_LABEL, ESTADO
+                   CLIENTE_EMAIL, PRECO_ESTIMADO, PRECO_LABEL, ESTADO,
+                   MOEDA_APRESENTACAO, VALOR_APRESENTADO, CAMBIO_APRESENTACAO,
+                   CAMBIO_BASE, FX_MARGIN_PERCENT, FX_DATA_TAXA, FX_FONTE
             FROM dbo.PB_BOOKING_REQUESTS
             WHERE PBBKSTAMP = :request_id
               {owner_filter}
@@ -1678,8 +1721,14 @@ def criar_checkout_teste_portal(
     booking = _portal_test_payment_booking(request_id, user_id)
     if not booking or _clean(booking.get("ESTADO")).upper() != "PENDENTE":
         raise PortalPaymentError("O pedido de reserva nao esta disponivel para pagamento.")
-    amount = _to_decimal(booking.get("PRECO_ESTIMADO"))
-    if amount <= 0:
+    eur_amount = _to_decimal(booking.get("PRECO_ESTIMADO"))
+    currency = normalize_currency(booking.get("MOEDA_APRESENTACAO"))
+    amount = _to_decimal(
+        booking.get("VALOR_APRESENTADO")
+        if booking.get("VALOR_APRESENTADO") is not None
+        else eur_amount
+    )
+    if eur_amount <= 0 or amount <= 0:
         raise PortalPaymentError("O pedido de reserva nao tem um valor valido para pagamento.")
 
     payment_id = _new_stamp()
@@ -1690,11 +1739,13 @@ def criar_checkout_teste_portal(
             INSERT INTO dbo.PB_STRIPE_TEST_PAYMENTS
             (
                 PBPAYSTAMP, PBBKSTAMP, PBUSERSTAMP, ESTADO, AMBIENTE, MOEDA, VALOR,
+                VALOR_EUR, CAMBIO, CAMBIO_BASE, FX_MARGIN_PERCENT, FX_DATA_TAXA, FX_FONTE,
                 IDEMPOTENCY_KEY, DTCRI, DTALT
             )
             VALUES
             (
-                :payment_id, :request_id, :user_id, 'CRIADO', :environment, 'EUR', :amount,
+                :payment_id, :request_id, :user_id, 'CRIADO', :environment, :currency, :amount,
+                :eur_amount, :exchange_rate, :base_rate, :margin_percent, :rate_date, :rate_source,
                 :idempotency_key, SYSUTCDATETIME(), SYSUTCDATETIME()
             )
             """
@@ -1704,7 +1755,14 @@ def criar_checkout_teste_portal(
             "request_id": booking["PBBKSTAMP"],
             "user_id": _clean(booking.get("PBUSERSTAMP")) or None,
             "environment": mode,
+            "currency": currency,
             "amount": amount,
+            "eur_amount": eur_amount,
+            "exchange_rate": booking.get("CAMBIO_APRESENTACAO") or Decimal("1"),
+            "base_rate": booking.get("CAMBIO_BASE") or Decimal("1"),
+            "margin_percent": booking.get("FX_MARGIN_PERCENT") or Decimal("0"),
+            "rate_date": _to_date(booking.get("FX_DATA_TAXA")),
+            "rate_source": _clean(booking.get("FX_FONTE"))[:120] or None,
             "idempotency_key": idempotency_key,
         },
     )
@@ -1723,9 +1781,13 @@ def criar_checkout_teste_portal(
                 "metadata[pb_payment_id]": payment_id,
                 "metadata[pb_booking_request_id]": booking["PBBKSTAMP"],
                 "metadata[environment]": mode.lower(),
+                "metadata[payment_currency]": currency,
+                "payment_intent_data[metadata][pb_payment_id]": payment_id,
+                "payment_intent_data[metadata][pb_booking_request_id]": booking["PBBKSTAMP"],
+                "payment_intent_data[metadata][environment]": mode.lower(),
                 "line_items[0][quantity]": "1",
-                "line_items[0][price_data][currency]": "eur",
-                "line_items[0][price_data][unit_amount]": str(int(amount * 100)),
+                "line_items[0][price_data][currency]": currency.lower(),
+                "line_items[0][price_data][unit_amount]": str(amount_to_minor_units(amount, currency)),
                 "line_items[0][price_data][product_data][name]": "Pedido de reserva Porto Break",
                 "line_items[0][price_data][product_data][description]": (
                     f"{_clean(booking.get('AL_NOME'))[:120]} · "
@@ -1778,6 +1840,123 @@ def criar_checkout_teste_portal(
         "id": payment_id,
         "checkout_url": checkout_url,
         "session_id": checkout_session_id,
+        "amount": amount,
+        "currency": currency,
+    }
+
+
+def _portal_payment_identifier(*, payment_id="", payment_intent_id="", charge_id="") -> dict | None:
+    conditions = []
+    params = {}
+    if _clean(payment_id):
+        conditions.append("PBPAYSTAMP = :payment_id")
+        params["payment_id"] = _clean(payment_id)
+    if _clean(payment_intent_id):
+        conditions.append("PAYMENT_INTENT_ID = :payment_intent_id")
+        params["payment_intent_id"] = _clean(payment_intent_id)
+    if _clean(charge_id):
+        conditions.append("CHARGE_ID = :charge_id")
+        params["charge_id"] = _clean(charge_id)
+    if not conditions:
+        return None
+    row = db.session.execute(text(f"""
+        SELECT TOP 1 PBPAYSTAMP, PBBKSTAMP, RSSTAMP, PAYMENT_INTENT_ID, CHARGE_ID,
+               BALANCE_TRANSACTION_ID, MOEDA, VALOR
+        FROM dbo.PB_STRIPE_TEST_PAYMENTS
+        WHERE {' OR '.join(conditions)}
+        ORDER BY DTCRI DESC
+    """), params).mappings().first()
+    return dict(row) if row else None
+
+
+def _stripe_object_id(value) -> str:
+    return _clean(value.get("id")) if isinstance(value, dict) else _clean(value)
+
+
+def _portal_reconcile_stripe_payment(
+    payment_id: str,
+    *,
+    payment_intent_id: str = "",
+    charge_data: dict | None = None,
+) -> dict:
+    """Persist Stripe's real balance-transaction net; never estimate processing costs."""
+    payment = _portal_payment_identifier(
+        payment_id=payment_id,
+        payment_intent_id=payment_intent_id,
+        charge_id=_stripe_object_id(charge_data or {}),
+    )
+    if not payment:
+        return {}
+
+    pi_id = _clean(payment_intent_id or payment.get("PAYMENT_INTENT_ID"))
+    charge = charge_data if isinstance(charge_data, dict) else None
+    if charge is None and pi_id:
+        intent = _portal_stripe_request(
+            "GET", f"/v1/payment_intents/{pi_id}",
+            {"expand[]": "latest_charge.balance_transaction"},
+        )
+        latest_charge = intent.get("latest_charge")
+        if isinstance(latest_charge, dict):
+            charge = latest_charge
+        elif _stripe_object_id(latest_charge):
+            charge = _portal_stripe_request(
+                "GET", f"/v1/charges/{_stripe_object_id(latest_charge)}",
+                {"expand[]": "balance_transaction"},
+            )
+
+    charge_id = _stripe_object_id(charge) or _clean(payment.get("CHARGE_ID"))
+    balance = (charge or {}).get("balance_transaction") if charge else None
+    if balance and not isinstance(balance, dict):
+        balance = _portal_stripe_request("GET", f"/v1/balance_transactions/{_stripe_object_id(balance)}")
+    balance_id = _stripe_object_id(balance) or _clean(payment.get("BALANCE_TRANSACTION_ID"))
+    net = None
+    net_currency = ""
+    if isinstance(balance, dict) and balance.get("net") is not None:
+        try:
+            net = (Decimal(str(balance["net"])) / Decimal("100")).quantize(_DEC2)
+        except (TypeError, ValueError):
+            net = None
+        net_currency = _clean(balance.get("currency")).upper()
+
+    db.session.execute(text("""
+        UPDATE dbo.PB_STRIPE_TEST_PAYMENTS
+        SET PAYMENT_INTENT_ID = COALESCE(:payment_intent_id, PAYMENT_INTENT_ID),
+            CHARGE_ID = COALESCE(:charge_id, CHARGE_ID),
+            BALANCE_TRANSACTION_ID = COALESCE(:balance_id, BALANCE_TRANSACTION_ID),
+            STRIPE_LIQUIDO = COALESCE(:net, STRIPE_LIQUIDO),
+            STRIPE_LIQUIDO_MOEDA = COALESCE(:net_currency, STRIPE_LIQUIDO_MOEDA),
+            DTALT = SYSUTCDATETIME()
+        WHERE PBPAYSTAMP = :payment_id
+    """), {
+        "payment_id": payment["PBPAYSTAMP"],
+        "payment_intent_id": pi_id or None,
+        "charge_id": charge_id or None,
+        "balance_id": balance_id or None,
+        "net": net,
+        "net_currency": net_currency or None,
+    })
+    if _clean(payment.get("RSSTAMP")):
+        db.session.execute(text("""
+            UPDATE dbo.RS
+            SET STRIPE_PAYMENT_INTENT = COALESCE(:payment_intent_id, STRIPE_PAYMENT_INTENT),
+                STRIPE_CHARGE_ID = COALESCE(:charge_id, STRIPE_CHARGE_ID),
+                STRIPE_BALANCE_TRANSACTION = COALESCE(:balance_id, STRIPE_BALANCE_TRANSACTION),
+                STRIPE_LIQUIDO = COALESCE(:net, STRIPE_LIQUIDO),
+                STRIPE_LIQUIDO_MOEDA = COALESCE(:net_currency, STRIPE_LIQUIDO_MOEDA)
+            WHERE RSSTAMP = :rsstamp
+        """), {
+            "rsstamp": payment["RSSTAMP"],
+            "payment_intent_id": pi_id or None,
+            "charge_id": charge_id or None,
+            "balance_id": balance_id or None,
+            "net": net,
+            "net_currency": net_currency or None,
+        })
+    db.session.commit()
+    return {
+        "payment_id": payment["PBPAYSTAMP"], "payment_intent_id": pi_id,
+        "charge_id": charge_id, "balance_transaction_id": balance_id,
+        "net": net, "net_currency": net_currency,
     }
 
 
@@ -1804,6 +1983,15 @@ def sincronizar_checkout_teste_portal(session_id: str, user_id: str | None = Non
     stripe_session = _portal_stripe_request(
         "GET", f"/v1/checkout/sessions/{_clean(session_id)}"
     )
+    expected_currency = normalize_currency(payment.get("MOEDA")).lower()
+    expected_amount = amount_to_minor_units(payment.get("VALOR"), expected_currency)
+    stripe_currency = _clean(stripe_session.get("currency")).lower()
+    try:
+        stripe_amount = int(stripe_session.get("amount_total"))
+    except (TypeError, ValueError):
+        stripe_amount = -1
+    if stripe_currency != expected_currency or stripe_amount != expected_amount:
+        raise PortalPaymentError("O valor devolvido pela Stripe nao corresponde ao checkout apresentado.")
     paid = (
         _clean(stripe_session.get("status")) == "complete"
         and _clean(stripe_session.get("payment_status")) == "paid"
@@ -1834,6 +2022,17 @@ def sincronizar_checkout_teste_portal(session_id: str, user_id: str | None = Non
     )
     db.session.commit()
     reservation = registar_reserva_portal_pagamento(payment["PBPAYSTAMP"]) if paid else None
+    if paid:
+        try:
+            _portal_reconcile_stripe_payment(
+                payment["PBPAYSTAMP"],
+                payment_intent_id=_clean(stripe_session.get("payment_intent")),
+            )
+        except Exception:
+            current_app.logger.exception(
+                "Reserva paga criada, mas o liquido Stripe ainda nao foi reconciliado: %s",
+                payment["PBPAYSTAMP"],
+            )
     return {
         "id": payment["PBPAYSTAMP"],
         "booking_id": payment["PBBKSTAMP"],
@@ -1841,6 +2040,7 @@ def sincronizar_checkout_teste_portal(session_id: str, user_id: str | None = Non
         "state": state,
         "amount": _to_decimal(payment.get("VALOR")),
         "currency": _clean(payment.get("MOEDA")) or "EUR",
+        "amount_label": format_money(payment.get("VALOR"), payment.get("MOEDA") or "EUR"),
         "reservation_code": (reservation or {}).get("reserva"),
         "rsstamp": (reservation or {}).get("rsstamp"),
     }
@@ -1935,6 +2135,20 @@ def _portal_checkout_payment_id(session_data: dict) -> str:
     return _clean(metadata.get("pb_payment_id") or session_data.get("client_reference_id"))
 
 
+def _portal_stripe_object_payment_id(data: dict) -> str:
+    metadata = data.get("metadata") if isinstance(data.get("metadata"), dict) else {}
+    payment_id = _clean(metadata.get("pb_payment_id"))
+    if payment_id:
+        return payment_id
+    payment = _portal_payment_identifier(
+        payment_intent_id=_stripe_object_id(data.get("payment_intent")) or (
+            _clean(data.get("id")) if _clean(data.get("object")) == "payment_intent" else ""
+        ),
+        charge_id=_clean(data.get("id")) if _clean(data.get("object")) == "charge" else "",
+    )
+    return _clean((payment or {}).get("PBPAYSTAMP"))
+
+
 def _portal_payment_exists(payment_id: str) -> bool:
     if not _clean(payment_id):
         return False
@@ -1988,7 +2202,11 @@ def processar_webhook_stripe_portal(event: dict) -> dict:
     if not isinstance(obj, dict):
         obj = {}
     session_id = _clean(obj.get("id")) if event_type.startswith("checkout.session.") else ""
-    payment_id = _portal_checkout_payment_id(obj)
+    payment_id = (
+        _portal_checkout_payment_id(obj)
+        if event_type.startswith("checkout.session.")
+        else _portal_stripe_object_payment_id(obj)
+    )
     if payment_id and not _portal_payment_exists(payment_id):
         payment_id = ""
     if not _portal_webhook_event_begin(event_id, event_type, payment_id):
@@ -2013,6 +2231,21 @@ def processar_webhook_stripe_portal(event: dict) -> dict:
             _portal_webhook_event_finish(event_id, "PROCESSADO")
             return {"duplicate": False, "payment": {"id": payment_id} if payment_id else None}
 
+        if event_type in {"payment_intent.succeeded", "charge.succeeded", "charge.updated"}:
+            if payment_id:
+                reconciliation = _portal_reconcile_stripe_payment(
+                    payment_id,
+                    payment_intent_id=(
+                        _clean(obj.get("id")) if event_type == "payment_intent.succeeded"
+                        else _stripe_object_id(obj.get("payment_intent"))
+                    ),
+                    charge_data=obj if event_type.startswith("charge.") else None,
+                )
+                _portal_webhook_event_finish(event_id, "PROCESSADO")
+                return {"duplicate": False, "payment": reconciliation or {"id": payment_id}}
+            _portal_webhook_event_finish(event_id, "IGNORADO")
+            return {"duplicate": False, "payment": None}
+
         _portal_webhook_event_finish(event_id, "IGNORADO")
         return {"duplicate": False, "payment": None}
     except Exception as exc:
@@ -2032,6 +2265,8 @@ def registar_reserva_portal_pagamento(payment_id: str) -> dict | None:
             """
             SELECT TOP 1
                 P.PBPAYSTAMP, P.PBBKSTAMP, P.RSSTAMP, P.ESTADO AS PAGAMENTO_ESTADO,
+                P.MOEDA, P.VALOR, P.CAMBIO, P.PAYMENT_INTENT_ID, P.CHARGE_ID,
+                P.BALANCE_TRANSACTION_ID, P.STRIPE_LIQUIDO, P.STRIPE_LIQUIDO_MOEDA,
                 B.ALSTAMP, B.CHECKIN, B.CHECKOUT, B.NOITES, B.ADULTOS, B.CRIANCAS, B.BEBES,
                 B.CLIENTE_NOME, B.CLIENTE_EMAIL, B.CLIENTE_TELEFONE, B.CLIENTE_MORADA,
                 B.CLIENTE_PAIS, B.CLIENTE_NIF, B.PRECO_ESTIMADO, B.OBSERVACOES, B.DADOS_JSON,
@@ -2107,7 +2342,10 @@ def registar_reserva_portal_pagamento(payment_id: str) -> dict | None:
                 DATAIN, DATAOUT, HORAIN, HORAOUT, NOITES,
                 NOME, PAIS, ADULTOS, CRIANCAS, BEBES,
                 ESTADIA, LIMPEZA, COMISSAO, OBS,
-                FTNOME, FTMORADA, FTLOCAL, FTNCONT, FTEMAIL
+                FTNOME, FTMORADA, FTLOCAL, FTNCONT, FTEMAIL,
+                MOEDA_PAGAMENTO, VALOR_PAGAMENTO, CAMBIO_PAGAMENTO,
+                STRIPE_PAYMENT_INTENT, STRIPE_CHARGE_ID, STRIPE_BALANCE_TRANSACTION,
+                STRIPE_LIQUIDO, STRIPE_LIQUIDO_MOEDA
             )
             VALUES
             (
@@ -2115,7 +2353,10 @@ def registar_reserva_portal_pagamento(payment_id: str) -> dict | None:
                 :checkin, :checkout, '15:00', '11:00', :noites,
                 :nome, :pais, :adultos, :criancas, :bebes,
                 :estadia, :limpeza, 0, :obs,
-                :ftnome, :ftmorada, :ftlocal, :ftncont, :ftemail
+                :ftnome, :ftmorada, :ftlocal, :ftncont, :ftemail,
+                :payment_currency, :payment_amount, :exchange_rate,
+                :payment_intent_id, :charge_id, :balance_transaction_id,
+                :stripe_net, :stripe_net_currency
             )
             """
         ),
@@ -2139,6 +2380,14 @@ def registar_reserva_portal_pagamento(payment_id: str) -> dict | None:
             "ftlocal": _clean(payment.get("CLIENTE_PAIS"))[:43],
             "ftncont": _clean(payment.get("CLIENTE_NIF"))[:20],
             "ftemail": _clean(payment.get("CLIENTE_EMAIL"))[:200],
+            "payment_currency": normalize_currency(payment.get("MOEDA")),
+            "payment_amount": _to_decimal(payment.get("VALOR")),
+            "exchange_rate": payment.get("CAMBIO") or Decimal("1"),
+            "payment_intent_id": _clean(payment.get("PAYMENT_INTENT_ID")) or None,
+            "charge_id": _clean(payment.get("CHARGE_ID")) or None,
+            "balance_transaction_id": _clean(payment.get("BALANCE_TRANSACTION_ID")) or None,
+            "stripe_net": payment.get("STRIPE_LIQUIDO"),
+            "stripe_net_currency": _clean(payment.get("STRIPE_LIQUIDO_MOEDA")) or None,
         },
     )
     db.session.execute(

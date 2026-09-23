@@ -1,0 +1,18 @@
+<details class="booking-currency-switcher" data-booking-navigation-menu>
+  <summary aria-label="{{ t.currency }}: {{ booking_currency.code }}" title="{{ t.currency }}: {{ booking_currency.code }}">
+    <span class="booking-currency-code">{{ booking_currency.code }}</span>
+    <span class="booking-currency-symbol" aria-hidden="true">{{ booking_currency.symbol }}</span>
+  </summary>
+  <div class="booking-currency-dropdown" role="menu" aria-label="{{ t.currency }}">
+    {% for item in booking_currency_options %}
+      <form method="post" action="{{ booking_currency_action }}">
+        <input type="hidden" name="currency" value="{{ item.code }}">
+        <input type="hidden" name="return_to" value="{{ booking_currency_return }}">
+        <button type="submit" role="menuitem"{% if item.active %} class="is-active" aria-current="true"{% endif %}>
+          <span>{{ item.code }} – {{ item.symbol }}</span>
+          {% if item.active %}<svg class="booking-language-check" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m3 8 3 3 7-7"/></svg>{% endif %}
+        </button>
+      </form>
+    {% endfor %}
+  </div>
+</details>

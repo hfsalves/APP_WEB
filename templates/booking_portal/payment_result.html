@@ -15,6 +15,7 @@
       </a>
       <div class="booking-nav-actions">
         {% with language_switcher_nav=true %}{% include 'booking_portal/_language_switcher.html' %}{% endwith %}
+        {% include 'booking_portal/_currency_switcher.html' %}
         {% include 'booking_portal/_account_menu.html' %}
       </div>
     </nav>
@@ -49,7 +50,7 @@
             </div>
           </article>
         {% else %}
-          <div class="booking-success-reference">{{ '%.2f'|format(payment.amount) }} {{ payment.currency }}</div>
+          <div class="booking-success-reference">{{ payment.amount_label }}</div>
           {% if payment.reservation_code %}<div class="booking-success-reference">{{ payment.reservation_code }}</div>{% endif %}
         {% endif %}
       {% else %}

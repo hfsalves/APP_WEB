@@ -8,7 +8,7 @@ from datetime import date, timedelta
 from urllib.parse import urlsplit
 from xml.etree.ElementTree import Element, SubElement, tostring
 
-from flask import Blueprint, abort, current_app, jsonify, make_response, redirect, render_template, request, session, url_for
+from flask import Blueprint, abort, current_app, g, jsonify, make_response, redirect, render_template, request, session, url_for
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 
 from models import db
@@ -55,13 +55,129 @@ from services.booking_portal_seo import (
 from services.booking_portal_map import get_map_catalog
 from services.booking_portal_map_copy import get_map_copy
 from services.booking_portal_whatsapp import build_whatsapp_context
+from services.booking_portal_currency import (
+    SUPPORTED_CURRENCIES, convert_eur, convert_stay_breakdown, detect_currency,
+    format_money, load_currency_snapshot, normalize_currency,
+    schedule_fx_refresh, validate_currency_snapshot,
+)
 from services.booking_portal_analytics import (
     associate_booking, browser_config as analytics_browser_config,
     clear_identity_cookies, collect_event, record_response as record_analytics_response,
+    request_traits,
 )
 
 
 bp = Blueprint("booking_portal", __name__)
+PORTAL_CURRENCY_SESSION_KEY = "portobreak_currency"
+
+
+@bp.before_request
+def _prepare_portal_currency():
+    schedule_fx_refresh(current_app._get_current_object())
+
+
+def _currency_context() -> dict:
+    existing = getattr(g, "portobreak_currency", None)
+    if existing:
+        return existing
+    stored = validate_currency_snapshot(session.get(PORTAL_CURRENCY_SESSION_KEY))
+    if stored:
+        g.portobreak_currency = stored
+        return stored
+    country = request_traits().get("country")
+    snapshot = load_currency_snapshot(detect_currency(country))
+    session[PORTAL_CURRENCY_SESSION_KEY] = snapshot
+    session.modified = True
+    g.portobreak_currency = snapshot
+    return snapshot
+
+
+def _present_price(preco: dict | None, t: dict, currency: dict) -> dict | None:
+    if not preco:
+        return preco
+    presented = dict(preco)
+    if not presented.get("valor"):
+        return _translate_price(presented, t)
+    if any(presented.get(key) is None for key in (
+        "preco_noites", "preco_noites_airbnb", "hospedes_extra_total",
+        "limpeza", "taxa_turistica",
+    )):
+        # Compatibility for legacy/read-only view models. Current production
+        # pricing always supplies numeric EUR components before presentation.
+        return _translate_price(presented, t)
+    converted = convert_stay_breakdown(
+        direct_nights=presented.get("preco_noites"),
+        airbnb_nights=presented.get("preco_noites_airbnb"),
+        extra=presented.get("hospedes_extra_total"),
+        cleaning=presented.get("limpeza"),
+        tourist_tax=presented.get("taxa_turistica"),
+        snapshot=currency,
+    )
+    code = currency["code"]
+    presented.update({
+        "currency": code,
+        "valor_eur": presented.get("valor"),
+        "valor": converted["direct_total"],
+        "label": format_money(converted["direct_total"], code),
+        "preco_noites": converted["direct_nights"],
+        "preco_noites_label": format_money(converted["direct_nights"], code),
+        "preco_noites_airbnb": converted["airbnb_nights"],
+        "preco_noites_airbnb_label": format_money(converted["airbnb_nights"], code),
+        "preco_total_airbnb": converted["airbnb_total"],
+        "preco_total_airbnb_label": format_money(converted["airbnb_total"], code),
+        "preco_total_portobreak": converted["direct_total"],
+        "preco_total_portobreak_label": format_money(converted["direct_total"], code),
+        "poupanca_noites": converted["saving"],
+        "poupanca_noites_label": format_money(converted["saving"], code),
+        "hospedes_extra_total": converted["extra"],
+        "hospedes_extra_total_label": format_money(converted["extra"], code),
+        "limpeza": converted["cleaning"],
+        "limpeza_label": format_money(converted["cleaning"], code),
+        "taxa_turistica": converted["tourist_tax"],
+        "taxa_turistica_label": format_money(converted["tourist_tax"], code),
+    })
+    nightly = []
+    for item in presented.get("precos_noite") or []:
+        converted_item = dict(item)
+        converted_item["valor"] = convert_eur(item.get("valor"), currency, whole=True)
+        converted_item["label"] = format_money(converted_item["valor"], code, whole=True)
+        converted_item["valor_airbnb"] = convert_eur(item.get("valor_airbnb"), currency, whole=True)
+        converted_item["label_airbnb"] = format_money(converted_item["valor_airbnb"], code, whole=True)
+        nightly.append(converted_item)
+    presented["precos_noite"] = nightly
+    return _translate_price(presented, t)
+
+
+def _present_alojamento(alojamento: dict, currency: dict) -> dict:
+    item = dict(alojamento or {})
+    code = currency["code"]
+    from_value = item.get("preco_desde_valor")
+    original_from_label = item.get("preco_desde") or ""
+    item["preco_desde"] = (
+        format_money(convert_eur(from_value, currency, whole=True), code, whole=True)
+        if from_value and from_value > 0 else original_from_label
+    )
+    stay = item.get("preco_estadia")
+    if stay and all(stay.get(key) is not None for key in (
+        "preco_noites", "preco_noites_airbnb", "hospedes_extra_total",
+        "limpeza", "taxa_turistica",
+    )):
+        converted = convert_stay_breakdown(
+            direct_nights=stay.get("preco_noites"), airbnb_nights=stay.get("preco_noites_airbnb"),
+            extra=stay.get("hospedes_extra_total"), cleaning=stay.get("limpeza"),
+            tourist_tax=stay.get("taxa_turistica"), snapshot=currency,
+        )
+        item["preco_estadia"] = {
+            **stay,
+            "currency": code,
+            "airbnb_total": converted["airbnb_total"],
+            "airbnb_total_label": format_money(converted["airbnb_total"], code),
+            "portobreak_total": converted["direct_total"],
+            "portobreak_total_label": format_money(converted["direct_total"], code),
+            "saving": converted["saving"],
+            "saving_label": format_money(converted["saving"], code),
+        }
+    return item
 
 
 @bp.after_request
@@ -343,6 +459,10 @@ TRANSLATIONS = {
         "whatsapp_generic_dates": "Olá! Procuro alojamento no Porto de {checkin} a {checkout}.",
         "whatsapp_generic_guests": "Olá! Procuro alojamento no Porto para {guests} {guest_label}.",
         "whatsapp_generic_dates_guests": "Olá! Procuro alojamento no Porto de {checkin} a {checkout} para {guests} {guest_label}.",
+        "currency": "Moeda",
+        "currency_eur": "Euro",
+        "currency_gbp": "Libra esterlina",
+        "currency_usd": "Dólar americano",
         "total": "Total",
         "night": "noite",
         "nights": "noites",
@@ -540,6 +660,10 @@ TRANSLATIONS = {
         "whatsapp_generic_dates": "Hi! I'm looking for a place to stay in Porto from {checkin} to {checkout}.",
         "whatsapp_generic_guests": "Hi! I'm looking for a place to stay in Porto for {guests} {guest_label}.",
         "whatsapp_generic_dates_guests": "Hi! I'm looking for a place to stay in Porto from {checkin} to {checkout} for {guests} {guest_label}.",
+        "currency": "Currency",
+        "currency_eur": "Euro",
+        "currency_gbp": "Pound sterling",
+        "currency_usd": "US dollar",
         "total": "Total",
         "night": "night",
         "nights": "nights",
@@ -737,6 +861,10 @@ TRANSLATIONS = {
         "whatsapp_generic_dates": "¡Hola! Busco alojamiento en Oporto del {checkin} al {checkout}.",
         "whatsapp_generic_guests": "¡Hola! Busco alojamiento en Oporto para {guests} {guest_label}.",
         "whatsapp_generic_dates_guests": "¡Hola! Busco alojamiento en Oporto del {checkin} al {checkout} para {guests} {guest_label}.",
+        "currency": "Moneda",
+        "currency_eur": "Euro",
+        "currency_gbp": "Libra esterlina",
+        "currency_usd": "Dólar estadounidense",
         "total": "Total",
         "night": "noche",
         "nights": "noches",
@@ -934,6 +1062,10 @@ TRANSLATIONS = {
         "whatsapp_generic_dates": "Bonjour ! Je cherche un hébergement à Porto du {checkin} au {checkout}.",
         "whatsapp_generic_guests": "Bonjour ! Je cherche un hébergement à Porto pour {guests} {guest_label}.",
         "whatsapp_generic_dates_guests": "Bonjour ! Je cherche un hébergement à Porto du {checkin} au {checkout} pour {guests} {guest_label}.",
+        "currency": "Devise",
+        "currency_eur": "Euro",
+        "currency_gbp": "Livre sterling",
+        "currency_usd": "Dollar américain",
         "total": "Total",
         "night": "nuit",
         "nights": "nuits",
@@ -1245,6 +1377,7 @@ def cookie_preferences():
 def _render_booking_template(template, lang, **context):
     seo = build_booking_seo(lang, context)
     translations = _t(lang)
+    currency = _currency_context()
     legal_content = get_legal_content(lang)
     company = get_legal_company(current_app.config)
     return_to = _safe_portal_next(request.args.get("return_to") or "")
@@ -1294,8 +1427,20 @@ def _render_booking_template(template, lang, **context):
         cookie_consent=read_cookie_consent(),
         cookie_preferences_url=url_for("booking_portal.cookie_preferences", lang=lang),
         cookie_policy_url=url_for("booking_portal.cookies", lang=lang),
-        booking_analytics=analytics_browser_config(lang),
+        booking_analytics=analytics_browser_config(lang, currency["code"]),
         booking_whatsapp=whatsapp,
+        booking_currency=currency,
+        booking_currency_options=[
+            {
+                "code": code,
+                "symbol": details["symbol"],
+                "name": translations.get(f"currency_{code.lower()}", details["name"]),
+                "active": code == currency["code"],
+            }
+            for code, details in SUPPORTED_CURRENCIES.items()
+        ],
+        booking_currency_action=url_for("booking_portal.set_currency"),
+        booking_currency_return=request.full_path.rstrip("?"),
         **context,
     ))
     # Never share cached consent or account state between visitors.
@@ -1303,6 +1448,20 @@ def _render_booking_template(template, lang, **context):
     response.headers["X-Robots-Tag"] = seo["robots"]
     response.vary.add("Cookie")
     return _with_lang_cookie(response, lang)
+
+
+@bp.post("/reservas/moeda")
+def set_currency():
+    code = normalize_currency(request.form.get("currency"), default="")
+    if not code:
+        abort(400)
+    snapshot = load_currency_snapshot(code)
+    if snapshot["code"] != code:
+        abort(503)
+    session[PORTAL_CURRENCY_SESSION_KEY] = snapshot
+    session.modified = True
+    target = _safe_portal_next(request.form.get("return_to") or request.referrer or "")
+    return redirect(target or url_for("booking_portal.index", lang=_resolve_lang()))
 
 
 def _parse_date_arg(name: str):
@@ -1624,7 +1783,7 @@ def _confirmed_booking_summary(booking_id: str, *, payment_id: str | None = None
                 B.CHECKIN, B.CHECKOUT, B.NOITES, B.ADULTOS, B.CRIANCAS, B.BEBES,
                 B.CLIENTE_NOME, B.CLIENTE_EMAIL, B.CLIENTE_TELEFONE, B.CLIENTE_MORADA,
                 B.CLIENTE_PAIS, B.CLIENTE_NIF, B.PRECO_ESTIMADO, B.PRECO_LABEL,
-                R.RESERVA, P.PBPAYSTAMP
+                R.RESERVA, P.PBPAYSTAMP, P.MOEDA, P.VALOR
             FROM dbo.PB_BOOKING_REQUESTS AS B{lock_hint}
             INNER JOIN dbo.PB_STRIPE_TEST_PAYMENTS AS P ON P.PBBKSTAMP = B.PBBKSTAMP
             INNER JOIN dbo.RS AS R ON R.RSSTAMP = P.RSSTAMP
@@ -1646,7 +1805,12 @@ def _confirmed_booking_summary(booking_id: str, *, payment_id: str | None = None
     result["localizacao"] = alojamento.get("localizacao") or ""
     result["guest_summary"] = _guest_summary_from_booking(result, _t(lang))
     result["dates"] = f"{result.get('CHECKIN') or ''} - {result.get('CHECKOUT') or ''}".strip(" -")
-    total = str(result.get("PRECO_LABEL") or "").strip()
+    total = (
+        format_money(result.get("VALOR"), result.get("MOEDA") or "EUR")
+        if result.get("VALOR") is not None else ""
+    )
+    if not total:
+        total = str(result.get("PRECO_LABEL") or "").strip()
     if not total and result.get("PRECO_ESTIMADO") is not None:
         total = f"{result['PRECO_ESTIMADO']:.2f} EUR"
     result["total"] = total
@@ -2518,6 +2682,7 @@ def cancellation_policy():
 @bp.route("/reservas")
 def index():
     lang = _resolve_lang()
+    currency = _currency_context()
     params = _search_params(lang)
     page = _parse_page_arg()
     query_allowed = not params["errors"]
@@ -2533,7 +2698,7 @@ def index():
         per_page=BOOKING_PAGE_SIZE,
         lang=lang,
     )
-    alojamentos = pagination["items"]
+    alojamentos = [_present_alojamento(item, currency) for item in pagination["items"]]
     for alojamento in alojamentos:
         alojamento["detail_url"] = _detail_url(alojamento["id"], params)
 
@@ -2592,6 +2757,7 @@ def map_quote(al_id):
     params = _search_params(lang)
     t = _t(lang)
     copy = get_map_copy(lang)
+    currency = _currency_context()
     try:
         alojamento = get_alojamento(al_id, lang=lang)
         if not alojamento:
@@ -2604,9 +2770,9 @@ def map_quote(al_id):
         if has_dates and not errors:
             available = alojamento_disponivel(al_id, params["checkin"], params["checkout"])
             if available:
-                calculated = _translate_price(calcular_preco(
+                calculated = _present_price(calcular_preco(
                     al_id, params["checkin"], params["checkout"], params["hospedes"],
-                ), t)
+                ), t, currency)
                 if calculated and calculated.get("valor"):
                     price = {
                         "label": calculated["label"],
@@ -2634,6 +2800,7 @@ def map_quote(al_id):
         current_app.logger.exception("Não foi possível simular um alojamento no mapa PortoBreak")
         return _map_json({"error": copy["quote_error"]}, 503)
 
+    alojamento = _present_alojamento(alojamento, currency)
     detail_url = _detail_url(al_id, params)
     # The policy's return link goes back to the map with the same search.
     return_to = url_for("booking_portal.index", view="map", **_map_query_args(params, lang))
@@ -2667,6 +2834,7 @@ def map_quote(al_id):
 @bp.route("/reservas/<al_id>")
 def detail(al_id):
     lang = _resolve_lang()
+    currency = _currency_context()
     params = _search_params(lang)
     t = _t(lang)
     alojamento = get_alojamento(al_id, lang=lang)
@@ -2678,9 +2846,9 @@ def detail(al_id):
     disponibilidade = None
     blocking_errors = guest_constraints["errors"] + date_policy_errors
     if blocking_errors:
-        preco = _translate_price(calcular_preco(al_id, None, None, None), t)
+        preco = _present_price(calcular_preco(al_id, None, None, None), t, currency)
     else:
-        preco = _translate_price(calcular_preco(al_id, params["checkin"], params["checkout"], params["hospedes"]), t)
+        preco = _present_price(calcular_preco(al_id, params["checkin"], params["checkout"], params["hospedes"]), t, currency)
     if params["checkin"] and params["checkout"] and not params["errors"] and not blocking_errors:
         disponibilidade = alojamento_disponivel(al_id, params["checkin"], params["checkout"])
     if preco.get("valor"):
@@ -2701,6 +2869,7 @@ def detail(al_id):
         and not blocking_errors
     )
 
+    alojamento = _present_alojamento(alojamento, currency)
     return _render_booking_template(
         "booking_portal/detail.html",
         lang,
@@ -2727,6 +2896,7 @@ def detail(al_id):
 @bp.route("/reservas/<al_id>/reservar", methods=["GET", "POST"])
 def reserve(al_id):
     lang = _resolve_lang()
+    currency = _currency_context()
     t = _t(lang)
     params = _search_params(lang)
     portal_user = _portal_current_user()
@@ -2744,9 +2914,9 @@ def reserve(al_id):
             booking_errors.append(t["unavailable_selected"])
 
     if booking_errors:
-        preco = _translate_price(calcular_preco(al_id, None, None, None), t)
+        preco = _present_price(calcular_preco(al_id, None, None, None), t, currency)
     else:
-        preco = _translate_price(calcular_preco(al_id, params["checkin"], params["checkout"], params["hospedes"]), t)
+        preco = _present_price(calcular_preco(al_id, params["checkin"], params["checkout"], params["hospedes"]), t, currency)
     if preco.get("valor"):
         preco["airbnb_url"] = build_airbnb_search_url(
             alojamento.get("airbnb_room_id"),
@@ -2794,6 +2964,7 @@ def reserve(al_id):
                     authenticated_user_id=portal_user.get("id") if portal_user else None,
                     ip=request.headers.get("CF-Connecting-IP") or request.remote_addr or "",
                     user_agent=request.headers.get("User-Agent", ""),
+                    currency_snapshot=currency,
                 )
                 verification = success.pop("email_verification", None)
                 if verification:
@@ -2817,6 +2988,7 @@ def reserve(al_id):
                 current_app.logger.exception("Erro ao criar pedido de reserva publico para AL %s", al_id)
                 form_errors.append(t["booking_unavailable"])
 
+    alojamento = _present_alojamento(alojamento, currency)
     return _render_booking_template(
         "booking_portal/reserve.html",
         lang,
