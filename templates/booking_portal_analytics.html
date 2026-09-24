@@ -3,7 +3,7 @@
 
 {% block extra_head %}
   {{ super() }}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/booking_portal_analytics_dashboard.css') }}?v=analytics-v2">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/booking_portal_analytics_dashboard.css') }}?v=analytics-v3">
 {% endblock %}
 
 {% block content %}
@@ -100,6 +100,18 @@
         <div class="pb-consent-metric"><span>Requests técnicos</span><strong data-kpi="requests">—</strong><small>não atribuíveis a pessoas</small></div>
       </section>
 
+      <section class="sz_panel pb-dashboard-card pb-activity-card">
+        <header class="pb-card-header">
+          <div><span class="pb-eyebrow">Evolução diária</span><h2>Atividade registada</h2></div>
+          <div class="pb-chart-legend" aria-label="Legenda do gráfico">
+            <span class="is-visitors">Visitantes confirmados</span>
+            <span class="is-requests">Requests técnicos</span>
+          </div>
+        </header>
+        <div class="pb-chart-wrap" id="pbActivityChart" role="img" aria-label="Gráfico diário de visitantes confirmados e requests técnicos"></div>
+        <p class="pb-card-footnote">O histórico anterior ao Analytics v2 aparece como requests técnicos: é preservado, mas não é reinterpretado como pessoas.</p>
+      </section>
+
       <section class="pb-dashboard-grid pb-dashboard-grid-main">
         <article class="sz_panel pb-dashboard-card pb-timeline-card">
           <header class="pb-card-header">
@@ -117,9 +129,11 @@
 
       <section class="pb-dashboard-grid pb-dashboard-grid-thirds">
         <article class="sz_panel pb-dashboard-card">
-          <header class="pb-card-header"><div><span class="pb-eyebrow">Geografia</span><h2>Visitantes por país</h2></div></header>
+          <header class="pb-card-header"><div><span class="pb-eyebrow">Geografia</span><h2>Visitantes confirmados por país</h2></div></header>
           <div class="pb-ranked-list" id="pbCountryList"></div>
           <p class="pb-card-footnote">Apenas visitantes consentidos no filtro atual. Localização aproximada; não indica nacionalidade.</p>
+          <h3 class="pb-subheading">Requests técnicos por país</h3>
+          <div class="pb-ranked-list is-compact" id="pbRequestCountryList"></div>
         </article>
         <article class="sz_panel pb-dashboard-card">
           <header class="pb-card-header"><div><span class="pb-eyebrow">Tecnologia</span><h2>Dispositivos</h2></div></header>
@@ -145,8 +159,10 @@
           <p class="pb-card-footnote" id="pbTrafficQuality">—</p>
         </article>
         <article class="sz_panel pb-dashboard-card">
-          <header class="pb-card-header"><div><span class="pb-eyebrow">Conteúdo</span><h2>Pageviews por página</h2></div></header>
+          <header class="pb-card-header"><div><span class="pb-eyebrow">Conteúdo</span><h2>Pageviews confirmados por página</h2></div></header>
           <div class="pb-ranked-list" id="pbPageList"></div>
+          <h3 class="pb-subheading">Requests técnicos por página</h3>
+          <div class="pb-ranked-list is-compact" id="pbRequestPageList"></div>
         </article>
       </section>
 
@@ -204,5 +220,5 @@
   </div>
 </div>
 
-<script src="{{ url_for('static', filename='js/booking_portal_analytics_dashboard.js') }}?v=analytics-v2"></script>
+<script src="{{ url_for('static', filename='js/booking_portal_analytics_dashboard.js') }}?v=analytics-v3"></script>
 {% endblock %}

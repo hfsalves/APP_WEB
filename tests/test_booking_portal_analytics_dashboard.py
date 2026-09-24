@@ -114,6 +114,8 @@ def test_dashboard_excludes_bots_and_validation_by_default(analytics_engine):
     assert data["searches"]["average_nights"] == 3.0
     assert data["searches"]["average_guests"] == 2.0
     assert data["recent_sessions"][0]["source"] == "google"
+    assert data["request_countries"] == [{"key": "PT", "label": "PT", "value": 15, "share": 100.0}]
+    assert data["request_pages"] == [{"key": "catalog", "label": "Catálogo", "value": 15, "share": 100.0}]
 
 
 def test_dashboard_can_show_technical_traffic_explicitly(analytics_engine):
@@ -160,6 +162,8 @@ def test_dashboard_mobile_layout_is_compact_and_uses_card_tables():
     assert "grid-template-areas: \"breadcrumbs\" \"title\" \"subtitle\"" in stylesheet
     assert template.count("pb-mobile-card-table") == 2
     assert "cell.dataset.label = label" in javascript
+    assert "pbActivityChart" in template
+    assert "function activityChart" in javascript
 
 
 def test_dashboard_page_requires_an_admin_login():

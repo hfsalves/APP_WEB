@@ -215,6 +215,14 @@ def build_dashboard(engine, period, *, traffic="commercial", include_bots=False,
     countries = defaultdict(set)
     for row in session_rows: countries[str(row.get("country") or "ZZ")].add(row["visitor_id"])
     country_counts = Counter({key: len(value) for key, value in countries.items()})
+    # Aggregate rows are useful historic technical evidence, but are never
+    # presented as visitors. Keep them separately so v1 data stays visible.
+    request_countries = Counter()
+    request_pages = Counter()
+    for row in total_rows:
+        count = int(row.get("requests") or 0)
+        request_countries[str(row.get("country") or "ZZ")] += count
+        request_pages[str(row.get("page_kind") or "unknown")] += count
     page_counts, page_active = Counter(), Counter()
     for row in page_rows: page_counts[str(row.get("page_kind") or "unknown")] += 1; page_active[str(row.get("page_kind") or "unknown")] += _seconds(row.get("active_seconds"))
     pages = _rank(page_counts, labels=PAGE_LABELS)
@@ -245,7 +253,7 @@ def build_dashboard(engine, period, *, traffic="commercial", include_bots=False,
         if count: guests += count; guest_count += 1
     return {"generated_at": _iso(datetime.now(timezone.utc)), "period": {"start": period["start"].isoformat(), "end": period["end"].isoformat(), "days": period["days"]}, "filters": {"traffic": traffic, "include_validation": bool(include_validation)},
             "kpis": {"visitors": visitors, "sessions": sessions_count, "pageviews": pageview_count, "searches": len(searched), "checkouts": len(checkouts), "payments": len(payments), "bookings": len(successful_ids), "requests": total_requests, "average_active_seconds": round(active / sessions_count) if sessions_count else None, "pageviews_per_session": round(pageview_count / sessions_count, 1) if sessions_count else None, "accesses": total_requests - request_counts["BOT"], "bot_accesses": request_counts["BOT"], "visits": None, "paid_bookings": len(successful_ids)},
-            "timeline": timeline_rows, "sources": _rank(sources), "countries": _rank(country_counts), "devices": _rank(Counter(str(x.get("device") or "unknown") for x in session_rows)), "browsers": _rank(Counter(str(x.get("browser") or "unknown") for x in session_rows)), "operating_systems": _rank(Counter(str(x.get("os") or "unknown") for x in session_rows)), "languages": _rank(Counter(str(x.get("language") or "unknown") for x in session_rows)), "pages": pages, "properties": properties, "recent_sessions": recent,
+            "timeline": timeline_rows, "sources": _rank(sources), "countries": _rank(country_counts), "request_countries": _rank(request_countries), "devices": _rank(Counter(str(x.get("device") or "unknown") for x in session_rows)), "browsers": _rank(Counter(str(x.get("browser") or "unknown") for x in session_rows)), "operating_systems": _rank(Counter(str(x.get("os") or "unknown") for x in session_rows)), "languages": _rank(Counter(str(x.get("language") or "unknown") for x in session_rows)), "pages": pages, "request_pages": _rank(request_pages, labels=PAGE_LABELS), "properties": properties, "recent_sessions": recent,
             "searches": {"average_nights": round(nights / night_count, 1) if night_count else None, "average_guests": round(guests / guest_count, 1) if guest_count else None, "pageviews_with_dates": night_count},
             "searches_detail": {"sessions_with_dates": len({x["session_id"] for x in page_rows if _search(x).get("checkin") and _search(x).get("checkout")})},
             "funnel": [{"key": key, "label": label, "value": value, "rate": _pct(value, previous) if previous is not None else None} for key, label, value, previous in (("visitors", "Visitantes", visitors, None), ("search", "Pesquisa", len(searched), visitors), ("results", "Resultados", len(results), len(searched)), ("property", "Alojamento", len(property_sessions), len(results)), ("checkout", "Checkout", len(checkouts), len(property_sessions)), ("payment", "Pagamento iniciado", len(payments), len(checkouts)), ("booking", "Reserva concluída", len(booked_sessions), len(payments)))],
