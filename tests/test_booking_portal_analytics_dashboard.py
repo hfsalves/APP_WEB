@@ -94,6 +94,7 @@ def test_dashboard_excludes_bots_and_validation_by_default(analytics_engine):
 
     assert data["kpis"] == {
         "visitors": 1,
+        "confirmed_visitors": 1,
         "sessions": 1,
         "pageviews": 2,
         "searches": 1,
@@ -105,7 +106,7 @@ def test_dashboard_excludes_bots_and_validation_by_default(analytics_engine):
         "pageviews_per_session": 2.0,
         "accesses": 10,
         "bot_accesses": 5,
-        "visits": None,
+        "visits": 1,
         "paid_bookings": 1,
     }
     assert data["data_quality"]["validation_sessions_excluded"] == 1
@@ -116,6 +117,8 @@ def test_dashboard_excludes_bots_and_validation_by_default(analytics_engine):
     assert data["recent_sessions"][0]["source"] == "google"
     assert data["request_countries"] == [{"key": "PT", "label": "PT", "value": 15, "share": 100.0}]
     assert data["request_pages"] == [{"key": "catalog", "label": "Catálogo", "value": 15, "share": 100.0}]
+    assert data["estimated_countries"] == [{"key": "PT", "label": "PT", "value": 1, "share": 100.0}]
+    assert data["timeline"][0]["estimated_visitors"] == 1
 
 
 def test_dashboard_can_show_technical_traffic_explicitly(analytics_engine):

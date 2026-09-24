@@ -122,6 +122,22 @@ def _search(row):
     except (TypeError, ValueError): return {}
 
 
+def _estimated_entry_key(row):
+    """Conservative anonymous-entry estimate, with no persistent identity.
+
+    The aggregate table deliberately contains no IP, cookie or browser
+    fingerprint.  One entry is therefore counted per matching hour/context,
+    after removing known and suspected automation.  It is a useful commercial
+    estimate, not a claim of perfectly deduplicated people.
+    """
+    return (
+        row.get("hour"), str(row.get("country") or "ZZ"),
+        str(row.get("device") or "unknown"), str(row.get("source") or "unknown"),
+        str(row.get("referrer_host") or ""), str(row.get("currency") or "EUR"),
+        bool(row.get("has_search")),
+    )
+
+
 def _names(conn, ids, tables):
     ids = sorted({str(value).strip() for value in ids if value})
     if not ids or "AL" not in tables: return {}
@@ -192,16 +208,23 @@ def build_dashboard(engine, period, *, traffic="commercial", include_bots=False,
     for row in total_rows:
         n = int(row.get("requests") or 0); request_counts[_class(row)] += n; reason_counts[_request_reason(row)] += n
     total_requests = sum(request_counts.values())
-    visitors = len({x["visitor_id"] for x in session_rows})
+    confirmed_visitors = len({x["visitor_id"] for x in session_rows})
+    estimated_entries = {
+        _estimated_entry_key(row) for row in total_rows
+        if _class(row) not in {"BOT", "SUSPECTED_BOT"}
+    }
+    estimated_visitors = len(estimated_entries)
     sessions_count, pageview_count = len(session_rows), len(page_rows)
 
     days, cursor = [], period["start"]
     while cursor <= period["end"]: days.append(cursor); cursor += timedelta(days=1)
-    timeline = {day: {"date": day.isoformat(), "requests": 0, "visitors": set(), "sessions": 0, "pageviews": 0, "searches": 0, "checkouts": 0, "payments": 0, "bookings": 0} for day in days}
+    timeline = {day: {"date": day.isoformat(), "requests": 0, "estimated_visitors": 0, "visitors": set(), "sessions": 0, "pageviews": 0, "searches": 0, "checkouts": 0, "payments": 0, "bookings": 0} for day in days}
     for row in total_rows:
         if (day := _local_day(row.get("hour"))) in timeline: timeline[day]["requests"] += int(row.get("requests") or 0)
     for row in session_rows:
         if (day := _local_day(row.get("started_at"))) in timeline: timeline[day]["sessions"] += 1; timeline[day]["visitors"].add(row["visitor_id"])
+    for entry in estimated_entries:
+        if (day := _local_day(entry[0])) in timeline: timeline[day]["estimated_visitors"] += 1
     for row in page_rows:
         if (day := _local_day(row.get("created_at"))) in timeline: timeline[day]["pageviews"] += 1
     for values, name in ((searched, "searches"), (checkouts, "checkouts"), (payments, "payments"), (booked_sessions, "bookings")):
@@ -223,6 +246,7 @@ def build_dashboard(engine, period, *, traffic="commercial", include_bots=False,
         count = int(row.get("requests") or 0)
         request_countries[str(row.get("country") or "ZZ")] += count
         request_pages[str(row.get("page_kind") or "unknown")] += count
+    estimated_countries = Counter(entry[1] for entry in estimated_entries)
     page_counts, page_active = Counter(), Counter()
     for row in page_rows: page_counts[str(row.get("page_kind") or "unknown")] += 1; page_active[str(row.get("page_kind") or "unknown")] += _seconds(row.get("active_seconds"))
     pages = _rank(page_counts, labels=PAGE_LABELS)
@@ -238,8 +262,9 @@ def build_dashboard(engine, period, *, traffic="commercial", include_bots=False,
         sid = row["session_id"]
         recent.append({"started_at": _iso(row.get("started_at")), "country": str(row.get("country") or "ZZ"), "country_source": str(row.get("country_source") or "unknown"), "device": str(row.get("device") or "unknown"), "browser": str(row.get("browser") or "unknown"), "os": str(row.get("os") or "unknown"), "language": str(row.get("language") or ""), "source": str(row.get("source") or "unknown"), "page_views": int(row.get("page_views") or 0), "active_seconds": _seconds(row.get("active_seconds")), "traffic_class": _class(row), "bot_score": int(row.get("bot_score") or 0), "human_score": int(row.get("human_score") or 0), "classification_reason": str(row.get("classification_reason") or ""), "events": sorted(event_names[sid]), "checkout": sid in checkouts, "payment": sid in payments, "booked": sid in booked_sessions})
 
-    diagnostics = [{"kind": "request", "traffic_class": _class(x), "bot_score": _request_score(x), "reason": _request_reason(x), "country": str(x.get("country") or "ZZ"), "client": str(x.get("device") or "unknown"), "pages": PAGE_LABELS.get(str(x.get("page_kind") or ""), str(x.get("page_kind") or "")), "requests": int(x.get("requests") or 0), "active_seconds": None, "events": []} for x in sorted(total_rows, key=lambda x: int(x.get("requests") or 0), reverse=True) if _class(x) in {"SUSPECTED_BOT", "BOT", "UNKNOWN", "LEGACY"}]
-    diagnostics += [{"kind": "session", "traffic_class": x["traffic_class"], "bot_score": x["bot_score"], "reason": x["classification_reason"], "country": x["country"], "client": f"{x['browser']} · {x['os']}", "pages": str(x["page_views"]), "requests": None, "active_seconds": x["active_seconds"], "events": x["events"]} for x in recent if x["traffic_class"] in {"SUSPECTED_BOT", "BOT"}]
+    diagnostic_classes = {"SUSPECTED_BOT", "BOT"} if traffic in {"suspected", "bots", "all"} else set()
+    diagnostics = [{"kind": "request", "traffic_class": _class(x), "bot_score": _request_score(x), "reason": _request_reason(x), "country": str(x.get("country") or "ZZ"), "client": str(x.get("device") or "unknown"), "pages": PAGE_LABELS.get(str(x.get("page_kind") or ""), str(x.get("page_kind") or "")), "requests": int(x.get("requests") or 0), "active_seconds": None, "events": []} for x in sorted(total_rows, key=lambda x: int(x.get("requests") or 0), reverse=True) if _class(x) in diagnostic_classes]
+    diagnostics += [{"kind": "session", "traffic_class": x["traffic_class"], "bot_score": x["bot_score"], "reason": x["classification_reason"], "country": x["country"], "client": f"{x['browser']} · {x['os']}", "pages": str(x["page_views"]), "requests": None, "active_seconds": x["active_seconds"], "events": x["events"]} for x in recent if x["traffic_class"] in diagnostic_classes]
     active = sum(_seconds(x.get("active_seconds")) for x in session_rows)
     search_contexts = [_search(x) for x in page_rows]
     nights, night_count, guests, guest_count = 0, 0, 0, 0
@@ -252,11 +277,11 @@ def build_dashboard(engine, period, *, traffic="commercial", include_bots=False,
         count = sum(int(item.get(key) or 0) for key in ("adultos", "criancas", "bebes"))
         if count: guests += count; guest_count += 1
     return {"generated_at": _iso(datetime.now(timezone.utc)), "period": {"start": period["start"].isoformat(), "end": period["end"].isoformat(), "days": period["days"]}, "filters": {"traffic": traffic, "include_validation": bool(include_validation)},
-            "kpis": {"visitors": visitors, "sessions": sessions_count, "pageviews": pageview_count, "searches": len(searched), "checkouts": len(checkouts), "payments": len(payments), "bookings": len(successful_ids), "requests": total_requests, "average_active_seconds": round(active / sessions_count) if sessions_count else None, "pageviews_per_session": round(pageview_count / sessions_count, 1) if sessions_count else None, "accesses": total_requests - request_counts["BOT"], "bot_accesses": request_counts["BOT"], "visits": None, "paid_bookings": len(successful_ids)},
-            "timeline": timeline_rows, "sources": _rank(sources), "countries": _rank(country_counts), "request_countries": _rank(request_countries), "devices": _rank(Counter(str(x.get("device") or "unknown") for x in session_rows)), "browsers": _rank(Counter(str(x.get("browser") or "unknown") for x in session_rows)), "operating_systems": _rank(Counter(str(x.get("os") or "unknown") for x in session_rows)), "languages": _rank(Counter(str(x.get("language") or "unknown") for x in session_rows)), "pages": pages, "request_pages": _rank(request_pages, labels=PAGE_LABELS), "properties": properties, "recent_sessions": recent,
+            "kpis": {"visitors": estimated_visitors, "confirmed_visitors": confirmed_visitors, "sessions": sessions_count, "pageviews": pageview_count, "searches": len(searched), "checkouts": len(checkouts), "payments": len(payments), "bookings": len(successful_ids), "requests": total_requests, "average_active_seconds": round(active / sessions_count) if sessions_count else None, "pageviews_per_session": round(pageview_count / sessions_count, 1) if sessions_count else None, "accesses": total_requests - request_counts["BOT"], "bot_accesses": request_counts["BOT"], "visits": estimated_visitors, "paid_bookings": len(successful_ids)},
+            "timeline": timeline_rows, "sources": _rank(sources), "countries": _rank(country_counts), "estimated_countries": _rank(estimated_countries), "request_countries": _rank(request_countries), "devices": _rank(Counter(str(x.get("device") or "unknown") for x in session_rows)), "browsers": _rank(Counter(str(x.get("browser") or "unknown") for x in session_rows)), "operating_systems": _rank(Counter(str(x.get("os") or "unknown") for x in session_rows)), "languages": _rank(Counter(str(x.get("language") or "unknown") for x in session_rows)), "pages": pages, "request_pages": _rank(request_pages, labels=PAGE_LABELS), "properties": properties, "recent_sessions": recent,
             "searches": {"average_nights": round(nights / night_count, 1) if night_count else None, "average_guests": round(guests / guest_count, 1) if guest_count else None, "pageviews_with_dates": night_count},
             "searches_detail": {"sessions_with_dates": len({x["session_id"] for x in page_rows if _search(x).get("checkin") and _search(x).get("checkout")})},
-            "funnel": [{"key": key, "label": label, "value": value, "rate": _pct(value, previous) if previous is not None else None} for key, label, value, previous in (("visitors", "Visitantes", visitors, None), ("search", "Pesquisa", len(searched), visitors), ("results", "Resultados", len(results), len(searched)), ("property", "Alojamento", len(property_sessions), len(results)), ("checkout", "Checkout", len(checkouts), len(property_sessions)), ("payment", "Pagamento iniciado", len(payments), len(checkouts)), ("booking", "Reserva concluída", len(booked_sessions), len(payments)))],
+            "funnel": [{"key": key, "label": label, "value": value, "rate": _pct(value, previous) if previous is not None else None} for key, label, value, previous in (("visitors", "Visitantes confirmados", confirmed_visitors, None), ("search", "Pesquisa", len(searched), confirmed_visitors), ("results", "Resultados", len(results), len(searched)), ("property", "Alojamento", len(property_sessions), len(results)), ("checkout", "Checkout", len(checkouts), len(property_sessions)), ("payment", "Pagamento iniciado", len(payments), len(checkouts)), ("booking", "Reserva concluída", len(booked_sessions), len(payments)))],
             "traffic_quality": {"request_classes": _rank(request_counts, labels=CLASS_LABELS), "session_classes": _rank(Counter(_class(x) for x in all_sessions), labels=CLASS_LABELS), "request_reasons": _rank(reason_counts), "diagnostics": diagnostics[:60]},
             "data_quality": {"unattributable_requests": total_requests, "unknown_country_sessions": sum(1 for x in session_rows if str(x.get("country") or "ZZ") == "ZZ"), "validation_sessions_excluded": len(validation_ids) if not include_validation else 0, "validation_requests_excluded": validation_requests if not include_validation else 0, "granular_retention_days": 90, "aggregate_retention_days": 180},
-            "definitions": {"request": "Pedido HTTP de uma página pública; não é uma pessoa nem uma visita.", "pageview": "Página confirmada pelo JavaScript após consentimento analítico.", "visitor": "Navegador lógico com consentimento; não é uma pessoa garantidamente distinta.", "session": "Interações do mesmo visitante com até 30 minutos de inatividade.", "active_time": "Tempo ativo estimado apenas para sessões consentidas; ausência de medição não é zero.", "country": "País aproximado da ligação, não nacionalidade."}}
+            "definitions": {"request": "Pedido HTTP de uma página pública; não é uma pessoa nem uma visita.", "visitor_estimate": "Estimativa de entradas não-bot por contexto/hora, sem identificador persistente; não equivale a pessoas únicas exatas.", "pageview": "Página confirmada pelo JavaScript após consentimento analítico.", "visitor": "Navegador lógico com consentimento; não é uma pessoa garantidamente distinta.", "session": "Interações do mesmo visitante com até 30 minutos de inatividade.", "active_time": "Tempo ativo estimado apenas para sessões consentidas; ausência de medição não é zero.", "country": "País aproximado da ligação, não nacionalidade."}}

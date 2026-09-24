@@ -3,7 +3,7 @@
 
 {% block extra_head %}
   {{ super() }}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/booking_portal_analytics_dashboard.css') }}?v=analytics-v3">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/booking_portal_analytics_dashboard.css') }}?v=analytics-v5">
 {% endblock %}
 
 {% block content %}
@@ -53,7 +53,7 @@
       <section class="pb-kpi-grid" aria-label="Indicadores principais">
         <article class="pb-kpi-card pb-kpi-primary">
           <span class="pb-kpi-icon"><i class="fa-solid fa-person-walking-arrow-right"></i></span>
-          <div><span class="pb-kpi-label">Visitantes</span><strong data-kpi="visitors">—</strong><small>consentidos e qualificados</small></div>
+          <div><span class="pb-kpi-label">Visitantes estimados</span><strong data-kpi="visitors">—</strong><small>tráfego não-bot</small></div>
         </article>
         <article class="pb-kpi-card">
           <span class="pb-kpi-icon"><i class="fa-solid fa-arrow-pointer"></i></span>
@@ -80,8 +80,8 @@
       <section class="pb-data-note" id="pbAnalyticsCoverage">
         <i class="fa-solid fa-circle-info"></i>
         <div>
-          <strong>Dois níveis de medição</strong>
-          <p>Requests são pedidos técnicos, não pessoas. Visitantes, sessões, pageviews, percurso e tempo só existem após consentimento analítico.</p>
+          <strong>Estimativa comercial e medição confirmada</strong>
+          <p>Visitantes estimados incluem entradas anónimas não-bot. Sessões, percurso e tempo são confirmados quando existe consentimento analítico.</p>
         </div>
         <div class="pb-advanced-filters" id="pbAnalyticsAdvanced">
           <label><input type="checkbox" id="pbIncludeValidation"> Incluir validações técnicas</label>
@@ -90,11 +90,11 @@
 
       <section class="pb-consent-summary" aria-label="Cobertura do consentimento analítico">
         <div class="pb-consent-intro">
-          <span class="pb-eyebrow">Consentimento</span>
-          <strong>Qualidade e consentimento</strong>
-          <p>Não se estimam pessoas a partir de requests anónimos.</p>
+          <span class="pb-eyebrow">Medição confirmada</span>
+          <strong>Detalhe comportamental</strong>
+          <p>Complementa a estimativa principal; não substitui o tráfego anónimo legítimo.</p>
         </div>
-        <div class="pb-consent-metric"><span>Visitantes consentidos</span><strong data-kpi="visitors">—</strong><small>navegadores distintos</small></div>
+        <div class="pb-consent-metric"><span>Visitantes confirmados</span><strong data-kpi="confirmed_visitors">—</strong><small>navegadores distintos</small></div>
         <div class="pb-consent-metric"><span>Sessões consentidas</span><strong data-kpi="sessions">—</strong><small>após aceitar analítica</small></div>
         <div class="pb-consent-metric"><span>Pageviews confirmados</span><strong data-kpi="pageviews">—</strong><small>JavaScript executado</small></div>
         <div class="pb-consent-metric"><span>Requests técnicos</span><strong data-kpi="requests">—</strong><small>não atribuíveis a pessoas</small></div>
@@ -104,12 +104,12 @@
         <header class="pb-card-header">
           <div><span class="pb-eyebrow">Evolução diária</span><h2>Atividade registada</h2></div>
           <div class="pb-chart-legend" aria-label="Legenda do gráfico">
-            <span class="is-visitors">Visitantes confirmados</span>
-            <span class="is-requests">Requests técnicos</span>
+            <span class="is-visitors">Visitantes estimados</span>
+            <span class="is-bookings">Reservas concluídas</span>
           </div>
         </header>
-        <div class="pb-chart-wrap" id="pbActivityChart" role="img" aria-label="Gráfico diário de visitantes confirmados e requests técnicos"></div>
-        <p class="pb-card-footnote">O histórico anterior ao Analytics v2 aparece como requests técnicos: é preservado, mas não é reinterpretado como pessoas.</p>
+        <div class="pb-chart-wrap" id="pbActivityChart" role="img" aria-label="Gráfico diário de visitantes estimados e reservas concluídas"></div>
+        <p class="pb-card-footnote">Estimativa sem cookies persistentes: exclui bots e tráfego suspeito, mas não afirma pessoas únicas exatas.</p>
       </section>
 
       <section class="pb-dashboard-grid pb-dashboard-grid-main">
@@ -129,11 +129,9 @@
 
       <section class="pb-dashboard-grid pb-dashboard-grid-thirds">
         <article class="sz_panel pb-dashboard-card">
-          <header class="pb-card-header"><div><span class="pb-eyebrow">Geografia</span><h2>Visitantes confirmados por país</h2></div></header>
-          <div class="pb-ranked-list" id="pbCountryList"></div>
-          <p class="pb-card-footnote">Apenas visitantes consentidos no filtro atual. Localização aproximada; não indica nacionalidade.</p>
-          <h3 class="pb-subheading">Requests técnicos por país</h3>
-          <div class="pb-ranked-list is-compact" id="pbRequestCountryList"></div>
+          <header class="pb-card-header"><div><span class="pb-eyebrow">Geografia</span><h2>Visitantes estimados por país</h2></div></header>
+          <div class="pb-ranked-list" id="pbEstimatedCountryList"></div>
+          <p class="pb-card-footnote">Estimativa de entradas não-bot; localização aproximada, não nacionalidade.</p>
         </article>
         <article class="sz_panel pb-dashboard-card">
           <header class="pb-card-header"><div><span class="pb-eyebrow">Tecnologia</span><h2>Dispositivos</h2></div></header>
@@ -161,8 +159,6 @@
         <article class="sz_panel pb-dashboard-card">
           <header class="pb-card-header"><div><span class="pb-eyebrow">Conteúdo</span><h2>Pageviews confirmados por página</h2></div></header>
           <div class="pb-ranked-list" id="pbPageList"></div>
-          <h3 class="pb-subheading">Requests técnicos por página</h3>
-          <div class="pb-ranked-list is-compact" id="pbRequestPageList"></div>
         </article>
       </section>
 
@@ -220,5 +216,5 @@
   </div>
 </div>
 
-<script src="{{ url_for('static', filename='js/booking_portal_analytics_dashboard.js') }}?v=analytics-v3"></script>
+<script src="{{ url_for('static', filename='js/booking_portal_analytics_dashboard.js') }}?v=analytics-v5"></script>
 {% endblock %}
