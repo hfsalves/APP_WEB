@@ -60,6 +60,7 @@ def dashboard_data():
         payload = build_dashboard(
             db.engine,
             period,
+            traffic=str(request.args.get("traffic") or "commercial"),
             include_bots=_flag("include_bots"),
             include_validation=_flag("include_validation"),
         )

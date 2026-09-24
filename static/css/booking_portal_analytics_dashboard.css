@@ -292,6 +292,10 @@
 .pb-analytics-table th { color: var(--sz-color-text-muted); font-size: .67rem; letter-spacing: .04em; text-transform: uppercase; }
 .pb-analytics-table td { color: var(--sz-color-text-secondary); font-size: .78rem; }
 .pb-analytics-table td:first-child { max-width: 20rem; overflow: hidden; color: var(--sz-color-text); font-weight: 700; text-overflow: ellipsis; }
+
+.pb-diagnostics-list { display: grid; gap: .45rem; }
+.pb-diagnostic-row { display: grid; grid-template-columns: minmax(8rem, .8fr) minmax(14rem, 1.5fr) minmax(10rem, 1fr); gap: .65rem; align-items: center; padding: .6rem .7rem; border: 1px solid var(--sz-color-border); border-radius: .55rem; color: var(--sz-color-text-secondary); font-size: .78rem; }
+.pb-diagnostic-row strong { color: var(--sz-color-text); }
 .pb-table-empty { text-align: center; color: var(--sz-color-text-muted) !important; font-weight: 500 !important; }
 .pb-status-chip { display: inline-flex; align-items: center; padding: .2rem .5rem; border-radius: 99px; color: var(--sz-color-text-muted); background: var(--sz-color-surface-alt); font-size: .68rem; font-weight: 700; }
 .pb-status-chip.is-paid { color: var(--pb-green); background: color-mix(in srgb, var(--pb-green) 12%, var(--sz-color-surface)); }
@@ -321,6 +325,7 @@
 
 @media (max-width: 720px) {
   .pb-analytics-page .sz_page_container { height: auto; min-height: max-content; padding: .45rem .45rem 0; row-gap: .55rem; }
+  .pb-diagnostic-row { grid-template-columns: 1fr; gap: .18rem; }
   .pb-analytics-page .sz_page_body { height: auto; min-height: auto; overflow: visible; }
   .pb-analytics-contextbar { gap: .7rem; margin: 0; padding: .7rem; }
   .pb-analytics-contextbar .sz_contextbar_left {

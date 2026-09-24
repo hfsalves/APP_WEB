@@ -3,7 +3,7 @@
 
 {% block extra_head %}
   {{ super() }}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/booking_portal_analytics_dashboard.css') }}?v={{ static_version }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/booking_portal_analytics_dashboard.css') }}?v=analytics-v2">
 {% endblock %}
 
 {% block content %}
@@ -30,6 +30,17 @@
           <span class="sz_label">Até</span>
           <input class="sz_input" type="date" id="pbAnalyticsEnd" name="end" value="{{ period_end }}">
         </label>
+        <label class="sz_field">
+          <span class="sz_label">Qualidade</span>
+          <select class="sz_input" id="pbTrafficFilter" name="traffic">
+            <option value="commercial">Humanos e prováveis</option>
+            <option value="human">Humanos</option>
+            <option value="likely_human">Provavelmente humanos</option>
+            <option value="suspected">Suspeitos</option>
+            <option value="bots">Bots</option>
+            <option value="all">Todos</option>
+          </select>
+        </label>
         <button class="sz_button sz_button_primary" type="submit">
           <i class="fa-solid fa-rotate"></i><span>Atualizar</span>
         </button>
@@ -42,27 +53,27 @@
       <section class="pb-kpi-grid" aria-label="Indicadores principais">
         <article class="pb-kpi-card pb-kpi-primary">
           <span class="pb-kpi-icon"><i class="fa-solid fa-person-walking-arrow-right"></i></span>
-          <div><span class="pb-kpi-label">Visitas totais</span><strong data-kpi="visits">—</strong><small>entradas estimadas, sem cookies</small></div>
+          <div><span class="pb-kpi-label">Visitantes</span><strong data-kpi="visitors">—</strong><small>consentidos e qualificados</small></div>
         </article>
         <article class="pb-kpi-card">
           <span class="pb-kpi-icon"><i class="fa-solid fa-arrow-pointer"></i></span>
-          <div><span class="pb-kpi-label">Acessos</span><strong data-kpi="accesses">—</strong><small>páginas públicas solicitadas</small></div>
+          <div><span class="pb-kpi-label">Sessões</span><strong data-kpi="sessions">—</strong><small>janela de 30 min de inatividade</small></div>
         </article>
         <article class="pb-kpi-card">
           <span class="pb-kpi-icon"><i class="fa-regular fa-file-lines"></i></span>
-          <div><span class="pb-kpi-label">Páginas consentidas</span><strong data-kpi="pageviews">—</strong><small data-kpi-note="pageviews_per_session">—</small></div>
+          <div><span class="pb-kpi-label">Pageviews</span><strong data-kpi="pageviews">—</strong><small data-kpi-note="pageviews_per_session">—</small></div>
         </article>
         <article class="pb-kpi-card">
           <span class="pb-kpi-icon"><i class="fa-regular fa-clock"></i></span>
-          <div><span class="pb-kpi-label">Tempo ativo médio</span><strong data-kpi="average_active_seconds">—</strong><small>por sessão consentida</small></div>
+          <div><span class="pb-kpi-label">Pesquisas</span><strong data-kpi="searches">—</strong><small>sessões com intenção de pesquisa</small></div>
         </article>
         <article class="pb-kpi-card">
           <span class="pb-kpi-icon"><i class="fa-solid fa-receipt"></i></span>
-          <div><span class="pb-kpi-label">Pedidos de reserva</span><strong data-kpi="bookings">—</strong><small data-kpi-note="session_conversion_rate">—</small></div>
+          <div><span class="pb-kpi-label">Checkouts</span><strong data-kpi="checkouts">—</strong><small>início confirmado no portal</small></div>
         </article>
         <article class="pb-kpi-card pb-kpi-success">
           <span class="pb-kpi-icon"><i class="fa-solid fa-circle-check"></i></span>
-          <div><span class="pb-kpi-label">Reservas pagas</span><strong data-kpi="paid_bookings">—</strong><small data-kpi-note="payment_rate">—</small></div>
+          <div><span class="pb-kpi-label">Reservas</span><strong data-kpi="bookings">—</strong><small>pagamento/reserva concluída</small></div>
         </article>
       </section>
 
@@ -70,11 +81,9 @@
         <i class="fa-solid fa-circle-info"></i>
         <div>
           <strong>Dois níveis de medição</strong>
-          <p>Visitas e acessos contam sem cookies. Navegadores distintos, duração e percurso detalhado só existem quando há consentimento analítico.</p>
+          <p>Requests são pedidos técnicos, não pessoas. Visitantes, sessões, pageviews, percurso e tempo só existem após consentimento analítico.</p>
         </div>
-        <button type="button" class="pb-filter-details-button" id="pbAnalyticsAdvancedToggle" aria-expanded="false">Opções</button>
-        <div class="pb-advanced-filters" id="pbAnalyticsAdvanced" hidden>
-          <label><input type="checkbox" id="pbIncludeBots"> Incluir bots</label>
+        <div class="pb-advanced-filters" id="pbAnalyticsAdvanced">
           <label><input type="checkbox" id="pbIncludeValidation"> Incluir validações técnicas</label>
         </div>
       </section>
@@ -82,22 +91,21 @@
       <section class="pb-consent-summary" aria-label="Cobertura do consentimento analítico">
         <div class="pb-consent-intro">
           <span class="pb-eyebrow">Consentimento</span>
-          <strong>Detalhe das visitas</strong>
-          <p>Uma visita não corresponde necessariamente a uma pessoa única.</p>
+          <strong>Qualidade e consentimento</strong>
+          <p>Não se estimam pessoas a partir de requests anónimos.</p>
         </div>
         <div class="pb-consent-metric"><span>Visitantes consentidos</span><strong data-kpi="visitors">—</strong><small>navegadores distintos</small></div>
         <div class="pb-consent-metric"><span>Sessões consentidas</span><strong data-kpi="sessions">—</strong><small>após aceitar analítica</small></div>
-        <div class="pb-consent-metric"><span>Visitas sem consentimento</span><strong data-kpi="unconsented_visits">—</strong><small>estimativa sem identificação</small></div>
-        <div class="pb-consent-metric"><span>Cobertura analítica</span><strong data-kpi-percent="consent_coverage_rate">—</strong><small>sessões consentidas ÷ visitas</small></div>
+        <div class="pb-consent-metric"><span>Pageviews confirmados</span><strong data-kpi="pageviews">—</strong><small>JavaScript executado</small></div>
+        <div class="pb-consent-metric"><span>Requests técnicos</span><strong data-kpi="requests">—</strong><small>não atribuíveis a pessoas</small></div>
       </section>
 
       <section class="pb-dashboard-grid pb-dashboard-grid-main">
         <article class="sz_panel pb-dashboard-card pb-timeline-card">
           <header class="pb-card-header">
-            <div><span class="pb-eyebrow">Evolução</span><h2>Atividade ao longo do tempo</h2></div>
-            <div class="pb-chart-legend"><span class="is-visits">Visitas</span><span class="is-sessions">Sessões consentidas</span><span class="is-paid">Pagas</span></div>
+            <div><span class="pb-eyebrow">Funil comercial</span><h2>Do visitante à reserva</h2></div>
           </header>
-          <div class="pb-chart-wrap"><canvas id="pbTimelineChart" aria-label="Evolução diária de visitas, sessões consentidas e reservas pagas"></canvas></div>
+          <div class="pb-ranked-list" id="pbFunnelList"></div>
         </article>
 
         <article class="sz_panel pb-dashboard-card">
@@ -109,9 +117,9 @@
 
       <section class="pb-dashboard-grid pb-dashboard-grid-thirds">
         <article class="sz_panel pb-dashboard-card">
-          <header class="pb-card-header"><div><span class="pb-eyebrow">Geografia</span><h2>País dos acessos</h2></div></header>
+          <header class="pb-card-header"><div><span class="pb-eyebrow">Geografia</span><h2>Visitantes por país</h2></div></header>
           <div class="pb-ranked-list" id="pbCountryList"></div>
-          <p class="pb-card-footnote">Localização aproximada da ligação; não indica nacionalidade.</p>
+          <p class="pb-card-footnote">Apenas visitantes consentidos no filtro atual. Localização aproximada; não indica nacionalidade.</p>
         </article>
         <article class="sz_panel pb-dashboard-card">
           <header class="pb-card-header"><div><span class="pb-eyebrow">Tecnologia</span><h2>Dispositivos</h2></div></header>
@@ -132,19 +140,12 @@
 
       <section class="pb-dashboard-grid pb-dashboard-grid-main">
         <article class="sz_panel pb-dashboard-card">
-          <header class="pb-card-header"><div><span class="pb-eyebrow">Intenção</span><h2>Como pesquisam</h2></div></header>
-          <div class="pb-search-metrics">
-            <div><span>Acessos com pesquisa</span><strong id="pbSearchAccesses">—</strong></div>
-            <div><span>Pesquisas com datas</span><strong id="pbSearchWithDates">—</strong></div>
-            <div><span>Noites por pesquisa</span><strong id="pbSearchNights">—</strong></div>
-            <div><span>Hóspedes por pesquisa</span><strong id="pbSearchGuests">—</strong></div>
-            <div><span>Pesquisa por texto</span><strong id="pbSearchText">—</strong></div>
-          </div>
-          <h3 class="pb-subheading">Meses de check-in pesquisados</h3>
-          <div class="pb-ranked-list" id="pbCheckinMonthList"></div>
+          <header class="pb-card-header"><div><span class="pb-eyebrow">Requests</span><h2>Tráfego não atribuível</h2></div></header>
+          <p class="pb-card-footnote" id="pbTechnicalRequests">—</p>
+          <p class="pb-card-footnote" id="pbTrafficQuality">—</p>
         </article>
         <article class="sz_panel pb-dashboard-card">
-          <header class="pb-card-header"><div><span class="pb-eyebrow">Conteúdo</span><h2>Páginas consultadas</h2></div></header>
+          <header class="pb-card-header"><div><span class="pb-eyebrow">Conteúdo</span><h2>Pageviews por página</h2></div></header>
           <div class="pb-ranked-list" id="pbPageList"></div>
         </article>
       </section>
@@ -152,12 +153,12 @@
       <section class="sz_panel pb-dashboard-card">
         <header class="pb-card-header">
           <div><span class="pb-eyebrow">Alojamentos</span><h2>Interesse e conversão</h2></div>
-          <small>Pedidos de reserva ÷ visualizações do alojamento</small>
+          <small>Somente pageviews de sessões no filtro atual.</small>
         </header>
         <div class="pb-table-wrap">
           <table class="sz_table pb-analytics-table pb-mobile-card-table">
-            <thead><tr><th>Alojamento</th><th>Visualizações</th><th>Tempo ativo</th><th>Pedidos</th><th>Pagas</th><th>Conversão</th></tr></thead>
-            <tbody id="pbPropertyRows"><tr><td colspan="6">A carregar…</td></tr></tbody>
+            <thead><tr><th>Alojamento</th><th>Pageviews</th><th>Tempo ativo</th><th>Reservas</th><th>Conversão</th></tr></thead>
+            <tbody id="pbPropertyRows"><tr><td colspan="5">A carregar…</td></tr></tbody>
           </table>
         </div>
       </section>
@@ -169,10 +170,16 @@
         </header>
         <div class="pb-table-wrap">
           <table class="sz_table pb-analytics-table pb-sessions-table pb-mobile-card-table">
-            <thead><tr><th>Início</th><th>Origem</th><th>País</th><th>Dispositivo</th><th>Browser</th><th>Páginas</th><th>Tempo ativo</th><th>Resultado</th></tr></thead>
+            <thead><tr><th>Início</th><th>Origem</th><th>País</th><th>Dispositivo</th><th>Cliente</th><th>Páginas</th><th>Tempo ativo</th><th>Qualidade</th></tr></thead>
             <tbody id="pbSessionRows"><tr><td colspan="8">A carregar…</td></tr></tbody>
           </table>
         </div>
+      </section>
+
+      <section class="sz_panel pb-dashboard-card">
+        <header class="pb-card-header"><div><span class="pb-eyebrow">Diagnóstico</span><h2>Requests e sessões a rever</h2></div></header>
+        <div id="pbDiagnosticsRows" class="pb-diagnostics-list"></div>
+        <p class="pb-card-footnote">Clientes resumidos e razões técnicas; não são exibidos IPs, user-agents completos ou identificadores.</p>
       </section>
 
       <section class="pb-quality-grid">
@@ -197,6 +204,5 @@
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-<script src="{{ url_for('static', filename='js/booking_portal_analytics_dashboard.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/booking_portal_analytics_dashboard.js') }}?v=analytics-v2"></script>
 {% endblock %}

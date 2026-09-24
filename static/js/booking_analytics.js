@@ -17,6 +17,12 @@
   var blocked = false;
   var recoveryOnResume = 0;
   var previouslyAllowed = allowed();
+  var emitted = Object.create(null);
+  var allowedEvents = [
+    "SEARCH", "FILTER", "PROPERTY_VIEW", "GALLERY_INTERACTION", "DATE_SELECT",
+    "GUEST_SELECT", "LANGUAGE_CHANGE", "CURRENCY_CHANGE", "WHATSAPP_CLICK",
+    "WHATSAPP_OUT_OF_HOURS", "WHATSAPP_CONTINUE"
+  ];
 
   function now() { return window.performance.now(); }
   function allowed() {
@@ -124,6 +130,7 @@
       if (!response.ok) throw new Error("Analytics unavailable");
       if (isPageview) {
         state.pageAcknowledged = true;
+        initialSignals();
         flushEvents(state);
       }
       else {
@@ -162,13 +169,29 @@
   }
 
   function track(name, data) {
-    if (!["WHATSAPP_CLICK", "WHATSAPP_OUT_OF_HOURS", "WHATSAPP_CONTINUE"].includes(name)) return false;
-    if (!data || typeof data.within_hours !== "boolean" || !allowed()) return false;
+    if (!allowedEvents.includes(name) || !allowed()) return false;
+    var whatsapp = ["WHATSAPP_CLICK", "WHATSAPP_OUT_OF_HOURS", "WHATSAPP_CONTINUE"].includes(name);
+    if (whatsapp && (!data || typeof data.within_hours !== "boolean")) return false;
+    if (!whatsapp && data && Object.keys(data).length) return false;
     if (!current) start();
     if (!current) return false;
-    current.events.push({ id: window.crypto.randomUUID(), name: name, data: { within_hours: data.within_hours } });
+    current.events.push({ id: window.crypto.randomUUID(), name: name,
+      data: whatsapp ? { within_hours: data.within_hours } : {} });
     flushEvents(current);
     return true;
+  }
+
+  function once(name) {
+    if (emitted[name]) return false;
+    emitted[name] = true;
+    return track(name, {});
+  }
+
+  function initialSignals() {
+    if (!config) return;
+    if (config.page_kind === "property") once("PROPERTY_VIEW");
+    if (config.page_kind === "booking_form") once("CHECKOUT_START");
+    if (config.has_search) once("SEARCH");
   }
 
   function flush(state) {
@@ -189,6 +212,29 @@
     if (!hasConsent) { blocked = false; stop(); return; }
     if (!wasAllowed) { blocked = false; start(); }
   });
+
+  // Semantic-only signals: no typed search text, dates, guest values, form
+  // content or URLs are sent with these events.
+  document.addEventListener("submit", function (event) {
+    var form = event.target;
+    if (!form || !form.matches || !form.matches("[data-search-form]")) return;
+    if (form.querySelector("input[name='amenity']:checked")) once("FILTER");
+    once("SEARCH");
+  }, true);
+  document.addEventListener("change", function (event) {
+    var field = event.target;
+    if (!field || !field.matches) return;
+    if (field.matches("input[name='checkin'], input[name='checkout']")) once("DATE_SELECT");
+    if (field.matches("input[name='adultos'], input[name='criancas'], input[name='bebes']")) once("GUEST_SELECT");
+    if (field.matches("input[name='amenity']")) once("FILTER");
+  }, true);
+  document.addEventListener("pointerdown", function (event) {
+    var target = event.target && event.target.closest ? event.target.closest("a, button, summary") : null;
+    if (!target) return;
+    if (target.closest("[data-photo-gallery]") || target.matches("[data-gallery-prev], [data-gallery-next], [data-gallery-thumb]")) once("GALLERY_INTERACTION");
+    if (target.closest(".booking-mobile-language")) once("LANGUAGE_CHANGE");
+    if (target.closest(".booking-currency-switcher")) once("CURRENCY_CHANGE");
+  }, { passive: true });
   ["pointerdown", "keydown", "touchstart", "scroll"].forEach(function (eventName) {
     window.addEventListener(eventName, interaction, { passive: true });
   });

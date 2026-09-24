@@ -64,7 +64,7 @@ from services.booking_portal_currency import (
 from services.booking_portal_analytics import (
     associate_booking, browser_config as analytics_browser_config,
     clear_identity_cookies, collect_event, record_response as record_analytics_response,
-    request_traits,
+    record_booking_success, record_payment_started, record_server_event, request_traits,
 )
 
 
@@ -2622,6 +2622,8 @@ def login():
         if user:
             session[PORTAL_USER_SESSION_KEY] = user["id"]
             session.modified = True
+            # Only emitted after credentials and email confirmation succeeded.
+            record_server_event("LOGIN_SUCCESS")
             return redirect(next_url or url_for("booking_portal.index", lang=lang))
         errors.append(t.get(reason, t["invalid_credentials"]))
         can_resend_verification = reason == "email_unverified"
@@ -3185,6 +3187,7 @@ def _start_portal_payment(request_id, lang, portal_user):
             page_title=t["test_payment_title"],
         )
     _remember_payment_access("checkout", checkout["session_id"])
+    record_payment_started(request_id)
     return redirect(checkout["checkout_url"])
 
 
@@ -3214,6 +3217,7 @@ def payment_result():
         if not payment:
             abort(404)
         if payment.get("paid") and payment.get("reservation_code"):
+            record_booking_success(payment.get("booking_id"))
             _send_paid_booking_confirmation_email(payment, lang)
             _send_internal_paid_booking_notification(payment, lang)
             booking = _confirmed_booking_summary(payment.get("booking_id"), payment_id=payment.get("id"), lang=lang)
@@ -3254,6 +3258,7 @@ def stripe_webhook():
         result = processar_webhook_stripe_portal(event)
         payment = result.get("payment") or {}
         if payment.get("paid") and payment.get("reservation_code"):
+            record_booking_success(payment.get("booking_id"))
             _send_paid_booking_confirmation_email(payment, _resolve_lang())
             _send_internal_paid_booking_notification(payment, _resolve_lang())
         return jsonify({"ok": True, "duplicate": bool(result.get("duplicate"))})

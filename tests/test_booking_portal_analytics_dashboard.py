@@ -67,8 +67,8 @@ def analytics_engine():
             "consent_at": consent,
         }
         conn.execute(insert(sessions), [
-            dict(session_base, session_id="session-human", visitor_id="visitor-human", country="PT", device="mobile", source="google", active_seconds=120, page_views=2),
-            dict(session_base, session_id="session-validation", visitor_id="visitor-validation", country="ZZ", device="desktop", source="codex-validation", active_seconds=10, page_views=1),
+            dict(session_base, session_id="session-human", visitor_id="visitor-human", country="PT", device="mobile", source="google", active_seconds=120, page_views=2, traffic_class="HUMAN", human_score=75, classification_reason="consented_javascript"),
+            dict(session_base, session_id="session-validation", visitor_id="visitor-validation", country="ZZ", device="desktop", source="codex-validation", active_seconds=10, page_views=1, traffic_class="LIKELY_HUMAN", human_score=20, classification_reason="consented_javascript"),
         ])
         conn.execute(insert(pageviews), [
             {"page_id": "page-1", "session_id": "session-human", "created_at": observed, "last_seen_at": observed, "page_kind": "catalog", "property_id": None, "lang": "pt", "view_mode": "list", "search_json": '{"adultos":2,"checkin":"2026-10-01","checkout":"2026-10-04","has_query":true}', "active_seconds": 40},
@@ -93,24 +93,23 @@ def test_dashboard_excludes_bots_and_validation_by_default(analytics_engine):
     data = build_dashboard(analytics_engine, period)
 
     assert data["kpis"] == {
-        "visits": 10,
-        "accesses": 10,
-        "bot_accesses": 5,
         "visitors": 1,
         "sessions": 1,
-        "unconsented_visits": 9,
-        "consent_coverage_rate": 10.0,
         "pageviews": 2,
-        "pageviews_per_session": 2.0,
-        "average_active_seconds": 120,
-        "single_page_rate": 0.0,
+        "searches": 1,
+        "checkouts": 1,
+        "payments": 0,
         "bookings": 1,
+        "requests": 15,
+        "average_active_seconds": 120,
+        "pageviews_per_session": 2.0,
+        "accesses": 10,
+        "bot_accesses": 5,
+        "visits": None,
         "paid_bookings": 1,
-        "session_conversion_rate": 100.0,
-        "payment_rate": 100.0,
     }
     assert data["data_quality"]["validation_sessions_excluded"] == 1
-    assert data["data_quality"]["validation_accesses_excluded"] == 3
+    assert data["data_quality"]["validation_requests_excluded"] == 3
     assert data["properties"][0]["name"] == "Alegria Studio"
     assert data["searches"]["average_nights"] == 3.0
     assert data["searches"]["average_guests"] == 2.0
@@ -121,7 +120,8 @@ def test_dashboard_can_show_technical_traffic_explicitly(analytics_engine):
     period = dashboard_period("2026-09-20", "2026-09-20")
     data = build_dashboard(analytics_engine, period, include_bots=True, include_validation=True)
 
-    assert data["kpis"]["accesses"] == 18
+    assert data["kpis"]["requests"] == 18
+    assert data["kpis"]["accesses"] == 13
     assert data["kpis"]["bot_accesses"] == 5
     assert data["kpis"]["sessions"] == 2
     assert data["kpis"]["pageviews"] == 3

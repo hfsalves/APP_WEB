@@ -1585,12 +1585,20 @@ a.booking-airbnb-badge:focus-visible {
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.9);
   color: var(--bp-text);
-  font-size: 1.45rem;
-  font-weight: 800;
-  line-height: 1;
   box-shadow: 0 12px 28px rgba(28, 25, 23, 0.16);
   cursor: pointer;
   transform: translateY(-50%);
+}
+
+.booking-gallery-nav svg,
+.booking-photo-modal-nav svg {
+  width: 21px;
+  height: 21px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.15;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .booking-gallery-prev {
@@ -2128,9 +2136,6 @@ a.booking-airbnb-badge:focus-visible {
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.94);
   color: var(--bp-text);
-  font-size: 1.6rem;
-  font-weight: 800;
-  line-height: 1;
   cursor: pointer;
   transform: translateY(-50%);
 }

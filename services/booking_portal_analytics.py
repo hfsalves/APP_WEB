@@ -11,6 +11,7 @@ import re
 import threading
 import time
 import uuid
+from collections import deque
 from datetime import date, datetime, timezone
 from urllib.parse import urlsplit
 
@@ -48,13 +49,21 @@ LOCAL_PROXY_NETWORKS = (
     ipaddress.ip_network("127.0.0.0/8"),
     ipaddress.ip_network("::1/128"),
 )
-BOT = re.compile(r"bot\b|crawler|spider|headless|curl/|wget/|python|httpclient|scanner|preview|facebookexternalhit", re.I)
+BOT = re.compile(r"bot\b|crawler|spider|curl/|wget/|python|httpclient|scanner|preview|facebookexternalhit", re.I)
+HEADLESS = re.compile(r"headless|phantomjs|selenium|playwright|puppeteer", re.I)
 _lock = threading.Lock()
 _limits = {}
 _last_prune = 0.0
+_request_behaviour = {}
+_request_behaviour_secret = os.urandom(32)
+_REQUEST_BEHAVIOUR_WINDOW = 15 * 60
 INTERACTION_EVENTS = frozenset({
-    "WHATSAPP_CLICK", "WHATSAPP_OUT_OF_HOURS", "WHATSAPP_CONTINUE",
+    "SEARCH", "FILTER", "PROPERTY_VIEW", "GALLERY_INTERACTION", "DATE_SELECT",
+    "GUEST_SELECT", "LANGUAGE_CHANGE", "CURRENCY_CHANGE", "WHATSAPP_CLICK",
+    "WHATSAPP_OUT_OF_HOURS", "WHATSAPP_CONTINUE", "LOGIN_SUCCESS",
+    "CHECKOUT_START", "PAYMENT_START", "BOOKING_SUCCESS",
 })
+WHATSAPP_EVENTS = frozenset({"WHATSAPP_CLICK", "WHATSAPP_OUT_OF_HOURS", "WHATSAPP_CONTINUE"})
 
 
 def _now():
@@ -271,16 +280,85 @@ def request_traits():
         (r"Linux", "Linux"),
     ) if re.search(expression, ua)), "Other")
     country, country_source = _trusted_country()
+    known_bot = bool(BOT.search(ua))
+    headless = bool(HEADLESS.search(ua))
+    bot_score = 100 if known_bot else 90 if headless else 0
+    reason = "known_automation_ua" if known_bot else "headless_automation_marker" if headless else "no_static_signal"
     return {"device": device, "browser": browser, "os": operating_system,
-            "country": country, "country_source": country_source}
+            "country": country, "country_source": country_source,
+            "traffic_class": "BOT" if bot_score >= 80 else "UNKNOWN",
+            "bot_score": bot_score, "classification_reason": reason}
+
+
+def _request_observation_key():
+    """Ephemeral abuse-protection correlation; never persisted or exposed.
+
+    The process-random key means it cannot operate as a cross-session or
+    cross-restart visitor identifier.  It lets us detect a burst from the same
+    connection/client while it is happening, using data already received to
+    serve and protect the request.
+    """
+    raw = f"{request.remote_addr or ''}\x1f{request.headers.get('User-Agent', '')}".encode()
+    return hashlib.blake2s(raw, key=_request_behaviour_secret, digest_size=16).hexdigest()
+
+
+def _classify_anonymous_request(context, traits, now):
+    """Return a request-level class without claiming a persistent visitor."""
+    score = int(traits.get("bot_score") or 0)
+    reasons = [] if score == 0 else [str(traits.get("classification_reason") or "automation")]
+    key = _request_observation_key()
+    timestamp = _utc_timestamp(now)
+    with _lock:
+        history = _request_behaviour.setdefault(key, deque())
+        while history and timestamp - history[0][0] > _REQUEST_BEHAVIOUR_WINDOW:
+            history.popleft()
+        history.append((timestamp, context["page_kind"], context.get("property_id") or ""))
+        # Bound memory under broad scans; the key and history vanish on restart.
+        if len(_request_behaviour) > 4000:
+            _request_behaviour.clear()
+        recent = list(history)
+    kinds = [item[1] for item in recent]
+    properties = {item[2] for item in recent if item[2]}
+    legal = sum(kind in {"cookies", "privacy", "terms", "legal", "cancellation_policy"} for kind in kinds)
+    if len(recent) >= 20 and timestamp - recent[0][0] <= 120:
+        score = max(score, 80)
+        reasons.append("rapid_request_burst")
+    elif len(properties) >= 8:
+        score = max(score, 55)
+        reasons.append("sequential_property_crawl")
+    elif legal >= 3 and len(recent) >= 4:
+        score = max(score, 40)
+        reasons.append("legal_page_crawl")
+    if score >= 80:
+        traffic_class = "BOT"
+    elif score >= 35:
+        traffic_class = "SUSPECTED_BOT"
+    else:
+        traffic_class = "UNKNOWN"
+    return {
+        "traffic_class": traffic_class, "bot_score": min(100, score),
+        "classification_reason": ";".join(dict.fromkeys(reasons))[:160] or "insufficient_request_signals",
+        "is_bot": traffic_class == "BOT",
+    }
+
+
+def _utc_timestamp(value):
+    if value.tzinfo is not None:
+        return value.astimezone(timezone.utc).timestamp()
+    return value.replace(tzinfo=timezone.utc).timestamp()
 
 
 def browser_config(lang, currency=None):
     context = safe_context(lang, currency)
-    active = enabled() and context is not None and not BOT.search(request.user_agent.string)
+    traits = request_traits()
+    active = enabled() and context is not None and traits.get("traffic_class") != "BOT"
     return {"enabled": bool(active),
             "endpoint": url_for("booking_portal.analytics_events"),
-            "context": _serializer("context").dumps(context) if active else ""}
+            "context": _serializer("context").dumps(context) if active else "",
+            # These non-identifying hints allow the browser to emit only
+            # allowlisted behavioural events for the page it already loaded.
+            "page_kind": context.get("page_kind") if active else "",
+            "has_search": bool((context or {}).get("search")) if active else False}
 
 
 def _prune_if_due(engine):
@@ -302,14 +380,14 @@ def record_response(response):
     if not (response.mimetype == "text/html" or context["page_kind"] == "map_quote"):
         return response
     traits = request_traits()
+    classification = _classify_anonymous_request(context, traits, _now())
     dimensions = {key: context[key] for key in (
         "page_kind", "property_id", "referrer_host", "source", "currency",
     )}
     # Aggregate arbitrary campaign sources into a bounded acquisition category.
     dimensions["source"] = _source(context["referrer_host"])
     dimensions.update(device=traits["device"], country=traits["country"],
-                      has_search=bool(context["search"]),
-                      is_bot=bool(BOT.search(request.user_agent.string)))
+                      has_search=bool(context["search"]), **classification)
     try:
         engine = db.engine
         store.record_total(engine, dimensions, _now())
@@ -354,7 +432,7 @@ def collect_event():
     consent = read_cookie_consent()
     if not enabled() or not is_same_origin_request() or not consent or not consent.get("analytics"):
         return clear_identity_cookies(reply(403, error="analytics_not_allowed"))
-    if BOT.search(request.user_agent.string):
+    if request_traits().get("traffic_class") == "BOT":
         return reply(403, error="automated_client")
     if not request.is_json or request.content_length is None or request.content_length > 8192:
         return reply(400, error="invalid_payload")
@@ -391,13 +469,15 @@ def collect_event():
             event_id = _uuid(payload.get("event_id"))
             event_name = str(payload.get("event_name") or "")
             event_data = payload.get("event_data")
-            if (
-                not event_id
-                or event_name not in INTERACTION_EVENTS
-                or not isinstance(event_data, dict)
-                or set(event_data) != {"within_hours"}
-                or type(event_data.get("within_hours")) is not bool
-            ):
+            valid_event_data = (
+                isinstance(event_data, dict)
+                and (
+                    (event_name in WHATSAPP_EVENTS and set(event_data) == {"within_hours"}
+                     and type(event_data.get("within_hours")) is bool)
+                    or (event_name not in WHATSAPP_EVENTS and event_data == {})
+                )
+            )
+            if not event_id or event_name not in INTERACTION_EVENTS or not valid_event_data:
                 return reply(400, error="invalid_event")
             if not visitor_id or not session_id:
                 return reply(409, error="session_expired")
@@ -437,3 +517,36 @@ def associate_booking(booking_id):
                            booking_id=booking_id, now=_now())
     except Exception as exc:
         current_app.logger.warning("PortoBreak conversion analytics unavailable (%s)", type(exc).__name__)
+
+
+def record_server_event(event_name):
+    """Attach a verified server outcome (for example login) to this session."""
+    if event_name not in INTERACTION_EVENTS:
+        return
+    consent = read_cookie_consent()
+    if not enabled() or not consent or not consent.get("analytics"):
+        return
+    visitor_id, session_id = _identities()
+    if not visitor_id or not session_id:
+        return
+    try:
+        store.record_server_event(db.engine, visitor_id=visitor_id, session_id=session_id,
+                                  event_name=event_name, now=_now())
+    except Exception as exc:
+        current_app.logger.warning("PortoBreak server event unavailable (%s)", type(exc).__name__)
+
+
+def record_payment_started(booking_id):
+    try:
+        store.mark_payment_started(db.engine, booking_id=str(booking_id), now=_now())
+        record_server_event("PAYMENT_START")
+    except Exception as exc:
+        current_app.logger.warning("PortoBreak payment analytics unavailable (%s)", type(exc).__name__)
+
+
+def record_booking_success(booking_id):
+    try:
+        store.mark_booking_success(db.engine, booking_id=str(booking_id), now=_now())
+        record_server_event("BOOKING_SUCCESS")
+    except Exception as exc:
+        current_app.logger.warning("PortoBreak booking-success analytics unavailable (%s)", type(exc).__name__)

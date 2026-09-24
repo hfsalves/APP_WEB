@@ -191,6 +191,41 @@ class AnalyticsStorageTests(unittest.TestCase):
         with self.assertRaises(store.AnalyticsConflict):
             store.record_event(self.engine, **{**args, "session_id": "another"})
 
+    def test_consented_interactions_promote_a_session_to_human(self):
+        self.page()
+        for number, name in enumerate(("SEARCH", "DATE_SELECT", "GUEST_SELECT"), start=1):
+            result = store.record_event(
+                self.engine, visitor_id="visitor-1", session_id="session-1", page_id="page-1",
+                event_id=f"event-{number}", event_name=name, event_data={},
+                now=self.now + timedelta(seconds=number),
+            )
+        session = self.rows(store.sessions)[0]
+        self.assertEqual(result["traffic_class"], "HUMAN")
+        self.assertEqual(session["traffic_class"], "HUMAN")
+        self.assertGreaterEqual(session["human_score"], 60)
+        self.assertIn("consented_javascript", session["classification_reason"])
+
+    def test_server_outcomes_and_conversion_states_are_idempotent(self):
+        self.page()
+        self.assertTrue(store.link_booking(
+            self.engine, visitor_id="visitor-1", session_id="session-1", booking_id="booking-1", now=self.now,
+        )["created"])
+        self.assertTrue(store.mark_payment_started(self.engine, booking_id="booking-1", now=self.now)["created"])
+        self.assertFalse(store.mark_payment_started(self.engine, booking_id="booking-1", now=self.now)["created"])
+        self.assertTrue(store.mark_booking_success(self.engine, booking_id="booking-1", now=self.now)["created"])
+        self.assertFalse(store.mark_booking_success(self.engine, booking_id="booking-1", now=self.now)["created"])
+        outcome = store.record_server_event(
+            self.engine, visitor_id="visitor-1", session_id="session-1", event_name="LOGIN_SUCCESS", now=self.now,
+        )
+        self.assertTrue(outcome["created"])
+        self.assertFalse(store.record_server_event(
+            self.engine, visitor_id="visitor-1", session_id="session-1", event_name="LOGIN_SUCCESS", now=self.now,
+        )["created"])
+        conversion = self.rows(store.conversions)[0]
+        self.assertIsNotNone(conversion["payment_started_at"])
+        self.assertIsNotNone(conversion["booking_success_at"])
+        self.assertEqual(self.rows(store.sessions)[0]["traffic_class"], "HUMAN")
+
     def test_prune_child_first_with_foreign_keys_and_retention_boundaries(self):
         for label, days in (("old", 181), ("expired", 91), ("boundary", 90), ("recent", 1)):
             created = self.now - timedelta(days=days)
@@ -211,8 +246,8 @@ class AnalyticsStorageTests(unittest.TestCase):
     def test_mssql_metadata_and_migration_use_microsecond_datetime2(self):
         ddl = "\n".join(str(CreateTable(table).compile(dialect=mssql.dialect())) for table in store.metadata.sorted_tables)
         migration = (Path(__file__).resolve().parents[1] / "migrations" / "booking_portal_analytics.sql").read_text()
-        self.assertEqual(ddl.count("DATETIME2(6)"), 11)
-        self.assertEqual(migration.count("DATETIME2(6)"), 11)
+        self.assertEqual(ddl.count("DATETIME2(6)"), 13)
+        self.assertEqual(migration.count("DATETIME2(6)"), 15)
         self.assertNotIn(" DATETIME ", ddl)
 
     def test_replayed_page_cannot_overwrite_original_payload(self):

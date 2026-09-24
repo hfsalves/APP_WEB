@@ -31,6 +31,7 @@ class AnalyticsTests(unittest.TestCase):
         with self.app.app_context():
             store.ensure_schema(db.engine)
         analytics._limits.clear()
+        analytics._request_behaviour.clear()
 
     def tearDown(self):
         with self.app.app_context():
@@ -213,7 +214,26 @@ class AnalyticsTests(unittest.TestCase):
         config = self.config(headers={"User-Agent": "Googlebot/2.1"})
         self.assertFalse(config["enabled"])
         self.assertTrue(self.rows(store.totals)[0]["is_bot"])
+        self.assertEqual(self.rows(store.totals)[0]["traffic_class"], "BOT")
+        self.assertEqual(self.rows(store.totals)[0]["bot_score"], 100)
         self.assertEqual(self.rows(store.visitors), [])
+
+    def test_normal_user_agent_needs_a_behavioural_pattern_before_suspicion(self):
+        """A normal UA is not a bot by itself, but a fast property crawl is."""
+        now = datetime(2026, 9, 24, 9, 0)
+        with self.app.test_request_context("/reservas", headers={"User-Agent": "Mozilla/5.0 Chrome/140"}):
+            traits = analytics.request_traits()
+            first = analytics._classify_anonymous_request(
+                {"page_kind": "property", "property_id": "p-0"}, traits, now,
+            )
+            self.assertEqual(first["traffic_class"], "UNKNOWN")
+            for number in range(1, 8):
+                result = analytics._classify_anonymous_request(
+                    {"page_kind": "property", "property_id": f"p-{number}"}, traits,
+                    now + timedelta(seconds=number),
+                )
+        self.assertEqual(result["traffic_class"], "SUSPECTED_BOT")
+        self.assertIn("sequential_property_crawl", result["classification_reason"])
 
     def test_schema_has_no_raw_identifiers_or_private_content_columns(self):
         names = {c.name.lower() for table in store.metadata.tables.values() for c in table.columns}

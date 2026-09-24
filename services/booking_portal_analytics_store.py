@@ -55,6 +55,14 @@ sessions = Table(
     Column("consent_at", UTCDateTime, nullable=False),
     Column("active_seconds", Integer, nullable=False, server_default="0"),
     Column("page_views", Integer, nullable=False, server_default="0"),
+    # v2 quality is deliberately behavioural, not identity-based.  It is only
+    # meaningful for consented sessions, where the browser may send events.
+    Column("traffic_class", String(24), nullable=False, server_default="LEGACY"),
+    Column("base_bot_score", Integer, nullable=False, server_default="0"),
+    Column("bot_score", Integer, nullable=False, server_default="0"),
+    Column("human_score", Integer, nullable=False, server_default="0"),
+    Column("classification_reason", String(512), nullable=False, server_default="legacy"),
+    Column("js_seen", Boolean, nullable=False, server_default="0"),
     CheckConstraint("active_seconds >= 0 AND page_views >= 0", name="CK_PB_ANALYTICS_SESSION_COUNTS"),
 )
 pageviews = Table(
@@ -85,6 +93,11 @@ totals = Table(
     Column("currency", String(3), nullable=False, server_default="EUR"),
     Column("has_search", Boolean, nullable=False),
     Column("is_bot", Boolean, nullable=False),
+    # These are request-level observations, never a claim of a unique person.
+    # Legacy buckets retain LEGACY until a new v2 observation is recorded.
+    Column("traffic_class", String(24), nullable=False, server_default="LEGACY"),
+    Column("bot_score", Integer, nullable=False, server_default="0"),
+    Column("classification_reason", String(160), nullable=False, server_default="legacy"),
     Column("requests", Integer, nullable=False, server_default="0"),
     CheckConstraint("requests >= 0", name="CK_PB_ANALYTICS_TOTAL_REQUESTS"),
 )
@@ -93,6 +106,8 @@ conversions = Table(
     Column("booking_id", String(36), primary_key=True),
     Column("session_id", String(36), ForeignKey(sessions.c.session_id), nullable=False),
     Column("created_at", UTCDateTime, nullable=False),
+    Column("payment_started_at", UTCDateTime, nullable=True),
+    Column("booking_success_at", UTCDateTime, nullable=True),
 )
 events = Table(
     "PB_ANALYTICS_EVENTS", metadata,
@@ -106,9 +121,11 @@ events = Table(
 Index("IX_PB_ANALYTICS_VISITORS_LAST", visitors.c.last_seen_at)
 Index("IX_PB_ANALYTICS_SESSIONS_VISITOR", sessions.c.visitor_id, sessions.c.started_at)
 Index("IX_PB_ANALYTICS_SESSIONS_LAST", sessions.c.last_seen_at)
+Index("IX_PB_ANALYTICS_SESSIONS_CLASS", sessions.c.traffic_class, sessions.c.started_at)
 Index("IX_PB_ANALYTICS_PAGES_SESSION", pageviews.c.session_id, pageviews.c.created_at)
 Index("IX_PB_ANALYTICS_PAGES_CREATED", pageviews.c.created_at)
 Index("IX_PB_ANALYTICS_TOTALS_HOUR", totals.c.hour, totals.c.page_kind)
+Index("IX_PB_ANALYTICS_TOTALS_CLASS", totals.c.traffic_class, totals.c.hour)
 Index("IX_PB_ANALYTICS_CONVERSIONS_SESSION", conversions.c.session_id)
 Index("IX_PB_ANALYTICS_CONVERSIONS_CREATED", conversions.c.created_at)
 Index("IX_PB_ANALYTICS_EVENTS_SESSION", events.c.session_id, events.c.created_at)
@@ -116,6 +133,20 @@ Index("IX_PB_ANALYTICS_EVENTS_NAME", events.c.event_name, events.c.created_at)
 
 SESSION_TIMEOUT = timedelta(minutes=30)
 SEARCH_KEYS = frozenset(("checkin", "checkout", "adultos", "criancas", "bebes", "has_query"))
+TRAFFIC_CLASSES = frozenset(("LEGACY", "UNKNOWN", "LIKELY_HUMAN", "HUMAN", "SUSPECTED_BOT", "BOT"))
+LEGAL_PAGE_KINDS = frozenset(("cookies", "privacy", "terms", "legal", "cancellation_policy"))
+
+
+def _traffic_class(value, default="UNKNOWN"):
+    value = str(value or default).strip().upper()
+    return value if value in TRAFFIC_CLASSES else default
+
+
+def _score(value, maximum=100):
+    try:
+        return min(maximum, max(0, int(value or 0)))
+    except (TypeError, ValueError):
+        return 0
 
 
 class AnalyticsConflict(ValueError):
@@ -208,6 +239,11 @@ def record_total(engine, dimensions: dict, now):
         "currency": _text(dimensions.get("currency"), 3, "EUR"),
         "has_search": bool(dimensions.get("has_search")),
         "is_bot": bool(dimensions.get("is_bot")),
+        "traffic_class": _traffic_class(
+            dimensions.get("traffic_class"), "BOT" if dimensions.get("is_bot") else "UNKNOWN"
+        ),
+        "bot_score": _score(dimensions.get("bot_score")),
+        "classification_reason": _text(dimensions.get("classification_reason"), 160, "unspecified"),
     }
     serialized = json.dumps(values, default=lambda value: value.isoformat(), sort_keys=True, separators=(",", ":"))
     key = hashlib.sha256(serialized.encode()).hexdigest()
@@ -219,6 +255,84 @@ def record_total(engine, dimensions: dict, now):
         return {"accepted": True, "bucket_key": key}
 
     return _run(engine, operation)
+
+
+def _session_signal_summary(conn, session_id, session, now):
+    """Recompute quality from stored, consented behaviour.
+
+    This deliberately uses only page kinds and allowlisted event names already
+    stored for the session.  It never reads or derives a browser fingerprint.
+    """
+    page_rows = conn.execute(select(
+        pageviews.c.page_kind, pageviews.c.property_id, pageviews.c.created_at,
+    ).where(pageviews.c.session_id == session_id)).mappings().all()
+    event_rows = conn.execute(select(events.c.event_name).where(
+        events.c.session_id == session_id
+    )).mappings().all()
+    page_kinds = [str(row["page_kind"] or "") for row in page_rows]
+    properties = {str(row["property_id"] or "") for row in page_rows if row["property_id"]}
+    event_names = {str(row["event_name"] or "") for row in event_rows}
+    event_count = len(event_rows)
+    legal_count = sum(kind in LEGAL_PAGE_KINDS for kind in page_kinds)
+    page_count = len(page_rows)
+    elapsed = max(0, int((_utc(now) - session["started_at"]).total_seconds()))
+
+    bot_score = _score(session.get("base_bot_score"))
+    reasons = []
+    if bot_score >= 100:
+        reasons.append("known_automation")
+    # A signed pageview is a strong, but not absolute, human signal.  Events
+    # add confidence and are never inferred from a URL alone.
+    human_score = 20 if bool(session.get("js_seen")) else 0
+    event_weights = {
+        "SEARCH": 25, "DATE_SELECT": 20, "GUEST_SELECT": 10,
+        "FILTER": 10, "GALLERY_INTERACTION": 10, "LANGUAGE_CHANGE": 5,
+        "CURRENCY_CHANGE": 5, "WHATSAPP_CLICK": 15, "LOGIN_SUCCESS": 40,
+        "CHECKOUT_START": 40, "PAYMENT_START": 50, "BOOKING_SUCCESS": 80,
+    }
+    human_score += sum(weight for name, weight in event_weights.items() if name in event_names)
+    human_score = _score(human_score)
+
+    # These thresholds deliberately require a combination of behaviour.  A
+    # direct visit, missing referrer, legal-page read or lack of a search is
+    # never sufficient on its own to label somebody as a bot.
+    if not event_count and len(properties) >= 8:
+        bot_score = max(bot_score, 55)
+        reasons.append("sequential_property_crawl")
+    if not event_count and legal_count >= 3 and page_count >= 4:
+        bot_score = max(bot_score, 40)
+        reasons.append("legal_page_crawl")
+    if not event_count and page_count >= 12 and elapsed <= 120:
+        bot_score = max(bot_score, 70)
+        reasons.append("rapid_page_sequence")
+
+    if bot_score >= 80:
+        traffic_class = "BOT"
+    elif bot_score >= 35:
+        traffic_class = "SUSPECTED_BOT"
+    elif human_score >= 60:
+        traffic_class = "HUMAN"
+    elif human_score >= 20:
+        traffic_class = "LIKELY_HUMAN"
+    else:
+        traffic_class = "UNKNOWN"
+    if not reasons:
+        reasons.append("consented_javascript" if human_score else "insufficient_signals")
+    return {
+        "traffic_class": traffic_class,
+        "bot_score": bot_score,
+        "human_score": human_score,
+        "classification_reason": ";".join(dict.fromkeys(reasons))[:512],
+    }
+
+
+def _refresh_session_classification(conn, session_id, now):
+    session = _locked(conn, sessions, sessions.c.session_id == session_id)
+    if session is None:
+        raise AnalyticsConflict("Unknown session")
+    values = _session_signal_summary(conn, session_id, session, now)
+    conn.execute(update(sessions).where(sessions.c.session_id == session_id).values(**values))
+    return values
 
 
 def record_pageview(engine, *, visitor_id, session_id, page_id, context: dict, traits: dict, consent: dict, now):
@@ -250,6 +364,12 @@ def record_pageview(engine, *, visitor_id, session_id, page_id, context: dict, t
                 medium=_text(context.get("medium"), 128), campaign=_text(context.get("campaign"), 128),
                 consent_version=_text(consent["version"], 32), consent_at=_utc(consent["decided_at"]),
                 active_seconds=0, page_views=0,
+                traffic_class=_traffic_class(traits.get("traffic_class"), "UNKNOWN"),
+                base_bot_score=_score(traits.get("bot_score")),
+                bot_score=_score(traits.get("bot_score")),
+                human_score=20,  # a consented, signed browser pageview proves JS ran
+                classification_reason=_text(traits.get("classification_reason"), 512, "javascript_pageview"),
+                js_seen=True,
             ))
         search = {key: value for key, value in (context.get("search") or {}).items() if key in SEARCH_KEYS}
         conn.execute(insert(pageviews).values(
@@ -274,6 +394,7 @@ def record_pageview(engine, *, visitor_id, session_id, page_id, context: dict, t
             session_updates["country"] = observed_country
             session_updates["country_source"] = _text(traits.get("country_source"), 24, "unknown")
         conn.execute(update(sessions).where(sessions.c.session_id == session_id).values(**session_updates))
+        _refresh_session_classification(conn, session_id, now)
         return {"accepted": True, "session_id": session_id, "page_id": page_id, "created": True}
 
     return _run(engine, operation)
@@ -355,7 +476,86 @@ def record_event(engine, *, visitor_id, session_id, page_id, event_id, event_nam
         conn.execute(update(sessions).where(sessions.c.session_id == session_id).values(
             last_seen_at=max(now, session["last_seen_at"]),
         ))
-        return {"accepted": True, "created": True, "session_id": session_id}
+        classification = _refresh_session_classification(conn, session_id, now)
+        return {"accepted": True, "created": True, "session_id": session_id,
+                "traffic_class": classification["traffic_class"]}
+
+    return _run(engine, operation)
+
+
+def record_server_event(engine, *, visitor_id, session_id, event_name, now):
+    """Record a trusted server-side outcome against the session's latest page.
+
+    Authentication and payment transitions cannot rely on a browser callback;
+    this keeps those events in the same event stream without storing customer
+    data or an additional identifier.
+    """
+    now = _utc(now)
+
+    def operation(conn):
+        _touch_visitor(conn, visitor_id, now)
+        session = _session(conn, session_id, visitor_id, now)
+        if session is None:
+            raise AnalyticsConflict("Unknown session")
+        page = conn.execute(select(pageviews.c.page_id).where(
+            pageviews.c.session_id == session_id
+        ).order_by(pageviews.c.created_at.desc()).limit(1)).scalar_one_or_none()
+        if not page:
+            raise AnalyticsConflict("Session has no page")
+        # Server outcomes are recorded once per event type and session.  This
+        # makes redirects/retries harmless without needing a browser event ID.
+        existing = conn.execute(select(events.c.event_id).where(
+            events.c.session_id == session_id, events.c.event_name == event_name,
+        )).scalar_one_or_none()
+        if existing:
+            return {"accepted": True, "created": False, "session_id": session_id}
+        event_id = hashlib.sha256(f"{session_id}:{event_name}".encode()).hexdigest()[:36]
+        conn.execute(insert(events).values(
+            event_id=event_id, session_id=session_id, page_id=page,
+            created_at=now, event_name=_text(event_name, 48), event_json="{}",
+        ))
+        conn.execute(update(sessions).where(sessions.c.session_id == session_id).values(
+            last_seen_at=max(now, session["last_seen_at"]),
+        ))
+        classification = _refresh_session_classification(conn, session_id, now)
+        return {"accepted": True, "created": True, "session_id": session_id,
+                "traffic_class": classification["traffic_class"]}
+
+    return _run(engine, operation)
+
+
+def mark_payment_started(engine, *, booking_id, now):
+    """Persist a payment start for an already-linked, consented conversion."""
+    now = _utc(now)
+
+    def operation(conn):
+        row = _locked(conn, conversions, conversions.c.booking_id == booking_id)
+        if row is None:
+            return {"accepted": False, "created": False}
+        if row.get("payment_started_at") is None:
+            conn.execute(update(conversions).where(conversions.c.booking_id == booking_id).values(
+                payment_started_at=now
+            ))
+            return {"accepted": True, "created": True}
+        return {"accepted": True, "created": False}
+
+    return _run(engine, operation)
+
+
+def mark_booking_success(engine, *, booking_id, now):
+    """Persist a confirmed booking outcome once; Stripe retries are idempotent."""
+    now = _utc(now)
+
+    def operation(conn):
+        row = _locked(conn, conversions, conversions.c.booking_id == booking_id)
+        if row is None:
+            return {"accepted": False, "created": False}
+        if row.get("booking_success_at") is None:
+            conn.execute(update(conversions).where(conversions.c.booking_id == booking_id).values(
+                booking_success_at=now
+            ))
+            return {"accepted": True, "created": True}
+        return {"accepted": True, "created": False}
 
     return _run(engine, operation)
 
