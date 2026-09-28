@@ -26823,22 +26823,32 @@ def create_app():
     def api_colaborador_despesas_processamento():
         from services.colaborador_despesas_service import list_expense_processing_archive, list_expense_processing_users, list_expenses_for_processing
 
-        try:
-            if not _expense_processing_has_permission('consultar'):
-                return jsonify({'ok': False, 'error': 'Sem permissão para consultar o processamento de despesas.'}), 403
-            filters = {
-                'date_from': request.args.get('date_from', ''),
-                'date_to': request.args.get('date_to', ''),
-                'user': request.args.get('user', ''),
-            }
-            archive = request.args.get('arquivo') == '1'
-            rows = list_expense_processing_archive(filters) if archive else list_expenses_for_processing(filters)
-            users = list_expense_processing_users(filters) if not archive else []
-            return jsonify({'ok': True, 'rows': rows, 'users': users, 'total': len(rows), 'arquivo': archive})
-        except Exception:
-            db.session.rollback()
-            app.logger.exception('Erro ao listar despesas para processamento.')
-            return jsonify({'ok': False, 'error': 'Erro ao listar despesas.'}), 500
+        if not _expense_processing_has_permission('consultar'):
+            return jsonify({'ok': False, 'error': 'Sem permissão para consultar o processamento de despesas.'}), 403
+
+        filters = {
+            'date_from': request.args.get('date_from', ''),
+            'date_to': request.args.get('date_to', ''),
+            'user': request.args.get('user', ''),
+        }
+        archive = request.args.get('arquivo') == '1'
+
+        for attempt in range(2):
+            try:
+                rows = list_expense_processing_archive(filters) if archive else list_expenses_for_processing(filters)
+                users = list_expense_processing_users(filters) if not archive else []
+                return jsonify({'ok': True, 'rows': rows, 'users': users, 'total': len(rows), 'arquivo': archive})
+            except Exception:
+                db.session.rollback()
+                if attempt == 0:
+                    app.logger.warning(
+                        'Falha temporária ao listar despesas; a repetir com uma nova sessão.',
+                        exc_info=True,
+                    )
+                    db.session.remove()
+                    continue
+                app.logger.exception('Erro ao listar despesas para processamento.')
+                return jsonify({'ok': False, 'error': 'Erro ao listar despesas.'}), 500
 
     @app.route('/api/colaborador/despesas/processamento/<string:line_stamp>/classificacao', methods=['POST'])
     @login_required
