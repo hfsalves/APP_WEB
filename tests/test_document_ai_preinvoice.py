@@ -152,7 +152,7 @@ class PreinvoicePlanningTests(unittest.TestCase):
 
 
 class PreinvoiceTransactionTests(unittest.TestCase):
-    def run_case(self, *, existing=None, failure=None, missing_pdf=False):
+    def run_case(self, *, existing=None, failure=None, missing_pdf=False, purchase_doccode=55):
         document, header, line = fixture()
         origins = [{'stamp': 'BO-SOURCE', 'phc_database': 'HSOLS_FR'}]
         connection = Mock()
@@ -171,7 +171,9 @@ class PreinvoiceTransactionTests(unittest.TestCase):
             if 'FROM TS' in sql:
                 return [{'ndos': 218, 'nmdos': 'Pre-Facture'}]
             if 'FROM FO' in sql:
-                return [{'no': 1, 'estab': 0, 'moeda': 'EURO', 'adoc': 'TEST-1', 'doccode': 55}]
+                return [{'no': 1, 'estab': 0, 'moeda': 'EURO', 'adoc': 'TEST-1',
+                         'doccode': purchase_doccode,
+                         'docnome': 'V/Facture PP' if purchase_doccode == 109 else 'V/Facture'}]
             if 'TOP 1 FULLNAME' in sql:
                 return [{'fullname': r'\\server\ged\test.pdf'}]
             if 'B.*' in sql:
@@ -240,6 +242,14 @@ class PreinvoiceTransactionTests(unittest.TestCase):
                          (datetime(2026, 9, 9),) * 3)
         bo3 = next(values for table, values in inserts if table == 'BO3')
         self.assertEqual(bo3['u_aprovusr'], 'TST')
+
+    def test_cash_purchase_series_is_accepted_by_preinvoice_circuit(self):
+        result, connection, inserts = self.run_case(purchase_doccode=109)
+
+        self.assertTrue(result['ged_confirmed'])
+        bi = next(values for table, values in inserts if table == 'BI')
+        self.assertEqual((bi['ndoc'], bi['nmdoc']), (109, 'V/Facture PP'))
+        connection.commit.assert_called_once()
 
     def test_ged_or_sql_failure_rolls_back(self):
         with self.assertRaisesRegex(ValueError, 'PDF original'):

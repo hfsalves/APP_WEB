@@ -2029,6 +2029,11 @@ def _correspondence_safe_part(value: Any, fallback: str = '') -> str:
     return cleaned or fallback
 
 
+def _phc_purchase_document_number(value: Any) -> str:
+    """Return the supplier number exactly as PHC should store it."""
+    return str(value or '').strip().replace('/', '-')
+
+
 def _phc_party_number(value: Any, establishment: Any = None) -> str:
     number = _safe_int(value, 0)
     if not number:
@@ -2433,6 +2438,7 @@ def submit_correspondence_to_phc(
 
 DOC_AI_PROVISIONAL_ARTICLE_REF = 'Z.00.00.000.0000'
 DOC_AI_PURCHASE_INVOICE_DOCCODE = 55
+DOC_AI_PURCHASE_CASH_INVOICE_DOCCODE = 109
 DOC_AI_PURCHASE_CREDIT_NOTE_DOCCODE = 3
 
 
@@ -2444,9 +2450,68 @@ def _is_credit_note_source_type(value: Any) -> bool:
     return str(value or '').strip().lower() in {'credit_note'}
 
 
-def _phc_provisional_purchase_doc_config(cursor, database_name: str, document_type: Any) -> dict[str, Any]:
+def _phc_provisional_purchase_doc_config(
+    cursor,
+    database_name: str,
+    document_type: Any,
+    supplier: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     is_credit_note = _is_credit_note_source_type(document_type)
     doccode = DOC_AI_PURCHASE_CREDIT_NOTE_DOCCODE if is_credit_note else DOC_AI_PURCHASE_INVOICE_DOCCODE
+    treasury: dict[str, Any] | None = None
+    # O pronto pagamento é uma característica observada na compra mais recente
+    # deste fornecedor/estabelecimento, e não uma propriedade global da série.
+    # Ler apenas os códigos de fatura evita que um avoir altere esta decisão.
+    if not is_credit_note and supplier:
+        history = cursor.execute("""
+            SELECT TOP 1
+                CAST(ISNULL(F.DOCCODE, 0) AS int),
+                LTRIM(RTRIM(ISNULL(F.DOCNOME, ''))),
+                CAST(ISNULL(F.CONTADO, 0) AS int),
+                LTRIM(RTRIM(ISNULL(F.OLLOCAL, ''))),
+                LTRIM(RTRIM(ISNULL(F.TELOCAL, ''))),
+                LTRIM(RTRIM(ISNULL(F2.OLCODIGO, ''))),
+                LTRIM(RTRIM(ISNULL(O.GRUPO, ''))),
+                LTRIM(RTRIM(ISNULL(O.SGRUPO, ''))),
+                LTRIM(RTRIM(ISNULL(O.MOEDA, ''))),
+                CAST(ISNULL(F2.FORMAPAG, 1) AS int)
+            FROM dbo.FO F WITH (NOLOCK)
+            LEFT JOIN dbo.FO2 F2 WITH (NOLOCK)
+                ON F2.FO2STAMP = F.FOSTAMP
+            OUTER APPLY (
+                SELECT TOP 1 OL.GRUPO, OL.SGRUPO, OL.MOEDA
+                FROM dbo.OL OL WITH (NOLOCK)
+                WHERE OL.FOSTAMP = F.FOSTAMP
+                ORDER BY OL.OLID DESC
+            ) O
+            WHERE F.NO = ? AND ISNULL(F.ESTAB, 0) = ?
+              AND F.DOCCODE IN (?, ?)
+              AND ISNULL(F2.ANULADO, 0) = 0
+            ORDER BY
+                CASE WHEN F.DOCDATA IS NULL OR F.DOCDATA < '19010101' THEN F.DATA ELSE F.DOCDATA END DESC,
+                F.OUSRDATA DESC, F.FOSTAMP DESC
+        """, supplier.get('no'), supplier.get('estab', 0),
+            DOC_AI_PURCHASE_INVOICE_DOCCODE, DOC_AI_PURCHASE_CASH_INVOICE_DOCCODE).fetchone()
+        if history and _safe_int(history[0], 0) == DOC_AI_PURCHASE_CASH_INVOICE_DOCCODE:
+            contado = _safe_int(history[2], 0)
+            ollocal = str(history[3] or '').strip()
+            telocal = str(history[4] or '').strip()
+            if not contado or not ollocal or not telocal:
+                raise ValueError(
+                    'A última fatura deste fornecedor é de pronto pagamento, mas não tem '
+                    'o modo e o local de tesouraria completos no PHC.'
+                )
+            doccode = DOC_AI_PURCHASE_CASH_INVOICE_DOCCODE
+            treasury = {
+                'contado': contado,
+                'ollocal': ollocal,
+                'telocal': telocal,
+                'olcodigo': str(history[5] or '').strip() or 'P10001',
+                'grupo': str(history[6] or '').strip() or 'Activités Opérationnelles',
+                'sgrupo': str(history[7] or '').strip() or 'Paiment a Fournisseurs',
+                'currency': str(history[8] or '').strip(),
+                'formapag': _safe_int(history[9], 1) or 1,
+            }
     docname_row = cursor.execute("""
         SELECT TOP 1 LTRIM(RTRIM(ISNULL(DOCNOME, '')))
         FROM dbo.FO WITH (NOLOCK)
@@ -2458,6 +2523,8 @@ def _phc_provisional_purchase_doc_config(cursor, database_name: str, document_ty
     if not docname:
         if is_credit_note:
             docname = 'V/Nt. Crédito' if clean_database in {'HSOLS_PT', 'GR360'} else 'V/Avoir'
+        elif doccode == DOC_AI_PURCHASE_CASH_INVOICE_DOCCODE:
+            docname = 'V/Fatura PP' if clean_database in {'HSOLS_PT', 'GR360'} else 'V/Facture PP'
         else:
             docname = 'V/Fatura' if clean_database in {'HSOLS_PT', 'GR360'} else 'V/Facture'
     return {
@@ -2468,6 +2535,7 @@ def _phc_provisional_purchase_doc_config(cursor, database_name: str, document_ty
         'correspondence_type': DOC_AI_PURCHASE_CREDIT_NOTE_CORRESPONDENCE_TYPE if is_credit_note else DOC_AI_PURCHASE_INVOICE_CORRESPONDENCE_TYPE,
         'label': 'nota de crédito' if is_credit_note else 'fatura',
         'phc_label': 'Nota de Crédito' if is_credit_note else 'Fatura Provisória',
+        'treasury': treasury,
     }
 
 
@@ -2811,7 +2879,10 @@ def _provisional_invoice_ged_paths(
     if not company_folder:
         raise ValueError('Não foi possível determinar a pasta GED da entidade.')
     supplier_name = _correspondence_safe_part(supplier.get('short_name') or supplier.get('name2') or supplier.get('name'), 'FORNECEDOR')[:55]
-    document_number = _correspondence_safe_part(document.get('document_number'), 'SEM-DOCUMENTO')[:45]
+    document_number = _correspondence_safe_part(
+        _phc_purchase_document_number(document.get('document_number')),
+        'SEM-DOCUMENTO',
+    )[:45]
     if _is_credit_note_source_type(document.get('document_type')):
         number_without_credit_prefix = re.sub(r'^NC(?:[\s_-]+)?', '', document_number, flags=re.IGNORECASE)
         document_number = f'NC-{number_without_credit_prefix or document_number}'[:45]
@@ -3177,7 +3248,7 @@ def submit_provisional_invoice_to_phc(
         raise ValueError('Este circuito aceita apenas faturas ou notas de crédito de fornecedor para lançar no PHC.')
     if not file_bytes or not str(original_file_name or '').lower().endswith('.pdf'):
         raise ValueError('O PDF original é obrigatório para submeter a Fatura Provisória.')
-    document_number = str(document.get('document_number') or '').strip()
+    document_number = _phc_purchase_document_number(document.get('document_number'))
     if not document_number:
         raise ValueError('Confirma o número da Fatura Provisória antes de submeter.')
     lines = [dict(item or {}) for item in (document.get('lines') or []) if isinstance(item, dict)]
@@ -3203,7 +3274,10 @@ def submit_provisional_invoice_to_phc(
     try:
         cursor = connection.cursor()
         cursor.execute('SET TRANSACTION ISOLATION LEVEL SERIALIZABLE')
-        doc_config = _phc_provisional_purchase_doc_config(cursor, database_name, document.get('document_type'))
+        supplier = _phc_provisional_supplier(cursor, dict(document.get('supplier') or {}))
+        doc_config = _phc_provisional_purchase_doc_config(
+            cursor, database_name, document.get('document_type'), supplier,
+        )
         effective_at = _phc_provisional_effective_datetime(cursor, database_name, document_date, received_at)
         year = effective_at.year
         lock = cursor.execute("""
@@ -3214,15 +3288,20 @@ def submit_provisional_invoice_to_phc(
         if not lock or _safe_int(lock[0], -999) < 0:
             raise RuntimeError('Não foi possível reservar a integração deste documento provisório. Tenta novamente.')
 
-        supplier = _phc_provisional_supplier(cursor, dict(document.get('supplier') or {}))
-        duplicate = cursor.execute("""
+        duplicate_doccodes = (
+            [doc_config['doccode']]
+            if doc_config['is_credit_note']
+            else [DOC_AI_PURCHASE_INVOICE_DOCCODE, DOC_AI_PURCHASE_CASH_INVOICE_DOCCODE]
+        )
+        duplicate_placeholders = ','.join('?' for _ in duplicate_doccodes)
+        duplicate = cursor.execute(f"""
             SELECT TOP 1 F.FOSTAMP, F.ADOC, A.FULLNAME, A.ANEXOSSTAMP, F.DATA, F.DOCDATA
             FROM dbo.FO F WITH (UPDLOCK, HOLDLOCK)
             LEFT JOIN dbo.ANEXOS A ON A.RECSTAMP = F.FOSTAMP AND A.ORITABLE = 'FO'
-            WHERE F.DOCCODE = ? AND F.NO = ?
+            WHERE F.DOCCODE IN ({duplicate_placeholders}) AND F.NO = ?
               AND (A.UNIQUEID = ? OR LTRIM(RTRIM(F.ADOC)) = ?)
             ORDER BY F.DATA DESC
-        """, doc_config['doccode'], supplier['no'], f'{unique_root}:FO', document_number).fetchone()
+        """, *duplicate_doccodes, supplier['no'], f'{unique_root}:FO', document_number).fetchone()
         if duplicate:
             correspondence = cursor.execute("""
                 SELECT TOP 1 C.CRSTAMP, C.REF, C.ANO, A.ANEXOSSTAMP, A.FULLNAME
@@ -3337,6 +3416,7 @@ def submit_provisional_invoice_to_phc(
         local_tax_total = _phc_local_amount(tax_total, base_currency_factor)
         local_gross_total = _phc_local_amount(gross_total, base_currency_factor)
         docname = doc_config['docname']
+        treasury = dict(doc_config.get('treasury') or {})
         initials = str(user.get('initials') or requested_by or 'DOC')[:3]
         time_text = received_at.strftime('%H:%M:%S')
         fostamp = _new_stamp()
@@ -3369,6 +3449,11 @@ def submit_provisional_invoice_to_phc(
             'pais': str(supplier.get('country') or '').strip(),
             'tpstamp': str(supplier['tpstamp'])[:25], 'tpdesc': str(supplier['tpdesc'])[:30],
             'lang': str(supplier['lang'])[:20], 'aprovado': 0,
+            **({
+                'contado': treasury['contado'],
+                'ollocal': treasury['ollocal'],
+                'telocal': treasury['telocal'],
+            } if treasury else {}),
             'obs': 'Criado pela Leitura Inteligente com artigo genérico.',
             'ousrinis': initials, 'ousrdata': received_at, 'ousrhora': time_text,
             'usrinis': initials, 'usrdata': received_at, 'usrhora': time_text,
@@ -3376,7 +3461,9 @@ def submit_provisional_invoice_to_phc(
         })
 
         fo2_values = {
-            'fo2stamp': fostamp, 'formapag': 1, 'olcodigo': 'P10001',
+            'fo2stamp': fostamp,
+            'formapag': treasury.get('formapag', 1),
+            'olcodigo': treasury.get('olcodigo', 'P10001'),
             'taxpointdt': document_date, 'dataven': due_date, 'plano': 0,
             'rowidindex': str(uuid.uuid4()).upper(),
             'ousrinis': initials, 'ousrdata': received_at, 'ousrhora': time_text,
@@ -3384,6 +3471,27 @@ def submit_provisional_invoice_to_phc(
         }
         fo2_values.update({f'ivatx{code}': rate for code, rate in tax_by_code.items()})
         _phc_insert_values(cursor, 'FO2', fo2_values)
+
+        if treasury:
+            # A série PP não deve gerar conta corrente. O PHC representa o
+            # pagamento imediato através de uma saída de tesouraria OL com o
+            # mesmo stamp da compra e o perfil usado na última fatura PP.
+            _phc_insert_values(cursor, 'OL', {
+                'olstamp': fostamp, 'fostamp': fostamp,
+                'data': effective_at, 'dvalor': effective_at,
+                'cheque': document_number[:50], 'documento': docname,
+                'descricao': str(supplier['name'])[:55],
+                'entr': 0, 'eentr': 0,
+                'said': local_gross_total, 'esaid': gross_total,
+                'ollocal': treasury['ollocal'], 'local': treasury['telocal'],
+                'sgrupo': treasury['sgrupo'], 'grupo': treasury['grupo'],
+                'origem': 'FO', 'contado': treasury['contado'],
+                'olcodigo': treasury['olcodigo'], 'ccusto': ccusto,
+                'ncusto': str(supplier['ncusto'])[:20],
+                'moeda': treasury.get('currency') or currency,
+                'ousrinis': initials, 'ousrdata': received_at, 'ousrhora': time_text,
+                'usrinis': initials, 'usrdata': received_at, 'usrhora': time_text,
+            })
 
         for item in physical_lines:
             continuation = bool(item.get('continuation'))
@@ -3475,6 +3583,8 @@ def submit_provisional_invoice_to_phc(
             'article_ref': DOC_AI_PROVISIONAL_ARTICLE_REF,
             'doccode': doc_config['doccode'],
             'docname': docname,
+            'cash_payment': bool(treasury),
+            'treasury_location': treasury.get('ollocal', ''),
             'original_date': document_date.date().isoformat(),
             'operational_date': effective_at.date().isoformat(),
             'effective_date': effective_at.date().isoformat(),
@@ -3729,7 +3839,10 @@ def finalize_purchase_on_existing_fo(
         """, fostamp).fetchone()
         if not fo:
             raise ValueError('A Compra criada pela Receção já não existe no PHC.')
-        if _safe_int(fo[1], 0) != DOC_AI_PURCHASE_INVOICE_DOCCODE:
+        if _safe_int(fo[1], 0) not in {
+            DOC_AI_PURCHASE_INVOICE_DOCCODE,
+            DOC_AI_PURCHASE_CASH_INVOICE_DOCCODE,
+        }:
             raise ValueError('O documento PHC da Receção não é uma Compra compatível.')
 
         placeholders = ','.join('?' for _ in proforma_stamps)

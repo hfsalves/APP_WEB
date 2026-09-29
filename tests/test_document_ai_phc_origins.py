@@ -456,6 +456,60 @@ class DocumentAiPhcOriginTests(unittest.TestCase):
         self.assertEqual(config['file_prefix'], 'FAC')
         self.assertEqual(config['correspondence_type'], 'FAC')
 
+    def test_latest_supplier_cash_invoice_selects_pp_series_and_treasury_profile(self):
+        cursor = MagicMock()
+        cursor.execute.return_value.fetchone.side_effect = [
+            (
+                109, 'V/Facture PP', 13, 'CCM STRASB', 'B', 'P10001',
+                'Activités Opérationnelles', 'Paiment a Fournisseurs', 'EURO', 1,
+            ),
+            ('V/Facture PP',),
+        ]
+
+        config = _phc_provisional_purchase_doc_config(
+            cursor, 'HSOLS_FR', 'invoice', {'no': 10265, 'estab': 0},
+        )
+
+        self.assertEqual(config['doccode'], 109)
+        self.assertEqual(config['docname'], 'V/Facture PP')
+        self.assertEqual(config['treasury']['contado'], 13)
+        self.assertEqual(config['treasury']['ollocal'], 'CCM STRASB')
+        self.assertEqual(config['treasury']['telocal'], 'B')
+
+    def test_latest_supplier_normal_invoice_keeps_current_invoice_series(self):
+        cursor = MagicMock()
+        cursor.execute.return_value.fetchone.side_effect = [
+            (55, 'V/Facture', 0, 'Caixa', 'C', '', '', '', '', 1),
+            ('V/Facture',),
+        ]
+
+        config = _phc_provisional_purchase_doc_config(
+            cursor, 'HSOLS_FR', 'invoice', {'no': 52519, 'estab': 0},
+        )
+
+        self.assertEqual(config['doccode'], 55)
+        self.assertEqual(config['docname'], 'V/Facture')
+        self.assertIsNone(config['treasury'])
+
+    def test_cash_invoice_requires_complete_treasury_profile(self):
+        cursor = MagicMock()
+        cursor.execute.return_value.fetchone.return_value = (
+            109, 'V/Facture PP', 2, '', 'B', 'P10001',
+            'Activités Opérationnelles', 'Paiment a Fournisseurs', 'EURO', 1,
+        )
+
+        with self.assertRaisesRegex(ValueError, 'local de tesouraria completos'):
+            _phc_provisional_purchase_doc_config(
+                cursor, 'HSOLS_DE', 'invoice', {'no': 40162, 'estab': 0},
+            )
+
+    def test_cash_invoice_submission_creates_treasury_movement(self):
+        submission_source = inspect.getsource(document_ai_service.submit_provisional_invoice_to_phc)
+
+        self.assertIn("_phc_insert_values(cursor, 'OL'", submission_source)
+        self.assertIn("'said': local_gross_total, 'esaid': gross_total", submission_source)
+        self.assertIn("'origem': 'FO'", submission_source)
+
     def test_negative_invoice_values_do_not_classify_the_document_as_credit_note(self):
         result = classify_document_type(
             'FACTURE N° F-2026-15\nTotal HT -120,45 EUR\nTVA -24,09 EUR\nTotal TTC -144,54 EUR'
@@ -470,6 +524,20 @@ class DocumentAiPhcOriginTests(unittest.TestCase):
         self.assertIn("ISNULL(PAIS, '')", supplier_source)
         self.assertIn("'currency', 'country'", supplier_source)
         self.assertIn("'pais': str(supplier.get('country') or '').strip()", submission_source)
+
+    def test_purchase_document_number_replaces_slashes_with_hyphens(self):
+        self.assertEqual(
+            document_ai_service._phc_purchase_document_number(' FT 2026/123/4 '),
+            'FT 2026-123-4',
+        )
+
+    def test_purchase_submission_normalizes_number_before_phc_writes(self):
+        submission_source = inspect.getsource(document_ai_service.submit_provisional_invoice_to_phc)
+
+        self.assertIn(
+            "document_number = _phc_purchase_document_number(document.get('document_number'))",
+            submission_source,
+        )
 
     def test_duplicate_tax_rates_use_the_first_phc_table(self):
         cursor = MagicMock()
@@ -769,6 +837,24 @@ class DocumentAiPhcOriginTests(unittest.TestCase):
             )
 
         self.assertTrue(all(item['file_name'].endswith('-NC-50980.pdf') for item in result))
+
+    def test_purchase_ged_number_uses_hyphens_instead_of_slashes(self):
+        application = Flask(__name__)
+        with application.app_context():
+            result = _provisional_invoice_ged_paths(
+                {
+                    'customer': {'ged_folder': 'HSOLS_PT'},
+                    'document_type': 'invoice',
+                    'document_number': 'FT 2026/123/4',
+                },
+                {'phc_db': 'HSOLS_PT'},
+                {'name': 'FORNECEDOR', 'no': 30001, 'estab': 0},
+                100,
+                datetime(2026, 9, 29, 12, 0),
+                'FAC',
+            )
+
+        self.assertTrue(all(item['file_name'].endswith('-FT 2026-123-4.pdf') for item in result))
 
     def test_correspondence_ged_path_uses_received_mail_structure(self):
         application = Flask(__name__)

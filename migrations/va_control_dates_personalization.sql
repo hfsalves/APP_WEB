@@ -1,0 +1,118 @@
+SET XACT_ABORT ON;
+
+BEGIN TRANSACTION;
+
+-- Datas de controlo existentes no ficheiro de acompanhamento, mas ainda ausentes na VA.
+IF COL_LENGTH('dbo.VA', 'DTPOLUICAO') IS NULL
+    ALTER TABLE dbo.VA ADD DTPOLUICAO date NULL;
+
+IF COL_LENGTH('dbo.VA', 'DTCONTRAVISITA') IS NULL
+    ALTER TABLE dbo.VA ADD DTCONTRAVISITA date NULL;
+
+-- Os cinco prazos do parque ficam juntos no dynamic_form das viaturas.
+DECLARE @CamposControle TABLE
+(
+    NMCAMPO varchar(25) NOT NULL,
+    DESCRICAO varchar(60) NOT NULL,
+    ORDEM int NOT NULL,
+    ORDEM_MOBILE int NOT NULL
+);
+
+INSERT INTO @CamposControle (NMCAMPO, DESCRICAO, ORDEM, ORDEM_MOBILE)
+VALUES
+    ('DTINSPECAO',      'Próx. controlo técnico',   121, 121),
+    ('DTPOLUICAO',      'Próx. controlo poluição',  122, 131),
+    ('DTLIMITADOR',     'Próx. controlo limitador', 123, 141),
+    ('DTTACOGRAFO',     'Próx. controlo tacógrafo', 124, 151),
+    ('DTCONTRAVISITA',  'Próx. contra-visita',      125, 161);
+
+UPDATE C
+SET
+    C.DESCRICAO = F.DESCRICAO,
+    C.TIPO = 'DATE',
+    C.ORDEM = F.ORDEM,
+    C.TAM = 10,
+    C.ORDEM_MOBILE = F.ORDEM_MOBILE,
+    C.TAM_MOBILE = 40,
+    C.VISIVEL = 1,
+    C.RONLY = 0,
+    C.OBRIGATORIO = 0,
+    C.DECIMAIS = 0
+FROM dbo.CAMPOS C
+INNER JOIN @CamposControle F
+    ON UPPER(LTRIM(RTRIM(ISNULL(C.NMCAMPO, '')))) = F.NMCAMPO
+WHERE UPPER(LTRIM(RTRIM(ISNULL(C.TABELA, '')))) = 'VA';
+
+INSERT INTO dbo.CAMPOS
+(
+    CAMPOSSTAMP, ORDEM, NMCAMPO, DESCRICAO, TIPO, TABELA,
+    LISTA, FILTRO, FILTRODEFAULT, ADMIN, RONLY, COMBO, VIRTUAL, VISIVEL,
+    DECIMAIS, TAM, ORDEM_MOBILE, TAM_MOBILE, CONDICAO_VISIVEL, OBRIGATORIO
+)
+SELECT
+    LEFT(REPLACE(CONVERT(varchar(36), NEWID()), '-', ''), 25),
+    F.ORDEM, F.NMCAMPO, F.DESCRICAO, 'DATE', 'VA',
+    0, 0, '', 0, 0, '', '', 1,
+    0, 10, F.ORDEM_MOBILE, 40, '', 0
+FROM @CamposControle F
+WHERE NOT EXISTS
+(
+    SELECT 1
+    FROM dbo.CAMPOS C
+    WHERE UPPER(LTRIM(RTRIM(ISNULL(C.TABELA, '')))) = 'VA'
+      AND UPPER(LTRIM(RTRIM(ISNULL(C.NMCAMPO, '')))) = F.NMCAMPO
+);
+
+-- O separador é um objeto da personalização do menu, não código específico do ecrã.
+UPDATE MO
+SET
+    MO.DESCRICAO = 'Controlos técnicos',
+    MO.TIPO = 'SEPARATOR',
+    MO.ORDEM = 111,
+    MO.TAM = 100,
+    MO.ORDEM_MOBILE = 111,
+    MO.TAM_MOBILE = 40,
+    MO.VISIVEL = 1,
+    MO.RONLY = 1,
+    MO.OBRIGATORIO = 0,
+    MO.CONDICAO_VISIVEL = '',
+    MO.COMBO = '',
+    MO.DECIMAIS = 0,
+    MO.PROPRIEDADES = N'{}',
+    MO.ATIVO = 1,
+    MO.DTALT = GETDATE(),
+    MO.USERALTERACAO = 'migration'
+FROM dbo.MENU_OBJETOS MO
+INNER JOIN dbo.MENU M
+    ON M.MENUSTAMP = MO.MENUSTAMP
+WHERE UPPER(LTRIM(RTRIM(ISNULL(M.TABELA, '')))) = 'VA'
+  AND ISNULL(M.INATIVO, 0) = 0
+  AND UPPER(LTRIM(RTRIM(ISNULL(MO.NMCAMPO, '')))) = 'OBJ_SEPARATOR_CONTROLOS';
+
+INSERT INTO dbo.MENU_OBJETOS
+(
+    MENUOBJSTAMP, MENUSTAMP, NMCAMPO, DESCRICAO, TIPO,
+    ORDEM, TAM, ORDEM_MOBILE, TAM_MOBILE,
+    VISIVEL, RONLY, OBRIGATORIO, CONDICAO_VISIVEL,
+    COMBO, DECIMAIS, MINIMO, MAXIMO, PROPRIEDADES,
+    ATIVO, DTCRI, DTALT, USERCRIACAO, USERALTERACAO
+)
+SELECT
+    LEFT(REPLACE(CONVERT(varchar(36), NEWID()), '-', ''), 25),
+    M.MENUSTAMP, 'OBJ_SEPARATOR_CONTROLOS', 'Controlos técnicos', 'SEPARATOR',
+    111, 100, 111, 40,
+    1, 1, 0, '',
+    '', 0, NULL, NULL, N'{}',
+    1, GETDATE(), GETDATE(), 'migration', 'migration'
+FROM dbo.MENU M
+WHERE UPPER(LTRIM(RTRIM(ISNULL(M.TABELA, '')))) = 'VA'
+  AND ISNULL(M.INATIVO, 0) = 0
+  AND NOT EXISTS
+  (
+      SELECT 1
+      FROM dbo.MENU_OBJETOS MO
+      WHERE MO.MENUSTAMP = M.MENUSTAMP
+        AND UPPER(LTRIM(RTRIM(ISNULL(MO.NMCAMPO, '')))) = 'OBJ_SEPARATOR_CONTROLOS'
+  );
+
+COMMIT TRANSACTION;

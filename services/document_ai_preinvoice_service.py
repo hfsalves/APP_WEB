@@ -277,14 +277,18 @@ def create_preinvoice(document, origins, reception, document_stamp, file_bytes, 
         if len(series) != 1:
             raise ValueError('Nao foi possivel identificar uma unica serie Pre-Fatura em TS.NMDOS.')
         ndos, name = int(series[0]['ndos']), _clean(series[0]['nmdos'])
-        purchase_config = svc._phc_provisional_purchase_doc_config(cursor, database, 'invoice')
         supplier = svc._phc_provisional_supplier(cursor, document.get('supplier') or {})
-        purchase = _rows(cursor, 'SELECT NO,ESTAB,MOEDA,ADOC,DOCCODE FROM FO WITH (UPDLOCK,HOLDLOCK) WHERE FOSTAMP=?', reception['fostamp'])
+        purchase = _rows(cursor, 'SELECT NO,ESTAB,MOEDA,ADOC,DOCCODE,DOCNOME FROM FO WITH (UPDLOCK,HOLDLOCK) WHERE FOSTAMP=?', reception['fostamp'])
         if not purchase or int(purchase[0]['no']) != supplier['no'] or int(purchase[0]['estab']) != supplier['estab']:
             raise ValueError('O fornecedor nao coincide com a Compra da Rececao.')
-        if int(purchase[0]['doccode']) != purchase_config['doccode']:
+        if int(purchase[0]['doccode']) not in {
+            svc.DOC_AI_PURCHASE_INVOICE_DOCCODE,
+            svc.DOC_AI_PURCHASE_CASH_INVOICE_DOCCODE,
+        }:
             raise ValueError('O tipo de Compra da Rececao nao corresponde a uma fatura.')
-        if _clean(purchase[0]['adoc']) != _clean(document.get('document_number')):
+        if svc._phc_purchase_document_number(purchase[0]['adoc']) != svc._phc_purchase_document_number(
+            document.get('document_number')
+        ):
             raise ValueError('O numero da fatura mudou desde a Rececao. Corrige a Compra antes de validar.')
         pdf = _rows(cursor, "SELECT TOP 1 FULLNAME FROM ANEXOS WHERE ORITABLE='FO' AND RECSTAMP=? AND FEXT='pdf' ORDER BY USRDATA DESC", reception['fostamp'])
         if not pdf or not svc._document_ai_pdf_is_confirmed({'unc_path': pdf[0]['fullname'],
@@ -396,7 +400,7 @@ def create_preinvoice(document, origins, reception, document_stamp, file_bytes, 
                 'ettdeb': line_net, 'ttdeb': local(line_net),
                 'ccusto': _clean(origin.get('ccusto')) if is_context else part['ccusto'],
                 'lordem': physical_index*1000,
-                'ndoc': purchase_config['doccode'], 'nmdoc': purchase_config['docname'], 'fno': 0,
+                'ndoc': int(purchase[0]['doccode']), 'nmdoc': _clean(purchase[0]['docnome']), 'fno': 0,
                 **lineage, **audit})
             svc._phc_insert_values(cursor, 'BI', values)
             svc._phc_insert_values(cursor, 'BI2', {'bi2stamp': bi_stamp, 'bostamp': stamp, **audit})
