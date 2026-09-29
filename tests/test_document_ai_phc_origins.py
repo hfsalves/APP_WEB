@@ -510,6 +510,12 @@ class DocumentAiPhcOriginTests(unittest.TestCase):
         self.assertIn("'said': local_gross_total, 'esaid': gross_total", submission_source)
         self.assertIn("'origem': 'FO'", submission_source)
 
+    def test_purchase_attachment_uses_native_phc_origin_without_extra_folder(self):
+        submission_source = inspect.getsource(document_ai_service.submit_provisional_invoice_to_phc)
+
+        self.assertIn("'origem': 'Compras a Fornecedores\\r' if oritable == 'FO' else ''", submission_source)
+        self.assertIn("'tpdoc': 0, 'original': 0", submission_source)
+
     def test_negative_invoice_values_do_not_classify_the_document_as_credit_note(self):
         result = classify_document_type(
             'FACTURE N° F-2026-15\nTotal HT -120,45 EUR\nTVA -24,09 EUR\nTotal TTC -144,54 EUR'

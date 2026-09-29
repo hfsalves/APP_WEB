@@ -1,0 +1,1330 @@
+<?xml version="1.0"?>
+<Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2" xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2" xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2" xmlns:cec="urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2" xmlns:clm54217="urn:un:unece:uncefact:codelist:specification:54217:2001" xmlns:clm5639="urn:un:unece:uncefact:codelist:specification:5639:1988" xmlns:clm66411="urn:un:unece:uncefact:codelist:specification:66411:2001" xmlns:clmIANAMIMEMediaType="urn:un:unece:uncefact:codelist:specification:IANAMIMEMediaType:2003" xmlns:qdt="urn:oasis:names:specification:ubl:schema:xsd:QualifiedDatatypes-2" xmlns:sac="urn:oasis:names:specification:ubl:schema:xsd:SignatureAggregateComponents-2" xmlns:sbc="urn:oasis:names:specification:ubl:schema:xsd:SignatureBasicComponents-2" xmlns:sig="urn:oasis:names:specification:ubl:schema:xsd:CommonSignatureComponents-2" xmlns:udt="urn:un:unece:uncefact:data:specification:UnqualifiedDataTypesSchemaModule:2" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <cbc:UBLVersionID>2.1</cbc:UBLVersionID>
+  <cbc:CustomizationID>urn:cen.eu:en16931:2017#conformant#urn.cpro.gouv.fr:1p0:extended-ctc-fr</cbc:CustomizationID>
+  <cbc:ProfileID>M1</cbc:ProfileID>
+  <cbc:ID>5706000000854932</cbc:ID>
+  <cbc:IssueDate>2026-09-15</cbc:IssueDate>
+  <cbc:InvoiceTypeCode>380</cbc:InvoiceTypeCode>
+  <cbc:Note>#AAB#Le client d&#xE9;clare avoir pris connaissance de nos conditions g&#xE9;n&#xE9;rales de vente et de location. Il reconnait de convention expresse et sans r&#xE9;serve qu&#x2019;il attribue comp&#xE9;tence au Tribunal de Commerce de Cr&#xE9;teil pour tout litige conform&#xE9;ment aux dispositions de l&#x2019;article 48 du nouveau Code du Proc&#xE9;dure Civile. Mise en conformit&#xE9; Loi 92.1442 du 31/12/1992, aucun escompte ne sera accord&#xE9; pour r&#xE8;glement anticip&#xE9;.</cbc:Note>
+  <cbc:Note>#PMD#Il sera appliqu&#xE9; pour les sommes impay&#xE9;es &#xE0; la date d&#x2019;&#xE9;ch&#xE9;ance un int&#xE9;r&#xEA;t de retard calcul&#xE9; sur la base du taux d&#x2019;int&#xE9;r&#xEA;t appliqu&#xE9; par la Banque Centrale Europ&#xE9;enne &#xE0; son op&#xE9;ration de refinancement la plus r&#xE9;cente major&#xE9; de dix points sans pour autant &#xEA;tre inf&#xE9;rieur &#xE0; 3 fois le taux d'int&#xE9;r&#xEA;t l&#xE9;gal.</cbc:Note>
+  <cbc:Note>#PMT#Montant forfaitaire pour frais de recouvrement : 40 euros minimum (article D 441-5 du code de commerce).</cbc:Note>
+  <cbc:Note>#BAR#B2B</cbc:Note>
+  <cbc:DocumentCurrencyCode>EUR</cbc:DocumentCurrencyCode>
+  <cac:AccountingSupplierParty>
+    <cac:Party>
+      <cbc:EndpointID schemeID="0225">400151536</cbc:EndpointID>
+      <cac:PartyIdentification>
+        <cbc:ID schemeID="0009">40015153600754</cbc:ID>
+      </cac:PartyIdentification>
+      <cac:PartyIdentification>
+        <cbc:ID schemeID="0088">0000000000000</cbc:ID>
+      </cac:PartyIdentification>
+      <cac:PartyName>
+        <cbc:Name>CEMEX B&#xE9;tons Rh&#xF4;ne-Alpes</cbc:Name>
+      </cac:PartyName>
+      <cac:PostalAddress>
+        <cbc:StreetName>RUE DU CAPRICORNE 13</cbc:StreetName>
+        <cbc:CityName>RUNGIS</cbc:CityName>
+        <cbc:PostalZone>94150</cbc:PostalZone>
+        <cbc:CountrySubentity>Val-de-Marne</cbc:CountrySubentity>
+        <cac:Country>
+          <cbc:IdentificationCode>FR</cbc:IdentificationCode>
+        </cac:Country>
+      </cac:PostalAddress>
+      <cac:PartyTaxScheme>
+        <cbc:CompanyID>FR80400151536</cbc:CompanyID>
+        <cac:TaxScheme>
+          <cbc:ID>VAT</cbc:ID>
+        </cac:TaxScheme>
+      </cac:PartyTaxScheme>
+      <cac:PartyLegalEntity>
+        <cbc:RegistrationName>CEMEX B&#xE9;tons Rh&#xF4;ne-Alpes</cbc:RegistrationName>
+        <cbc:CompanyID schemeID="0002">400151536</cbc:CompanyID>
+      </cac:PartyLegalEntity>
+      <cac:Contact>
+        <cbc:ElectronicMail>fr.factures@cemex.com</cbc:ElectronicMail>
+      </cac:Contact>
+    </cac:Party>
+  </cac:AccountingSupplierParty>
+  <cac:AccountingCustomerParty>
+    <cac:Party>
+      <cbc:EndpointID schemeID="0225">804213593</cbc:EndpointID>
+      <cac:PartyIdentification>
+        <cbc:ID schemeID="0009">80421359300028</cbc:ID>
+      </cac:PartyIdentification>
+      <cac:PartyIdentification>
+        <cbc:ID schemeID="0088">0000000000000</cbc:ID>
+      </cac:PartyIdentification>
+      <cac:PostalAddress>
+        <cbc:StreetName>RUE DE L&#xB4;ENERGIE</cbc:StreetName>
+        <cbc:CityName>GRIESHEIM-PRES-MOLSHEIM</cbc:CityName>
+        <cbc:PostalZone>67870</cbc:PostalZone>
+        <cac:Country>
+          <cbc:IdentificationCode>FR</cbc:IdentificationCode>
+        </cac:Country>
+      </cac:PostalAddress>
+      <cac:PartyTaxScheme>
+        <cbc:CompanyID>FR46804213593</cbc:CompanyID>
+        <cac:TaxScheme>
+          <cbc:ID>VAT</cbc:ID>
+        </cac:TaxScheme>
+      </cac:PartyTaxScheme>
+      <cac:PartyLegalEntity>
+        <cbc:RegistrationName>HSOLS FRANCE RJ</cbc:RegistrationName>
+        <cbc:CompanyID schemeID="0002">804213593</cbc:CompanyID>
+      </cac:PartyLegalEntity>
+    </cac:Party>
+  </cac:AccountingCustomerParty>
+  <cac:PaymentMeans>
+    <cbc:PaymentMeansCode>30</cbc:PaymentMeansCode>
+    <cac:PayeeFinancialAccount>
+      <cbc:ID>30003 02280 00020301887 47</cbc:ID>
+      <cbc:Name>SOCIETE GENERALE</cbc:Name>
+    </cac:PayeeFinancialAccount>
+  </cac:PaymentMeans>
+  <cac:PaymentTerms>
+    <cbc:Note>Payable imm&#xE9;diatement</cbc:Note>
+  </cac:PaymentTerms>
+  <cac:TaxTotal>
+    <cbc:TaxAmount currencyID="EUR">4729.39</cbc:TaxAmount>
+    <cac:TaxSubtotal>
+      <cbc:TaxableAmount currencyID="EUR">23646.97</cbc:TaxableAmount>
+      <cbc:TaxAmount currencyID="EUR">4729.39</cbc:TaxAmount>
+      <cac:TaxCategory>
+        <cbc:ID>S</cbc:ID>
+        <cbc:Percent>20.00</cbc:Percent>
+        <cac:TaxScheme>
+          <cbc:ID>VAT</cbc:ID>
+        </cac:TaxScheme>
+      </cac:TaxCategory>
+    </cac:TaxSubtotal>
+  </cac:TaxTotal>
+  <cac:LegalMonetaryTotal>
+    <cbc:LineExtensionAmount currencyID="EUR">23646.97</cbc:LineExtensionAmount>
+    <cbc:TaxExclusiveAmount currencyID="EUR">23646.97</cbc:TaxExclusiveAmount>
+    <cbc:TaxInclusiveAmount currencyID="EUR">28376.36</cbc:TaxInclusiveAmount>
+    <cbc:PayableAmount currencyID="EUR">28376.36</cbc:PayableAmount>
+  </cac:LegalMonetaryTotal>
+  <cac:InvoiceLine>
+    <cbc:ID>001001</cbc:ID>
+    <cbc:InvoicedQuantity unitCode="MTQ">7.5000</cbc:InvoicedQuantity>
+    <cbc:LineExtensionAmount currencyID="EUR">902.80</cbc:LineExtensionAmount>
+    <cac:Delivery>
+      <cbc:ActualDeliveryDate>2026-09-03</cbc:ActualDeliveryDate>
+      <cac:DeliveryLocation>
+        <cac:Address>
+          <cbc:StreetName>Rue du mollaret 25</cbc:StreetName>
+          <cbc:CityName>Saint-Quentin-Fallavier</cbc:CityName>
+          <cbc:PostalZone>38070</cbc:PostalZone>
+          <cac:Country>
+            <cbc:IdentificationCode>FR</cbc:IdentificationCode>
+          </cac:Country>
+        </cac:Address>
+      </cac:DeliveryLocation>
+      <cac:DeliveryParty>
+        <cac:PartyName>
+          <cbc:Name>MONDIAL RELAY-ST QUENTIN FAL-SCI JULIE</cbc:Name>
+        </cac:PartyName>
+      </cac:DeliveryParty>
+    </cac:Delivery>
+    <cac:TaxTotal>
+      <cbc:TaxAmount currencyID="EUR">180.56</cbc:TaxAmount>
+    </cac:TaxTotal>
+    <cac:Item>
+      <cbc:Name>DAL-1-C30-XXX-XF2-G3-N-BASE-024-S3-0</cbc:Name>
+      <cac:SellersItemIdentification>
+        <cbc:ID>000000000010165629</cbc:ID>
+      </cac:SellersItemIdentification>
+      <cac:ClassifiedTaxCategory>
+        <cbc:ID>S</cbc:ID>
+        <cbc:Percent>20.00</cbc:Percent>
+        <cac:TaxScheme>
+          <cbc:ID>VAT</cbc:ID>
+        </cac:TaxScheme>
+      </cac:ClassifiedTaxCategory>
+    </cac:Item>
+    <cac:Price>
+      <cbc:PriceAmount currencyID="EUR">120.370000</cbc:PriceAmount>
+    </cac:Price>
+  </cac:InvoiceLine>
+  <cac:InvoiceLine>
+    <cbc:ID>001002</cbc:ID>
+    <cbc:InvoicedQuantity unitCode="MTQ">7.5000</cbc:InvoicedQuantity>
+    <cbc:LineExtensionAmount currencyID="EUR">850.34</cbc:LineExtensionAmount>
+    <cac:Delivery>
+      <cbc:ActualDeliveryDate>2026-09-03</cbc:ActualDeliveryDate>
+      <cac:DeliveryLocation>
+        <cac:Address>
+          <cbc:StreetName>Rue du mollaret 25</cbc:StreetName>
+          <cbc:CityName>Saint-Quentin-Fallavier</cbc:CityName>
+          <cbc:PostalZone>38070</cbc:PostalZone>
+          <cac:Country>
+            <cbc:IdentificationCode>FR</cbc:IdentificationCode>
+          </cac:Country>
+        </cac:Address>
+      </cac:DeliveryLocation>
+      <cac:DeliveryParty>
+        <cac:PartyName>
+          <cbc:Name>MONDIAL RELAY-ST QUENTIN FAL-SCI JULIE</cbc:Name>
+        </cac:PartyName>
+      </cac:DeliveryParty>
+    </cac:Delivery>
+    <cac:TaxTotal>
+      <cbc:TaxAmount currencyID="EUR">170.07</cbc:TaxAmount>
+    </cac:TaxTotal>
+    <cac:Item>
+      <cbc:Name>DAL-1-C30-XXX-XF1-G3-N-BASE-023-S2-0</cbc:Name>
+      <cac:SellersItemIdentification>
+        <cbc:ID>000000000010147274</cbc:ID>
+      </cac:SellersItemIdentification>
+      <cac:ClassifiedTaxCategory>
+        <cbc:ID>S</cbc:ID>
+        <cbc:Percent>20.00</cbc:Percent>
+        <cac:TaxScheme>
+          <cbc:ID>VAT</cbc:ID>
+        </cac:TaxScheme>
+      </cac:ClassifiedTaxCategory>
+    </cac:Item>
+    <cac:Price>
+      <cbc:PriceAmount currencyID="EUR">113.380000</cbc:PriceAmount>
+    </cac:Price>
+  </cac:InvoiceLine>
+  <cac:InvoiceLine>
+    <cbc:ID>001003</cbc:ID>
+    <cbc:InvoicedQuantity unitCode="MTQ">7.5000</cbc:InvoicedQuantity>
+    <cbc:LineExtensionAmount currencyID="EUR">850.36</cbc:LineExtensionAmount>
+    <cac:Delivery>
+      <cbc:ActualDeliveryDate>2026-09-03</cbc:ActualDeliveryDate>
+      <cac:DeliveryLocation>
+        <cac:Address>
+          <cbc:StreetName>Rue du mollaret 25</cbc:StreetName>
+          <cbc:CityName>Saint-Quentin-Fallavier</cbc:CityName>
+          <cbc:PostalZone>38070</cbc:PostalZone>
+          <cac:Country>
+            <cbc:IdentificationCode>FR</cbc:IdentificationCode>
+          </cac:Country>
+        </cac:Address>
+      </cac:DeliveryLocation>
+      <cac:DeliveryParty>
+        <cac:PartyName>
+          <cbc:Name>MONDIAL RELAY-ST QUENTIN FAL-SCI JULIE</cbc:Name>
+        </cac:PartyName>
+      </cac:DeliveryParty>
+    </cac:Delivery>
+    <cac:TaxTotal>
+      <cbc:TaxAmount currencyID="EUR">170.07</cbc:TaxAmount>
+    </cac:TaxTotal>
+    <cac:Item>
+      <cbc:Name>DAL-1-C30-XXX-XF1-G3-N-BASE-023-S2-0</cbc:Name>
+      <cac:SellersItemIdentification>
+        <cbc:ID>000000000010147274</cbc:ID>
+      </cac:SellersItemIdentification>
+      <cac:ClassifiedTaxCategory>
+        <cbc:ID>S</cbc:ID>
+        <cbc:Percent>20.00</cbc:Percent>
+        <cac:TaxScheme>
+          <cbc:ID>VAT</cbc:ID>
+        </cac:TaxScheme>
+      </cac:ClassifiedTaxCategory>
+    </cac:Item>
+    <cac:Price>
+      <cbc:PriceAmount currencyID="EUR">113.380000</cbc:PriceAmount>
+    </cac:Price>
+  </cac:InvoiceLine>
+  <cac:InvoiceLine>
+    <cbc:ID>001004</cbc:ID>
+    <cbc:InvoicedQuantity unitCode="MTQ">7.5000</cbc:InvoicedQuantity>
+    <cbc:LineExtensionAmount currencyID="EUR">850.34</cbc:LineExtensionAmount>
+    <cac:Delivery>
+      <cbc:ActualDeliveryDate>2026-09-03</cbc:ActualDeliveryDate>
+      <cac:DeliveryLocation>
+        <cac:Address>
+          <cbc:StreetName>Rue du mollaret 25</cbc:StreetName>
+          <cbc:CityName>Saint-Quentin-Fallavier</cbc:CityName>
+          <cbc:PostalZone>38070</cbc:PostalZone>
+          <cac:Country>
+            <cbc:IdentificationCode>FR</cbc:IdentificationCode>
+          </cac:Country>
+        </cac:Address>
+      </cac:DeliveryLocation>
+      <cac:DeliveryParty>
+        <cac:PartyName>
+          <cbc:Name>MONDIAL RELAY-ST QUENTIN FAL-SCI JULIE</cbc:Name>
+        </cac:PartyName>
+      </cac:DeliveryParty>
+    </cac:Delivery>
+    <cac:TaxTotal>
+      <cbc:TaxAmount currencyID="EUR">170.07</cbc:TaxAmount>
+    </cac:TaxTotal>
+    <cac:Item>
+      <cbc:Name>DAL-1-C30-XXX-XF1-G3-N-BASE-023-S2-0</cbc:Name>
+      <cac:SellersItemIdentification>
+        <cbc:ID>000000000010147274</cbc:ID>
+      </cac:SellersItemIdentification>
+      <cac:ClassifiedTaxCategory>
+        <cbc:ID>S</cbc:ID>
+        <cbc:Percent>20.00</cbc:Percent>
+        <cac:TaxScheme>
+          <cbc:ID>VAT</cbc:ID>
+        </cac:TaxScheme>
+      </cac:ClassifiedTaxCategory>
+    </cac:Item>
+    <cac:Price>
+      <cbc:PriceAmount currencyID="EUR">113.380000</cbc:PriceAmount>
+    </cac:Price>
+  </cac:InvoiceLine>
+  <cac:InvoiceLine>
+    <cbc:ID>001005</cbc:ID>
+    <cbc:InvoicedQuantity unitCode="MTQ">7.5000</cbc:InvoicedQuantity>
+    <cbc:LineExtensionAmount currencyID="EUR">850.36</cbc:LineExtensionAmount>
+    <cac:Delivery>
+      <cbc:ActualDeliveryDate>2026-09-03</cbc:ActualDeliveryDate>
+      <cac:DeliveryLocation>
+        <cac:Address>
+          <cbc:StreetName>Rue du mollaret 25</cbc:StreetName>
+          <cbc:CityName>Saint-Quentin-Fallavier</cbc:CityName>
+          <cbc:PostalZone>38070</cbc:PostalZone>
+          <cac:Country>
+            <cbc:IdentificationCode>FR</cbc:IdentificationCode>
+          </cac:Country>
+        </cac:Address>
+      </cac:DeliveryLocation>
+      <cac:DeliveryParty>
+        <cac:PartyName>
+          <cbc:Name>MONDIAL RELAY-ST QUENTIN FAL-SCI JULIE</cbc:Name>
+        </cac:PartyName>
+      </cac:DeliveryParty>
+    </cac:Delivery>
+    <cac:TaxTotal>
+      <cbc:TaxAmount currencyID="EUR">170.07</cbc:TaxAmount>
+    </cac:TaxTotal>
+    <cac:Item>
+      <cbc:Name>DAL-1-C30-XXX-XF1-G3-N-BASE-023-S2-0</cbc:Name>
+      <cac:SellersItemIdentification>
+        <cbc:ID>000000000010147274</cbc:ID>
+      </cac:SellersItemIdentification>
+      <cac:ClassifiedTaxCategory>
+        <cbc:ID>S</cbc:ID>
+        <cbc:Percent>20.00</cbc:Percent>
+        <cac:TaxScheme>
+          <cbc:ID>VAT</cbc:ID>
+        </cac:TaxScheme>
+      </cac:ClassifiedTaxCategory>
+    </cac:Item>
+    <cac:Price>
+      <cbc:PriceAmount currencyID="EUR">113.380000</cbc:PriceAmount>
+    </cac:Price>
+  </cac:InvoiceLine>
+  <cac:InvoiceLine>
+    <cbc:ID>001006</cbc:ID>
+    <cbc:InvoicedQuantity unitCode="MTQ">7.5000</cbc:InvoicedQuantity>
+    <cbc:LineExtensionAmount currencyID="EUR">850.34</cbc:LineExtensionAmount>
+    <cac:Delivery>
+      <cbc:ActualDeliveryDate>2026-09-03</cbc:ActualDeliveryDate>
+      <cac:DeliveryLocation>
+        <cac:Address>
+          <cbc:StreetName>Rue du mollaret 25</cbc:StreetName>
+          <cbc:CityName>Saint-Quentin-Fallavier</cbc:CityName>
+          <cbc:PostalZone>38070</cbc:PostalZone>
+          <cac:Country>
+            <cbc:IdentificationCode>FR</cbc:IdentificationCode>
+          </cac:Country>
+        </cac:Address>
+      </cac:DeliveryLocation>
+      <cac:DeliveryParty>
+        <cac:PartyName>
+          <cbc:Name>MONDIAL RELAY-ST QUENTIN FAL-SCI JULIE</cbc:Name>
+        </cac:PartyName>
+      </cac:DeliveryParty>
+    </cac:Delivery>
+    <cac:TaxTotal>
+      <cbc:TaxAmount currencyID="EUR">170.07</cbc:TaxAmount>
+    </cac:TaxTotal>
+    <cac:Item>
+      <cbc:Name>DAL-1-C30-XXX-XF1-G3-N-BASE-023-S2-0</cbc:Name>
+      <cac:SellersItemIdentification>
+        <cbc:ID>000000000010147274</cbc:ID>
+      </cac:SellersItemIdentification>
+      <cac:ClassifiedTaxCategory>
+        <cbc:ID>S</cbc:ID>
+        <cbc:Percent>20.00</cbc:Percent>
+        <cac:TaxScheme>
+          <cbc:ID>VAT</cbc:ID>
+        </cac:TaxScheme>
+      </cac:ClassifiedTaxCategory>
+    </cac:Item>
+    <cac:Price>
+      <cbc:PriceAmount currencyID="EUR">113.380000</cbc:PriceAmount>
+    </cac:Price>
+  </cac:InvoiceLine>
+  <cac:InvoiceLine>
+    <cbc:ID>001007</cbc:ID>
+    <cbc:InvoicedQuantity unitCode="MTQ">7.5000</cbc:InvoicedQuantity>
+    <cbc:LineExtensionAmount currencyID="EUR">850.36</cbc:LineExtensionAmount>
+    <cac:Delivery>
+      <cbc:ActualDeliveryDate>2026-09-03</cbc:ActualDeliveryDate>
+      <cac:DeliveryLocation>
+        <cac:Address>
+          <cbc:StreetName>Rue du mollaret 25</cbc:StreetName>
+          <cbc:CityName>Saint-Quentin-Fallavier</cbc:CityName>
+          <cbc:PostalZone>38070</cbc:PostalZone>
+          <cac:Country>
+            <cbc:IdentificationCode>FR</cbc:IdentificationCode>
+          </cac:Country>
+        </cac:Address>
+      </cac:DeliveryLocation>
+      <cac:DeliveryParty>
+        <cac:PartyName>
+          <cbc:Name>MONDIAL RELAY-ST QUENTIN FAL-SCI JULIE</cbc:Name>
+        </cac:PartyName>
+      </cac:DeliveryParty>
+    </cac:Delivery>
+    <cac:TaxTotal>
+      <cbc:TaxAmount currencyID="EUR">170.07</cbc:TaxAmount>
+    </cac:TaxTotal>
+    <cac:Item>
+      <cbc:Name>DAL-1-C30-XXX-XF1-G3-N-BASE-023-S2-0</cbc:Name>
+      <cac:SellersItemIdentification>
+        <cbc:ID>000000000010147274</cbc:ID>
+      </cac:SellersItemIdentification>
+      <cac:ClassifiedTaxCategory>
+        <cbc:ID>S</cbc:ID>
+        <cbc:Percent>20.00</cbc:Percent>
+        <cac:TaxScheme>
+          <cbc:ID>VAT</cbc:ID>
+        </cac:TaxScheme>
+      </cac:ClassifiedTaxCategory>
+    </cac:Item>
+    <cac:Price>
+      <cbc:PriceAmount currencyID="EUR">113.380000</cbc:PriceAmount>
+    </cac:Price>
+  </cac:InvoiceLine>
+  <cac:InvoiceLine>
+    <cbc:ID>001008</cbc:ID>
+    <cbc:InvoicedQuantity unitCode="MTQ">7.5000</cbc:InvoicedQuantity>
+    <cbc:LineExtensionAmount currencyID="EUR">850.34</cbc:LineExtensionAmount>
+    <cac:Delivery>
+      <cbc:ActualDeliveryDate>2026-09-03</cbc:ActualDeliveryDate>
+      <cac:DeliveryLocation>
+        <cac:Address>
+          <cbc:StreetName>Rue du mollaret 25</cbc:StreetName>
+          <cbc:CityName>Saint-Quentin-Fallavier</cbc:CityName>
+          <cbc:PostalZone>38070</cbc:PostalZone>
+          <cac:Country>
+            <cbc:IdentificationCode>FR</cbc:IdentificationCode>
+          </cac:Country>
+        </cac:Address>
+      </cac:DeliveryLocation>
+      <cac:DeliveryParty>
+        <cac:PartyName>
+          <cbc:Name>MONDIAL RELAY-ST QUENTIN FAL-SCI JULIE</cbc:Name>
+        </cac:PartyName>
+      </cac:DeliveryParty>
+    </cac:Delivery>
+    <cac:TaxTotal>
+      <cbc:TaxAmount currencyID="EUR">170.07</cbc:TaxAmount>
+    </cac:TaxTotal>
+    <cac:Item>
+      <cbc:Name>DAL-1-C30-XXX-XF1-G3-N-BASE-023-S2-0</cbc:Name>
+      <cac:SellersItemIdentification>
+        <cbc:ID>000000000010147274</cbc:ID>
+      </cac:SellersItemIdentification>
+      <cac:ClassifiedTaxCategory>
+        <cbc:ID>S</cbc:ID>
+        <cbc:Percent>20.00</cbc:Percent>
+        <cac:TaxScheme>
+          <cbc:ID>VAT</cbc:ID>
+        </cac:TaxScheme>
+      </cac:ClassifiedTaxCategory>
+    </cac:Item>
+    <cac:Price>
+      <cbc:PriceAmount currencyID="EUR">113.380000</cbc:PriceAmount>
+    </cac:Price>
+  </cac:InvoiceLine>
+  <cac:InvoiceLine>
+    <cbc:ID>001009</cbc:ID>
+    <cbc:InvoicedQuantity unitCode="MTQ">7.5000</cbc:InvoicedQuantity>
+    <cbc:LineExtensionAmount currencyID="EUR">850.36</cbc:LineExtensionAmount>
+    <cac:Delivery>
+      <cbc:ActualDeliveryDate>2026-09-03</cbc:ActualDeliveryDate>
+      <cac:DeliveryLocation>
+        <cac:Address>
+          <cbc:StreetName>Rue du mollaret 25</cbc:StreetName>
+          <cbc:CityName>Saint-Quentin-Fallavier</cbc:CityName>
+          <cbc:PostalZone>38070</cbc:PostalZone>
+          <cac:Country>
+            <cbc:IdentificationCode>FR</cbc:IdentificationCode>
+          </cac:Country>
+        </cac:Address>
+      </cac:DeliveryLocation>
+      <cac:DeliveryParty>
+        <cac:PartyName>
+          <cbc:Name>MONDIAL RELAY-ST QUENTIN FAL-SCI JULIE</cbc:Name>
+        </cac:PartyName>
+      </cac:DeliveryParty>
+    </cac:Delivery>
+    <cac:TaxTotal>
+      <cbc:TaxAmount currencyID="EUR">170.07</cbc:TaxAmount>
+    </cac:TaxTotal>
+    <cac:Item>
+      <cbc:Name>DAL-1-C30-XXX-XF1-G3-N-BASE-023-S2-0</cbc:Name>
+      <cac:SellersItemIdentification>
+        <cbc:ID>000000000010147274</cbc:ID>
+      </cac:SellersItemIdentification>
+      <cac:ClassifiedTaxCategory>
+        <cbc:ID>S</cbc:ID>
+        <cbc:Percent>20.00</cbc:Percent>
+        <cac:TaxScheme>
+          <cbc:ID>VAT</cbc:ID>
+        </cac:TaxScheme>
+      </cac:ClassifiedTaxCategory>
+    </cac:Item>
+    <cac:Price>
+      <cbc:PriceAmount currencyID="EUR">113.380000</cbc:PriceAmount>
+    </cac:Price>
+  </cac:InvoiceLine>
+  <cac:InvoiceLine>
+    <cbc:ID>001010</cbc:ID>
+    <cbc:InvoicedQuantity unitCode="MTQ">7.5000</cbc:InvoicedQuantity>
+    <cbc:LineExtensionAmount currencyID="EUR">850.34</cbc:LineExtensionAmount>
+    <cac:Delivery>
+      <cbc:ActualDeliveryDate>2026-09-03</cbc:ActualDeliveryDate>
+      <cac:DeliveryLocation>
+        <cac:Address>
+          <cbc:StreetName>Rue du mollaret 25</cbc:StreetName>
+          <cbc:CityName>Saint-Quentin-Fallavier</cbc:CityName>
+          <cbc:PostalZone>38070</cbc:PostalZone>
+          <cac:Country>
+            <cbc:IdentificationCode>FR</cbc:IdentificationCode>
+          </cac:Country>
+        </cac:Address>
+      </cac:DeliveryLocation>
+      <cac:DeliveryParty>
+        <cac:PartyName>
+          <cbc:Name>MONDIAL RELAY-ST QUENTIN FAL-SCI JULIE</cbc:Name>
+        </cac:PartyName>
+      </cac:DeliveryParty>
+    </cac:Delivery>
+    <cac:TaxTotal>
+      <cbc:TaxAmount currencyID="EUR">170.07</cbc:TaxAmount>
+    </cac:TaxTotal>
+    <cac:Item>
+      <cbc:Name>DAL-1-C30-XXX-XF1-G3-N-BASE-023-S2-0</cbc:Name>
+      <cac:SellersItemIdentification>
+        <cbc:ID>000000000010147274</cbc:ID>
+      </cac:SellersItemIdentification>
+      <cac:ClassifiedTaxCategory>
+        <cbc:ID>S</cbc:ID>
+        <cbc:Percent>20.00</cbc:Percent>
+        <cac:TaxScheme>
+          <cbc:ID>VAT</cbc:ID>
+        </cac:TaxScheme>
+      </cac:ClassifiedTaxCategory>
+    </cac:Item>
+    <cac:Price>
+      <cbc:PriceAmount currencyID="EUR">113.380000</cbc:PriceAmount>
+    </cac:Price>
+  </cac:InvoiceLine>
+  <cac:InvoiceLine>
+    <cbc:ID>001011</cbc:ID>
+    <cbc:InvoicedQuantity unitCode="MTQ">7.5000</cbc:InvoicedQuantity>
+    <cbc:LineExtensionAmount currencyID="EUR">850.36</cbc:LineExtensionAmount>
+    <cac:Delivery>
+      <cbc:ActualDeliveryDate>2026-09-03</cbc:ActualDeliveryDate>
+      <cac:DeliveryLocation>
+        <cac:Address>
+          <cbc:StreetName>Rue du mollaret 25</cbc:StreetName>
+          <cbc:CityName>Saint-Quentin-Fallavier</cbc:CityName>
+          <cbc:PostalZone>38070</cbc:PostalZone>
+          <cac:Country>
+            <cbc:IdentificationCode>FR</cbc:IdentificationCode>
+          </cac:Country>
+        </cac:Address>
+      </cac:DeliveryLocation>
+      <cac:DeliveryParty>
+        <cac:PartyName>
+          <cbc:Name>MONDIAL RELAY-ST QUENTIN FAL-SCI JULIE</cbc:Name>
+        </cac:PartyName>
+      </cac:DeliveryParty>
+    </cac:Delivery>
+    <cac:TaxTotal>
+      <cbc:TaxAmount currencyID="EUR">170.07</cbc:TaxAmount>
+    </cac:TaxTotal>
+    <cac:Item>
+      <cbc:Name>DAL-1-C30-XXX-XF1-G3-N-BASE-023-S2-0</cbc:Name>
+      <cac:SellersItemIdentification>
+        <cbc:ID>000000000010147274</cbc:ID>
+      </cac:SellersItemIdentification>
+      <cac:ClassifiedTaxCategory>
+        <cbc:ID>S</cbc:ID>
+        <cbc:Percent>20.00</cbc:Percent>
+        <cac:TaxScheme>
+          <cbc:ID>VAT</cbc:ID>
+        </cac:TaxScheme>
+      </cac:ClassifiedTaxCategory>
+    </cac:Item>
+    <cac:Price>
+      <cbc:PriceAmount currencyID="EUR">113.380000</cbc:PriceAmount>
+    </cac:Price>
+  </cac:InvoiceLine>
+  <cac:InvoiceLine>
+    <cbc:ID>001012</cbc:ID>
+    <cbc:InvoicedQuantity unitCode="MTQ">7.5000</cbc:InvoicedQuantity>
+    <cbc:LineExtensionAmount currencyID="EUR">850.34</cbc:LineExtensionAmount>
+    <cac:Delivery>
+      <cbc:ActualDeliveryDate>2026-09-03</cbc:ActualDeliveryDate>
+      <cac:DeliveryLocation>
+        <cac:Address>
+          <cbc:StreetName>Rue du mollaret 25</cbc:StreetName>
+          <cbc:CityName>Saint-Quentin-Fallavier</cbc:CityName>
+          <cbc:PostalZone>38070</cbc:PostalZone>
+          <cac:Country>
+            <cbc:IdentificationCode>FR</cbc:IdentificationCode>
+          </cac:Country>
+        </cac:Address>
+      </cac:DeliveryLocation>
+      <cac:DeliveryParty>
+        <cac:PartyName>
+          <cbc:Name>MONDIAL RELAY-ST QUENTIN FAL-SCI JULIE</cbc:Name>
+        </cac:PartyName>
+      </cac:DeliveryParty>
+    </cac:Delivery>
+    <cac:TaxTotal>
+      <cbc:TaxAmount currencyID="EUR">170.07</cbc:TaxAmount>
+    </cac:TaxTotal>
+    <cac:Item>
+      <cbc:Name>DAL-1-C30-XXX-XF1-G3-N-BASE-023-S2-0</cbc:Name>
+      <cac:SellersItemIdentification>
+        <cbc:ID>000000000010147274</cbc:ID>
+      </cac:SellersItemIdentification>
+      <cac:ClassifiedTaxCategory>
+        <cbc:ID>S</cbc:ID>
+        <cbc:Percent>20.00</cbc:Percent>
+        <cac:TaxScheme>
+          <cbc:ID>VAT</cbc:ID>
+        </cac:TaxScheme>
+      </cac:ClassifiedTaxCategory>
+    </cac:Item>
+    <cac:Price>
+      <cbc:PriceAmount currencyID="EUR">113.380000</cbc:PriceAmount>
+    </cac:Price>
+  </cac:InvoiceLine>
+  <cac:InvoiceLine>
+    <cbc:ID>001013</cbc:ID>
+    <cbc:InvoicedQuantity unitCode="MTQ">7.5000</cbc:InvoicedQuantity>
+    <cbc:LineExtensionAmount currencyID="EUR">850.36</cbc:LineExtensionAmount>
+    <cac:Delivery>
+      <cbc:ActualDeliveryDate>2026-09-03</cbc:ActualDeliveryDate>
+      <cac:DeliveryLocation>
+        <cac:Address>
+          <cbc:StreetName>Rue du mollaret 25</cbc:StreetName>
+          <cbc:CityName>Saint-Quentin-Fallavier</cbc:CityName>
+          <cbc:PostalZone>38070</cbc:PostalZone>
+          <cac:Country>
+            <cbc:IdentificationCode>FR</cbc:IdentificationCode>
+          </cac:Country>
+        </cac:Address>
+      </cac:DeliveryLocation>
+      <cac:DeliveryParty>
+        <cac:PartyName>
+          <cbc:Name>MONDIAL RELAY-ST QUENTIN FAL-SCI JULIE</cbc:Name>
+        </cac:PartyName>
+      </cac:DeliveryParty>
+    </cac:Delivery>
+    <cac:TaxTotal>
+      <cbc:TaxAmount currencyID="EUR">170.07</cbc:TaxAmount>
+    </cac:TaxTotal>
+    <cac:Item>
+      <cbc:Name>DAL-1-C30-XXX-XF1-G3-N-BASE-023-S2-0</cbc:Name>
+      <cac:SellersItemIdentification>
+        <cbc:ID>000000000010147274</cbc:ID>
+      </cac:SellersItemIdentification>
+      <cac:ClassifiedTaxCategory>
+        <cbc:ID>S</cbc:ID>
+        <cbc:Percent>20.00</cbc:Percent>
+        <cac:TaxScheme>
+          <cbc:ID>VAT</cbc:ID>
+        </cac:TaxScheme>
+      </cac:ClassifiedTaxCategory>
+    </cac:Item>
+    <cac:Price>
+      <cbc:PriceAmount currencyID="EUR">113.380000</cbc:PriceAmount>
+    </cac:Price>
+  </cac:InvoiceLine>
+  <cac:InvoiceLine>
+    <cbc:ID>001014</cbc:ID>
+    <cbc:InvoicedQuantity unitCode="MTQ">7.5000</cbc:InvoicedQuantity>
+    <cbc:LineExtensionAmount currencyID="EUR">850.34</cbc:LineExtensionAmount>
+    <cac:Delivery>
+      <cbc:ActualDeliveryDate>2026-09-03</cbc:ActualDeliveryDate>
+      <cac:DeliveryLocation>
+        <cac:Address>
+          <cbc:StreetName>Rue du mollaret 25</cbc:StreetName>
+          <cbc:CityName>Saint-Quentin-Fallavier</cbc:CityName>
+          <cbc:PostalZone>38070</cbc:PostalZone>
+          <cac:Country>
+            <cbc:IdentificationCode>FR</cbc:IdentificationCode>
+          </cac:Country>
+        </cac:Address>
+      </cac:DeliveryLocation>
+      <cac:DeliveryParty>
+        <cac:PartyName>
+          <cbc:Name>MONDIAL RELAY-ST QUENTIN FAL-SCI JULIE</cbc:Name>
+        </cac:PartyName>
+      </cac:DeliveryParty>
+    </cac:Delivery>
+    <cac:TaxTotal>
+      <cbc:TaxAmount currencyID="EUR">170.07</cbc:TaxAmount>
+    </cac:TaxTotal>
+    <cac:Item>
+      <cbc:Name>DAL-1-C30-XXX-XF1-G3-N-BASE-023-S2-0</cbc:Name>
+      <cac:SellersItemIdentification>
+        <cbc:ID>000000000010147274</cbc:ID>
+      </cac:SellersItemIdentification>
+      <cac:ClassifiedTaxCategory>
+        <cbc:ID>S</cbc:ID>
+        <cbc:Percent>20.00</cbc:Percent>
+        <cac:TaxScheme>
+          <cbc:ID>VAT</cbc:ID>
+        </cac:TaxScheme>
+      </cac:ClassifiedTaxCategory>
+    </cac:Item>
+    <cac:Price>
+      <cbc:PriceAmount currencyID="EUR">113.380000</cbc:PriceAmount>
+    </cac:Price>
+  </cac:InvoiceLine>
+  <cac:InvoiceLine>
+    <cbc:ID>001015</cbc:ID>
+    <cbc:InvoicedQuantity unitCode="MTQ">7.5000</cbc:InvoicedQuantity>
+    <cbc:LineExtensionAmount currencyID="EUR">850.36</cbc:LineExtensionAmount>
+    <cac:Delivery>
+      <cbc:ActualDeliveryDate>2026-09-03</cbc:ActualDeliveryDate>
+      <cac:DeliveryLocation>
+        <cac:Address>
+          <cbc:StreetName>Rue du mollaret 25</cbc:StreetName>
+          <cbc:CityName>Saint-Quentin-Fallavier</cbc:CityName>
+          <cbc:PostalZone>38070</cbc:PostalZone>
+          <cac:Country>
+            <cbc:IdentificationCode>FR</cbc:IdentificationCode>
+          </cac:Country>
+        </cac:Address>
+      </cac:DeliveryLocation>
+      <cac:DeliveryParty>
+        <cac:PartyName>
+          <cbc:Name>MONDIAL RELAY-ST QUENTIN FAL-SCI JULIE</cbc:Name>
+        </cac:PartyName>
+      </cac:DeliveryParty>
+    </cac:Delivery>
+    <cac:TaxTotal>
+      <cbc:TaxAmount currencyID="EUR">170.07</cbc:TaxAmount>
+    </cac:TaxTotal>
+    <cac:Item>
+      <cbc:Name>DAL-1-C30-XXX-XF1-G3-N-BASE-023-S2-0</cbc:Name>
+      <cac:SellersItemIdentification>
+        <cbc:ID>000000000010147274</cbc:ID>
+      </cac:SellersItemIdentification>
+      <cac:ClassifiedTaxCategory>
+        <cbc:ID>S</cbc:ID>
+        <cbc:Percent>20.00</cbc:Percent>
+        <cac:TaxScheme>
+          <cbc:ID>VAT</cbc:ID>
+        </cac:TaxScheme>
+      </cac:ClassifiedTaxCategory>
+    </cac:Item>
+    <cac:Price>
+      <cbc:PriceAmount currencyID="EUR">113.380000</cbc:PriceAmount>
+    </cac:Price>
+  </cac:InvoiceLine>
+  <cac:InvoiceLine>
+    <cbc:ID>001016</cbc:ID>
+    <cbc:InvoicedQuantity unitCode="MTQ">7.5000</cbc:InvoicedQuantity>
+    <cbc:LineExtensionAmount currencyID="EUR">850.34</cbc:LineExtensionAmount>
+    <cac:Delivery>
+      <cbc:ActualDeliveryDate>2026-09-03</cbc:ActualDeliveryDate>
+      <cac:DeliveryLocation>
+        <cac:Address>
+          <cbc:StreetName>Rue du mollaret 25</cbc:StreetName>
+          <cbc:CityName>Saint-Quentin-Fallavier</cbc:CityName>
+          <cbc:PostalZone>38070</cbc:PostalZone>
+          <cac:Country>
+            <cbc:IdentificationCode>FR</cbc:IdentificationCode>
+          </cac:Country>
+        </cac:Address>
+      </cac:DeliveryLocation>
+      <cac:DeliveryParty>
+        <cac:PartyName>
+          <cbc:Name>MONDIAL RELAY-ST QUENTIN FAL-SCI JULIE</cbc:Name>
+        </cac:PartyName>
+      </cac:DeliveryParty>
+    </cac:Delivery>
+    <cac:TaxTotal>
+      <cbc:TaxAmount currencyID="EUR">170.07</cbc:TaxAmount>
+    </cac:TaxTotal>
+    <cac:Item>
+      <cbc:Name>DAL-1-C30-XXX-XF1-G3-N-BASE-023-S2-0</cbc:Name>
+      <cac:SellersItemIdentification>
+        <cbc:ID>000000000010147274</cbc:ID>
+      </cac:SellersItemIdentification>
+      <cac:ClassifiedTaxCategory>
+        <cbc:ID>S</cbc:ID>
+        <cbc:Percent>20.00</cbc:Percent>
+        <cac:TaxScheme>
+          <cbc:ID>VAT</cbc:ID>
+        </cac:TaxScheme>
+      </cac:ClassifiedTaxCategory>
+    </cac:Item>
+    <cac:Price>
+      <cbc:PriceAmount currencyID="EUR">113.380000</cbc:PriceAmount>
+    </cac:Price>
+  </cac:InvoiceLine>
+  <cac:InvoiceLine>
+    <cbc:ID>001017</cbc:ID>
+    <cbc:InvoicedQuantity unitCode="MTQ">7.5000</cbc:InvoicedQuantity>
+    <cbc:LineExtensionAmount currencyID="EUR">850.36</cbc:LineExtensionAmount>
+    <cac:Delivery>
+      <cbc:ActualDeliveryDate>2026-09-03</cbc:ActualDeliveryDate>
+      <cac:DeliveryLocation>
+        <cac:Address>
+          <cbc:StreetName>Rue du mollaret 25</cbc:StreetName>
+          <cbc:CityName>Saint-Quentin-Fallavier</cbc:CityName>
+          <cbc:PostalZone>38070</cbc:PostalZone>
+          <cac:Country>
+            <cbc:IdentificationCode>FR</cbc:IdentificationCode>
+          </cac:Country>
+        </cac:Address>
+      </cac:DeliveryLocation>
+      <cac:DeliveryParty>
+        <cac:PartyName>
+          <cbc:Name>MONDIAL RELAY-ST QUENTIN FAL-SCI JULIE</cbc:Name>
+        </cac:PartyName>
+      </cac:DeliveryParty>
+    </cac:Delivery>
+    <cac:TaxTotal>
+      <cbc:TaxAmount currencyID="EUR">170.07</cbc:TaxAmount>
+    </cac:TaxTotal>
+    <cac:Item>
+      <cbc:Name>DAL-1-C30-XXX-XF1-G3-N-BASE-023-S2-0</cbc:Name>
+      <cac:SellersItemIdentification>
+        <cbc:ID>000000000010147274</cbc:ID>
+      </cac:SellersItemIdentification>
+      <cac:ClassifiedTaxCategory>
+        <cbc:ID>S</cbc:ID>
+        <cbc:Percent>20.00</cbc:Percent>
+        <cac:TaxScheme>
+          <cbc:ID>VAT</cbc:ID>
+        </cac:TaxScheme>
+      </cac:ClassifiedTaxCategory>
+    </cac:Item>
+    <cac:Price>
+      <cbc:PriceAmount currencyID="EUR">113.380000</cbc:PriceAmount>
+    </cac:Price>
+  </cac:InvoiceLine>
+  <cac:InvoiceLine>
+    <cbc:ID>001018</cbc:ID>
+    <cbc:InvoicedQuantity unitCode="MTQ">7.5000</cbc:InvoicedQuantity>
+    <cbc:LineExtensionAmount currencyID="EUR">850.34</cbc:LineExtensionAmount>
+    <cac:Delivery>
+      <cbc:ActualDeliveryDate>2026-09-03</cbc:ActualDeliveryDate>
+      <cac:DeliveryLocation>
+        <cac:Address>
+          <cbc:StreetName>Rue du mollaret 25</cbc:StreetName>
+          <cbc:CityName>Saint-Quentin-Fallavier</cbc:CityName>
+          <cbc:PostalZone>38070</cbc:PostalZone>
+          <cac:Country>
+            <cbc:IdentificationCode>FR</cbc:IdentificationCode>
+          </cac:Country>
+        </cac:Address>
+      </cac:DeliveryLocation>
+      <cac:DeliveryParty>
+        <cac:PartyName>
+          <cbc:Name>MONDIAL RELAY-ST QUENTIN FAL-SCI JULIE</cbc:Name>
+        </cac:PartyName>
+      </cac:DeliveryParty>
+    </cac:Delivery>
+    <cac:TaxTotal>
+      <cbc:TaxAmount currencyID="EUR">170.07</cbc:TaxAmount>
+    </cac:TaxTotal>
+    <cac:Item>
+      <cbc:Name>DAL-1-C30-XXX-XF1-G3-N-BASE-023-S2-0</cbc:Name>
+      <cac:SellersItemIdentification>
+        <cbc:ID>000000000010147274</cbc:ID>
+      </cac:SellersItemIdentification>
+      <cac:ClassifiedTaxCategory>
+        <cbc:ID>S</cbc:ID>
+        <cbc:Percent>20.00</cbc:Percent>
+        <cac:TaxScheme>
+          <cbc:ID>VAT</cbc:ID>
+        </cac:TaxScheme>
+      </cac:ClassifiedTaxCategory>
+    </cac:Item>
+    <cac:Price>
+      <cbc:PriceAmount currencyID="EUR">113.380000</cbc:PriceAmount>
+    </cac:Price>
+  </cac:InvoiceLine>
+  <cac:InvoiceLine>
+    <cbc:ID>001019</cbc:ID>
+    <cbc:InvoicedQuantity unitCode="MTQ">7.5000</cbc:InvoicedQuantity>
+    <cbc:LineExtensionAmount currencyID="EUR">850.36</cbc:LineExtensionAmount>
+    <cac:Delivery>
+      <cbc:ActualDeliveryDate>2026-09-03</cbc:ActualDeliveryDate>
+      <cac:DeliveryLocation>
+        <cac:Address>
+          <cbc:StreetName>Rue du mollaret 25</cbc:StreetName>
+          <cbc:CityName>Saint-Quentin-Fallavier</cbc:CityName>
+          <cbc:PostalZone>38070</cbc:PostalZone>
+          <cac:Country>
+            <cbc:IdentificationCode>FR</cbc:IdentificationCode>
+          </cac:Country>
+        </cac:Address>
+      </cac:DeliveryLocation>
+      <cac:DeliveryParty>
+        <cac:PartyName>
+          <cbc:Name>MONDIAL RELAY-ST QUENTIN FAL-SCI JULIE</cbc:Name>
+        </cac:PartyName>
+      </cac:DeliveryParty>
+    </cac:Delivery>
+    <cac:TaxTotal>
+      <cbc:TaxAmount currencyID="EUR">170.07</cbc:TaxAmount>
+    </cac:TaxTotal>
+    <cac:Item>
+      <cbc:Name>DAL-1-C30-XXX-XF1-G3-N-BASE-023-S2-0</cbc:Name>
+      <cac:SellersItemIdentification>
+        <cbc:ID>000000000010147274</cbc:ID>
+      </cac:SellersItemIdentification>
+      <cac:ClassifiedTaxCategory>
+        <cbc:ID>S</cbc:ID>
+        <cbc:Percent>20.00</cbc:Percent>
+        <cac:TaxScheme>
+          <cbc:ID>VAT</cbc:ID>
+        </cac:TaxScheme>
+      </cac:ClassifiedTaxCategory>
+    </cac:Item>
+    <cac:Price>
+      <cbc:PriceAmount currencyID="EUR">113.380000</cbc:PriceAmount>
+    </cac:Price>
+  </cac:InvoiceLine>
+  <cac:InvoiceLine>
+    <cbc:ID>001020</cbc:ID>
+    <cbc:InvoicedQuantity unitCode="MTQ">7.5000</cbc:InvoicedQuantity>
+    <cbc:LineExtensionAmount currencyID="EUR">850.34</cbc:LineExtensionAmount>
+    <cac:Delivery>
+      <cbc:ActualDeliveryDate>2026-09-03</cbc:ActualDeliveryDate>
+      <cac:DeliveryLocation>
+        <cac:Address>
+          <cbc:StreetName>Rue du mollaret 25</cbc:StreetName>
+          <cbc:CityName>Saint-Quentin-Fallavier</cbc:CityName>
+          <cbc:PostalZone>38070</cbc:PostalZone>
+          <cac:Country>
+            <cbc:IdentificationCode>FR</cbc:IdentificationCode>
+          </cac:Country>
+        </cac:Address>
+      </cac:DeliveryLocation>
+      <cac:DeliveryParty>
+        <cac:PartyName>
+          <cbc:Name>MONDIAL RELAY-ST QUENTIN FAL-SCI JULIE</cbc:Name>
+        </cac:PartyName>
+      </cac:DeliveryParty>
+    </cac:Delivery>
+    <cac:TaxTotal>
+      <cbc:TaxAmount currencyID="EUR">170.07</cbc:TaxAmount>
+    </cac:TaxTotal>
+    <cac:Item>
+      <cbc:Name>DAL-1-C30-XXX-XF1-G3-N-BASE-023-S2-0</cbc:Name>
+      <cac:SellersItemIdentification>
+        <cbc:ID>000000000010147274</cbc:ID>
+      </cac:SellersItemIdentification>
+      <cac:ClassifiedTaxCategory>
+        <cbc:ID>S</cbc:ID>
+        <cbc:Percent>20.00</cbc:Percent>
+        <cac:TaxScheme>
+          <cbc:ID>VAT</cbc:ID>
+        </cac:TaxScheme>
+      </cac:ClassifiedTaxCategory>
+    </cac:Item>
+    <cac:Price>
+      <cbc:PriceAmount currencyID="EUR">113.380000</cbc:PriceAmount>
+    </cac:Price>
+  </cac:InvoiceLine>
+  <cac:InvoiceLine>
+    <cbc:ID>001021</cbc:ID>
+    <cbc:InvoicedQuantity unitCode="MTQ">7.5000</cbc:InvoicedQuantity>
+    <cbc:LineExtensionAmount currencyID="EUR">850.36</cbc:LineExtensionAmount>
+    <cac:Delivery>
+      <cbc:ActualDeliveryDate>2026-09-03</cbc:ActualDeliveryDate>
+      <cac:DeliveryLocation>
+        <cac:Address>
+          <cbc:StreetName>Rue du mollaret 25</cbc:StreetName>
+          <cbc:CityName>Saint-Quentin-Fallavier</cbc:CityName>
+          <cbc:PostalZone>38070</cbc:PostalZone>
+          <cac:Country>
+            <cbc:IdentificationCode>FR</cbc:IdentificationCode>
+          </cac:Country>
+        </cac:Address>
+      </cac:DeliveryLocation>
+      <cac:DeliveryParty>
+        <cac:PartyName>
+          <cbc:Name>MONDIAL RELAY-ST QUENTIN FAL-SCI JULIE</cbc:Name>
+        </cac:PartyName>
+      </cac:DeliveryParty>
+    </cac:Delivery>
+    <cac:TaxTotal>
+      <cbc:TaxAmount currencyID="EUR">170.07</cbc:TaxAmount>
+    </cac:TaxTotal>
+    <cac:Item>
+      <cbc:Name>DAL-1-C30-XXX-XF1-G3-N-BASE-023-S2-0</cbc:Name>
+      <cac:SellersItemIdentification>
+        <cbc:ID>000000000010147274</cbc:ID>
+      </cac:SellersItemIdentification>
+      <cac:ClassifiedTaxCategory>
+        <cbc:ID>S</cbc:ID>
+        <cbc:Percent>20.00</cbc:Percent>
+        <cac:TaxScheme>
+          <cbc:ID>VAT</cbc:ID>
+        </cac:TaxScheme>
+      </cac:ClassifiedTaxCategory>
+    </cac:Item>
+    <cac:Price>
+      <cbc:PriceAmount currencyID="EUR">113.380000</cbc:PriceAmount>
+    </cac:Price>
+  </cac:InvoiceLine>
+  <cac:InvoiceLine>
+    <cbc:ID>001022</cbc:ID>
+    <cbc:InvoicedQuantity unitCode="MTQ">7.5000</cbc:InvoicedQuantity>
+    <cbc:LineExtensionAmount currencyID="EUR">850.34</cbc:LineExtensionAmount>
+    <cac:Delivery>
+      <cbc:ActualDeliveryDate>2026-09-03</cbc:ActualDeliveryDate>
+      <cac:DeliveryLocation>
+        <cac:Address>
+          <cbc:StreetName>Rue du mollaret 25</cbc:StreetName>
+          <cbc:CityName>Saint-Quentin-Fallavier</cbc:CityName>
+          <cbc:PostalZone>38070</cbc:PostalZone>
+          <cac:Country>
+            <cbc:IdentificationCode>FR</cbc:IdentificationCode>
+          </cac:Country>
+        </cac:Address>
+      </cac:DeliveryLocation>
+      <cac:DeliveryParty>
+        <cac:PartyName>
+          <cbc:Name>MONDIAL RELAY-ST QUENTIN FAL-SCI JULIE</cbc:Name>
+        </cac:PartyName>
+      </cac:DeliveryParty>
+    </cac:Delivery>
+    <cac:TaxTotal>
+      <cbc:TaxAmount currencyID="EUR">170.07</cbc:TaxAmount>
+    </cac:TaxTotal>
+    <cac:Item>
+      <cbc:Name>DAL-1-C30-XXX-XF1-G3-N-BASE-023-S2-0</cbc:Name>
+      <cac:SellersItemIdentification>
+        <cbc:ID>000000000010147274</cbc:ID>
+      </cac:SellersItemIdentification>
+      <cac:ClassifiedTaxCategory>
+        <cbc:ID>S</cbc:ID>
+        <cbc:Percent>20.00</cbc:Percent>
+        <cac:TaxScheme>
+          <cbc:ID>VAT</cbc:ID>
+        </cac:TaxScheme>
+      </cac:ClassifiedTaxCategory>
+    </cac:Item>
+    <cac:Price>
+      <cbc:PriceAmount currencyID="EUR">113.380000</cbc:PriceAmount>
+    </cac:Price>
+  </cac:InvoiceLine>
+  <cac:InvoiceLine>
+    <cbc:ID>001023</cbc:ID>
+    <cbc:InvoicedQuantity unitCode="MTQ">7.5000</cbc:InvoicedQuantity>
+    <cbc:LineExtensionAmount currencyID="EUR">850.36</cbc:LineExtensionAmount>
+    <cac:Delivery>
+      <cbc:ActualDeliveryDate>2026-09-03</cbc:ActualDeliveryDate>
+      <cac:DeliveryLocation>
+        <cac:Address>
+          <cbc:StreetName>Rue du mollaret 25</cbc:StreetName>
+          <cbc:CityName>Saint-Quentin-Fallavier</cbc:CityName>
+          <cbc:PostalZone>38070</cbc:PostalZone>
+          <cac:Country>
+            <cbc:IdentificationCode>FR</cbc:IdentificationCode>
+          </cac:Country>
+        </cac:Address>
+      </cac:DeliveryLocation>
+      <cac:DeliveryParty>
+        <cac:PartyName>
+          <cbc:Name>MONDIAL RELAY-ST QUENTIN FAL-SCI JULIE</cbc:Name>
+        </cac:PartyName>
+      </cac:DeliveryParty>
+    </cac:Delivery>
+    <cac:TaxTotal>
+      <cbc:TaxAmount currencyID="EUR">170.07</cbc:TaxAmount>
+    </cac:TaxTotal>
+    <cac:Item>
+      <cbc:Name>DAL-1-C30-XXX-XF1-G3-N-BASE-023-S2-0</cbc:Name>
+      <cac:SellersItemIdentification>
+        <cbc:ID>000000000010147274</cbc:ID>
+      </cac:SellersItemIdentification>
+      <cac:ClassifiedTaxCategory>
+        <cbc:ID>S</cbc:ID>
+        <cbc:Percent>20.00</cbc:Percent>
+        <cac:TaxScheme>
+          <cbc:ID>VAT</cbc:ID>
+        </cac:TaxScheme>
+      </cac:ClassifiedTaxCategory>
+    </cac:Item>
+    <cac:Price>
+      <cbc:PriceAmount currencyID="EUR">113.380000</cbc:PriceAmount>
+    </cac:Price>
+  </cac:InvoiceLine>
+  <cac:InvoiceLine>
+    <cbc:ID>001024</cbc:ID>
+    <cbc:InvoicedQuantity unitCode="MTQ">7.5000</cbc:InvoicedQuantity>
+    <cbc:LineExtensionAmount currencyID="EUR">850.34</cbc:LineExtensionAmount>
+    <cac:Delivery>
+      <cbc:ActualDeliveryDate>2026-09-03</cbc:ActualDeliveryDate>
+      <cac:DeliveryLocation>
+        <cac:Address>
+          <cbc:StreetName>Rue du mollaret 25</cbc:StreetName>
+          <cbc:CityName>Saint-Quentin-Fallavier</cbc:CityName>
+          <cbc:PostalZone>38070</cbc:PostalZone>
+          <cac:Country>
+            <cbc:IdentificationCode>FR</cbc:IdentificationCode>
+          </cac:Country>
+        </cac:Address>
+      </cac:DeliveryLocation>
+      <cac:DeliveryParty>
+        <cac:PartyName>
+          <cbc:Name>MONDIAL RELAY-ST QUENTIN FAL-SCI JULIE</cbc:Name>
+        </cac:PartyName>
+      </cac:DeliveryParty>
+    </cac:Delivery>
+    <cac:TaxTotal>
+      <cbc:TaxAmount currencyID="EUR">170.07</cbc:TaxAmount>
+    </cac:TaxTotal>
+    <cac:Item>
+      <cbc:Name>DAL-1-C30-XXX-XF1-G3-N-BASE-023-S2-0</cbc:Name>
+      <cac:SellersItemIdentification>
+        <cbc:ID>000000000010147274</cbc:ID>
+      </cac:SellersItemIdentification>
+      <cac:ClassifiedTaxCategory>
+        <cbc:ID>S</cbc:ID>
+        <cbc:Percent>20.00</cbc:Percent>
+        <cac:TaxScheme>
+          <cbc:ID>VAT</cbc:ID>
+        </cac:TaxScheme>
+      </cac:ClassifiedTaxCategory>
+    </cac:Item>
+    <cac:Price>
+      <cbc:PriceAmount currencyID="EUR">113.380000</cbc:PriceAmount>
+    </cac:Price>
+  </cac:InvoiceLine>
+  <cac:InvoiceLine>
+    <cbc:ID>001025</cbc:ID>
+    <cbc:InvoicedQuantity unitCode="MTQ">7.5000</cbc:InvoicedQuantity>
+    <cbc:LineExtensionAmount currencyID="EUR">850.36</cbc:LineExtensionAmount>
+    <cac:Delivery>
+      <cbc:ActualDeliveryDate>2026-09-03</cbc:ActualDeliveryDate>
+      <cac:DeliveryLocation>
+        <cac:Address>
+          <cbc:StreetName>Rue du mollaret 25</cbc:StreetName>
+          <cbc:CityName>Saint-Quentin-Fallavier</cbc:CityName>
+          <cbc:PostalZone>38070</cbc:PostalZone>
+          <cac:Country>
+            <cbc:IdentificationCode>FR</cbc:IdentificationCode>
+          </cac:Country>
+        </cac:Address>
+      </cac:DeliveryLocation>
+      <cac:DeliveryParty>
+        <cac:PartyName>
+          <cbc:Name>MONDIAL RELAY-ST QUENTIN FAL-SCI JULIE</cbc:Name>
+        </cac:PartyName>
+      </cac:DeliveryParty>
+    </cac:Delivery>
+    <cac:TaxTotal>
+      <cbc:TaxAmount currencyID="EUR">170.07</cbc:TaxAmount>
+    </cac:TaxTotal>
+    <cac:Item>
+      <cbc:Name>DAL-1-C30-XXX-XF1-G3-N-BASE-023-S2-0</cbc:Name>
+      <cac:SellersItemIdentification>
+        <cbc:ID>000000000010147274</cbc:ID>
+      </cac:SellersItemIdentification>
+      <cac:ClassifiedTaxCategory>
+        <cbc:ID>S</cbc:ID>
+        <cbc:Percent>20.00</cbc:Percent>
+        <cac:TaxScheme>
+          <cbc:ID>VAT</cbc:ID>
+        </cac:TaxScheme>
+      </cac:ClassifiedTaxCategory>
+    </cac:Item>
+    <cac:Price>
+      <cbc:PriceAmount currencyID="EUR">113.380000</cbc:PriceAmount>
+    </cac:Price>
+  </cac:InvoiceLine>
+  <cac:InvoiceLine>
+    <cbc:ID>001026</cbc:ID>
+    <cbc:InvoicedQuantity unitCode="MTQ">7.5000</cbc:InvoicedQuantity>
+    <cbc:LineExtensionAmount currencyID="EUR">850.34</cbc:LineExtensionAmount>
+    <cac:Delivery>
+      <cbc:ActualDeliveryDate>2026-09-03</cbc:ActualDeliveryDate>
+      <cac:DeliveryLocation>
+        <cac:Address>
+          <cbc:StreetName>Rue du mollaret 25</cbc:StreetName>
+          <cbc:CityName>Saint-Quentin-Fallavier</cbc:CityName>
+          <cbc:PostalZone>38070</cbc:PostalZone>
+          <cac:Country>
+            <cbc:IdentificationCode>FR</cbc:IdentificationCode>
+          </cac:Country>
+        </cac:Address>
+      </cac:DeliveryLocation>
+      <cac:DeliveryParty>
+        <cac:PartyName>
+          <cbc:Name>MONDIAL RELAY-ST QUENTIN FAL-SCI JULIE</cbc:Name>
+        </cac:PartyName>
+      </cac:DeliveryParty>
+    </cac:Delivery>
+    <cac:TaxTotal>
+      <cbc:TaxAmount currencyID="EUR">170.07</cbc:TaxAmount>
+    </cac:TaxTotal>
+    <cac:Item>
+      <cbc:Name>DAL-1-C30-XXX-XF1-G3-N-BASE-023-S2-0</cbc:Name>
+      <cac:SellersItemIdentification>
+        <cbc:ID>000000000010147274</cbc:ID>
+      </cac:SellersItemIdentification>
+      <cac:ClassifiedTaxCategory>
+        <cbc:ID>S</cbc:ID>
+        <cbc:Percent>20.00</cbc:Percent>
+        <cac:TaxScheme>
+          <cbc:ID>VAT</cbc:ID>
+        </cac:TaxScheme>
+      </cac:ClassifiedTaxCategory>
+    </cac:Item>
+    <cac:Price>
+      <cbc:PriceAmount currencyID="EUR">113.380000</cbc:PriceAmount>
+    </cac:Price>
+  </cac:InvoiceLine>
+  <cac:InvoiceLine>
+    <cbc:ID>001027</cbc:ID>
+    <cbc:InvoicedQuantity unitCode="MTQ">7.5000</cbc:InvoicedQuantity>
+    <cbc:LineExtensionAmount currencyID="EUR">850.36</cbc:LineExtensionAmount>
+    <cac:Delivery>
+      <cbc:ActualDeliveryDate>2026-09-03</cbc:ActualDeliveryDate>
+      <cac:DeliveryLocation>
+        <cac:Address>
+          <cbc:StreetName>Rue du mollaret 25</cbc:StreetName>
+          <cbc:CityName>Saint-Quentin-Fallavier</cbc:CityName>
+          <cbc:PostalZone>38070</cbc:PostalZone>
+          <cac:Country>
+            <cbc:IdentificationCode>FR</cbc:IdentificationCode>
+          </cac:Country>
+        </cac:Address>
+      </cac:DeliveryLocation>
+      <cac:DeliveryParty>
+        <cac:PartyName>
+          <cbc:Name>MONDIAL RELAY-ST QUENTIN FAL-SCI JULIE</cbc:Name>
+        </cac:PartyName>
+      </cac:DeliveryParty>
+    </cac:Delivery>
+    <cac:TaxTotal>
+      <cbc:TaxAmount currencyID="EUR">170.07</cbc:TaxAmount>
+    </cac:TaxTotal>
+    <cac:Item>
+      <cbc:Name>DAL-1-C30-XXX-XF1-G3-N-BASE-023-S2-0</cbc:Name>
+      <cac:SellersItemIdentification>
+        <cbc:ID>000000000010147274</cbc:ID>
+      </cac:SellersItemIdentification>
+      <cac:ClassifiedTaxCategory>
+        <cbc:ID>S</cbc:ID>
+        <cbc:Percent>20.00</cbc:Percent>
+        <cac:TaxScheme>
+          <cbc:ID>VAT</cbc:ID>
+        </cac:TaxScheme>
+      </cac:ClassifiedTaxCategory>
+    </cac:Item>
+    <cac:Price>
+      <cbc:PriceAmount currencyID="EUR">113.380000</cbc:PriceAmount>
+    </cac:Price>
+  </cac:InvoiceLine>
+  <cac:InvoiceLine>
+    <cbc:ID>001028</cbc:ID>
+    <cbc:InvoicedQuantity unitCode="H87">1.0000</cbc:InvoicedQuantity>
+    <cbc:LineExtensionAmount currencyID="EUR">105.01</cbc:LineExtensionAmount>
+    <cac:Delivery>
+      <cbc:ActualDeliveryDate>2026-09-03</cbc:ActualDeliveryDate>
+      <cac:DeliveryLocation>
+        <cac:Address>
+          <cbc:StreetName>Rue du mollaret 25</cbc:StreetName>
+          <cbc:CityName>Saint-Quentin-Fallavier</cbc:CityName>
+          <cbc:PostalZone>38070</cbc:PostalZone>
+          <cac:Country>
+            <cbc:IdentificationCode>FR</cbc:IdentificationCode>
+          </cac:Country>
+        </cac:Address>
+      </cac:DeliveryLocation>
+      <cac:DeliveryParty>
+        <cac:PartyName>
+          <cbc:Name>MONDIAL RELAY-ST QUENTIN FAL-SCI JULIE</cbc:Name>
+        </cac:PartyName>
+      </cac:DeliveryParty>
+    </cac:Delivery>
+    <cac:TaxTotal>
+      <cbc:TaxAmount currencyID="EUR">21.00</cbc:TaxAmount>
+    </cac:TaxTotal>
+    <cac:Item>
+      <cbc:Name>Forfait traitement des betons de retour</cbc:Name>
+      <cac:SellersItemIdentification>
+        <cbc:ID>000000000060005402</cbc:ID>
+      </cac:SellersItemIdentification>
+      <cac:StandardItemIdentification>
+        <cbc:ID schemeID="0160">3611620189074</cbc:ID>
+      </cac:StandardItemIdentification>
+      <cac:ClassifiedTaxCategory>
+        <cbc:ID>S</cbc:ID>
+        <cbc:Percent>20.00</cbc:Percent>
+        <cac:TaxScheme>
+          <cbc:ID>VAT</cbc:ID>
+        </cac:TaxScheme>
+      </cac:ClassifiedTaxCategory>
+    </cac:Item>
+    <cac:Price>
+      <cbc:PriceAmount currencyID="EUR">105.010000</cbc:PriceAmount>
+    </cac:Price>
+  </cac:InvoiceLine>
+  <cac:InvoiceLine>
+    <cbc:ID>001029</cbc:ID>
+    <cbc:InvoicedQuantity unitCode="MTQ">4.0000</cbc:InvoicedQuantity>
+    <cbc:LineExtensionAmount currencyID="EUR">530.06</cbc:LineExtensionAmount>
+    <cac:Delivery>
+      <cbc:ActualDeliveryDate>2026-09-03</cbc:ActualDeliveryDate>
+      <cac:DeliveryLocation>
+        <cac:Address>
+          <cbc:StreetName>Rue du mollaret 25</cbc:StreetName>
+          <cbc:CityName>Saint-Quentin-Fallavier</cbc:CityName>
+          <cbc:PostalZone>38070</cbc:PostalZone>
+          <cac:Country>
+            <cbc:IdentificationCode>FR</cbc:IdentificationCode>
+          </cac:Country>
+        </cac:Address>
+      </cac:DeliveryLocation>
+      <cac:DeliveryParty>
+        <cac:PartyName>
+          <cbc:Name>MONDIAL RELAY-ST QUENTIN FAL-SCI JULIE</cbc:Name>
+        </cac:PartyName>
+      </cac:DeliveryParty>
+    </cac:Delivery>
+    <cac:TaxTotal>
+      <cbc:TaxAmount currencyID="EUR">106.01</cbc:TaxAmount>
+    </cac:TaxTotal>
+    <cac:Item>
+      <cbc:Name>DAL-1-C30-XXX-XF1-G3-N-BASE-023-S2-0</cbc:Name>
+      <cac:SellersItemIdentification>
+        <cbc:ID>000000000010147274</cbc:ID>
+      </cac:SellersItemIdentification>
+      <cac:ClassifiedTaxCategory>
+        <cbc:ID>S</cbc:ID>
+        <cbc:Percent>20.00</cbc:Percent>
+        <cac:TaxScheme>
+          <cbc:ID>VAT</cbc:ID>
+        </cac:TaxScheme>
+      </cac:ClassifiedTaxCategory>
+    </cac:Item>
+    <cac:Price>
+      <cbc:PriceAmount currencyID="EUR">132.520000</cbc:PriceAmount>
+    </cac:Price>
+  </cac:InvoiceLine>
+</Invoice>

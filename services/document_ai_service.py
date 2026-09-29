@@ -15,6 +15,7 @@ import textwrap
 import threading
 import unicodedata
 import uuid
+import xml.etree.ElementTree as ET
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 from decimal import Decimal
@@ -3557,8 +3558,12 @@ def submit_provisional_invoice_to_phc(
                 'uniqueid': f'{unique_root}:{unique_suffix}',
                 'descricao': f'{docname} {document_number}'[:100], 'bdados': pyodbc.Binary(b''),
                 'fullname': target['unc_path'], 'fname': os.path.splitext(target['file_name'])[0][:150],
-                'fext': 'pdf', 'flen': len(file_bytes), 'tipo': 2, 'tpdoc': doc_config['doccode'] if oritable == 'FO' else 0,
-                'original': 1 if oritable == 'FO' else 0,
+                'fext': 'pdf', 'flen': len(file_bytes), 'tipo': 2,
+                # O PHC só reconhece o anexo diretamente no nó da Compra
+                # quando ORIGEM reproduz a tabela nativa. TPDOC/ORIGINAL
+                # diferentes de zero criavam ainda um nível vazio "(1)".
+                'origem': 'Compras a Fornecedores\r' if oritable == 'FO' else '',
+                'tpdoc': 0, 'original': 0,
                 'ausrinis': initials, 'ausrdata': received_at, 'ausrhora': time_text,
                 'usnoopen': user['no'], 'usnaopen': str(user['name'])[:55], 'u_enviado': 1,
                 'ousrinis': initials, 'ousrdata': received_at, 'ousrhora': time_text,
@@ -9239,6 +9244,213 @@ def _refresh_document_duplicate_state(
     return duplicates
 
 
+def _duplicate_purchase_attachment_target(
+    existing_path: str,
+    attachment_number: int,
+    content_hash: str,
+) -> dict[str, str]:
+    """Build a distinct GED target beside the purchase's first attachment."""
+    clean_path = str(existing_path or '').strip()
+    if not clean_path:
+        raise ValueError('A compra existente não tem um caminho GED onde guardar o novo anexo.')
+    directory = ntpath.dirname(clean_path)
+    current_name = ntpath.basename(clean_path)
+    current_stem = os.path.splitext(current_name)[0]
+    suffix = f'-ANEXO-{max(2, int(attachment_number or 2))}-{str(content_hash or "")[:8].upper()}'
+    file_name = f'{current_stem[:max(20, 180 - len(suffix))]}{suffix}.pdf'
+    unc_path = ntpath.join(directory, file_name)
+    unc_root = str(
+        current_app.config.get('PHC_GED_UNC_ROOT')
+        or os.environ.get('PHC_GED_UNC_ROOT')
+        or r'\\10.0.1.11\ged'
+    ).strip().rstrip('\\/')
+    write_root = str(
+        current_app.config.get('PHC_GED_WRITE_ROOT')
+        or os.environ.get('PHC_GED_WRITE_ROOT')
+        or ''
+    ).strip()
+    write_path = unc_path
+    if write_root:
+        normalized_unc = clean_path.replace('/', '\\')
+        normalized_root = unc_root.replace('/', '\\')
+        if normalized_unc.lower().startswith(normalized_root.lower() + '\\'):
+            relative_directory = ntpath.dirname(normalized_unc[len(normalized_root):].lstrip('\\/'))
+            write_path = os.path.join(
+                write_root,
+                *[part for part in relative_directory.split('\\') if part],
+                file_name,
+            )
+        else:
+            raise ValueError('O caminho GED da compra existente não pertence à raiz GED configurada.')
+    return {
+        'file_name': file_name,
+        'unc_path': unc_path,
+        'write_path': write_path,
+        'storage': 'local' if write_root or os.name == 'nt' else 'smb',
+    }
+
+
+def _attach_duplicate_pdf_to_existing_purchase(
+    document: DocInbox,
+    duplicate_document: DocInbox,
+    requested_by: str = '',
+) -> dict[str, Any]:
+    """Attach a business duplicate to the existing FO without creating a new purchase."""
+    import pyodbc
+    from services.phc_user_import_service import _phc_conn_str
+
+    target_meta = _json_loads(duplicate_document.processing_meta_json, {})
+    integration = dict(target_meta.get('phc_integration') or {})
+    fostamp = str(integration.get('fostamp') or '').strip()
+    database_name = str(integration.get('phc_database') or '').strip()
+    if str(integration.get('status') or '').strip().lower() != 'confirmed' or not fostamp or not database_name:
+        raise ValueError(
+            'O documento existente ainda não está associado a uma compra confirmada no PHC. '
+            'Não é possível acrescentar-lhe este PDF.'
+        )
+
+    absolute_path = _document_absolute_path(document)
+    if not absolute_path or not os.path.isfile(absolute_path):
+        raise FileNotFoundError('O novo PDF não está disponível para ser associado à compra existente.')
+    with open(absolute_path, 'rb') as handle:
+        file_bytes = handle.read()
+    if not file_bytes:
+        raise ValueError('O novo PDF está vazio.')
+    content_hash = hashlib.sha256(file_bytes).hexdigest()
+    unique_id = f'DOC_AI:{content_hash}:FO'
+
+    phc_server = ''
+    try:
+        source = _fe_supplier_source(_safe_int(getattr(duplicate_document, 'feid', 0), 0))
+        if str(source.get('phc_db') or '').strip().upper() == database_name.upper():
+            phc_server = str(source.get('phc_server') or '').strip()
+    except Exception:
+        phc_server = ''
+
+    connection = pyodbc.connect(
+        _phc_conn_str(database_name, phc_server),
+        timeout=15,
+        autocommit=False,
+    )
+    target: dict[str, str] | None = None
+    created_file = False
+    try:
+        cursor = connection.cursor()
+        cursor.execute('SET TRANSACTION ISOLATION LEVEL SERIALIZABLE')
+        lock = cursor.execute("""
+            DECLARE @result int;
+            EXEC @result = sp_getapplock @Resource=?, @LockMode='Exclusive', @LockOwner='Transaction', @LockTimeout=15000;
+            SELECT @result;
+        """, f'DOC_AI_DUPLICATE_ATTACHMENT_{database_name}_{fostamp}').fetchone()
+        if not lock or _safe_int(lock[0], -999) < 0:
+            raise RuntimeError('Não foi possível reservar a compra existente para acrescentar o anexo. Tenta novamente.')
+
+        purchase = cursor.execute("""
+            SELECT TOP 1 LTRIM(RTRIM(ISNULL(DOCNOME, ''))), LTRIM(RTRIM(ISNULL(ADOC, '')))
+            FROM dbo.FO WITH (UPDLOCK, HOLDLOCK)
+            WHERE FOSTAMP = ?
+        """, fostamp).fetchone()
+        if not purchase:
+            raise ValueError('A compra associada ao documento existente já não foi encontrada no PHC.')
+
+        existing = cursor.execute("""
+            SELECT TOP 1 ANEXOSSTAMP, FULLNAME
+            FROM dbo.ANEXOS WITH (UPDLOCK, HOLDLOCK)
+            WHERE RECSTAMP = ? AND ORITABLE = 'FO' AND UNIQUEID = ?
+        """, fostamp, unique_id).fetchone()
+        if existing:
+            connection.rollback()
+            return {
+                'ok': True,
+                'duplicate': True,
+                'anexosstamp': str(existing[0] or '').strip(),
+                'fostamp': fostamp,
+                'phc_database': database_name,
+                'ged_path': str(existing[1] or '').strip(),
+                'ged_confirmed': True,
+                'message': 'Este PDF já estava associado à compra existente.',
+            }
+
+        base_attachment = cursor.execute("""
+            SELECT TOP 1 FULLNAME, RESUMO
+            FROM dbo.ANEXOS WITH (UPDLOCK, HOLDLOCK)
+            WHERE RECSTAMP = ? AND ORITABLE = 'FO'
+            ORDER BY AUSRDATA, AUSRHORA, ANEXOSSTAMP
+        """, fostamp).fetchone()
+        base_path = str((base_attachment[0] if base_attachment else '') or integration.get('ged_path') or '').strip()
+        if not base_path:
+            raise ValueError('A compra existente não tem um anexo GED que permita localizar a pasta de destino.')
+        count_row = cursor.execute("""
+            SELECT COUNT_BIG(1) FROM dbo.ANEXOS WITH (UPDLOCK, HOLDLOCK)
+            WHERE RECSTAMP = ? AND ORITABLE = 'FO'
+        """, fostamp).fetchone()
+        attachment_number = _safe_int(count_row[0] if count_row else 0, 0) + 1
+        target = _duplicate_purchase_attachment_target(base_path, attachment_number, content_hash)
+        created_file = _write_document_ai_pdf(target, file_bytes)
+        if not _document_ai_pdf_is_confirmed(target, file_bytes):
+            raise RuntimeError('O segundo PDF não ficou confirmado no servidor GED.')
+
+        now = datetime.now()
+        user = _phc_correspondence_user(cursor, requested_by)
+        initials = str(user.get('initials') or requested_by or 'DOC')[:3]
+        anexosstamp = _new_stamp()
+        docname = str(purchase[0] or 'Compra').strip()
+        document_number = str(purchase[1] or '').strip()
+        summary = str((base_attachment[1] if base_attachment else '') or 'FAC').strip()
+        _phc_insert_values(cursor, 'ANEXOS', {
+            'anexosstamp': anexosstamp,
+            'oritable': 'FO',
+            'tabnm': 'Compras a Fornecedores',
+            'resumo': summary,
+            'grupo': '',
+            'recstamp': fostamp,
+            'uniqueid': unique_id,
+            'descricao': f'{docname} {document_number} - anexo adicional'[:100],
+            'bdados': pyodbc.Binary(b''),
+            'fullname': target['unc_path'],
+            'fname': os.path.splitext(target['file_name'])[0][:150],
+            'fext': 'pdf',
+            'flen': len(file_bytes),
+            'tipo': 2,
+            'origem': 'Compras a Fornecedores\r',
+            'tpdoc': 0,
+            'original': 0,
+            'ausrinis': initials,
+            'ausrdata': now,
+            'ausrhora': now.strftime('%H:%M:%S'),
+            'usnoopen': user['no'],
+            'usnaopen': str(user['name'])[:55],
+            'u_enviado': 1,
+            'ousrinis': initials,
+            'ousrdata': now,
+            'ousrhora': now.strftime('%H:%M:%S'),
+            'usrinis': initials,
+            'usrdata': now,
+            'usrhora': now.strftime('%H:%M:%S'),
+        })
+        connection.commit()
+        return {
+            'ok': True,
+            'duplicate': False,
+            'anexosstamp': anexosstamp,
+            'fostamp': fostamp,
+            'phc_database': database_name,
+            'ged_path': target['unc_path'],
+            'ged_confirmed': True,
+            'message': 'O PDF foi acrescentado como segundo anexo da compra existente.',
+        }
+    except Exception:
+        connection.rollback()
+        if target and created_file:
+            try:
+                _remove_document_ai_pdf(target)
+            except Exception:
+                current_app.logger.warning('Não foi possível remover o anexo adicional após rollback.', exc_info=True)
+        raise
+    finally:
+        connection.close()
+
+
 def record_document_duplicate_decision(
     document_stamp: str,
     duplicate_document_stamp: str,
@@ -9255,6 +9467,21 @@ def record_document_duplicate_decision(
         raise ValueError('Decisão de duplicado inválida.')
 
     now = _now()
+    attachment_result: dict[str, Any] = {}
+    if normalized_decision == 'associate':
+        target_meta = _json_loads(duplicate_document.processing_meta_json, {})
+        target_integration = dict(target_meta.get('phc_integration') or {})
+        target_document_data = _json_loads(getattr(duplicate_document, 'json_resultado', ''), {})
+        target_document_type = normalize_document_type(
+            target_document_data.get('document_type')
+            or getattr(duplicate_document, 'doc_type_detected', '')
+        )
+        if target_integration.get('fostamp') or _is_provisional_purchase_source_type(target_document_type):
+            attachment_result = _attach_duplicate_pdf_to_existing_purchase(
+                document,
+                duplicate_document,
+                requested_by,
+            )
     meta = _json_loads(document.processing_meta_json, {})
     decisions = list(meta.get('duplicate_decisions') or [])
     decisions.append({
@@ -9269,6 +9496,7 @@ def record_document_duplicate_decision(
         'duplicate_document_id': duplicate_document.docinstamp,
         'decided_at': now.isoformat(),
         'decided_by': requested_by or '',
+        **({'attachment': attachment_result} if attachment_result else {}),
     }
     document.processing_meta_json = _json_dumps(meta)
     document.dtalt = now
@@ -9281,6 +9509,22 @@ def record_document_duplicate_decision(
         meta['duplicate_resolution'],
     )
     if normalized_decision == 'associate':
+        target_meta = _json_loads(duplicate_document.processing_meta_json, {})
+        additional_attachments = list(target_meta.get('additional_purchase_attachments') or [])
+        if attachment_result and not any(
+            str(item.get('anexosstamp') or '') == str(attachment_result.get('anexosstamp') or '')
+            for item in additional_attachments if isinstance(item, dict)
+        ):
+            additional_attachments.append({
+                **attachment_result,
+                'source_document_id': document.docinstamp,
+                'associated_at': now.isoformat(),
+                'associated_by': requested_by or '',
+            })
+        target_meta['additional_purchase_attachments'] = additional_attachments[-20:]
+        duplicate_document.processing_meta_json = _json_dumps(target_meta)
+        duplicate_document.dtalt = now
+        duplicate_document.useralteracao = requested_by or duplicate_document.useralteracao or ''
         db.session.execute(text("""
             UPDATE dbo.DOC_DUPLICATE_INDEX
             SET ATIVO = 0, DTALT = GETDATE()
@@ -9306,6 +9550,12 @@ def record_document_duplicate_decision(
         'document_id': document.docinstamp,
         'duplicate_document_id': duplicate_document.docinstamp,
         'open_document_id': duplicate_document.docinstamp if normalized_decision == 'associate' else document.docinstamp,
+        'attachment': attachment_result,
+        'message': (
+            attachment_result.get('message')
+            if normalized_decision == 'associate'
+            else 'O documento foi confirmado como diferente.'
+        ),
     }
 
 
@@ -10588,6 +10838,392 @@ def _supplier_candidates_for_llm(text_value: str, feid: int | None = None, limit
     return selected[:max(1, min(int(limit or 40), 80))]
 
 
+DOC_AI_EMBEDDED_XML_MAX_BYTES = 5 * 1024 * 1024
+DOC_AI_STRUCTURED_XML_TOLERANCE = Decimal('0.02')
+
+
+def _xml_local_name(element: ET.Element | None) -> str:
+    if element is None:
+        return ''
+    return str(element.tag or '').rsplit('}', 1)[-1]
+
+
+def _xml_child(element: ET.Element | None, local_name: str) -> ET.Element | None:
+    if element is None:
+        return None
+    return next((child for child in list(element) if _xml_local_name(child) == local_name), None)
+
+
+def _xml_path(element: ET.Element | None, *local_names: str) -> ET.Element | None:
+    current = element
+    for local_name in local_names:
+        current = _xml_child(current, local_name)
+        if current is None:
+            return None
+    return current
+
+
+def _xml_children(element: ET.Element | None, local_name: str) -> list[ET.Element]:
+    if element is None:
+        return []
+    return [child for child in list(element) if _xml_local_name(child) == local_name]
+
+
+def _xml_first_descendant(element: ET.Element | None, local_name: str) -> ET.Element | None:
+    if element is None:
+        return None
+    return next((child for child in element.iter() if child is not element and _xml_local_name(child) == local_name), None)
+
+
+def _xml_text(element: ET.Element | None) -> str:
+    return str(element.text or '').strip() if element is not None else ''
+
+
+def _xml_decimal(element: ET.Element | None) -> Decimal | None:
+    value = _xml_text(element).replace('\u00a0', '').replace(' ', '')
+    if not value:
+        return None
+    try:
+        parsed = Decimal(value)
+        return parsed if parsed.is_finite() else None
+    except Exception:
+        return None
+
+
+def _xml_decimal_value(element: ET.Element | None) -> float:
+    return float(_xml_decimal(element) or Decimal('0'))
+
+
+def _structured_tax_id(party: ET.Element | None) -> str:
+    if party is None:
+        return ''
+    tax_schemes = _xml_children(party, 'PartyTaxScheme')
+    vat_id = ''
+    fallback = ''
+    for tax_scheme in tax_schemes:
+        company_id = _xml_text(_xml_child(tax_scheme, 'CompanyID'))
+        scheme_id = _xml_text(_xml_path(tax_scheme, 'TaxScheme', 'ID')).upper()
+        fallback = fallback or company_id
+        if scheme_id in {'VAT', 'TVA'}:
+            vat_id = company_id
+            break
+    return vat_id or fallback or _xml_text(_xml_path(party, 'PartyLegalEntity', 'CompanyID'))
+
+
+def _structured_party_name(party: ET.Element | None) -> str:
+    return (
+        _xml_text(_xml_path(party, 'PartyLegalEntity', 'RegistrationName'))
+        or _xml_text(_xml_path(party, 'PartyName', 'Name'))
+        or _xml_text(_xml_child(party, 'Name'))
+    )
+
+
+def _structured_document_type(type_code: str, root_name: str) -> str:
+    normalized_code = str(type_code or '').strip()
+    if root_name == 'CreditNote' or normalized_code in {'381', '384', '261'}:
+        return 'credit_note'
+    return 'invoice'
+
+
+def _structured_xml_result(
+    classification: dict[str, Any],
+    *,
+    file_name: str,
+    xml_format: str,
+    profile: str = '',
+) -> dict[str, Any]:
+    return {
+        'ok': True,
+        'mode': 'embedded_xml',
+        'model': '',
+        'llm_used': False,
+        'classification': classification,
+        'structured_xml': {
+            'file_name': str(file_name or ''),
+            'format': xml_format,
+            'profile': str(profile or ''),
+            'validated': True,
+        },
+    }
+
+
+def _validate_structured_invoice(classification: dict[str, Any], monetary: dict[str, Decimal | None]) -> list[str]:
+    errors: list[str] = []
+    supplier = classification.get('supplier') if isinstance(classification.get('supplier'), dict) else {}
+    customer = classification.get('customer') if isinstance(classification.get('customer'), dict) else {}
+    required_text = {
+        'número do documento': classification.get('document_number'),
+        'data do documento': classification.get('document_date'),
+        'moeda': classification.get('currency'),
+        'fornecedor': supplier.get('tax_id') or supplier.get('name'),
+        'cliente': customer.get('tax_id') or customer.get('name'),
+    }
+    errors.extend(f'Falta {label}.' for label, value in required_text.items() if not str(value or '').strip())
+    if not classification.get('lines'):
+        errors.append('O XML não contém linhas de faturação.')
+
+    net = monetary.get('net')
+    tax = monetary.get('tax')
+    gross = monetary.get('gross')
+    line_total = monetary.get('line_total')
+    allowance = monetary.get('allowance') or Decimal('0')
+    charge = monetary.get('charge') or Decimal('0')
+    if net is None or tax is None or gross is None:
+        errors.append('O XML não contém os totais obrigatórios.')
+        return errors
+    tolerance = DOC_AI_STRUCTURED_XML_TOLERANCE
+    if line_total is not None and abs((line_total - allowance + charge) - net) > tolerance:
+        errors.append('A soma das linhas do XML não coincide com o total sem IVA.')
+    if abs((net + tax) - gross) > tolerance:
+        errors.append('Os totais líquido, IVA e bruto do XML não reconciliam.')
+    tax_subtotal = monetary.get('tax_subtotal')
+    if tax_subtotal is not None and abs(tax_subtotal - tax) > tolerance:
+        errors.append('A soma das parcelas de IVA do XML não coincide com o IVA total.')
+    return errors
+
+
+def _parse_ubl_structured_invoice(root: ET.Element, file_name: str) -> dict[str, Any] | None:
+    root_name = _xml_local_name(root)
+    if root_name not in {'Invoice', 'CreditNote'}:
+        return None
+    namespace = str(root.tag or '').split('}', 1)[0].lstrip('{') if '}' in str(root.tag or '') else ''
+    if 'oasis:names:specification:ubl' not in namespace:
+        return None
+
+    type_code = _xml_text(_xml_child(root, 'InvoiceTypeCode')) or _xml_text(_xml_child(root, 'CreditNoteTypeCode'))
+    document_type = _structured_document_type(type_code, root_name)
+    classification = canonical_result_base(document_type)
+    classification['confidence'] = 1.0
+    classification['reason'] = 'Dados lidos do XML estruturado incorporado no PDF.'
+    classification['document_number'] = _xml_text(_xml_child(root, 'ID'))
+    classification['document_date'] = _xml_text(_xml_child(root, 'IssueDate'))
+    classification['due_date'] = _xml_text(_xml_child(root, 'DueDate'))
+    classification['currency'] = _xml_text(_xml_child(root, 'DocumentCurrencyCode')).upper()
+
+    supplier_party = _xml_path(root, 'AccountingSupplierParty', 'Party')
+    customer_party = _xml_path(root, 'AccountingCustomerParty', 'Party')
+    classification['supplier'] = {
+        'supplier_no': None,
+        'tax_id': _structured_tax_id(supplier_party),
+        'name': _structured_party_name(supplier_party),
+    }
+    classification['customer'] = {
+        'tax_id': _structured_tax_id(customer_party),
+        'name': _structured_party_name(customer_party),
+    }
+
+    monetary_total = _xml_child(root, 'LegalMonetaryTotal')
+    net = _xml_decimal(_xml_child(monetary_total, 'TaxExclusiveAmount'))
+    gross = _xml_decimal(_xml_child(monetary_total, 'TaxInclusiveAmount'))
+    line_total_declared = _xml_decimal(_xml_child(monetary_total, 'LineExtensionAmount'))
+    allowance = _xml_decimal(_xml_child(monetary_total, 'AllowanceTotalAmount')) or Decimal('0')
+    charge = _xml_decimal(_xml_child(monetary_total, 'ChargeTotalAmount')) or Decimal('0')
+    header_tax_total = _xml_child(root, 'TaxTotal')
+    tax = _xml_decimal(_xml_child(header_tax_total, 'TaxAmount'))
+    classification['totals'] = {
+        'net_total': float(net or Decimal('0')),
+        'tax_total': float(tax or Decimal('0')),
+        'gross_total': float(gross or Decimal('0')),
+    }
+
+    taxes: list[dict[str, Any]] = []
+    tax_subtotal_sum = Decimal('0')
+    tax_subtotals_present = False
+    for subtotal in _xml_children(header_tax_total, 'TaxSubtotal'):
+        taxable = _xml_decimal(_xml_child(subtotal, 'TaxableAmount')) or Decimal('0')
+        amount = _xml_decimal(_xml_child(subtotal, 'TaxAmount')) or Decimal('0')
+        rate = _xml_decimal(_xml_path(subtotal, 'TaxCategory', 'Percent')) or Decimal('0')
+        tax_subtotal_sum += amount
+        tax_subtotals_present = True
+        taxes.append({
+            'tax_rate': float(rate),
+            'taxable_base': float(taxable),
+            'tax_amount': float(amount),
+            'gross_total': float(taxable + amount),
+            'exemption_reason': _xml_text(_xml_path(subtotal, 'TaxCategory', 'TaxExemptionReason')),
+        })
+    classification['taxes'] = taxes
+
+    line_name = 'CreditNoteLine' if root_name == 'CreditNote' else 'InvoiceLine'
+    quantity_name = 'CreditedQuantity' if root_name == 'CreditNote' else 'InvoicedQuantity'
+    lines: list[dict[str, Any]] = []
+    calculated_line_total = Decimal('0')
+    for xml_line in _xml_children(root, line_name):
+        quantity_element = _xml_child(xml_line, quantity_name)
+        quantity = _xml_decimal(quantity_element) or Decimal('0')
+        line_net = _xml_decimal(_xml_child(xml_line, 'LineExtensionAmount')) or Decimal('0')
+        unit_price = _xml_decimal(_xml_path(xml_line, 'Price', 'PriceAmount')) or Decimal('0')
+        rate = _xml_decimal(_xml_path(xml_line, 'Item', 'ClassifiedTaxCategory', 'Percent')) or Decimal('0')
+        item = _xml_child(xml_line, 'Item')
+        ref = _xml_text(_xml_path(item, 'SellersItemIdentification', 'ID'))
+        description = _xml_text(_xml_child(item, 'Name')) or _xml_text(_xml_child(item, 'Description'))
+        discount = Decimal('0')
+        for adjustment in _xml_children(xml_line, 'AllowanceCharge'):
+            if _xml_text(_xml_child(adjustment, 'ChargeIndicator')).lower() == 'false':
+                discount += _xml_decimal(_xml_child(adjustment, 'MultiplierFactorNumeric')) or Decimal('0')
+        calculated_line_total += line_net
+        lines.append({
+            'ref': ref,
+            'source_ref': ref,
+            'description': description,
+            'qty': float(quantity),
+            'unit': str(quantity_element.attrib.get('unitCode') or '').strip() if quantity_element is not None else '',
+            'unit_price': float(unit_price),
+            'discount': float(discount * (Decimal('100') if discount and discount <= 1 else Decimal('1'))),
+            'tax_rate': float(rate),
+            'net_amount': float(line_net),
+            'gross_amount': float(line_net + (line_net * rate / Decimal('100'))),
+        })
+    classification['lines'] = lines
+
+    monetary = {
+        'net': net,
+        'tax': tax,
+        'gross': gross,
+        'line_total': line_total_declared if line_total_declared is not None else calculated_line_total,
+        'allowance': allowance,
+        'charge': charge,
+        'tax_subtotal': tax_subtotal_sum if tax_subtotals_present else None,
+    }
+    errors = _validate_structured_invoice(classification, monetary)
+    if errors:
+        return None
+    profile = _xml_text(_xml_child(root, 'CustomizationID')) or _xml_text(_xml_child(root, 'ProfileID'))
+    return _structured_xml_result(classification, file_name=file_name, xml_format='UBL', profile=profile)
+
+
+def _cii_date_value(element: ET.Element | None) -> str:
+    date_value = _xml_text(_xml_first_descendant(element, 'DateTimeString'))
+    if re.fullmatch(r'\d{8}', date_value):
+        return f'{date_value[:4]}-{date_value[4:6]}-{date_value[6:]}'
+    return date_value
+
+
+def _cii_trade_party(root: ET.Element, party_name: str) -> ET.Element | None:
+    return next((item for item in root.iter() if _xml_local_name(item) == party_name), None)
+
+
+def _cii_tax_id(party: ET.Element | None) -> str:
+    if party is None:
+        return ''
+    fallback = ''
+    for registration in (item for item in party.iter() if _xml_local_name(item) == 'SpecifiedTaxRegistration'):
+        identifier = _xml_child(registration, 'ID')
+        value = _xml_text(identifier)
+        fallback = fallback or value
+        if identifier is not None and str(identifier.attrib.get('schemeID') or '').upper() in {'VA', 'VAT'}:
+            return value
+    return fallback
+
+
+def _parse_cii_structured_invoice(root: ET.Element, file_name: str) -> dict[str, Any] | None:
+    if _xml_local_name(root) != 'CrossIndustryInvoice':
+        return None
+    document = next((item for item in root.iter() if _xml_local_name(item) == 'ExchangedDocument'), None)
+    agreement = next((item for item in root.iter() if _xml_local_name(item) == 'ApplicableHeaderTradeAgreement'), None)
+    settlement = next((item for item in root.iter() if _xml_local_name(item) == 'ApplicableHeaderTradeSettlement'), None)
+    summation = _xml_child(settlement, 'SpecifiedTradeSettlementHeaderMonetarySummation')
+    type_code = _xml_text(_xml_child(document, 'TypeCode'))
+    classification = canonical_result_base(_structured_document_type(type_code, 'CrossIndustryInvoice'))
+    classification['confidence'] = 1.0
+    classification['reason'] = 'Dados lidos do XML Factur-X/CII incorporado no PDF.'
+    classification['document_number'] = _xml_text(_xml_child(document, 'ID'))
+    classification['document_date'] = _cii_date_value(_xml_child(document, 'IssueDateTime'))
+    classification['currency'] = _xml_text(_xml_child(settlement, 'InvoiceCurrencyCode')).upper()
+    due_date = next((item for item in settlement.iter() if _xml_local_name(item) == 'DueDateDateTime'), None) if settlement is not None else None
+    classification['due_date'] = _cii_date_value(due_date)
+    supplier_party = _xml_child(agreement, 'SellerTradeParty')
+    customer_party = _xml_child(agreement, 'BuyerTradeParty')
+    classification['supplier'] = {'supplier_no': None, 'tax_id': _cii_tax_id(supplier_party), 'name': _xml_text(_xml_child(supplier_party, 'Name'))}
+    classification['customer'] = {'tax_id': _cii_tax_id(customer_party), 'name': _xml_text(_xml_child(customer_party, 'Name'))}
+
+    net = _xml_decimal(_xml_child(summation, 'TaxBasisTotalAmount'))
+    gross = _xml_decimal(_xml_child(summation, 'GrandTotalAmount'))
+    line_total_declared = _xml_decimal(_xml_child(summation, 'LineTotalAmount'))
+    allowance = _xml_decimal(_xml_child(summation, 'AllowanceTotalAmount')) or Decimal('0')
+    charge = _xml_decimal(_xml_child(summation, 'ChargeTotalAmount')) or Decimal('0')
+    tax = _xml_decimal(_xml_child(summation, 'TaxTotalAmount'))
+    if tax is None and settlement is not None:
+        tax = sum((_xml_decimal(item) or Decimal('0') for item in _xml_children(settlement, 'TaxTotalAmount')), Decimal('0'))
+    classification['totals'] = {'net_total': float(net or 0), 'tax_total': float(tax or 0), 'gross_total': float(gross or 0)}
+
+    taxes: list[dict[str, Any]] = []
+    tax_subtotal_sum = Decimal('0')
+    for trade_tax in _xml_children(settlement, 'ApplicableTradeTax'):
+        taxable = _xml_decimal(_xml_child(trade_tax, 'BasisAmount')) or Decimal('0')
+        amount = _xml_decimal(_xml_child(trade_tax, 'CalculatedAmount')) or Decimal('0')
+        rate = _xml_decimal(_xml_child(trade_tax, 'RateApplicablePercent')) or Decimal('0')
+        tax_subtotal_sum += amount
+        taxes.append({'tax_rate': float(rate), 'taxable_base': float(taxable), 'tax_amount': float(amount), 'gross_total': float(taxable + amount)})
+    classification['taxes'] = taxes
+
+    lines: list[dict[str, Any]] = []
+    calculated_line_total = Decimal('0')
+    for trade_line in (item for item in root.iter() if _xml_local_name(item) == 'IncludedSupplyChainTradeLineItem'):
+        product = _xml_child(trade_line, 'SpecifiedTradeProduct')
+        delivery = _xml_child(trade_line, 'SpecifiedLineTradeDelivery')
+        line_settlement = _xml_child(trade_line, 'SpecifiedLineTradeSettlement')
+        line_agreement = _xml_child(trade_line, 'SpecifiedLineTradeAgreement')
+        quantity_element = _xml_child(delivery, 'BilledQuantity')
+        quantity = _xml_decimal(quantity_element) or Decimal('0')
+        unit_price = _xml_decimal(_xml_path(line_agreement, 'NetPriceProductTradePrice', 'ChargeAmount')) or Decimal('0')
+        line_net = _xml_decimal(_xml_path(line_settlement, 'SpecifiedTradeSettlementLineMonetarySummation', 'LineTotalAmount')) or Decimal('0')
+        rate = _xml_decimal(_xml_path(line_settlement, 'ApplicableTradeTax', 'RateApplicablePercent')) or Decimal('0')
+        ref = _xml_text(_xml_child(product, 'SellerAssignedID'))
+        calculated_line_total += line_net
+        lines.append({
+            'ref': ref, 'source_ref': ref, 'description': _xml_text(_xml_child(product, 'Name')),
+            'qty': float(quantity), 'unit': str(quantity_element.attrib.get('unitCode') or '').strip() if quantity_element is not None else '',
+            'unit_price': float(unit_price), 'discount': 0.0, 'tax_rate': float(rate),
+            'net_amount': float(line_net), 'gross_amount': float(line_net + (line_net * rate / Decimal('100'))),
+        })
+    classification['lines'] = lines
+    errors = _validate_structured_invoice(classification, {
+        'net': net, 'tax': tax, 'gross': gross,
+        'line_total': line_total_declared if line_total_declared is not None else calculated_line_total,
+        'allowance': allowance, 'charge': charge,
+        'tax_subtotal': tax_subtotal_sum if taxes else None,
+    })
+    if errors:
+        return None
+    guideline = _xml_first_descendant(root, 'GuidelineSpecifiedDocumentContextParameter')
+    profile = _xml_text(_xml_child(guideline, 'ID'))
+    return _structured_xml_result(classification, file_name=file_name, xml_format='Factur-X/CII', profile=profile)
+
+
+def _classify_structured_invoice_xml(xml_bytes: bytes, file_name: str = '') -> dict[str, Any] | None:
+    if not xml_bytes or len(xml_bytes) > DOC_AI_EMBEDDED_XML_MAX_BYTES:
+        return None
+    normalized_xml = xml_bytes.upper()
+    if b'<!DOCTYPE' in normalized_xml or b'<!ENTITY' in normalized_xml:
+        return None
+    try:
+        root = ET.fromstring(xml_bytes)
+    except (ET.ParseError, ValueError):
+        return None
+    return _parse_ubl_structured_invoice(root, file_name) or _parse_cii_structured_invoice(root, file_name)
+
+
+def _classify_pdf_from_embedded_invoice_xml(file_bytes: bytes) -> dict[str, Any] | None:
+    if not file_bytes:
+        return None
+    try:
+        from pypdf import PdfReader
+        reader = PdfReader(io.BytesIO(file_bytes), strict=False)
+        for file_name, values in reader.attachments.items():
+            if not str(file_name or '').lower().endswith('.xml'):
+                continue
+            for value in values if isinstance(values, list) else [values]:
+                if isinstance(value, bytes):
+                    result = _classify_structured_invoice_xml(value, str(file_name or ''))
+                    if result:
+                        return result
+    except Exception:
+        if has_app_context():
+            current_app.logger.info('Document AI: não foi possível validar o XML incorporado no PDF.', exc_info=True)
+    return None
+
+
 def classify_document_with_llm(document_stamp: str, requested_by: str = '') -> dict[str, Any]:
     _ensure_document_ai_schema()
     document = db.session.get(DocInbox, str(document_stamp or '').strip())
@@ -10599,26 +11235,39 @@ def classify_document_with_llm(document_stamp: str, requested_by: str = '') -> d
         raise FileNotFoundError('Ficheiro original não encontrado.')
 
     file_bytes = b''
+    embedded_pdf_bytes = b''
     if _is_pdf(document.file_ext, document.mime_type):
         try:
-            if os.path.getsize(absolute_path) <= 20 * 1024 * 1024:
+            file_size = os.path.getsize(absolute_path)
+            if file_size <= 50 * 1024 * 1024:
                 with open(absolute_path, 'rb') as handle:
-                    file_bytes = handle.read()
+                    embedded_pdf_bytes = handle.read()
+                if file_size <= 20 * 1024 * 1024:
+                    file_bytes = embedded_pdf_bytes
         except Exception:
             file_bytes = b''
-    image_bytes, image_mime_type = _document_first_page_image_bytes(absolute_path, document.file_ext, document.mime_type)
-    supplier_candidates = _supplier_candidates_for_llm(document.extracted_text or '', document.feid, limit=50)
-    payload = classify_document_visual({
-        'file_name': document.file_name or os.path.basename(absolute_path),
-        'mime_type': document.mime_type or mimetypes.guess_type(absolute_path)[0] or 'application/octet-stream',
-        'file_bytes': file_bytes,
-        'image_bytes': image_bytes,
-        'image_mime_type': image_mime_type,
-        'extracted_text': document.extracted_text or '',
-        'supplier_candidates': supplier_candidates,
-    })
+            embedded_pdf_bytes = b''
+    payload = _classify_pdf_from_embedded_invoice_xml(embedded_pdf_bytes) if embedded_pdf_bytes else None
+    supplier_candidates: list[dict[str, Any]] = []
+    if payload is None:
+        supplier_candidates = _supplier_candidates_for_llm(document.extracted_text or '', document.feid, limit=50)
+        image_bytes, image_mime_type = _document_first_page_image_bytes(absolute_path, document.file_ext, document.mime_type)
+        payload = classify_document_visual({
+            'file_name': document.file_name or os.path.basename(absolute_path),
+            'mime_type': document.mime_type or mimetypes.guess_type(absolute_path)[0] or 'application/octet-stream',
+            'file_bytes': file_bytes,
+            'image_bytes': image_bytes,
+            'image_mime_type': image_mime_type,
+            'extracted_text': document.extracted_text or '',
+            'supplier_candidates': supplier_candidates,
+        })
     if payload.get('ok') and isinstance(payload.get('classification'), dict):
-        classification = _postprocess_visual_classification(payload.get('classification') or {}, document.extracted_text or '', supplier_candidates)
+        is_structured_xml = str(payload.get('mode') or '') == 'embedded_xml'
+        classification = _postprocess_visual_classification(
+            payload.get('classification') or {},
+            '' if is_structured_xml else document.extracted_text or '',
+            [] if is_structured_xml else supplier_candidates,
+        )
         payload['classification'] = classification
         customer_payload = classification.get('customer') if isinstance(classification.get('customer'), dict) else {}
         supplier_payload = classification.get('supplier') if isinstance(classification.get('supplier'), dict) else {}
@@ -10644,7 +11293,7 @@ def classify_document_with_llm(document_stamp: str, requested_by: str = '') -> d
             document.dtalt = _now()
             document.useralteracao = requested_by or document.useralteracao or document.usercriacao
             meta = _json_loads(document.processing_meta_json, {})
-            meta['llm_visual_classification'] = {
+            classification_meta = {
                 'doc_type': doc_type,
                 'confidence': classification.get('confidence'),
                 'mode': payload.get('mode') or '',
@@ -10653,8 +11302,19 @@ def classify_document_with_llm(document_stamp: str, requested_by: str = '') -> d
                 'supplier_no': supplier_payload.get('supplier_no') if isinstance(supplier_payload, dict) else None,
                 'feid': customer_payload.get('feid') if isinstance(customer_payload, dict) else None,
             }
+            if is_structured_xml:
+                classification_meta['xml'] = payload.get('structured_xml') or {}
+                meta['structured_xml_classification'] = classification_meta
+            else:
+                meta['llm_visual_classification'] = classification_meta
             document.processing_meta_json = _json_dumps(meta)
-            _document_log(document.docinstamp, 'llm_classify', 'ok', 'Documento classificado por LLM visual.', meta['llm_visual_classification'])
+            _document_log(
+                document.docinstamp,
+                'structured_xml_classify' if is_structured_xml else 'llm_classify',
+                'ok',
+                'Documento classificado pelo XML estruturado incorporado.' if is_structured_xml else 'Documento classificado por LLM visual.',
+                classification_meta,
+            )
             db.session.commit()
     return payload
 

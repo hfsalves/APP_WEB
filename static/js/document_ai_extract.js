@@ -2026,7 +2026,7 @@ document.addEventListener('DOMContentLoaded', () => {
           </button>
           <button type="button" class="sz_button sz_button_primary" data-associate-duplicate="${escapeHtml(match.document_id || '')}">
             <i class="fa-solid fa-link"></i>
-            <span>Associar ao existente</span>
+            <span>Adicionar como anexo</span>
           </button>
         </div>
       </article>
