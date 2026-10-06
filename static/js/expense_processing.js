@@ -278,6 +278,8 @@
   }
   async function load() {
     const params=new URLSearchParams({date_from:el.from.value,date_to:el.to.value,user:el.user.value,arquivo:archive?'1':'0'});
+    el.summary.textContent='A carregar despesas...';
+    if(el.launch)el.launch.disabled=true;
     el.rows.innerHTML='<div class="expense-state"><i class="fa-solid fa-circle-notch fa-spin"></i><span>A carregar despesas...</span></div>';
     try {
       const response=await fetch(`/api/colaborador/despesas/processamento?${params}`,{credentials:'same-origin'});
@@ -285,7 +287,12 @@
       state.rows=result.rows||[]; state.selected.clear(); state.active=sessionStorage.getItem(`expense-active-${archive}`)||state.rows[0]?.stamp||'';
       updateUsers(result.users); render();
       requestAnimationFrame(()=>{el.rows.scrollTop=Number(sessionStorage.getItem(`expense-scroll-${archive}`)||0);});
-    } catch(error) {el.rows.innerHTML=`<div class="expense-state"><i class="fa-solid fa-triangle-exclamation"></i><span>${esc(error.message)}</span><button class="sz_button sz_button_secondary" data-retry>Repetir</button></div>`;}
+    } catch(error) {
+      state.rows=[];state.selected.clear();state.active='';renderPreview();
+      el.summary.textContent='Não foi possível carregar as despesas';
+      if(el.launch)el.launch.disabled=true;
+      el.rows.innerHTML=`<div class="expense-state"><i class="fa-solid fa-triangle-exclamation"></i><span>${esc(error.message)}</span><button class="sz_button sz_button_secondary" data-retry>Repetir</button></div>`;
+    }
   }
   function activate(card) {
     state.active=card.dataset.stamp; sessionStorage.setItem(`expense-active-${archive}`,state.active);

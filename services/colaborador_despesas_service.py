@@ -1244,12 +1244,29 @@ def _attach_processing_details(items: list[dict[str, Any]]) -> None:
         grouped.setdefault(str(row.get('DESPLINHASTAMP') or '').strip(), []).append(_serialize_accounting_line(row))
     for item in items:
         accounting = grouped.get(str(item.get('stamp') or ''), [])
+        # New collaborator expenses are not classified yet. Match the editable
+        # first line in the UI without depending on the startup data backfill.
+        if not accounting:
+            net, vat = _vat_amounts_from_gross(item.get('valor'), item.get('taxaiva'))
+            accounting = [{
+                'stamp': '', 'ordem': 10,
+                'artigo_ref': item.get('ref') or '',
+                'design': item.get('design') or '',
+                'referencia': item.get('referencia_documento') or '',
+                'ccusto': item.get('ccusto') or '',
+                'matricula': item.get('viatura') or '',
+                'tabiva': item.get('tabiva') or '',
+                'taxaiva': float(item.get('taxaiva') or 0),
+                'total_sem_iva': float(net), 'valor_iva': float(vat),
+                'total_com_iva': float(_safe_decimal(item.get('valor'))),
+                'origens': item.get('origens') or {},
+            }]
         item['accounting_lines'] = accounting
         item['version'] = int(item.get('version') or 1)
         item['origens'] = item.get('origens') or {}
-        net = sum(Decimal(str(line.get('total_sem_iva') or 0)) for line in accounting)
-        vat = sum(Decimal(str(line.get('valor_iva') or 0)) for line in accounting)
-        gross = sum(Decimal(str(line.get('total_com_iva') or 0)) for line in accounting)
+        net = sum((Decimal(str(line.get('total_sem_iva') or 0)) for line in accounting), Decimal('0.00'))
+        vat = sum((Decimal(str(line.get('valor_iva') or 0)) for line in accounting), Decimal('0.00'))
+        gross = sum((Decimal(str(line.get('total_com_iva') or 0)) for line in accounting), Decimal('0.00'))
         item['linhas_total_sem_iva'] = float(net.quantize(Decimal('0.01')))
         item['linhas_total_iva'] = float(vat.quantize(Decimal('0.01')))
         item['linhas_total_com_iva'] = float(gross.quantize(Decimal('0.01')))
