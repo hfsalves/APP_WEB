@@ -82,6 +82,12 @@ from services.airbnb_commission_import_service import (
     preview_airbnb_commissions_csv,
     import_airbnb_commissions_rows,
 )
+from services.faturacao_reservas_global_service import (
+    append_fatura_texto_payload_lines,
+    current_fatura_date,
+    fatura_recipient_name,
+    normalize_fatura_texto,
+)
 from services.auth_service import (
     authenticate_user,
     ensure_user_language_column,
@@ -21204,6 +21210,12 @@ def create_app():
                 ALTER TABLE dbo.RS
                 ADD FTSTAMP varchar(80) NOT NULL CONSTRAINT DF_RS_FTSTAMP DEFAULT ('') WITH VALUES;
             END;
+
+            IF COL_LENGTH('dbo.RS', 'FTTEXTO') IS NULL
+            BEGIN
+                ALTER TABLE dbo.RS
+                ADD FTTEXTO varchar(240) NOT NULL CONSTRAINT DF_RS_FTTEXTO DEFAULT ('') WITH VALUES;
+            END;
         """))
         db.session.execute(text("""
             IF OBJECT_ID('dbo.FAT_RESERVAS_PHC_LOG', 'U') IS NULL
@@ -21267,6 +21279,7 @@ def create_app():
         rs_limpeza_expr = "ISNULL(RS.LIMPEZA,0)" if 'LIMPEZA' in rs_cols else "0"
         rs_cancelada_expr = "ISNULL(RS.CANCELADA,0)" if 'CANCELADA' in rs_cols else "0"
         rs_pcancel_expr = "ISNULL(RS.PCANCEL,0)" if 'PCANCEL' in rs_cols else "0"
+        rs_ftnome_expr = "LTRIM(RTRIM(ISNULL(RS.FTNOME,'')))" if 'FTNOME' in rs_cols else "''"
         rs_ftmorada_expr = "LTRIM(RTRIM(ISNULL(RS.FTMORADA,'')))" if 'FTMORADA' in rs_cols else "''"
         rs_ftlocal_expr = "LTRIM(RTRIM(ISNULL(RS.FTLOCAL,'')))" if 'FTLOCAL' in rs_cols else "''"
         rs_ftcodpost_expr = "LTRIM(RTRIM(ISNULL(RS.FTCODPOST,'')))" if 'FTCODPOST' in rs_cols else "''"
@@ -21274,6 +21287,7 @@ def create_app():
             "LTRIM(RTRIM(CASE WHEN RS.FTNCONT IS NULL THEN '' ELSE CONVERT(varchar(40), RS.FTNCONT) END))"
             if 'FTNCONT' in rs_cols else "''"
         )
+        rs_fttexto_expr = "ISNULL(RS.FTTEXTO,'')" if 'FTTEXTO' in rs_cols else "''"
         rs_faturado_expr = "ISNULL(RS.FATURADO,0)" if 'FATURADO' in rs_cols else "0"
         rs_ftstamp_expr = "LTRIM(RTRIM(ISNULL(RS.FTSTAMP,'')))" if 'FTSTAMP' in rs_cols else "''"
         rs_validado_faturar_expr = "ISNULL(RS.VALIDADO_FATURAR,0)" if 'VALIDADO_FATURAR' in rs_cols else "0"
@@ -21388,10 +21402,12 @@ def create_app():
               {cl_nome_expr} AS CLIENTE_NOME,
               {cl_bdphc_expr} AS CLIENTE_BDPHC,
               {rs_nome_expr} AS HOSPEDE,
+              {rs_ftnome_expr} AS FTNOME,
               {rs_ftmorada_expr} AS FTMORADA,
               {rs_ftlocal_expr} AS FTLOCAL,
               {rs_ftcodpost_expr} AS FTCODPOST,
               {rs_ftncont_expr} AS FTNCONT,
+              {rs_fttexto_expr} AS FTTEXTO,
               CAST(RS.DATAIN AS date) AS DATAIN,
               CAST(RS.DATAOUT AS date) AS DATAOUT,
               CASE
@@ -21487,21 +21503,8 @@ def create_app():
             return value.strftime('%d.%m.%Y')
         return ''
 
-    def _date_value(value):
-        if isinstance(value, datetime):
-            return value.date()
-        return value if isinstance(value, date) else None
-
-    def _is_month_end(value):
-        day = _date_value(value)
-        return bool(day and (day + timedelta(days=1)).day == 1)
-
     def _faturacao_reservas_global_document_date(dataout):
-        today_value = date.today()
-        checkout = _date_value(dataout)
-        if checkout and checkout == today_value and _is_month_end(checkout):
-            return today_value
-        return today_value - timedelta(days=1)
+        return current_fatura_date()
 
     def _phc_reservas_cliente_generico_no(tipo: str):
         tipo_norm = str(tipo or '').strip().upper()
@@ -21514,7 +21517,7 @@ def create_app():
         datain = row.get('DATAIN') or row.get('DATAOUT')
         dataout = row.get('DATAOUT') or datain
         fdata = _faturacao_reservas_global_document_date(dataout)
-        hospede = str(row.get('HOSPEDE') or '').strip() or 'Cliente Final'
+        nome_faturacao = fatura_recipient_name(row)
         tipo = str(row.get('TIPO') or '').strip().upper()
         bdphc = str(row.get('CLIENTE_BDPHC') or '').strip()
         estadia = round(_num(row.get('ESTADIA'), 0), 2)
@@ -21543,10 +21546,11 @@ def create_app():
                 'qtt': 1,
                 'epv': limpeza,
             })
+        append_fatura_texto_payload_lines(linhas, row.get('FTTEXTO'))
         payload = {
             'ndoc': _to_int(os.environ.get('PHC_RESERVAS_NDOC'), 3),
             'no': _phc_reservas_cliente_generico_no(tipo),
-            'nome': hospede[:80],
+            'nome': nome_faturacao[:80],
             'morada': str(row.get('FTMORADA') or '').strip()[:120],
             'local': str(row.get('FTLOCAL') or '').strip()[:80],
             'codpost': str(row.get('FTCODPOST') or '').strip()[:30],
@@ -21836,6 +21840,11 @@ def create_app():
                 valor_total = round(_num(row.get('VALOR_TOTAL'), 0), 2)
                 if valor_total <= 0:
                     warnings.append('Reserva cancelada sem valor faturável' if int(row.get('CANCELADA') or 0) == 1 else 'Reserva sem valor faturável')
+                fatura_texto = str(row.get('FTTEXTO') or '')
+                try:
+                    normalize_fatura_texto(fatura_texto)
+                except ValueError as exc:
+                    warnings.append(str(exc))
                 out.append({
                     'RSSTAMP': str(row.get('RSSTAMP') or '').strip(),
                     'RESERVA': str(row.get('RESERVA') or '').strip(),
@@ -21851,6 +21860,7 @@ def create_app():
                     'FTLOCAL': str(row.get('FTLOCAL') or '').strip(),
                     'FTCODPOST': str(row.get('FTCODPOST') or '').strip(),
                     'FTNCONT': str(row.get('FTNCONT') or '').strip(),
+                    'FTTEXTO': fatura_texto,
                     'DATAIN': row.get('DATAIN').isoformat() if row.get('DATAIN') else '',
                     'DATAOUT': row.get('DATAOUT').isoformat() if row.get('DATAOUT') else '',
                     'FDATA': row.get('FDATA').isoformat() if row.get('FDATA') else '',
@@ -21882,6 +21892,38 @@ def create_app():
             db.session.rollback()
             app.logger.exception('Erro ao carregar faturacao global de reservas.')
             return jsonify({'error': f'Erro ao carregar reservas: {exc}'}), 500
+
+    @app.route('/api/faturacao/reservas-global/<string:rsstamp>/texto-fatura', methods=['POST'])
+    @login_required
+    def api_faturacao_reservas_global_texto_fatura(rsstamp):
+        try:
+            _ensure_faturacao_reservas_global_schema()
+            stamp = str(rsstamp or '').strip()
+            if not stamp:
+                return jsonify({'error': 'Reserva inválida.'}), 400
+            body = request.get_json(silent=True) or {}
+            texto_fatura = normalize_fatura_texto(body.get('texto') or '')
+            exists = db.session.execute(text("""
+                SELECT TOP 1 RSSTAMP
+                FROM dbo.RS
+                WHERE RSSTAMP = :rsstamp
+            """), {'rsstamp': stamp}).scalar()
+            if not exists:
+                return jsonify({'error': 'Reserva não encontrada.'}), 404
+            db.session.execute(text("""
+                UPDATE dbo.RS
+                SET FTTEXTO = :texto
+                WHERE RSSTAMP = :rsstamp
+            """), {'texto': texto_fatura, 'rsstamp': stamp})
+            db.session.commit()
+            return jsonify({'ok': True, 'RSSTAMP': stamp, 'FTTEXTO': texto_fatura})
+        except ValueError as exc:
+            db.session.rollback()
+            return jsonify({'error': str(exc)}), 400
+        except Exception as exc:
+            db.session.rollback()
+            app.logger.exception('Erro ao guardar texto livre da fatura da reserva.')
+            return jsonify({'error': f'Erro ao guardar texto da fatura: {exc}'}), 500
 
     def _faturacao_reservas_global_fetch_selected(rsstamps):
         placeholders = []
@@ -21933,7 +21975,11 @@ def create_app():
             if valor_total <= 0:
                 errors.append({'RSSTAMP': rsstamp, 'RESERVA': reserva, 'error': 'Reserva sem valor faturável.'})
                 continue
-            payload = _build_faturacao_reservas_global_phc_payload(row, user_login)
+            try:
+                payload = _build_faturacao_reservas_global_phc_payload(row, user_login)
+            except ValueError as exc:
+                errors.append({'RSSTAMP': rsstamp, 'RESERVA': reserva, 'error': str(exc)})
+                continue
             if not payload.get('linhas'):
                 errors.append({'RSSTAMP': rsstamp, 'RESERVA': reserva, 'error': 'Reserva sem linhas faturáveis.'})
                 continue
@@ -34849,6 +34895,7 @@ OPTION (MAXRECURSION 32767);
                         N.UTILIZADOR,
                         U.NOME,
                         U.COR,
+                        LTRIM(RTRIM(ISNULL(U.DPTO, ''))) AS DEPARTAMENTO,
                         ISNULL(N.VALOR, 0) AS VALOR,
                         ISNULL(N.OBS, '') AS OBS
                     FROM ND AS N
@@ -34882,8 +34929,9 @@ OPTION (MAXRECURSION 32767);
                         'login': r[3],
                         'nome': r[4],
                         'cor': r[5] or '#94a3b8',
-                        'valor': float(r[6] or 0),
-                        'obs': r[7] or ''
+                        'departamento': r[6] or '',
+                        'valor': float(r[7] or 0),
+                        'obs': r[8] or ''
                     }
                     for r in rows
                 ]
@@ -35057,17 +35105,42 @@ OPTION (MAXRECURSION 32767);
     def api_nd_users():
         try:
             # Apenas utilizadores ativos (INATIVO = 0)
-            sql = text("SELECT LOGIN, NOME, ISNULL(COR,'') AS COR FROM US WHERE ISNULL(INATIVO,0)=0 ORDER BY NOME")
+            sql = text("""
+                SELECT
+                    LOGIN,
+                    NOME,
+                    ISNULL(COR, '') AS COR,
+                    LTRIM(RTRIM(ISNULL(DPTO, ''))) AS DEPARTAMENTO
+                FROM US
+                WHERE ISNULL(INATIVO, 0) = 0
+                ORDER BY NOME
+            """)
             rows = db.session.execute(sql).fetchall()
             items = [
                 {
                     'login': r[0],
                     'nome': r[1],
-                    'cor': r[2] or '#94a3b8'
+                    'cor': r[2] or '#94a3b8',
+                    'departamento': r[3] or ''
                 }
                 for r in rows
             ]
-            return jsonify({'users': items})
+            department_counts = {}
+            for item in items:
+                department = item['departamento']
+                department_counts[department] = department_counts.get(department, 0) + 1
+            departments = [
+                {
+                    'value': department,
+                    'label': department or 'Sem departamento',
+                    'count': department_counts[department],
+                }
+                for department in sorted(
+                    department_counts,
+                    key=lambda value: (not value, value.casefold()),
+                )
+            ]
+            return jsonify({'users': items, 'departments': departments})
         except Exception as e:
             return jsonify({'error': str(e)}), 500
 

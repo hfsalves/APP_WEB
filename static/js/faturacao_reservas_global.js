@@ -3,6 +3,8 @@
     rows: [],
     selected: new Set(),
     options: { alojamentos: [], clientes: [] },
+    editingTextId: "",
+    textSaving: false,
   };
 
   const els = {
@@ -22,6 +24,12 @@
     totalValor: document.getElementById("fatglobTotalValor"),
     selectedValor: document.getElementById("fatglobSelectedValor"),
     blockedRows: document.getElementById("fatglobBlockedRows"),
+    textModal: document.getElementById("fatglobTextModal"),
+    textModalMeta: document.getElementById("fatglobTextModalMeta"),
+    textInput: document.getElementById("fatglobTextInput"),
+    textCounter: document.getElementById("fatglobTextCounter"),
+    textError: document.getElementById("fatglobTextError"),
+    textSave: document.getElementById("fatglobTextSave"),
     overlay: document.getElementById("fatglobOverlay"),
     overlaySub: document.getElementById("fatglobOverlaySub"),
   };
@@ -88,7 +96,7 @@
   }
 
   function emptyRow(message) {
-    return '<tr><td colspan="14" class="sz_table_cell fatglob-empty">' + escapeHtml(message) + "</td></tr>";
+    return '<tr><td colspan="15" class="sz_table_cell fatglob-empty">' + escapeHtml(message) + "</td></tr>";
   }
 
   function tipoLabel(tipo) {
@@ -143,6 +151,86 @@
     return '<span class="fatglob-validation-cell">' + validationBadge(row) + airbnbLink + "</span>";
   }
 
+  function validateInvoiceText(value) {
+    const normalized = String(value || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    const lines = normalized.split("\n");
+    let longest = 0;
+    let invalidLine = 0;
+    lines.forEach((line, index) => {
+      if (line.length > longest) longest = line.length;
+      if (!invalidLine && line.length > 60) invalidLine = index + 1;
+    });
+    let error = "";
+    if (normalized.length > 240) {
+      error = "O texto da fatura não pode exceder 240 caracteres.";
+    } else if (invalidLine) {
+      error = "A linha " + invalidLine + " não pode exceder 60 caracteres.";
+    }
+    return { normalized, length: normalized.length, longest, error };
+  }
+
+  function setInvoiceTextError(message) {
+    if (!els.textError) return;
+    els.textError.textContent = String(message || "");
+    els.textError.hidden = !message;
+  }
+
+  function updateInvoiceTextValidation() {
+    const validation = validateInvoiceText(els.textInput ? els.textInput.value : "");
+    if (els.textCounter) {
+      els.textCounter.textContent =
+        validation.length + "/240 · maior linha " + validation.longest + "/60";
+    }
+    setInvoiceTextError(validation.error);
+    if (els.textSave) els.textSave.disabled = state.textSaving || !!validation.error;
+    return validation;
+  }
+
+  function openInvoiceTextModal(row) {
+    if (!row || !els.textModal || !window.bootstrap || !window.bootstrap.Modal) return;
+    state.editingTextId = String(row.RSSTAMP || "");
+    if (els.textModalMeta) {
+      els.textModalMeta.textContent = [row.RESERVA, row.ALOJAMENTO].filter(Boolean).join(" · ");
+    }
+    if (els.textInput) els.textInput.value = String(row.FTTEXTO || "");
+    setInvoiceTextError("");
+    updateInvoiceTextValidation();
+    window.bootstrap.Modal.getOrCreateInstance(els.textModal).show();
+    window.setTimeout(() => els.textInput && els.textInput.focus(), 150);
+  }
+
+  async function saveInvoiceText() {
+    const id = String(state.editingTextId || "");
+    if (!id) return;
+    const validation = updateInvoiceTextValidation();
+    if (validation.error) return;
+    state.textSaving = true;
+    updateInvoiceTextValidation();
+    try {
+      const response = await fetch(
+        "/api/faturacao/reservas-global/" + encodeURIComponent(id) + "/texto-fatura",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ texto: validation.normalized }),
+        }
+      );
+      const data = await readPayload(response);
+      if (!response.ok || data.error) {
+        throw new Error(data.error || "Erro ao guardar texto da fatura.");
+      }
+      const row = state.rows.find((item) => String(item.RSSTAMP || "") === id);
+      if (row) row.FTTEXTO = String(data.FTTEXTO || "");
+      render();
+      window.bootstrap.Modal.getOrCreateInstance(els.textModal).hide();
+    } catch (error) {
+      setInvoiceTextError(error.message || "Erro ao guardar texto da fatura.");
+    } finally {
+      state.textSaving = false;
+      updateInvoiceTextValidation();
+    }
+  }
+
   function render() {
     if (!els.body) return;
     if (!state.rows.length) {
@@ -171,11 +259,20 @@
       const pdfCell = pdfUrl
         ? '<a class="fatglob-pdf-link" href="' + escapeHtml(pdfUrl) + '" target="_blank" rel="noopener" title="Abrir PDF"><i class="fa-solid fa-file-pdf"></i></a>'
         : '<span class="fatglob-pdf-empty" title="PDF indisponivel"><i class="fa-regular fa-file-pdf"></i></span>';
+      const invoiceText = String(row.FTTEXTO || "");
+      const hasInvoiceText = invoiceText.split(/\r?\n/).some((line) => line.length > 0);
+      const invoiceTextLabel = hasInvoiceText ? "Editar texto da fatura" : "Adicionar texto à fatura";
+      const invoiceTextCell =
+        '<button type="button" class="sz_button sz_button_ghost fatglob-text-btn' +
+        (hasInvoiceText ? " has-text" : "") +
+        '" data-text-id="' + escapeHtml(id) + '" title="' + escapeHtml(invoiceTextLabel) +
+        '" aria-label="' + escapeHtml(invoiceTextLabel) + '"><i class="fa-solid fa-align-left"></i><span>Texto</span></button>';
       return (
         '<tr class="sz_table_row' + (checked ? " fatglob-row-selected" : "") + (!selectable ? " fatglob-row-blocked" : "") + (cancelled ? " fatglob-row-cancelled" : "") + '" data-id="' + escapeHtml(id) + '">' +
         '<td class="sz_table_cell fatglob-check-cell"><input type="checkbox" class="fatglob-check" ' + (checked ? "checked" : "") + (!selectable ? ' disabled title="' + escapeHtml(warningTitle || "Reserva bloqueada") + '"' : "") + "></td>" +
         '<td class="sz_table_cell">' + statusBadge(row) + "</td>" +
         '<td class="sz_table_cell">' + validationCell(row) + "</td>" +
+        '<td class="sz_table_cell fatglob-text-cell">' + invoiceTextCell + "</td>" +
         '<td class="sz_table_cell fatglob-pdf-cell">' + pdfCell + "</td>" +
         '<td class="sz_table_cell">' + escapeHtml(tipoLabel(row.TIPO)) + "</td>" +
         '<td class="sz_table_cell"><span class="fatglob-reserva-cell"><span>' + escapeHtml(row.RESERVA || id) + '</span>' + (cancelled ? '<span class="fatglob-cancelled-label">Cancelada</span>' : '') + "</span></td>" +
@@ -205,6 +302,14 @@
         if (checkbox.checked) state.selected.add(id);
         else state.selected.delete(id);
         render();
+      });
+    });
+
+    els.body.querySelectorAll(".fatglob-text-btn[data-text-id]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const id = button.getAttribute("data-text-id") || "";
+        const row = state.rows.find((item) => String(item.RSSTAMP || "") === id);
+        openInvoiceTextModal(row);
       });
     });
 
@@ -367,6 +472,13 @@
 
   els.refresh && els.refresh.addEventListener("click", loadRows);
   els.emitir && els.emitir.addEventListener("click", emitir);
+  els.textInput && els.textInput.addEventListener("input", updateInvoiceTextValidation);
+  els.textSave && els.textSave.addEventListener("click", saveInvoiceText);
+  els.textModal && els.textModal.addEventListener("hidden.bs.modal", () => {
+    state.editingTextId = "";
+    state.textSaving = false;
+    setInvoiceTextError("");
+  });
   [els.dataIni, els.dataFim, els.faturado, els.tipo, els.alojamento, els.cliente, els.mostrarCanceladas].forEach((el) => {
     el && el.addEventListener("change", loadRows);
   });

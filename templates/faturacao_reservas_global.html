@@ -80,6 +80,7 @@
             <th class="fatglob-check-col"><input type="checkbox" id="fatglobCheckAll"></th>
             <th>Estado</th>
             <th>Validação</th>
+            <th>Texto da fatura</th>
             <th>PDF</th>
             <th>Tipo</th>
             <th>Reserva</th>
@@ -94,11 +95,49 @@
           </tr>
         </thead>
         <tbody id="fatglobBody">
-          <tr><td colspan="14" class="sz_table_cell fatglob-empty">A carregar...</td></tr>
+          <tr><td colspan="15" class="sz_table_cell fatglob-empty">A carregar...</td></tr>
         </tbody>
       </table>
     </div>
   </section>
+</div>
+
+<div class="modal fade" id="fatglobTextModal" tabindex="-1" aria-hidden="true" aria-labelledby="fatglobTextModalTitle">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content fatglob-text-modal-content">
+      <div class="modal-header">
+        <div>
+          <h5 class="modal-title" id="fatglobTextModalTitle">Texto da fatura</h5>
+          <div class="fatglob-text-modal-meta" id="fatglobTextModalMeta"></div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <label class="sz_field" for="fatglobTextInput">
+          <span class="sz_label">Linhas adicionais</span>
+          <textarea
+            class="sz_textarea fatglob-text-input"
+            id="fatglobTextInput"
+            rows="7"
+            maxlength="240"
+            placeholder="Uma linha de texto por cada linha da fatura"
+          ></textarea>
+        </label>
+        <div class="fatglob-text-help">
+          <span>Cada linha pode ter no máximo 60 caracteres.</span>
+          <span id="fatglobTextCounter">0/240 · maior linha 0/60</span>
+        </div>
+        <div class="fatglob-text-error" id="fatglobTextError" role="alert" hidden></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="sz_button sz_button_ghost" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="sz_button sz_button_primary" id="fatglobTextSave">
+          <i class="fa-solid fa-floppy-disk"></i>
+          <span>Guardar texto</span>
+        </button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div id="fatglobOverlay" class="fatglob-overlay" aria-hidden="true">
@@ -329,6 +368,66 @@
     text-align: center;
   }
 
+  .fatglob-text-cell {
+    width: 112px;
+    text-align: center;
+  }
+
+  .fatglob-text-btn {
+    min-width: 2.25rem;
+    padding-inline: 0.65rem;
+  }
+
+  .fatglob-text-btn.has-text {
+    border-color: var(--sz-color-success);
+    background: color-mix(in srgb, var(--sz-color-success) 18%, var(--sz-color-surface));
+    color: var(--sz-color-success);
+  }
+
+  .fatglob-text-btn.has-text:hover {
+    background: color-mix(in srgb, var(--sz-color-success) 26%, var(--sz-color-surface));
+  }
+
+  .fatglob-text-modal-content {
+    border: 1px solid var(--sz-color-border);
+    background: var(--sz-color-surface);
+    color: var(--sz-color-text);
+  }
+
+  .fatglob-text-modal-content .modal-header,
+  .fatglob-text-modal-content .modal-footer {
+    border-color: var(--sz-color-border);
+  }
+
+  .fatglob-text-modal-meta,
+  .fatglob-text-help {
+    color: var(--sz-color-text-muted);
+    font-size: var(--sz-font-size-xs);
+  }
+
+  .fatglob-text-input {
+    width: 100%;
+    min-height: 10rem;
+    resize: vertical;
+  }
+
+  .fatglob-text-help {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--sz-space-2);
+    margin-top: var(--sz-space-2);
+  }
+
+  .fatglob-text-error {
+    margin-top: var(--sz-space-2);
+    padding: var(--sz-space-2);
+    border: 1px solid color-mix(in srgb, var(--sz-color-danger) 45%, var(--sz-color-border));
+    border-radius: var(--sz-radius-xs);
+    background: color-mix(in srgb, var(--sz-color-danger) 8%, var(--sz-color-surface));
+    color: var(--sz-color-danger);
+    font-size: var(--sz-font-size-sm);
+  }
+
   .fatglob-pdf-link,
   .fatglob-pdf-empty {
     display: inline-flex;
@@ -541,5 +640,5 @@
   window.FATGLOB_DATA_INI = "{{ data_ini }}";
   window.FATGLOB_DATA_FIM = "{{ data_fim }}";
 </script>
-<script src="{{ url_for('static', filename='js/faturacao_reservas_global.js') }}?v={{ static_version }}&fgv=20260907_canceladas"></script>
+<script src="{{ url_for('static', filename='js/faturacao_reservas_global.js') }}?v={{ static_version }}&fgv=20260930_texto_fatura"></script>
 {% endblock %}
