@@ -95,6 +95,13 @@ from services.auth_service import (
     set_password_for_user,
     set_user_language_preference,
 )
+from services.application_audit_service import (
+    close_session_log,
+    create_session_log,
+    create_turnover_time_log,
+    ensure_application_audit_schema,
+    touch_session_log,
+)
 from services.multiempresa_service import (
     MissingUserEntitiesError,
     MissingCurrentEntityError,
@@ -196,6 +203,8 @@ def create_app():
     db_target_session_key = 'DB_TARGET'
     db_consistency_unlocked_target_session_key = 'DB_CONSISTENCY_UNLOCKED_TARGET'
     db_consistency_apply_result_session_key = 'DB_CONSISTENCY_APPLY_RESULT'
+    app_audit_session_key = 'APP_AUDIT_SESSIONSTAMP'
+    app_audit_last_touch_key = 'APP_AUDIT_LAST_TOUCH'
     db_target_prod = 'prod'
     db_target_client = 'client'
 
@@ -2994,6 +3003,72 @@ def create_app():
             or getattr(current_user, 'LPADMIN', False)
         )
 
+    def _audit_client_ip():
+        forwarded = str(request.headers.get('X-Forwarded-For') or '').split(',')[0].strip()
+        return (forwarded or str(request.remote_addr or '').strip())[:64]
+
+    def _audit_request_path():
+        return str(request.full_path or request.path or '').rstrip('?')[:500]
+
+    def _audit_user_agent():
+        return str(request.headers.get('User-Agent') or '').strip()[:500]
+
+    def _record_login_attempt(login_value, result_row=None, *, success=False, reason='', feid=None):
+        row = dict(result_row or {})
+        try:
+            ensure_application_audit_schema(db.session)
+            stamp = create_session_log(
+                db.session,
+                login_attempted=str(login_value or row.get('LOGIN') or '').strip(),
+                userstamp=str(row.get('USSTAMP') or '').strip(),
+                name=str(row.get('NOME') or '').strip(),
+                feid=feid,
+                success=bool(success),
+                reason=str(reason or '').strip(),
+                ip=_audit_client_ip(),
+                user_agent=_audit_user_agent(),
+                request_path=_audit_request_path(),
+            )
+            db.session.commit()
+            return stamp
+        except Exception:
+            db.session.rollback()
+            auth_logger.exception(
+                'Erro ao registar auditoria de acesso',
+                extra={'login': str(login_value or row.get('LOGIN') or '').strip()},
+            )
+            return ''
+
+    @app.before_request
+    def _track_authenticated_session_activity():
+        if not current_user.is_authenticated or request.endpoint == 'static':
+            return None
+        audit_stamp = str(session.get(app_audit_session_key) or '').strip()
+        if not audit_stamp:
+            return None
+        now_epoch = int(time.time())
+        try:
+            last_touch = int(session.get(app_audit_last_touch_key) or 0)
+        except Exception:
+            last_touch = 0
+        if now_epoch - last_touch < 300:
+            return None
+        try:
+            if touch_session_log(
+                db.session,
+                audit_stamp,
+                ip=_audit_client_ip(),
+                request_path=_audit_request_path(),
+            ):
+                db.session.commit()
+                session[app_audit_last_touch_key] = now_epoch
+            else:
+                db.session.rollback()
+        except Exception:
+            db.session.rollback()
+            auth_logger.exception('Erro ao atualizar última atividade da sessão')
+        return None
+
     # Rotas de autenticação
     @app.route('/login', methods=['GET', 'POST'])
     def login():
@@ -3051,6 +3126,12 @@ def create_app():
                     except MissingUserEntitiesError as entity_error:
                         session.pop('current_feid', None)
                         session.pop('current_entity_name', None)
+                        _record_login_attempt(
+                            login_,
+                            result.row,
+                            success=False,
+                            reason='missing_entities',
+                        )
                         auth_logger.warning(
                             'Login recusado: utilizador sem entidades ativas',
                             extra={'login': result.row.get('LOGIN'), 'usstamp': result.row.get('USSTAMP')},
@@ -3066,6 +3147,16 @@ def create_app():
                         setattr(user, k, v)
                     login_user(user)
                     store_current_entity_in_session(default_entity)
+                    audit_stamp = _record_login_attempt(
+                        login_,
+                        result.row,
+                        success=True,
+                        reason='success',
+                        feid=default_entity.get('FEID'),
+                    )
+                    if audit_stamp:
+                        session[app_audit_session_key] = audit_stamp
+                        session[app_audit_last_touch_key] = int(time.time())
                     auth_logger.info(
                         'Contexto multiempresa carregado no login',
                         extra={
@@ -3104,6 +3195,12 @@ def create_app():
                         or url_for('home_page')
                     )
 
+                _record_login_attempt(
+                    login_,
+                    result.row,
+                    success=False,
+                    reason=result.reason,
+                )
                 return _render_login(
                     error=result.user_message,
                     selected_target=request.form.get('db_target'),
@@ -3111,6 +3208,11 @@ def create_app():
                 )
             except Exception:
                 db.session.rollback()
+                _record_login_attempt(
+                    login_,
+                    success=False,
+                    reason='internal_error',
+                )
                 auth_logger.exception('Erro inesperado durante autenticação', extra={'login': login_})
                 return _render_login(
                     error=translate('login.internal_error'),
@@ -4503,12 +4605,31 @@ def create_app():
     @app.route('/logout')
     @login_required
     def logout():
+        audit_stamp = str(session.get(app_audit_session_key) or '').strip()
+        if audit_stamp:
+            try:
+                close_session_log(
+                    db.session,
+                    audit_stamp,
+                    exit_type='LOGOUT',
+                    ip=_audit_client_ip(),
+                    request_path=_audit_request_path(),
+                )
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+                auth_logger.exception(
+                    'Erro ao registar saída da aplicação',
+                    extra={'login': str(getattr(current_user, 'LOGIN', '') or '').strip()},
+                )
         session.pop('APP_PARAMS', None)
         session.pop('current_feid', None)
         session.pop('current_entity_name', None)
         session.pop(db_consistency_unlocked_target_session_key, None)
         session.pop(db_consistency_apply_result_session_key, None)
         session.pop(db_target_session_key, None)
+        session.pop(app_audit_session_key, None)
+        session.pop(app_audit_last_touch_key, None)
         logout_user()
         return redirect(url_for('login'))
 
@@ -33474,6 +33595,7 @@ OPTION (MAXRECURSION 32767);
     @login_required
     def api_turnover_checkout():
         try:
+            ensure_application_audit_schema(db.session)
             body = request.get_json(silent=True) or {}
             rsstamp = (body.get('rsstamp') or '').strip()
             horaout = (body.get('horaout') or '').strip()
@@ -33491,15 +33613,47 @@ OPTION (MAXRECURSION 32767);
                 return jsonify({'error': 'Hora inválida'}), 400
             horaout = f'{hh:02d}:{mm:02d}'
 
+            previous = db.session.execute(text("""
+                SELECT TOP 1
+                    RSSTAMP,
+                    LTRIM(RTRIM(ISNULL(RESERVA,''))) AS RESERVA,
+                    LTRIM(RTRIM(ISNULL(ALOJAMENTO,''))) AS ALOJAMENTO,
+                    CAST(DATAOUT AS date) AS DATA_MOVIMENTO,
+                    LTRIM(RTRIM(ISNULL(HORAOUT,''))) AS HORA_ANTERIOR
+                FROM dbo.RS
+                WHERE RSSTAMP = :rsstamp
+                  AND ISNULL(CANCELADA,0) = 0
+            """), {'rsstamp': rsstamp}).mappings().first()
+            if not previous:
+                db.session.rollback()
+                return jsonify({'error': 'Reserva não encontrada'}), 404
+
             res = db.session.execute(text("""
                 UPDATE RS
                    SET HORAOUT = :horaout
                  WHERE RSSTAMP = :rsstamp
                    AND ISNULL(CANCELADA,0) = 0
             """), {'horaout': horaout, 'rsstamp': rsstamp})
-            db.session.commit()
             if res.rowcount == 0:
+                db.session.rollback()
                 return jsonify({'error': 'Reserva não encontrada'}), 404
+
+            create_turnover_time_log(
+                db.session,
+                reservation=previous,
+                time_type='CHECKOUT',
+                previous_time=previous.get('HORA_ANTERIOR') or '',
+                new_time=horaout,
+                movement_date=previous.get('DATA_MOVIMENTO'),
+                actor_login=str(getattr(current_user, 'LOGIN', '') or '').strip(),
+                actor_userstamp=str(getattr(current_user, 'USSTAMP', '') or '').strip(),
+                actor_name=str(getattr(current_user, 'NOME', '') or '').strip(),
+                feid=session.get('current_feid'),
+                ip=_audit_client_ip(),
+                user_agent=_audit_user_agent(),
+                request_path=_audit_request_path(),
+            )
+            db.session.commit()
             return jsonify({'ok': True, 'horaout': horaout, 'updated': res.rowcount})
         except Exception as e:
             db.session.rollback()
@@ -33554,6 +33708,7 @@ OPTION (MAXRECURSION 32767);
                 return jsonify({'data': data, 'users': users, 'alojamento': aloj})
 
             # POST
+            ensure_application_audit_schema(db.session)
             body = request.get_json(silent=True) or {}
             data_str = (body.get('data') or '').strip()
             aloj = (body.get('alojamento') or '').strip()
@@ -33578,6 +33733,22 @@ OPTION (MAXRECURSION 32767);
                     return jsonify({'error': 'Hora inválida'}), 400
                 horain = f'{hh:02d}:{mm:02d}'
 
+            previous_rows = db.session.execute(text("""
+                SELECT
+                    RSSTAMP,
+                    LTRIM(RTRIM(ISNULL(RESERVA,''))) AS RESERVA,
+                    LTRIM(RTRIM(ISNULL(ALOJAMENTO,''))) AS ALOJAMENTO,
+                    CAST(DATAIN AS date) AS DATA_MOVIMENTO,
+                    LTRIM(RTRIM(ISNULL(HORAIN,''))) AS HORA_ANTERIOR
+                FROM dbo.RS
+                WHERE CAST(DATAIN AS date) = :dia
+                  AND LTRIM(RTRIM(ALOJAMENTO)) = LTRIM(RTRIM(:aloj))
+                  AND ISNULL(CANCELADA,0) = 0
+            """), {'dia': dia, 'aloj': aloj}).mappings().all()
+            if not previous_rows:
+                db.session.rollback()
+                return jsonify({'error': 'Reserva não encontrada'}), 404
+
             upd = text("""
                 UPDATE RS
                    SET PRESENCIAL = :p,
@@ -33598,6 +33769,26 @@ OPTION (MAXRECURSION 32767);
                 'dia': dia,
                 'aloj': aloj
             })
+            if res.rowcount == 0:
+                db.session.rollback()
+                return jsonify({'error': 'Reserva não encontrada'}), 404
+
+            for previous in previous_rows:
+                create_turnover_time_log(
+                    db.session,
+                    reservation=previous,
+                    time_type='CHECKIN',
+                    previous_time=previous.get('HORA_ANTERIOR') or '',
+                    new_time=horain,
+                    movement_date=previous.get('DATA_MOVIMENTO'),
+                    actor_login=str(getattr(current_user, 'LOGIN', '') or '').strip(),
+                    actor_userstamp=str(getattr(current_user, 'USSTAMP', '') or '').strip(),
+                    actor_name=str(getattr(current_user, 'NOME', '') or '').strip(),
+                    feid=session.get('current_feid'),
+                    ip=_audit_client_ip(),
+                    user_agent=_audit_user_agent(),
+                    request_path=_audit_request_path(),
+                )
             db.session.commit()
             return jsonify({'ok': True, 'updated': res.rowcount})
         except Exception as e:
