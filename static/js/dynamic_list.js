@@ -36,10 +36,17 @@ document.addEventListener('DOMContentLoaded', () => {
   const collaboratorUserName = document.getElementById('collaboratorUserName');
   const collaboratorUserLogin = document.getElementById('collaboratorUserLogin');
   const collaboratorUserPassword = document.getElementById('collaboratorUserPassword');
+  const collaboratorUserPasswordConfirm = document.getElementById('collaboratorUserPasswordConfirm');
   const collaboratorUserEmail = document.getElementById('collaboratorUserEmail');
+  const collaboratorUserEmployer = document.getElementById('collaboratorUserEmployer');
+  const collaboratorUserEmployeeSearch = document.getElementById('collaboratorUserEmployeeSearch');
+  const collaboratorUserEmployee = document.getElementById('collaboratorUserEmployee');
   const collaboratorUserCompanies = document.getElementById('collaboratorUserCompanies');
   const collaboratorUserSelectAllCompanies = document.getElementById('collaboratorUserSelectAllCompanies');
   const collaboratorUserWizardStatus = document.getElementById('collaboratorUserWizardStatus');
+  const collaboratorUserReview = document.getElementById('collaboratorUserReview');
+  const previousCreateCollaboratorUserBtn = document.getElementById('previousCreateCollaboratorUser');
+  const nextCreateCollaboratorUserBtn = document.getElementById('nextCreateCollaboratorUser');
   const confirmCreateCollaboratorUserBtn = document.getElementById('confirmCreateCollaboratorUser');
   const userPerms       = window.USER_PERMS[tableName] || {};
   const isFoList        = (tableName || '').toUpperCase() === 'FO';
@@ -58,6 +65,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const mobileListQuery = window.matchMedia('(max-width: 768px)');
   let pendingSortField  = null;
   let pendingSortDir    = 1;
+  let collaboratorWizardStep = 1;
+  let collaboratorCompaniesState = [];
+  let collaboratorEmployeesState = [];
+  let collaboratorEmployeeRequest = 0;
+  let collaboratorEmployeeSearchTimer = null;
 
   const escapeHtml = (value) => String(value ?? '')
     .replace(/&/g, '&amp;')
@@ -241,43 +253,229 @@ document.addEventListener('DOMContentLoaded', () => {
       : [];
   }
 
+  function collaboratorUserPrincipalRadios() {
+    return collaboratorUserCompanies
+      ? [...collaboratorUserCompanies.querySelectorAll('input[data-collaborator-user-principal]')]
+      : [];
+  }
+
+  function selectedCollaboratorEmployee() {
+    const employeeNo = Number(collaboratorUserEmployee?.value || 0);
+    return collaboratorEmployeesState.find((row) => Number(row.no || 0) === employeeNo) || null;
+  }
+
+  function selectedCollaboratorCompany(feid) {
+    const target = Number(feid || 0);
+    return collaboratorCompaniesState.find((row) => Number(row.feid || 0) === target) || null;
+  }
+
   function updateCollaboratorUserSelectAll() {
     if (!collaboratorUserSelectAllCompanies) return;
     const checkboxes = collaboratorUserCompanyCheckboxes();
     const checked = checkboxes.filter((checkbox) => checkbox.checked).length;
     collaboratorUserSelectAllCompanies.checked = checkboxes.length > 0 && checked === checkboxes.length;
     collaboratorUserSelectAllCompanies.indeterminate = checked > 0 && checked < checkboxes.length;
+    collaboratorUserPrincipalRadios().forEach((radio) => {
+      const checkbox = checkboxes.find((item) => item.dataset.collaboratorUserFeid === radio.dataset.collaboratorUserPrincipal);
+      radio.disabled = !checkbox?.checked;
+      if (radio.disabled) radio.checked = false;
+    });
+    if (!collaboratorUserPrincipalRadios().some((radio) => radio.checked)) {
+      const employerFeid = String(collaboratorUserEmployer?.value || '');
+      const fallback = collaboratorUserPrincipalRadios().find((radio) => (
+        !radio.disabled && radio.dataset.collaboratorUserPrincipal === employerFeid
+      )) || collaboratorUserPrincipalRadios().find((radio) => !radio.disabled);
+      if (fallback) fallback.checked = true;
+    }
   }
 
   function renderCollaboratorUserCompanies(empresas) {
     if (!collaboratorUserCompanies) return;
     const rows = Array.isArray(empresas) ? empresas : [];
+    collaboratorCompaniesState = rows;
+    const employerFeid = String(collaboratorUserEmployer?.value || '');
     collaboratorUserCompanies.innerHTML = rows.length
       ? rows.map((empresa) => `
-          <label class="sz_collaborator_user_company">
-            <input type="checkbox" data-collaborator-user-feid="${escapeHtml(empresa.feid || '')}">
-            <span>${escapeHtml(empresa.nome || empresa.feid || '')}</span>
-          </label>
+          <div class="sz_collaborator_user_company">
+            <input type="checkbox" data-collaborator-user-feid="${escapeHtml(empresa.feid || '')}"
+              ${String(empresa.feid || '') === employerFeid ? 'checked disabled' : ''}>
+            <span class="sz_collaborator_user_company_name">${escapeHtml(empresa.nome || empresa.feid || '')}</span>
+            <label class="sz_collaborator_user_principal">
+              <input type="radio" name="collaboratorUserPrincipal" data-collaborator-user-principal="${escapeHtml(empresa.feid || '')}"
+                ${String(empresa.feid || '') === employerFeid ? 'checked' : 'disabled'}>
+              Principal
+            </label>
+          </div>
         `).join('')
       : '<span class="sz_text_muted">Sem empresas disponíveis.</span>';
     updateCollaboratorUserSelectAll();
   }
 
+  function renderCollaboratorEmployerCompanies(empresas) {
+    if (!collaboratorUserEmployer) return;
+    const rows = Array.isArray(empresas) ? empresas : [];
+    collaboratorUserEmployer.disabled = rows.length === 0;
+    collaboratorUserEmployer.innerHTML = '<option value="">Selecione uma empresa</option>' + rows.map((empresa) => (
+      `<option value="${escapeHtml(empresa.feid || '')}">${escapeHtml(empresa.nome || empresa.feid || '')}</option>`
+    )).join('');
+  }
+
+  function renderCollaboratorEmployees(rows, limited = false) {
+    collaboratorEmployeesState = Array.isArray(rows) ? rows : [];
+    if (!collaboratorUserEmployee) return;
+    collaboratorUserEmployee.disabled = false;
+    collaboratorUserEmployee.innerHTML = '<option value="">Selecione um funcionário</option>' + collaboratorEmployeesState.map((employee) => {
+      const details = [employee.email, employee.ncont ? `NIF ${employee.ncont}` : '', employee.estado].filter(Boolean).join(' · ');
+      return `<option value="${escapeHtml(employee.no || '')}">${escapeHtml(`${employee.no} — ${employee.nome}${details ? ` — ${details}` : ''}`)}</option>`;
+    }).join('');
+    if (!collaboratorEmployeesState.length) {
+      setCollaboratorUserWizardStatus('Não foram encontrados funcionários ativos nesta empresa.', true);
+    } else if (limited) {
+      setCollaboratorUserWizardStatus('A mostrar os primeiros 200 funcionários. Use a pesquisa para restringir os resultados.');
+    } else {
+      setCollaboratorUserWizardStatus(`${collaboratorEmployeesState.length} funcionário(s) disponível(is).`);
+    }
+  }
+
+  async function loadCollaboratorEmployees(query = '') {
+    const feid = Number(collaboratorUserEmployer?.value || 0);
+    if (!feid || !collaboratorUserEmployee) return;
+    const requestId = ++collaboratorEmployeeRequest;
+    collaboratorUserEmployee.disabled = true;
+    collaboratorUserEmployee.innerHTML = '<option value="">A carregar funcionários...</option>';
+    setCollaboratorUserWizardStatus('A carregar funcionários da empresa...');
+    try {
+      const params = new URLSearchParams({ feid: String(feid) });
+      if (String(query || '').trim()) params.set('q', String(query).trim());
+      const response = await fetch(`/generic/api/us/collaborator_wizard/employees?${params.toString()}`);
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || `Erro ${response.status}`);
+      if (requestId !== collaboratorEmployeeRequest) return;
+      renderCollaboratorEmployees(payload.rows || [], Boolean(payload.limited));
+    } catch (error) {
+      if (requestId !== collaboratorEmployeeRequest) return;
+      collaboratorEmployeesState = [];
+      collaboratorUserEmployee.disabled = true;
+      collaboratorUserEmployee.innerHTML = '<option value="">Erro ao carregar funcionários</option>';
+      setCollaboratorUserWizardStatus(error.message || 'Erro ao carregar funcionários.', true);
+    }
+  }
+
+  function setCollaboratorWizardStep(step) {
+    collaboratorWizardStep = Math.max(1, Math.min(4, Number(step) || 1));
+    document.querySelectorAll('[data-collaborator-step]').forEach((section) => {
+      section.hidden = Number(section.dataset.collaboratorStep || 0) !== collaboratorWizardStep;
+    });
+    document.querySelectorAll('[data-collaborator-step-indicator]').forEach((indicator) => {
+      const indicatorStep = Number(indicator.dataset.collaboratorStepIndicator || 0);
+      indicator.classList.toggle('is-active', indicatorStep === collaboratorWizardStep);
+      indicator.classList.toggle('is-complete', indicatorStep < collaboratorWizardStep);
+    });
+    if (previousCreateCollaboratorUserBtn) previousCreateCollaboratorUserBtn.hidden = collaboratorWizardStep === 1;
+    if (nextCreateCollaboratorUserBtn) nextCreateCollaboratorUserBtn.hidden = collaboratorWizardStep === 4;
+    if (confirmCreateCollaboratorUserBtn) confirmCreateCollaboratorUserBtn.hidden = collaboratorWizardStep !== 4;
+    if (collaboratorWizardStep === 4) renderCollaboratorUserReview();
+    setCollaboratorUserWizardStatus('');
+  }
+
+  function validateCollaboratorWizardStep() {
+    if (collaboratorWizardStep === 1) {
+      if (!collaboratorUserEmployer?.value) {
+        collaboratorUserEmployer?.reportValidity();
+        setCollaboratorUserWizardStatus('Selecione a empresa onde o colaborador trabalha.', true);
+        return false;
+      }
+      if (!collaboratorUserEmployee?.value) {
+        collaboratorUserEmployee?.reportValidity();
+        setCollaboratorUserWizardStatus('Selecione o funcionário PHC.', true);
+        return false;
+      }
+      return true;
+    }
+    if (collaboratorWizardStep === 2) {
+      const fields = [collaboratorUserName, collaboratorUserEmail, collaboratorUserLogin, collaboratorUserPassword, collaboratorUserPasswordConfirm];
+      const invalid = fields.find((field) => field && !field.checkValidity());
+      if (invalid) {
+        invalid.reportValidity();
+        return false;
+      }
+      if (collaboratorUserPassword?.value !== collaboratorUserPasswordConfirm?.value) {
+        setCollaboratorUserWizardStatus('As passwords não coincidem.', true);
+        collaboratorUserPasswordConfirm?.focus();
+        return false;
+      }
+      return true;
+    }
+    if (collaboratorWizardStep === 3) {
+      const checked = collaboratorUserCompanyCheckboxes().filter((checkbox) => checkbox.checked);
+      if (!checked.length) {
+        setCollaboratorUserWizardStatus('Selecione pelo menos uma empresa acessível.', true);
+        return false;
+      }
+      if (!collaboratorUserPrincipalRadios().some((radio) => radio.checked && !radio.disabled)) {
+        setCollaboratorUserWizardStatus('Selecione a empresa principal.', true);
+        return false;
+      }
+    }
+    return true;
+  }
+
+  function renderCollaboratorUserReview() {
+    if (!collaboratorUserReview) return;
+    const employer = selectedCollaboratorCompany(collaboratorUserEmployer?.value);
+    const employee = selectedCollaboratorEmployee();
+    const companyNames = collaboratorUserCompanyCheckboxes()
+      .filter((checkbox) => checkbox.checked)
+      .map((checkbox) => selectedCollaboratorCompany(checkbox.dataset.collaboratorUserFeid)?.nome)
+      .filter(Boolean);
+    const principalFeid = collaboratorUserPrincipalRadios().find((radio) => radio.checked)?.dataset?.collaboratorUserPrincipal;
+    const principal = selectedCollaboratorCompany(principalFeid);
+    collaboratorUserReview.innerHTML = `
+      <dl>
+        <div><dt>Funcionário</dt><dd>${escapeHtml(employee ? `${employee.no} — ${employee.nome}` : '-')}</dd></div>
+        <div><dt>Empresa onde trabalha</dt><dd>${escapeHtml(employer?.nome || '-')}</dd></div>
+        <div><dt>Conta GR360</dt><dd>${escapeHtml(collaboratorUserName?.value || '-')} · ${escapeHtml(collaboratorUserLogin?.value || '-')}</dd></div>
+        <div><dt>Email</dt><dd>${escapeHtml(collaboratorUserEmail?.value || '-')}</dd></div>
+        <div><dt>Empresas acessíveis</dt><dd>${escapeHtml(companyNames.join(', ') || '-')}</dd></div>
+        <div><dt>Empresa principal</dt><dd>${escapeHtml(principal?.nome || '-')}</dd></div>
+      </dl>
+    `;
+  }
+
   async function openCollaboratorUserWizard() {
     if (!isUsList || !modalCreateCollaboratorUser) return;
     if (createCollaboratorUserForm) createCollaboratorUserForm.reset();
+    collaboratorCompaniesState = [];
+    collaboratorEmployeesState = [];
+    collaboratorEmployeeRequest += 1;
+    if (collaboratorUserEmployeeSearch) collaboratorUserEmployeeSearch.disabled = true;
+    if (collaboratorUserEmployee) {
+      collaboratorUserEmployee.disabled = true;
+      collaboratorUserEmployee.innerHTML = '<option value="">Selecione primeiro a empresa</option>';
+    }
     renderCollaboratorUserCompanies([]);
+    setCollaboratorWizardStep(1);
     setCollaboratorUserWizardStatus('A carregar empresas...');
     openCreateCollaboratorUserModal();
     try {
       const response = await fetch('/generic/api/us/collaborator_wizard/options');
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error || `Erro ${response.status}`);
+      const employerCompanies = Array.isArray(payload.empresas_empregadoras) ? payload.empresas_empregadoras : [];
+      renderCollaboratorEmployerCompanies(employerCompanies);
       renderCollaboratorUserCompanies(payload.empresas || []);
-      setCollaboratorUserWizardStatus('Selecione as empresas a que o colaborador pode aceder.');
-      collaboratorUserName?.focus();
+      if (!employerCompanies.length) {
+        setCollaboratorUserWizardStatus('Não existem empresas ativas com uma base PHC configurada.', true);
+        if (nextCreateCollaboratorUserBtn) nextCreateCollaboratorUserBtn.disabled = true;
+      } else {
+        setCollaboratorUserWizardStatus('Selecione a empresa onde o colaborador trabalha.');
+        if (nextCreateCollaboratorUserBtn) nextCreateCollaboratorUserBtn.disabled = false;
+        collaboratorUserEmployer?.focus();
+      }
     } catch (error) {
       setCollaboratorUserWizardStatus(error.message || 'Erro ao carregar empresas.', true);
+      if (collaboratorUserEmployer) collaboratorUserEmployer.disabled = true;
+      if (nextCreateCollaboratorUserBtn) nextCreateCollaboratorUserBtn.disabled = true;
     }
   }
 
@@ -298,6 +496,9 @@ document.addEventListener('DOMContentLoaded', () => {
       password: String(collaboratorUserPassword?.value || ''),
       email: String(collaboratorUserEmail?.value || '').trim(),
       feids,
+      employer_feid: Number(collaboratorUserEmployer?.value || 0),
+      employee_no: Number(collaboratorUserEmployee?.value || 0),
+      principal_feid: Number(collaboratorUserPrincipalRadios().find((radio) => radio.checked)?.dataset?.collaboratorUserPrincipal || 0),
     };
     confirmCreateCollaboratorUserBtn.disabled = true;
     confirmCreateCollaboratorUserBtn.querySelector('span').textContent = 'A criar...';
@@ -312,7 +513,21 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!response.ok) throw new Error(result.error || `Erro ${response.status}`);
       closeCreateCollaboratorUserModal();
       await loadData();
-      alert(`Utilizador ${result.login || payload.login} criado com sucesso.`);
+      const successMessage = `O utilizador ${result.login || payload.login} foi criado com sucesso.`;
+      if (typeof window.szMessage === 'function') {
+        await window.szMessage({
+          title: 'Utilizador criado',
+          eyebrow: 'Criação concluída',
+          message: successMessage,
+          intent: 'success',
+          buttons: [{ key: 'close', label: 'Fechar', className: 'sz_button_primary' }],
+          dismissAction: 'close',
+        });
+      } else if (typeof window.showToast === 'function') {
+        window.showToast(successMessage, 'success');
+      } else {
+        alert(successMessage);
+      }
     } catch (error) {
       setCollaboratorUserWizardStatus(error.message || 'Erro ao criar utilizador.', true);
     } finally {
@@ -752,9 +967,51 @@ document.addEventListener('DOMContentLoaded', () => {
   if (collaboratorUserSelectAllCompanies) {
     collaboratorUserSelectAllCompanies.addEventListener('change', () => {
       collaboratorUserCompanyCheckboxes().forEach((checkbox) => {
-        checkbox.checked = collaboratorUserSelectAllCompanies.checked;
+        if (!checkbox.disabled) checkbox.checked = collaboratorUserSelectAllCompanies.checked;
       });
       updateCollaboratorUserSelectAll();
+    });
+  }
+  if (collaboratorUserEmployer) {
+    collaboratorUserEmployer.addEventListener('change', () => {
+      collaboratorEmployeesState = [];
+      if (collaboratorUserEmployeeSearch) {
+        collaboratorUserEmployeeSearch.value = '';
+        collaboratorUserEmployeeSearch.disabled = !collaboratorUserEmployer.value;
+      }
+      renderCollaboratorUserCompanies(collaboratorCompaniesState);
+      if (collaboratorUserEmployer.value) loadCollaboratorEmployees();
+    });
+  }
+  if (collaboratorUserEmployeeSearch) {
+    collaboratorUserEmployeeSearch.addEventListener('input', () => {
+      window.clearTimeout(collaboratorEmployeeSearchTimer);
+      collaboratorEmployeeSearchTimer = window.setTimeout(() => {
+        loadCollaboratorEmployees(collaboratorUserEmployeeSearch.value);
+      }, 300);
+    });
+  }
+  if (collaboratorUserEmployee) {
+    collaboratorUserEmployee.addEventListener('change', () => {
+      const employee = selectedCollaboratorEmployee();
+      if (!employee) return;
+      if (collaboratorUserName && !collaboratorUserName.value.trim()) collaboratorUserName.value = String(employee.nome || '').slice(0, 60);
+      if (collaboratorUserEmail && !collaboratorUserEmail.value.trim() && employee.email) collaboratorUserEmail.value = String(employee.email).slice(0, 120);
+    });
+  }
+  if (collaboratorUserEmail) {
+    collaboratorUserEmail.addEventListener('blur', () => {
+      if (!collaboratorUserLogin || collaboratorUserLogin.value.trim()) return;
+      const suggestedLogin = String(collaboratorUserEmail.value || '').split('@')[0].replace(/[^A-Za-z0-9._-]+/g, '').slice(0, 60);
+      if (suggestedLogin) collaboratorUserLogin.value = suggestedLogin;
+    });
+  }
+  if (previousCreateCollaboratorUserBtn) {
+    previousCreateCollaboratorUserBtn.addEventListener('click', () => setCollaboratorWizardStep(collaboratorWizardStep - 1));
+  }
+  if (nextCreateCollaboratorUserBtn) {
+    nextCreateCollaboratorUserBtn.addEventListener('click', () => {
+      if (validateCollaboratorWizardStep()) setCollaboratorWizardStep(collaboratorWizardStep + 1);
     });
   }
   if (createCollaboratorUserForm) {

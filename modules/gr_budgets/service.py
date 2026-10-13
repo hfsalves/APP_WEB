@@ -2607,6 +2607,25 @@ def convert_budget_to_execution(feid: Any, bostamp: str, target: Any, existing_o
                         "EXEC dbo.uSP_PUT_OPCVAL @IN_ORIGEM = ?, @IN_STAMP = ?, @IN_USR = ?",
                         ("BO", clean_stamp, user_inis),
                     )
+                verified_rows = _fetch_rows(
+                    cursor,
+                    """
+                    SELECT B.NDOS, B.NMDOS, B2.PROCESSO
+                    FROM dbo.BO B WITH (UPDLOCK, HOLDLOCK)
+                    INNER JOIN dbo.BO2 B2 WITH (UPDLOCK, HOLDLOCK) ON B2.BO2STAMP = B.BOSTAMP
+                    WHERE B.BOSTAMP = ?
+                    """,
+                    (clean_stamp,),
+                )
+                if not verified_rows:
+                    raise BudgetsError("Nao foi possivel validar a conversao do orcamento.")
+                verified = verified_rows[0]
+                if (
+                    int(_number_value(verified.get("NDOS"))) != execution_ndos
+                    or _series_name_key(verified.get("NMDOS")) != _series_name_key(execution_name)
+                    or _text_value(verified.get("PROCESSO")).upper() != phc_process.upper()
+                ):
+                    raise BudgetsError("A conversao nao ficou associada corretamente a obra no PHC.")
                 conn.commit()
             except Exception:
                 conn.rollback()

@@ -50,7 +50,6 @@ class ClientMeasurementsNotFoundError(SubcontractorMeasurementsNotFoundError):
     pass
 
 
-PRODUCTION_ITEM_REF = "V.01.01.000.0021"
 MARKET_PROCESS_PREFIXES = {
     "HSOLS_PT": "PT",
     "HSOLS_FR": "FR",
@@ -106,6 +105,83 @@ def _truncate_phc_text(value: Any, maximum_length: int | None) -> str:
 
 def _budget_line_description(line: dict[str, Any]) -> str:
     return _text_value(line.get("DGERAL")) or _text_value(line.get("DESIGN"))
+
+
+def _budget_line_reference(line: dict[str, Any]) -> str:
+    return _text_value(line.get("REF"))
+
+
+def _budget_group_stamps(headers: list[dict[str, Any]]) -> list[str]:
+    stamps: list[str] = []
+    seen: set[str] = set()
+    for header in headers:
+        stamp = _text_value(header.get("BOSTAMP"))
+        key = _stamp_key(stamp)
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        stamps.append(stamp)
+    return stamps
+
+
+def _source_budget_stamp(source: dict[str, Any], fallback: str) -> str:
+    return _text_value(source.get("BOSTAMP")) or _text_value(fallback)
+
+
+def _load_budget_group_headers(
+    cursor,
+    budget_ndos: int,
+    budget_bostamp: str,
+    *,
+    for_update: bool = False,
+) -> list[dict[str, Any]]:
+    lock_hint = "WITH (UPDLOCK, HOLDLOCK)" if for_update else "WITH (NOLOCK)"
+    primary_rows = _fetch_rows(
+        cursor,
+        f"""
+        SELECT TOP 1 C.*, C2.PROCESSO, C2.ANULADO
+        FROM dbo.BO C {lock_hint}
+        LEFT JOIN dbo.BO2 C2 {lock_hint} ON C2.BO2STAMP = C.BOSTAMP
+        WHERE C.NDOS = ? AND C.BOSTAMP = ?
+        """,
+        (budget_ndos, budget_bostamp),
+    )
+    if not primary_rows or bool(primary_rows[0].get("ANULADO")):
+        raise ClientMeasurementsNotFoundError("Orcamento nao encontrado.")
+
+    primary = primary_rows[0]
+    process = _text_value(primary.get("PROCESSO") or primary.get("CCUSTO"))
+    if not process:
+        raise ClientMeasurementsValidationError("O orcamento nao tem obra definida.")
+
+    currency = _text_value(primary.get("MOEDA")).upper() or "EURO"
+    rows = _fetch_rows(
+        cursor,
+        f"""
+        SELECT C.*, C2.PROCESSO, C2.ANULADO
+        FROM dbo.BO C {lock_hint}
+        LEFT JOIN dbo.BO2 C2 {lock_hint} ON C2.BO2STAMP = C.BOSTAMP
+        WHERE C.NDOS = ?
+          AND ISNULL(C2.ANULADO, 0) = 0
+          AND C.NO = ?
+          AND ISNULL(C.ESTAB, 0) = ?
+          AND UPPER(LTRIM(RTRIM(COALESCE(NULLIF(C.MOEDA, ''), 'EURO')))) = ?
+          AND LTRIM(RTRIM(COALESCE(NULLIF(C2.PROCESSO, ''), NULLIF(C.CCUSTO, ''), ''))) = ?
+          AND (ISNULL(C.FECHADA, 0) = 0 OR C.BOSTAMP = ?)
+        ORDER BY CASE WHEN C.BOSTAMP = ? THEN 0 ELSE 1 END,
+                 C.DATAOBRA, C.OBRANO, C.BOSTAMP
+        """,
+        (
+            budget_ndos,
+            int(_number_value(primary.get("NO"))),
+            int(_number_value(primary.get("ESTAB"))),
+            currency,
+            process,
+            budget_bostamp,
+            budget_bostamp,
+        ),
+    )
+    return rows or [primary]
 
 
 def _parse_filter_date(value: Any):
@@ -178,7 +254,11 @@ def list_budgets(filters: dict[str, Any], user) -> dict[str, Any]:
         budget_ndos = int(_number_value(series["budget"].get("NDOS")))
         auto_ndos = int(_number_value(series["auto"].get("NDOS")))
 
-        where = ["C.NDOS = ?", "ISNULL(C2.ANULADO, 0) = 0"]
+        where = [
+            "C.NDOS = ?",
+            "ISNULL(C2.ANULADO, 0) = 0",
+            "LTRIM(RTRIM(COALESCE(NULLIF(C2.PROCESSO, ''), NULLIF(C.CCUSTO, ''), ''))) <> ''",
+        ]
         params: list[Any] = [budget_ndos]
         if data_inicio:
             where.append("C.DATAOBRA >= ?")
@@ -328,26 +408,14 @@ def get_budget_detail(feid: Any, bostamp: str, user) -> dict[str, Any]:
         series = _resolve_series(cursor)
         budget_ndos = int(_number_value(series["budget"].get("NDOS")))
         auto_ndos = int(_number_value(series["auto"].get("NDOS")))
-        header_rows = _fetch_rows(
-            cursor,
-            """
-            SELECT TOP 1
-                C.BOSTAMP, C.NMDOS, C.OBRANO, C.BOANO, C.DATAOBRA,
-                C.NO, C.NOME, C.CCUSTO, C.FECHADA, C.MOEDA, C.ETOTALDEB,
-                C2.PROCESSO
-            FROM dbo.BO C WITH (NOLOCK)
-            LEFT JOIN dbo.BO2 C2 WITH (NOLOCK) ON C2.BO2STAMP = C.BOSTAMP
-            WHERE C.NDOS = ? AND C.BOSTAMP = ? AND ISNULL(C2.ANULADO, 0) = 0
-            """,
-            (budget_ndos, clean_bostamp),
-        )
-        if not header_rows:
-            raise ClientMeasurementsNotFoundError("Orcamento nao encontrado.")
-        header = header_rows[0]
+        budget_headers = _load_budget_group_headers(cursor, budget_ndos, clean_bostamp)
+        budget_stamps = _budget_group_stamps(budget_headers)
+        header = budget_headers[0]
+        placeholders = ", ".join("?" for _ in budget_stamps)
 
         line_rows = _fetch_rows(
             cursor,
-            """
+            f"""
             WITH line_chain AS (
                 SELECT
                     ABI.BISTAMP AS AUTO_LINE_STAMP,
@@ -384,28 +452,35 @@ def get_budget_detail(feid: Any, bostamp: str, user) -> dict[str, Any]:
                        COUNT(*) AS AUTO_LINE_COUNT
                 FROM line_chain LC
                 INNER JOIN dbo.BI ROOT WITH (NOLOCK) ON ROOT.BISTAMP = LC.CURRENT_LINE_STAMP
-                WHERE ROOT.NDOS = ? AND ROOT.BOSTAMP = ?
+                WHERE ROOT.NDOS = ? AND ROOT.BOSTAMP IN ({placeholders})
                 GROUP BY ROOT.BISTAMP
             )
             SELECT
                 BI.BISTAMP, BI.BOSTAMP, BI.REF, BI.DGERAL, BI.DESIGN, BI.UNIDADE,
                 BI.QTT, BI.EDEBITO, BI.ETTDEB, BI.IVA, BI.TABIVA,
                 BI.CCUSTO, BI.LORDEM, BI.LOBS,
+                SRC.NMDOS AS SOURCE_NMDOS, SRC.OBRANO AS SOURCE_OBRANO,
+                SRC.BOANO AS SOURCE_BOANO, SRC.DATAOBRA AS SOURCE_DATAOBRA,
+                SRC.LOGI1 AS SOURCE_AMENDMENT,
                 ISNULL(E.EXEC_QTY, 0) AS EXEC_QTY,
                 ISNULL(E.EXEC_VALUE, 0) AS EXEC_VALUE,
                 ISNULL(E.AUTO_LINE_COUNT, 0) AS AUTO_LINE_COUNT
             FROM dbo.BI BI WITH (NOLOCK)
+            INNER JOIN dbo.BO SRC WITH (NOLOCK) ON SRC.BOSTAMP = BI.BOSTAMP
             LEFT JOIN execs E ON E.BISTAMP = BI.BISTAMP
-            WHERE BI.NDOS = ? AND BI.BOSTAMP = ?
-            ORDER BY BI.LORDEM, BI.BISTAMP
+            WHERE BI.NDOS = ? AND BI.BOSTAMP IN ({placeholders})
+            ORDER BY CASE WHEN BI.BOSTAMP = ? THEN 0 ELSE 1 END,
+                     SRC.DATAOBRA, SRC.OBRANO, BI.LORDEM, BI.BISTAMP
             OPTION (MAXRECURSION 30)
             """,
-            (auto_ndos, budget_ndos, clean_bostamp, budget_ndos, clean_bostamp),
+            tuple(
+                [auto_ndos, budget_ndos, *budget_stamps, budget_ndos, *budget_stamps, clean_bostamp]
+            ),
         )
 
         auto_rows = _fetch_rows(
             cursor,
-            """
+            f"""
             WITH line_chain AS (
                 SELECT A.BOSTAMP AUTO_STAMP, BI.BISTAMP CURRENT_LINE_STAMP,
                        COALESCE(
@@ -429,18 +504,18 @@ def get_budget_detail(feid: Any, bostamp: str, user) -> dict[str, Any]:
                 SELECT DISTINCT LC.AUTO_STAMP
                 FROM line_chain LC INNER JOIN dbo.BI ROOT WITH (NOLOCK)
                     ON ROOT.BISTAMP=LC.CURRENT_LINE_STAMP
-                WHERE ROOT.NDOS=? AND ROOT.BOSTAMP=?
+                WHERE ROOT.NDOS=? AND ROOT.BOSTAMP IN ({placeholders})
                 UNION
                 SELECT A.BOSTAMP
                 FROM dbo.BO A WITH (NOLOCK)
                 INNER JOIN dbo.BO2 A2 WITH (NOLOCK) ON A2.BO2STAMP=A.BOSTAMP
-                WHERE A.NDOS=? AND A2.ADJBOSTAMP=? AND ISNULL(A2.ANULADO,0)=0
+                WHERE A.NDOS=? AND A2.ADJBOSTAMP IN ({placeholders}) AND ISNULL(A2.ANULADO,0)=0
             )
             SELECT A.BOSTAMP
             FROM links L INNER JOIN dbo.BO A WITH (NOLOCK) ON A.BOSTAMP=L.AUTO_STAMP
             OPTION (MAXRECURSION 30)
             """,
-            (auto_ndos, budget_ndos, clean_bostamp, auto_ndos, clean_bostamp),
+            tuple([auto_ndos, budget_ndos, *budget_stamps, auto_ndos, *budget_stamps]),
         )
 
     lines = []
@@ -459,6 +534,13 @@ def get_budget_detail(feid: Any, bostamp: str, user) -> dict[str, Any]:
         lines.append(
             {
                 "bistamp": _text_value(row.get("BISTAMP")),
+                "source_bostamp": _text_value(row.get("BOSTAMP")),
+                "source_doc_name": _text_value(row.get("SOURCE_NMDOS")),
+                "source_number": int(_number_value(row.get("SOURCE_OBRANO"))),
+                "source_year": int(_number_value(row.get("SOURCE_BOANO"))),
+                "source_date": _date_iso(row.get("SOURCE_DATAOBRA")),
+                "source_primary": _stamp_key(row.get("BOSTAMP")) == _stamp_key(clean_bostamp),
+                "source_amendment": bool(row.get("SOURCE_AMENDMENT")),
                 "ref": _text_value(row.get("REF")),
                 "design": _budget_line_description(row),
                 "unit": _text_value(row.get("UNIDADE")),
@@ -480,8 +562,33 @@ def get_budget_detail(feid: Any, bostamp: str, user) -> dict[str, Any]:
             }
         )
 
-    total = _decimal(header.get("ETOTALDEB"))
+    total = sum((_decimal(row.get("ETOTALDEB")) for row in budget_headers), Decimal("0"))
     executed = sum((_decimal(line["executed_value"]) for line in lines), Decimal("0"))
+    executed_by_budget: dict[str, Decimal] = {}
+    for line in lines:
+        source_key = _stamp_key(line.get("source_bostamp"))
+        executed_by_budget[source_key] = executed_by_budget.get(source_key, Decimal("0")) + _decimal(
+            line.get("executed_value")
+        )
+    budgets = []
+    for row in budget_headers:
+        source_stamp = _text_value(row.get("BOSTAMP"))
+        source_total = _decimal(row.get("ETOTALDEB"))
+        source_executed = executed_by_budget.get(_stamp_key(source_stamp), Decimal("0"))
+        budgets.append(
+            {
+                "bostamp": source_stamp,
+                "doc_name": _text_value(row.get("NMDOS")),
+                "number": int(_number_value(row.get("OBRANO"))),
+                "year": int(_number_value(row.get("BOANO"))),
+                "date": _date_iso(row.get("DATAOBRA")),
+                "primary": _stamp_key(source_stamp) == _stamp_key(clean_bostamp),
+                "amendment": bool(row.get("LOGI1")),
+                "contract_value": _money(source_total),
+                "executed_value": _money(source_executed),
+                "remaining_value": _money(source_total - source_executed),
+            }
+        )
     contract = {
         "bostamp": _text_value(header.get("BOSTAMP")),
         "doc_name": _text_value(header.get("NMDOS")),
@@ -498,11 +605,13 @@ def get_budget_detail(feid: Any, bostamp: str, user) -> dict[str, Any]:
         "executed_value": _money(executed),
         "remaining_value": _money(total - executed),
         "auto_count": len({_text_value(row.get("BOSTAMP")) for row in auto_rows}),
+        "budget_count": len(budgets),
     }
     return {
         "company": company,
         "series": _series_payload(series),
         "contract": contract,
+        "budgets": budgets,
         "autos": [],
         "lines": lines,
     }
@@ -515,14 +624,19 @@ def get_budget_autos(feid: Any, bostamp: str, user) -> dict[str, Any]:
     series = detail["series"]
     budget_ndos = int(series["budget"]["ndos"])
     auto_ndos = int(series["auto"]["ndos"])
-    clean_bostamp = _text_value(bostamp)
+    budget_stamps = [
+        _text_value(row.get("bostamp"))
+        for row in detail.get("budgets", [])
+        if _text_value(row.get("bostamp"))
+    ] or [_text_value(bostamp)]
+    placeholders = ", ".join("?" for _ in budget_stamps)
 
     conn_str = _phc_conn_str(company["phc_db"], company.get("phc_server") or "")
     with pyodbc.connect(conn_str, timeout=30) as conn:
         cursor = conn.cursor()
         auto_rows = _fetch_rows(
             cursor,
-            """
+            f"""
             WITH line_chain AS (
                 SELECT A.BOSTAMP AUTO_STAMP, BI.BISTAMP CURRENT_LINE_STAMP,
                        COALESCE(
@@ -546,12 +660,12 @@ def get_budget_autos(feid: Any, bostamp: str, user) -> dict[str, Any]:
                 SELECT DISTINCT LC.AUTO_STAMP
                 FROM line_chain LC INNER JOIN dbo.BI ROOT WITH (NOLOCK)
                     ON ROOT.BISTAMP=LC.CURRENT_LINE_STAMP
-                WHERE ROOT.NDOS=? AND ROOT.BOSTAMP=?
+                WHERE ROOT.NDOS=? AND ROOT.BOSTAMP IN ({placeholders})
                 UNION
                 SELECT A.BOSTAMP
                 FROM dbo.BO A WITH (NOLOCK)
                 INNER JOIN dbo.BO2 A2 WITH (NOLOCK) ON A2.BO2STAMP=A.BOSTAMP
-                WHERE A.NDOS=? AND A2.ADJBOSTAMP=? AND ISNULL(A2.ANULADO,0)=0
+                WHERE A.NDOS=? AND A2.ADJBOSTAMP IN ({placeholders}) AND ISNULL(A2.ANULADO,0)=0
             )
             SELECT A.BOSTAMP,A.NMDOS,A.OBRANO,A.BOANO,A.DATAOBRA,A.FECHADA,
                    A.ETOTALDEB,A.MOEDA,ISNULL(A2.AUTONO,0) AUTONO
@@ -560,7 +674,7 @@ def get_budget_autos(feid: Any, bostamp: str, user) -> dict[str, Any]:
             ORDER BY A.DATAOBRA DESC,A.OBRANO DESC,A.BOSTAMP DESC
             OPTION (MAXRECURSION 30)
             """,
-            (auto_ndos, budget_ndos, clean_bostamp, auto_ndos, clean_bostamp),
+            tuple([auto_ndos, budget_ndos, *budget_stamps, auto_ndos, *budget_stamps]),
         )
         auto_stamps = [_text_value(row.get("BOSTAMP")) for row in auto_rows]
         line_rows: list[dict[str, Any]] = []
@@ -816,10 +930,16 @@ def _next_work_situation_number(cursor, auto_ndos: int, process: str) -> int:
     return int(cursor.fetchone()[0] or 1)
 
 
-def _next_budget_autono(cursor, budget_ndos: int, auto_ndos: int, budget_bostamp: str) -> int:
+def _next_budget_autono(
+    cursor,
+    budget_ndos: int,
+    auto_ndos: int,
+    budget_bostamps: list[str],
+) -> int:
+    placeholders = ", ".join("?" for _ in budget_bostamps)
     rows = _fetch_rows(
         cursor,
-        """
+        f"""
         WITH line_chain AS (
             SELECT A.BOSTAMP AS AUTO_STAMP, BI.BISTAMP AS CURRENT_LINE_STAMP,
                    COALESCE(
@@ -845,21 +965,21 @@ def _next_budget_autono(cursor, budget_ndos: int, auto_ndos: int, budget_bostamp
             SELECT DISTINCT LC.AUTO_STAMP
             FROM line_chain LC
             INNER JOIN dbo.BI ROOT WITH (UPDLOCK, HOLDLOCK) ON ROOT.BISTAMP = LC.CURRENT_LINE_STAMP
-            WHERE ROOT.NDOS = ? AND ROOT.BOSTAMP = ?
+            WHERE ROOT.NDOS = ? AND ROOT.BOSTAMP IN ({placeholders})
 
             UNION
 
             SELECT A.BOSTAMP
             FROM dbo.BO A WITH (UPDLOCK, HOLDLOCK)
             INNER JOIN dbo.BO2 A2 WITH (UPDLOCK, HOLDLOCK) ON A2.BO2STAMP = A.BOSTAMP
-            WHERE A.NDOS = ? AND A2.ADJBOSTAMP = ? AND ISNULL(A2.ANULADO, 0) = 0
+            WHERE A.NDOS = ? AND A2.ADJBOSTAMP IN ({placeholders}) AND ISNULL(A2.ANULADO, 0) = 0
         )
         SELECT ISNULL(MAX(TRY_CONVERT(int, A2.AUTONO)), 0) + 1 AS NEXT_NO
         FROM links L
         INNER JOIN dbo.BO2 A2 WITH (UPDLOCK, HOLDLOCK) ON A2.BO2STAMP = L.AUTO_STAMP
         OPTION (MAXRECURSION 30)
         """,
-        (auto_ndos, budget_ndos, budget_bostamp, auto_ndos, budget_bostamp),
+        tuple([auto_ndos, budget_ndos, *budget_bostamps, auto_ndos, *budget_bostamps]),
     )
     return int(_number_value(rows[0].get("NEXT_NO"))) if rows else 1
 
@@ -869,38 +989,41 @@ def _load_budget_for_insert(
     budget_ndos: int,
     auto_ndos: int,
     budget_bostamp: str,
-) -> tuple[dict[str, Any], dict[str, dict[str, Any]], dict[str, dict[str, Decimal]]]:
-    header_rows = _fetch_rows(
+) -> tuple[
+    dict[str, Any],
+    list[dict[str, Any]],
+    dict[str, dict[str, Any]],
+    dict[str, dict[str, Decimal]],
+]:
+    budget_headers = _load_budget_group_headers(
         cursor,
-        """
-        SELECT TOP 1 C.*, C2.PROCESSO, C2.ANULADO
-        FROM dbo.BO C WITH (UPDLOCK, HOLDLOCK)
-        LEFT JOIN dbo.BO2 C2 WITH (UPDLOCK, HOLDLOCK) ON C2.BO2STAMP = C.BOSTAMP
-        WHERE C.NDOS = ? AND C.BOSTAMP = ?
-        """,
-        (budget_ndos, budget_bostamp),
+        budget_ndos,
+        budget_bostamp,
+        for_update=True,
     )
-    if not header_rows or bool(header_rows[0].get("ANULADO")):
-        raise ClientMeasurementsNotFoundError("Orcamento nao encontrado.")
-    header = header_rows[0]
+    header = budget_headers[0]
     if bool(header.get("FECHADA")):
         raise ClientMeasurementsValidationError("Nao e possivel medir um orcamento fechado.")
+    budget_stamps = _budget_group_stamps(budget_headers)
+    placeholders = ", ".join("?" for _ in budget_stamps)
 
     line_rows = _fetch_rows(
         cursor,
-        """
-        SELECT BI.*
+        f"""
+        SELECT BI.*, SRC.DATAOBRA AS SOURCE_DATAOBRA, SRC.OBRANO AS SOURCE_OBRANO
         FROM dbo.BI BI WITH (UPDLOCK, HOLDLOCK)
-        WHERE BI.NDOS = ? AND BI.BOSTAMP = ?
-        ORDER BY BI.LORDEM, BI.BISTAMP
+        INNER JOIN dbo.BO SRC WITH (UPDLOCK, HOLDLOCK) ON SRC.BOSTAMP = BI.BOSTAMP
+        WHERE BI.NDOS = ? AND BI.BOSTAMP IN ({placeholders})
+        ORDER BY CASE WHEN BI.BOSTAMP = ? THEN 0 ELSE 1 END,
+                 SRC.DATAOBRA, SRC.OBRANO, BI.LORDEM, BI.BISTAMP
         """,
-        (budget_ndos, budget_bostamp),
+        tuple([budget_ndos, *budget_stamps, budget_bostamp]),
     )
     lines = {_stamp_key(row.get("BISTAMP")): row for row in line_rows if _stamp_key(row.get("BISTAMP"))}
 
     executed_rows = _fetch_rows(
         cursor,
-        """
+        f"""
         WITH line_chain AS (
             SELECT ABI.BISTAMP AS AUTO_LINE_STAMP,
                    ISNULL(ABI.QTT, 0) AS AUTO_QTY,
@@ -934,11 +1057,11 @@ def _load_budget_for_insert(
                SUM(LC.AUTO_VALUE) AS EXEC_VALUE
         FROM line_chain LC
         INNER JOIN dbo.BI ROOT WITH (UPDLOCK, HOLDLOCK) ON ROOT.BISTAMP = LC.CURRENT_LINE_STAMP
-        WHERE ROOT.NDOS = ? AND ROOT.BOSTAMP = ?
+        WHERE ROOT.NDOS = ? AND ROOT.BOSTAMP IN ({placeholders})
         GROUP BY ROOT.BISTAMP
         OPTION (MAXRECURSION 30)
         """,
-        (auto_ndos, budget_ndos, budget_bostamp),
+        tuple([auto_ndos, budget_ndos, *budget_stamps]),
     )
     executed = {
         _stamp_key(row.get("BISTAMP")): {
@@ -947,7 +1070,7 @@ def _load_budget_for_insert(
         }
         for row in executed_rows
     }
-    return header, lines, executed
+    return header, budget_headers, lines, executed
 
 
 def _prepare_measurement_lines(
@@ -980,43 +1103,59 @@ def _prepare_measurement_lines(
         if not unit_price and budget_qty:
             unit_price = budget_value / budget_qty
 
+        qty_direction = Decimal("-1") if budget_qty < 0 else Decimal("1")
+        value_direction = Decimal("-1") if budget_value < 0 else Decimal("1")
         used = executed.get(source_key, {"qty": Decimal("0"), "value": Decimal("0")})
-        prior_qty = max(Decimal("0"), used["qty"])
-        prior_value = max(Decimal("0"), used["value"])
-        remaining_qty = max(Decimal("0"), budget_qty - prior_qty)
-        remaining_value = max(Decimal("0"), budget_value - prior_value)
+        used_qty = _decimal(used.get("qty"))
+        used_value = _decimal(used.get("value"))
+        prior_qty = used_qty if used_qty * qty_direction > 0 else Decimal("0")
+        prior_value = used_value if used_value * value_direction > 0 else Decimal("0")
+        remaining_qty = budget_qty - prior_qty
+        remaining_value = budget_value - prior_value
 
         qty = _decimal(item.get("qty")).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
-        if qty <= 0:
-            percent_hint = _decimal(item.get("percent"))
-            amount_hint = _decimal(item.get("value"))
+        percent_hint = _decimal(item.get("percent"))
+        amount_hint = _decimal(item.get("value"))
+        if qty == 0:
             if budget_qty and percent_hint > 0:
                 qty = (budget_qty * percent_hint / Decimal("100")).quantize(
                     Decimal("0.0001"), rounding=ROUND_HALF_UP
                 )
-            elif unit_price and amount_hint > 0:
+            elif unit_price and amount_hint != 0:
                 qty = (amount_hint / unit_price).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
-        if qty <= 0:
-            qty = Decimal("0.0000")
-        if qty > remaining_qty + tolerance:
-            raise ClientMeasurementsValidationError("Uma das linhas mede acima da quantidade pendente.")
+        if qty != 0:
+            if budget_qty and qty * budget_qty < 0:
+                raise ClientMeasurementsValidationError("Uma das linhas tem uma quantidade com sinal invalido.")
+            if (
+                remaining_qty == 0
+                or qty * remaining_qty < 0
+                or abs(qty) > abs(remaining_qty) + tolerance
+            ):
+                raise ClientMeasurementsValidationError("Uma das linhas mede acima da quantidade pendente.")
 
         amount_raw = Decimal("0")
-        if qty > 0:
+        if amount_hint != 0:
+            amount_raw = amount_hint
+        elif qty != 0:
             amount_raw = qty * unit_price if unit_price else Decimal("0")
             if not amount_raw and budget_qty:
                 amount_raw = budget_value * qty / budget_qty
-            if not amount_raw:
-                amount_raw = _decimal(item.get("value"))
         amount = amount_raw.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-        if amount > remaining_value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP) + Decimal("0.01"):
-            raise ClientMeasurementsValidationError("Uma das linhas mede acima do valor pendente.")
-        if amount <= 0:
+        remaining_value_rounded = remaining_value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        if amount != 0:
+            if budget_value and amount * budget_value < 0:
+                raise ClientMeasurementsValidationError("Uma das linhas tem um valor com sinal invalido.")
+            if (
+                remaining_value_rounded == 0
+                or amount * remaining_value_rounded < 0
+                or abs(amount) > abs(remaining_value_rounded) + Decimal("0.01")
+            ):
+                raise ClientMeasurementsValidationError("Uma das linhas mede acima do valor pendente.")
+            has_measurement = True
+        else:
             qty = Decimal("0.0000")
             amount_raw = Decimal("0")
             amount = Decimal("0.00")
-        else:
-            has_measurement = True
 
         current_percent = Decimal("0")
         prior_percent = Decimal("0")
@@ -1045,14 +1184,14 @@ def _prepare_measurement_lines(
                 "remaining_value": remaining_value,
                 "current_percent": current_percent.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP),
                 "prior_percent": prior_percent.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP),
-                "cumulative_percent": min(Decimal("100"), cumulative_percent).quantize(
+                "cumulative_percent": max(Decimal("0"), min(Decimal("100"), cumulative_percent)).quantize(
                     Decimal("0.01"), rounding=ROUND_HALF_UP
                 ),
             }
         )
 
     if not has_measurement:
-        raise ClientMeasurementsValidationError("Indique pelo menos uma linha com quantidade a medir.")
+        raise ClientMeasurementsValidationError("Indique pelo menos uma linha com valor a medir.")
     return prepared
 
 
@@ -1184,15 +1323,18 @@ def create_measurement_auto(payload: dict[str, Any], user) -> dict[str, Any]:
                     "A INTERSOL nao tem as procedures de preenchimento da U_OPCVAL configuradas."
                 )
 
-            header, source_lines, executed = _load_budget_for_insert(
+            header, budget_headers, source_lines, executed = _load_budget_for_insert(
                 cursor, budget_ndos, auto_ndos, budget_bostamp
             )
+            budget_stamps = _budget_group_stamps(budget_headers)
             bi_text_limits = _phc_text_column_limits(cursor, "BI", ("design", "dgeral"))
             prepared_lines = _prepare_measurement_lines(source_lines, executed, payload_lines)
             tax_totals = _build_tax_totals(prepared_lines)
             total_deb = sum((line["amount"] for line in prepared_lines), Decimal("0.00")).quantize(
                 Decimal("0.01"), rounding=ROUND_HALF_UP
             )
+            if total_deb <= 0:
+                raise ClientMeasurementsValidationError("O total do auto tem de ser superior a zero.")
             total_iva = sum((row["iva"] for row in tax_totals.values()), Decimal("0.00")).quantize(
                 Decimal("0.01"), rounding=ROUND_HALF_UP
             )
@@ -1220,7 +1362,7 @@ def create_measurement_auto(payload: dict[str, Any], user) -> dict[str, Any]:
 
             obrano = _next_auto_obrano(cursor, auto_ndos, dataobra.year)
             situation_number = _next_work_situation_number(cursor, auto_ndos, process)
-            autono = _next_budget_autono(cursor, budget_ndos, auto_ndos, budget_bostamp)
+            autono = _next_budget_autono(cursor, budget_ndos, auto_ndos, budget_stamps)
             customer_no = int(_number_value(header.get("NO")))
             customer_name = _text_value(header.get("NOME"))[:55]
             currency = _text_value(header.get("MOEDA")) or "EURO"
@@ -1351,8 +1493,13 @@ def create_measurement_auto(payload: dict[str, Any], user) -> dict[str, Any]:
 
             for idx, line in enumerate(prepared_lines, start=1):
                 source = line["source"]
+                source_budget_bostamp = _source_budget_stamp(source, budget_bostamp)
                 source_description = _budget_line_description(source)
-                line_no = int(_number_value(source.get("LORDEM"))) or idx * 1000
+                line_no = (
+                    idx * 1000
+                    if len(budget_stamps) > 1
+                    else int(_number_value(source.get("LORDEM"))) or idx * 1000
+                )
                 position = _text_value(source.get("LITEM") or source.get("POSIC"))
                 initial_qty = _decimal(source.get("QTT")).quantize(
                     Decimal("0.001"), rounding=ROUND_HALF_UP
@@ -1373,7 +1520,7 @@ def create_measurement_auto(payload: dict[str, Any], user) -> dict[str, Any]:
                         "dataobra": dataobra,
                         "dataopen": date.today(),
                         "datafecho": PHC_ZERO_DATE,
-                        "ref": PRODUCTION_ITEM_REF,
+                        "ref": _budget_line_reference(source),
                         "dgeral": _truncate_phc_text(
                             source_description, bi_text_limits.get("dgeral")
                         ),
@@ -1412,7 +1559,7 @@ def create_measurement_auto(payload: dict[str, Any], user) -> dict[str, Any]:
                         "lobs": _text_value(source.get("LOBS")),
                         "lobs2": _text_value(source.get("LOBS2")),
                         "oobistamp": line["source_bistamp"],
-                        "oobostamp": budget_bostamp,
+                        "oobostamp": source_budget_bostamp,
                         "obistamp": line["source_bistamp"],
                         "fechada": 0,
                         "ousrinis": user_inis,
@@ -1557,7 +1704,17 @@ def create_measurement_auto(payload: dict[str, Any], user) -> dict[str, Any]:
                 {uopcval_select_sql}
                 (SELECT COUNT(*) FROM dbo.BI I WHERE I.BOSTAMP = B.BOSTAMP) AS LINE_COUNT,
                 (SELECT COUNT(*) FROM dbo.BI2 I2 WHERE I2.BOSTAMP = B.BOSTAMP) AS LINE2_COUNT,
-                (SELECT COUNT(*) FROM dbo.BI I WHERE I.BOSTAMP = B.BOSTAMP AND LTRIM(RTRIM(I.REF)) = ?) AS PRODUCTION_REF_COUNT,
+                (
+                    SELECT COUNT(*)
+                    FROM dbo.BI I
+                    INNER JOIN dbo.BI SOURCE_I
+                      ON SOURCE_I.BISTAMP = COALESCE(
+                          NULLIF(LTRIM(RTRIM(I.OOBISTAMP)), ''),
+                          NULLIF(LTRIM(RTRIM(I.OBISTAMP)), '')
+                      )
+                    WHERE I.BOSTAMP = B.BOSTAMP
+                      AND LTRIM(RTRIM(ISNULL(I.REF, ''))) = LTRIM(RTRIM(ISNULL(SOURCE_I.REF, '')))
+                ) AS SOURCE_REF_COUNT,
                 (
                     SELECT COUNT(*)
                     FROM dbo.BI I
@@ -1577,7 +1734,7 @@ def create_measurement_auto(payload: dict[str, Any], user) -> dict[str, Any]:
               AND B.OBRANO = ?
               AND B.BOANO = ?
             """,
-            (PRODUCTION_ITEM_REF, bostamp, auto_ndos, obrano, dataobra.year),
+            (bostamp, auto_ndos, obrano, dataobra.year),
         )
 
     verified = verified_rows[0] if verified_rows else None
@@ -1599,7 +1756,7 @@ def create_measurement_auto(payload: dict[str, Any], user) -> dict[str, Any]:
         not verified
         or int(_number_value(verified.get("LINE_COUNT"))) != expected_lines
         or int(_number_value(verified.get("LINE2_COUNT"))) != expected_lines
-        or int(_number_value(verified.get("PRODUCTION_REF_COUNT"))) != expected_lines
+        or int(_number_value(verified.get("SOURCE_REF_COUNT"))) != expected_lines
         or int(_number_value(verified.get("MEASUREMENT_FIELDS_COUNT"))) != expected_lines
         or not bool(verified.get("HAS_BO2"))
         or not bool(verified.get("HAS_BO3"))

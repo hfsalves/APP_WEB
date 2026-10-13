@@ -1,0 +1,66 @@
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
+SET XACT_ABORT ON;
+
+BEGIN TRY
+    BEGIN TRANSACTION;
+
+    IF OBJECT_ID('dbo.SRV', 'U') IS NULL
+    BEGIN
+        CREATE TABLE dbo.SRV
+        (
+            SRVSTAMP       VARCHAR(25) NOT NULL
+                CONSTRAINT DF_SRV_SRVSTAMP DEFAULT LEFT(CONVERT(varchar(36), NEWID()), 25),
+            DATA           DATE NOT NULL,
+            UTILIZADOR     VARCHAR(50) NOT NULL,
+            FEID           INT NULL,
+            OBS            VARCHAR(240) NOT NULL
+                CONSTRAINT DF_SRV_OBS DEFAULT (''),
+            ATIVO          BIT NOT NULL
+                CONSTRAINT DF_SRV_ATIVO DEFAULT (1),
+            DTCRI          DATETIME2(0) NOT NULL
+                CONSTRAINT DF_SRV_DTCRI DEFAULT (SYSDATETIME()),
+            DTALT          DATETIME2(0) NOT NULL
+                CONSTRAINT DF_SRV_DTALT DEFAULT (SYSDATETIME()),
+            USERCRIACAO    VARCHAR(50) NOT NULL
+                CONSTRAINT DF_SRV_USERCRIACAO DEFAULT (''),
+            USERALTERACAO  VARCHAR(50) NOT NULL
+                CONSTRAINT DF_SRV_USERALTERACAO DEFAULT (''),
+
+            CONSTRAINT PK_SRV PRIMARY KEY CLUSTERED (SRVSTAMP),
+            CONSTRAINT CK_SRV_UTILIZADOR
+                CHECK (LTRIM(RTRIM(UTILIZADOR)) <> '')
+        );
+    END;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM sys.indexes
+        WHERE object_id = OBJECT_ID('dbo.SRV')
+          AND name = 'UX_SRV_DATA_UTILIZADOR_FEID_ATIVO'
+    )
+    BEGIN
+        CREATE UNIQUE NONCLUSTERED INDEX UX_SRV_DATA_UTILIZADOR_FEID_ATIVO
+            ON dbo.SRV (DATA, UTILIZADOR, FEID)
+            WHERE ATIVO = 1;
+    END;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM sys.indexes
+        WHERE object_id = OBJECT_ID('dbo.SRV')
+          AND name = 'IX_SRV_DATA_ATIVO'
+    )
+    BEGIN
+        CREATE NONCLUSTERED INDEX IX_SRV_DATA_ATIVO
+            ON dbo.SRV (DATA, ATIVO)
+            INCLUDE (UTILIZADOR, FEID);
+    END;
+
+    COMMIT TRANSACTION;
+END TRY
+BEGIN CATCH
+    IF @@TRANCOUNT > 0
+        ROLLBACK TRANSACTION;
+    THROW;
+END CATCH;

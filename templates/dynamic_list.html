@@ -44,13 +44,15 @@
                   <span>{{ _('common.new_attachment') }}</span>
                 </button>
               {% endif %}
+              {% if table_name|upper != 'US' %}
               <button id="btnNew" type="button" class="sz_button sz_button_primary">
                 <i class="fa fa-plus"></i>
                 <span>{{ _('common.new') }}</span>
               </button>
+              {% endif %}
             {% endif %}
           </div>
-        </div>
+        </section>
       </div>
     </header>
 
@@ -72,40 +74,98 @@
     </div>
     <form id="createCollaboratorUserForm">
       <div class="sz_modal_body sz_collaborator_user_wizard_body">
-        <div class="sz_collaborator_user_form_grid">
-          <label class="sz_form_group">
-            <span>Nome</span>
-            <input id="collaboratorUserName" class="sz_input" type="text" maxlength="60" required autocomplete="name">
+        <ol class="sz_collaborator_user_steps" aria-label="Etapas do assistente">
+          <li class="is-active" data-collaborator-step-indicator="1"><span>1</span>Funcionário</li>
+          <li data-collaborator-step-indicator="2"><span>2</span>Conta GR360</li>
+          <li data-collaborator-step-indicator="3"><span>3</span>Empresas</li>
+          <li data-collaborator-step-indicator="4"><span>4</span>Revisão</li>
+        </ol>
+
+        <section class="sz_collaborator_user_step" data-collaborator-step="1">
+          <h4 class="sz_h5">Empresa e funcionário</h4>
+          <p class="sz_text_muted">Escolha primeiro a empresa onde o colaborador trabalha e depois a sua ficha de funcionário no PHC.</p>
+          <div class="sz_collaborator_user_form_grid">
+            <label class="sz_form_group">
+              <span>Empresa onde trabalha</span>
+              <select id="collaboratorUserEmployer" class="sz_select" required>
+                <option value="">Selecione uma empresa</option>
+              </select>
+            </label>
+            <label class="sz_form_group">
+              <span>Pesquisar funcionário</span>
+              <input id="collaboratorUserEmployeeSearch" class="sz_input" type="search" maxlength="80" placeholder="Nome, número, email ou NIF" disabled>
+            </label>
+          </div>
+          <label class="sz_form_group sz_collaborator_user_employee_field">
+            <span>Funcionário PHC</span>
+            <select id="collaboratorUserEmployee" class="sz_select" required disabled>
+              <option value="">Selecione primeiro a empresa</option>
+            </select>
           </label>
-          <label class="sz_form_group">
-            <span>Login</span>
-            <input id="collaboratorUserLogin" class="sz_input" type="text" maxlength="60" required autocomplete="username">
-          </label>
-          <label class="sz_form_group">
-            <span>Password</span>
-            <input id="collaboratorUserPassword" class="sz_input" type="password" maxlength="128" required autocomplete="new-password">
-          </label>
-          <label class="sz_form_group">
-            <span>Email</span>
-            <input id="collaboratorUserEmail" class="sz_input" type="email" maxlength="120" required autocomplete="email">
-          </label>
-        </div>
-        <div class="sz_collaborator_user_companies_header">
-          <strong>Empresas a que acede</strong>
-          <label class="sz_checkbox_label">
-            <input id="collaboratorUserSelectAllCompanies" type="checkbox">
-            <span>Selecionar todas</span>
-          </label>
-        </div>
-        <div id="collaboratorUserCompanies" class="sz_collaborator_user_companies" aria-live="polite"></div>
-        <p id="collaboratorUserWizardStatus" class="sz_text_muted">Selecione as empresas do utilizador.</p>
+        </section>
+
+        <section class="sz_collaborator_user_step" data-collaborator-step="2" hidden>
+          <h4 class="sz_h5">Dados da conta GR360</h4>
+          <p class="sz_text_muted">Esta conta existe apenas na GR360 e fica associada ao funcionário escolhido.</p>
+          <div class="sz_collaborator_user_form_grid">
+            <label class="sz_form_group">
+              <span>Nome</span>
+              <input id="collaboratorUserName" class="sz_input" type="text" maxlength="60" required autocomplete="name">
+            </label>
+            <label class="sz_form_group">
+              <span>Email</span>
+              <input id="collaboratorUserEmail" class="sz_input" type="email" maxlength="120" required autocomplete="email">
+            </label>
+            <label class="sz_form_group">
+              <span>Login</span>
+              <input id="collaboratorUserLogin" class="sz_input" type="text" maxlength="60" required autocomplete="username">
+            </label>
+            <label class="sz_form_group">
+              <span>Password inicial</span>
+              <input id="collaboratorUserPassword" class="sz_input" type="password" minlength="4" maxlength="128" required autocomplete="new-password">
+            </label>
+            <label class="sz_form_group">
+              <span>Confirmar password</span>
+              <input id="collaboratorUserPasswordConfirm" class="sz_input" type="password" minlength="4" maxlength="128" required autocomplete="new-password">
+            </label>
+          </div>
+        </section>
+
+        <section class="sz_collaborator_user_step" data-collaborator-step="3" hidden>
+          <div class="sz_collaborator_user_companies_header">
+            <div>
+              <h4 class="sz_h5">Empresas acessíveis</h4>
+              <p class="sz_text_muted">A empresa onde trabalha fica selecionada. Indique também qual será a empresa principal da sessão.</p>
+            </div>
+            <label class="sz_checkbox_label">
+              <input id="collaboratorUserSelectAllCompanies" type="checkbox">
+              <span>Selecionar todas</span>
+            </label>
+          </div>
+          <div id="collaboratorUserCompanies" class="sz_collaborator_user_companies" aria-live="polite"></div>
+        </section>
+
+        <section class="sz_collaborator_user_step" data-collaborator-step="4" hidden>
+          <h4 class="sz_h5">Confirmar criação</h4>
+          <div id="collaboratorUserReview" class="sz_collaborator_user_review"></div>
+        </section>
+
+        <p id="collaboratorUserWizardStatus" class="sz_text_muted" aria-live="polite"></p>
       </div>
       <div class="sz_modal_footer">
         <button type="button" id="closeCreateCollaboratorUser" class="sz_button sz_button_secondary">
           <i class="fa-solid fa-ban"></i>
           <span>Cancelar</span>
         </button>
-        <button type="submit" id="confirmCreateCollaboratorUser" class="sz_button sz_button_primary">
+        <button type="button" id="previousCreateCollaboratorUser" class="sz_button sz_button_ghost" hidden>
+          <i class="fa-solid fa-arrow-left"></i>
+          <span>Anterior</span>
+        </button>
+        <button type="button" id="nextCreateCollaboratorUser" class="sz_button sz_button_primary">
+          <span>Seguinte</span>
+          <i class="fa-solid fa-arrow-right"></i>
+        </button>
+        <button type="submit" id="confirmCreateCollaboratorUser" class="sz_button sz_button_primary" hidden>
           <i class="fa-solid fa-user-plus"></i>
           <span>Criar utilizador</span>
         </button>
@@ -240,7 +300,67 @@
   }
 
   .sz_collaborator_user_wizard_panel {
-    width: min(42rem, calc(100vw - 1.5rem));
+    width: min(52rem, calc(100vw - 1.5rem));
+    color: var(--sz-color-text);
+  }
+
+  .sz_collaborator_user_wizard_panel form,
+  .sz_collaborator_user_wizard_body,
+  .sz_collaborator_user_step {
+    color: var(--sz-color-text);
+  }
+
+  .sz_collaborator_user_steps {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: .5rem;
+    margin: 0 0 1.25rem;
+    padding: 0;
+    list-style: none;
+  }
+
+  .sz_collaborator_user_steps li {
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    min-width: 0;
+    color: var(--sz-color-text-secondary);
+    font-size: .78rem;
+    font-weight: 700;
+  }
+
+  .sz_collaborator_user_steps li span {
+    display: inline-grid;
+    place-items: center;
+    width: 1.7rem;
+    height: 1.7rem;
+    flex: 0 0 auto;
+    border: 1px solid var(--sz-color-border);
+    border-radius: 50%;
+    background: var(--sz-color-surface);
+  }
+
+  .sz_collaborator_user_steps li.is-active,
+  .sz_collaborator_user_steps li.is-complete {
+    color: var(--sz-color-primary);
+  }
+
+  .sz_collaborator_user_steps li.is-active span,
+  .sz_collaborator_user_steps li.is-complete span {
+    border-color: var(--sz-color-primary);
+    color: #fff;
+    background: var(--sz-color-primary);
+  }
+
+  .sz_collaborator_user_step > .sz_h5,
+  .sz_collaborator_user_companies_header .sz_h5 {
+    margin: 0 0 .25rem;
+    color: var(--sz-color-text);
+  }
+
+  .sz_collaborator_user_step > .sz_text_muted,
+  .sz_collaborator_user_companies_header .sz_text_muted {
+    margin: 0 0 1rem;
   }
 
   .sz_collaborator_user_form_grid {
@@ -258,12 +378,21 @@
     font-weight: 700;
   }
 
+  .sz_collaborator_user_employee_field {
+    display: grid;
+    gap: .35rem;
+    margin-top: .9rem;
+    color: var(--sz-color-text-secondary);
+    font-size: .82rem;
+    font-weight: 700;
+  }
+
   .sz_collaborator_user_companies_header {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: .75rem;
-    margin-top: 1.15rem;
+    margin-top: 0;
     margin-bottom: .55rem;
   }
 
@@ -305,6 +434,46 @@
     white-space: nowrap;
   }
 
+  .sz_collaborator_user_company .sz_collaborator_user_company_name {
+    flex: 1 1 auto;
+  }
+
+  .sz_collaborator_user_principal {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    flex: 0 0 auto;
+    color: var(--sz-color-text-secondary);
+    font-size: .76rem;
+  }
+
+  .sz_collaborator_user_review dl {
+    display: grid;
+    gap: .55rem;
+    margin: .8rem 0 0;
+  }
+
+  .sz_collaborator_user_review dl > div {
+    display: grid;
+    grid-template-columns: minmax(10rem, .7fr) minmax(0, 1.5fr);
+    gap: .8rem;
+    padding: .7rem .8rem;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-sm);
+    background: var(--sz-color-surface);
+  }
+
+  .sz_collaborator_user_review dt {
+    color: var(--sz-color-text-secondary);
+    font-weight: 700;
+  }
+
+  .sz_collaborator_user_review dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+    color: var(--sz-color-text);
+  }
+
   #collaboratorUserWizardStatus {
     margin: .85rem 0 0;
   }
@@ -313,6 +482,15 @@
     .sz_collaborator_user_form_grid,
     .sz_collaborator_user_companies {
       grid-template-columns: minmax(0, 1fr);
+    }
+
+    .sz_collaborator_user_steps {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .sz_collaborator_user_review dl > div {
+      grid-template-columns: minmax(0, 1fr);
+      gap: .2rem;
     }
   }
 

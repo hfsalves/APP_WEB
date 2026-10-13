@@ -570,10 +570,24 @@
     line.draftPercent = 0;
   }
 
-  function capValue(value, maxValue) {
+  function capPositiveValue(value, maxValue) {
     const parsed = Math.max(0, Number(value || 0));
-    const max = Number(maxValue || 0);
-    return max > 0 ? Math.min(parsed, max) : parsed;
+    const max = Math.max(0, Number(maxValue || 0));
+    return Math.min(parsed, max);
+  }
+
+  function capSignedValue(value, remainingValue) {
+    const limit = Math.abs(Number(remainingValue || 0));
+    if (limit <= 0.000001) return 0;
+    const direction = Math.sign(Number(remainingValue || 0)) || 1;
+    return direction * Math.min(Math.abs(Number(value || 0)), limit);
+  }
+
+  function lineHasPendingValue(line) {
+    const total = Number(line.value || 0);
+    const remaining = Number(line.remaining_value || 0);
+    if (Math.abs(remaining) <= 0.000001) return false;
+    return Math.abs(total) <= 0.000001 || Math.sign(total) === Math.sign(remaining);
   }
 
   function valueFromQty(line, qty, unitPrice) {
@@ -591,11 +605,11 @@
 
   function maxPendingPercent(line) {
     const contractQty = Number(line.qty || 0);
-    const remainingQty = Math.max(0, Number(line.remaining_qty || 0));
+    const remainingQty = Number(line.remaining_qty || 0);
     const contractValue = Number(line.value || 0);
-    const remainingValue = Math.max(0, Number(line.remaining_value || 0));
-    if (contractQty) return remainingQty / contractQty * 100;
-    if (contractValue) return remainingValue / contractValue * 100;
+    const remainingValue = Number(line.remaining_value || 0);
+    if (contractQty) return Math.abs(remainingQty / contractQty * 100);
+    if (contractValue) return Math.abs(remainingValue / contractValue * 100);
     return 0;
   }
 
@@ -603,39 +617,40 @@
     const contractQty = Number(line.qty || 0);
     const contractValue = Number(line.value || 0);
     const unitPrice = contractQty ? contractValue / contractQty : Number(line.unit_price || 0);
-    const remainingQty = Math.max(0, Number(line.remaining_qty || 0));
-    const remainingValue = Math.max(0, Number(line.remaining_value || 0));
+    const remainingQty = Number(line.remaining_qty || 0);
+    const remainingValue = Number(line.remaining_value || 0);
     let qty = 0;
     let amount = 0;
     let percent = 0;
 
     if (source === 'qty') {
-      qty = capValue(value, remainingQty);
+      qty = capSignedValue(value, remainingQty);
     } else if (source === 'value') {
-      amount = capValue(value, remainingValue);
+      amount = capSignedValue(value, remainingValue);
       qty = unitPrice ? amount / unitPrice : (contractValue && contractQty ? contractQty * amount / contractValue : 0);
-      qty = capValue(qty, remainingQty);
+      qty = capSignedValue(qty, remainingQty);
     } else if (source === 'percent') {
-      percent = capValue(value, maxPendingPercent(line));
+      percent = capPositiveValue(value, maxPendingPercent(line));
       if (contractQty) {
         qty = contractQty * percent / 100;
       } else if (unitPrice) {
         qty = contractValue * percent / 100 / unitPrice;
       } else {
-        amount = capValue(contractValue * percent / 100, remainingValue);
+        amount = capSignedValue(contractValue * percent / 100, remainingValue);
       }
-      qty = capValue(qty, remainingQty);
+      qty = capSignedValue(qty, remainingQty);
     }
 
     if (contractQty || unitPrice) {
-      amount = capValue(valueFromQty(line, qty, unitPrice), remainingValue);
-      if (unitPrice && amount < valueFromQty(line, qty, unitPrice)) {
-        qty = capValue(amount / unitPrice, remainingQty);
+      const calculatedAmount = valueFromQty(line, qty, unitPrice);
+      amount = capSignedValue(calculatedAmount, remainingValue);
+      if (unitPrice && Math.abs(amount) + 0.000001 < Math.abs(calculatedAmount)) {
+        qty = capSignedValue(amount / unitPrice, remainingQty);
       }
     } else if (source === 'value') {
-      amount = capValue(value, remainingValue);
+      amount = capSignedValue(value, remainingValue);
     }
-    percent = contractQty ? percentFromQty(line, qty) : (contractValue ? amount / contractValue * 100 : 0);
+    percent = Math.abs(contractQty ? percentFromQty(line, qty) : (contractValue ? amount / contractValue * 100 : 0));
 
     line.draftQty = qty;
     line.draftValue = amount;
@@ -669,7 +684,7 @@
     const field = input.dataset.field;
     const current = parseNumber(input.value);
     const capped = lineFieldValue(line, field);
-    if (current > capped + 0.000001) {
+    if (Math.abs(current) > Math.abs(capped) + 0.000001) {
       input.value = formatInputNumber(capped, lineFieldDecimals(field));
     }
   }
@@ -684,9 +699,34 @@
       els.submeasureLinesBody.innerHTML = `<tr><td colspan="11" class="sz_table_cell sz_text_muted">${escapeHtml(sourceSingular())} sem linhas.</td></tr>`;
       return;
     }
+    const budgetGroups = Array.isArray(state.detail.budgets) ? state.detail.budgets : [];
+    const showBudgetGroups = budgetGroups.length > 1;
+    const budgetsByStamp = new Map(
+      budgetGroups.map((budget) => [String(budget.bostamp || '').trim(), budget]),
+    );
+    let previousBudgetStamp = null;
     els.submeasureLinesBody.innerHTML = lines.map((line, index) => {
-      const disabled = !line.measurable || Number(line.remaining_value || 0) <= 0;
+      const disabled = !line.measurable || !lineHasPendingValue(line);
+      const sourceBudgetStamp = String(line.source_bostamp || '').trim();
+      const sourceBudget = budgetsByStamp.get(sourceBudgetStamp) || {};
+      let groupRow = '';
+      if (showBudgetGroups && sourceBudgetStamp !== previousBudgetStamp) {
+        const primaryLabel = sourceBudget.primary ? 'Orçamento principal' : 'Orçamento adicional';
+        const amendmentLabel = sourceBudget.amendment ? ' · Avenant' : '';
+        groupRow = `
+          <tr class="gr-submeasure-budget-group">
+            <td colspan="11">
+              <div>
+                <strong>${escapeHtml(primaryLabel)} nº ${escapeHtml(sourceBudget.number || line.source_number || '')} / ${escapeHtml(sourceBudget.year || line.source_year || '')}</strong>
+                <span>${escapeHtml(sourceBudget.date || line.source_date || '')}${escapeHtml(amendmentLabel)}</span>
+              </div>
+            </td>
+          </tr>
+        `;
+        previousBudgetStamp = sourceBudgetStamp;
+      }
       return `
+        ${groupRow}
         <tr data-line-index="${index}">
           <td>${escapeHtml(line.ref || '')}</td>
           <td>
@@ -713,7 +753,9 @@
     const detail = state.detail;
     const contract = detail.contract;
     els.submeasureSelectedTitle.textContent = `${contract.doc_name || sourceSingular()} nº ${contract.number} · ${contract.cost_center || ''}`;
-    els.submeasureSelectedMeta.textContent = `${contract.supplier_name || ''} · ${contract.date || ''} · ${detail.company.name || detail.company.phc_db}`;
+    const budgetCount = Number(contract.budget_count || 0);
+    const budgetLabel = budgetCount > 1 ? ` · ${budgetCount} orçamentos da obra` : '';
+    els.submeasureSelectedMeta.textContent = `${contract.supplier_name || ''} · ${contract.date || ''} · ${detail.company.name || detail.company.phc_db}${budgetLabel}`;
     els.submeasureDetailContracted.textContent = formatTotalMoney(contract.contract_value, contract.currency);
     els.submeasureDetailExecuted.textContent = formatTotalMoney(contract.executed_value, contract.currency);
     els.submeasureDetailRemaining.textContent = formatTotalMoney(contract.remaining_value, contract.currency);
@@ -767,9 +809,9 @@
     state.detail.lines.forEach((line) => {
       const remainingQty = Number(line.remaining_qty || 0);
       const remainingValue = Number(line.remaining_value || 0);
-      if (!line.measurable || remainingValue <= 0) {
+      if (!line.measurable || !lineHasPendingValue(line)) {
         resetLineDraft(line);
-      } else if (remainingQty > 0) {
+      } else if (Math.abs(remainingQty) > 0.000001) {
         setLineDraft(line, 'qty', remainingQty);
       } else {
         setLineDraft(line, 'value', remainingValue);
@@ -786,7 +828,13 @@
   function draftLinesForSave() {
     if (!state.detail) return [];
     return state.detail.lines
-      .filter((line) => Number(line.draftQty || 0) > 0 && Number(line.draftValue || 0) > 0)
+      .filter((line) => (
+        Math.abs(Number(line.draftValue || 0)) > 0.000001
+        && (
+          Math.abs(Number(line.draftQty || 0)) > 0.000001
+          || Math.abs(Number(line.qty || 0)) <= 0.000001
+        )
+      ))
       .map((line) => ({
         bistamp: line.bistamp,
         qty: Number(line.draftQty || 0),

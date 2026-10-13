@@ -43,6 +43,10 @@
           <i class="fa-solid fa-user-check" id="ndViewModeIcon"></i>
           <span id="ndViewModeLabel">Disponibilidades</span>
         </button>
+        <button type="button" class="sz_button sz_button_secondary" id="ndServiceBtn" title="Definir serviço semanal">
+          <i class="fa-solid fa-phone-volume"></i>
+          <span id="ndServiceLabel">Serviço</span>
+        </button>
       </div>
     </header>
 
@@ -115,6 +119,61 @@
     <i class="fa-solid fa-trash-can"></i>
     <span>Apagar</span>
   </button>
+</div>
+
+<div class="modal fade" id="serviceModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content sz_panel nd-bootstrap-modal">
+      <div class="modal-header sz_modal_header">
+        <div>
+          <h5 class="modal-title sz_modal_title">Serviço semanal</h5>
+          <div class="sz_text_muted nd-modal-subtitle">Define quem fica de serviço de segunda-feira a domingo.</div>
+        </div>
+        <button type="button" class="sz_button sz_button_ghost nd-modal-close" data-bs-dismiss="modal" aria-label="Fechar">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="modal-body sz_modal_body">
+        <label class="sz_field">
+          <span class="sz_label">Semana</span>
+          <div class="nd-service-week-nav">
+            <button type="button" class="sz_button sz_button_secondary nd-service-week-button" id="servicePrevWeek" title="Semana anterior" aria-label="Semana anterior">
+              <i class="fa-solid fa-chevron-left"></i>
+            </button>
+            <input type="date" class="sz_date" id="serviceWeekDate">
+            <button type="button" class="sz_button sz_button_secondary nd-service-week-button" id="serviceNextWeek" title="Semana seguinte" aria-label="Semana seguinte">
+              <i class="fa-solid fa-chevron-right"></i>
+            </button>
+          </div>
+        </label>
+
+        <div class="nd-service-week-range" id="serviceWeekRange"></div>
+
+        <label class="sz_field nd-service-user-field">
+          <span class="sz_label">Utilizador de serviço</span>
+          <select class="sz_select" id="serviceUser">
+            <option value="">Selecionar utilizador</option>
+          </select>
+        </label>
+
+        <div class="nd-service-current" id="serviceCurrent" role="status">A carregar a semana...</div>
+      </div>
+      <div class="modal-footer sz_modal_footer nd-service-footer">
+        <button type="button" class="sz_button sz_button_danger" id="serviceClear">
+          <i class="fa-solid fa-eraser"></i>
+          <span>Limpar semana</span>
+        </button>
+        <button type="button" class="sz_button sz_button_secondary" data-bs-dismiss="modal">
+          <i class="fa-solid fa-ban"></i>
+          <span>Cancelar</span>
+        </button>
+        <button type="button" class="sz_button sz_button_primary" id="serviceSave">
+          <i class="fa-solid fa-check"></i>
+          <span>Gravar semana</span>
+        </button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div class="modal fade" id="feriasModal" tabindex="-1" aria-hidden="true">
@@ -409,6 +468,23 @@
     font-size: 0.62rem;
   }
 
+  .nd-service-list {
+    margin-top: 0.38rem;
+  }
+
+  .nd-service-department .nd-day-department-name {
+    color: #fbbf24;
+  }
+
+  .nd-service-department .nd-day-department-line {
+    background: color-mix(in srgb, #f59e0b 55%, var(--sz-color-border));
+  }
+
+  .nd-service-person,
+  .nd-service-person:active {
+    cursor: default;
+  }
+
   .nd-list {
     display: flex;
     flex-direction: column;
@@ -572,6 +648,7 @@
   .nd-day-department-name {
     overflow: hidden;
     text-overflow: ellipsis;
+    text-transform: uppercase;
     white-space: nowrap;
   }
 
@@ -716,6 +793,60 @@
     margin-top: var(--sz-space-3);
   }
 
+  .nd-service-week-nav {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--sz-space-2);
+  }
+
+  .nd-service-week-button {
+    width: 2.5rem;
+    min-width: 2.5rem;
+    padding: 0;
+  }
+
+  .nd-service-week-range {
+    margin-top: var(--sz-space-2);
+    color: var(--sz-color-text-secondary);
+    font-size: var(--sz-font-size-sm);
+    font-weight: var(--sz-font-weight-semibold);
+    text-align: center;
+  }
+
+  .nd-service-user-field {
+    margin-top: var(--sz-space-4);
+  }
+
+  .nd-service-current {
+    margin-top: var(--sz-space-3);
+    padding: 0.65rem 0.75rem;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-sm);
+    background: var(--sz-color-surface-alt);
+    color: var(--sz-color-text-secondary);
+    font-size: var(--sz-font-size-sm);
+  }
+
+  .nd-service-current.is-warning {
+    border-color: color-mix(in srgb, var(--sz-color-warning) 55%, var(--sz-color-border));
+    color: var(--sz-color-warning);
+  }
+
+  .nd-service-current.is-error {
+    border-color: color-mix(in srgb, var(--sz-color-danger) 55%, var(--sz-color-border));
+    color: var(--sz-color-danger);
+  }
+
+  .nd-service-footer {
+    display: flex;
+    flex-wrap: wrap;
+  }
+
+  .nd-service-footer #serviceClear {
+    margin-right: auto;
+  }
+
   [data-sz-theme="dark"] .nd-badge,
   [data-sz-theme="geek"] .nd-badge {
     color: #eaf2fb;
@@ -769,13 +900,16 @@
     }
 
     .nd-department-menu {
-      right: 0;
+      right: calc(-5rem - 0.8rem);
       left: auto;
+      width: min(22rem, calc(100vw - 2rem));
+      max-width: calc(100vw - 2rem);
     }
 
     .nd-separators-control,
     .nd-department-toggle,
-    #ndViewModeBtn {
+    #ndViewModeBtn,
+    #ndServiceBtn {
       display: inline-flex;
       width: 2.5rem;
       min-width: 2.5rem;
@@ -803,7 +937,8 @@
     .nd-separators-control > span,
     .nd-department-toggle #ndDepartmentLabel,
     .nd-department-toggle .nd-department-chevron,
-    #ndViewModeLabel {
+    #ndViewModeLabel,
+    #ndServiceLabel {
       position: absolute;
       width: 1px;
       height: 1px;
@@ -838,6 +973,10 @@
 
     .nd-modal-grid {
       grid-template-columns: 1fr;
+    }
+
+    .nd-service-footer .sz_button {
+      flex: 1 1 auto;
     }
 
     .nd-calendar-wrap {
@@ -884,6 +1023,10 @@
 
     .nd-cleaning-count i {
       font-size: 0.46rem;
+    }
+
+    .nd-service-list {
+      margin-top: 0.22rem;
     }
 
     .nd-compact-flags .nd-list,
@@ -953,11 +1096,15 @@
   let ndRows = [];
   let ndByDate = {};
   let cleaningsByDate = {};
+  let serviceByDate = {};
   let ndLoadSeq = 0;
   let ndViewMode = 'folgas';
   let ndShowDepartmentSeparators = false;
+  let serviceWeekBase = null;
+  let serviceWeekLoadSeq = 0;
   const ND_DEPARTMENT_FILTER_STORAGE_KEY = 'sz.nd.department-filter.v1';
   const ND_DEPARTMENT_SEPARATORS_STORAGE_KEY = 'sz.nd.department-separators.v1';
+  const ND_VIEW_MODE_STORAGE_KEY = 'sz.nd.view-mode.v1';
 
   function escapeHtml(value){
     return String(value == null ? '' : value)
@@ -1032,6 +1179,23 @@
       );
     }catch(_error){
       // A opção continua funcional durante a sessão atual.
+    }
+  }
+
+  function restoreViewMode(){
+    try{
+      const savedMode = window.localStorage.getItem(ND_VIEW_MODE_STORAGE_KEY);
+      ndViewMode = savedMode === 'disponibilidades' ? 'disponibilidades' : 'folgas';
+    }catch(_error){
+      ndViewMode = 'folgas';
+    }
+  }
+
+  function persistViewMode(){
+    try{
+      window.localStorage.setItem(ND_VIEW_MODE_STORAGE_KEY, ndViewMode);
+    }catch(_error){
+      // O modo continua funcional durante a sessão atual.
     }
   }
 
@@ -1154,6 +1318,168 @@
     }
   }
 
+  function parseLocalYmd(value){
+    const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if(!match) return null;
+    const parsed = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  function startOfServiceWeek(value){
+    const source = value instanceof Date ? new Date(value.getFullYear(), value.getMonth(), value.getDate()) : new Date();
+    const mondayOffset = (source.getDay() + 6) % 7;
+    source.setDate(source.getDate() - mondayOffset);
+    return source;
+  }
+
+  function serviceAddDays(value, days){
+    const next = new Date(value.getFullYear(), value.getMonth(), value.getDate());
+    next.setDate(next.getDate() + days);
+    return next;
+  }
+
+  function formatServiceDate(value){
+    return value.toLocaleDateString('pt-PT', { day: '2-digit', month: 'long', year: 'numeric' });
+  }
+
+  function updateServiceWeekRange(){
+    const range = document.getElementById('serviceWeekRange');
+    if(!range || !serviceWeekBase) return;
+    const end = serviceAddDays(serviceWeekBase, 6);
+    range.textContent = `${formatServiceDate(serviceWeekBase)} — ${formatServiceDate(end)}`;
+  }
+
+  function renderServiceUsers(){
+    const select = document.getElementById('serviceUser');
+    if(!select) return;
+    const previous = select.value;
+    const users = usersCache
+      .filter(user => normalizeDepartment(user.departamento).toLocaleUpperCase('pt-PT') === 'LOGISTICA')
+      .sort((left, right) =>
+        String(left.nome || left.login || '').localeCompare(String(right.nome || right.login || ''), 'pt-PT')
+      );
+    select.innerHTML = '<option value="">Selecionar utilizador</option>' + users.map(user => {
+      return `<option value="${escapeHtml(user.login)}">${escapeHtml(user.nome || user.login)}</option>`;
+    }).join('');
+    if(users.some(user => String(user.login) === previous)) select.value = previous;
+  }
+
+  function setServiceCurrent(message, state){
+    const current = document.getElementById('serviceCurrent');
+    if(!current) return;
+    current.textContent = message;
+    current.classList.toggle('is-warning', state === 'warning');
+    current.classList.toggle('is-error', state === 'error');
+  }
+
+  function setServiceBusy(busy){
+    const save = document.getElementById('serviceSave');
+    const clear = document.getElementById('serviceClear');
+    if(save) save.disabled = !!busy;
+    if(clear) clear.disabled = !!busy;
+  }
+
+  async function loadServiceWeek(){
+    if(!serviceWeekBase) return;
+    const loadSeq = ++serviceWeekLoadSeq;
+    const input = document.getElementById('serviceWeekDate');
+    const select = document.getElementById('serviceUser');
+    const clear = document.getElementById('serviceClear');
+    if(input) input.value = ymd(serviceWeekBase);
+    updateServiceWeekRange();
+    setServiceBusy(true);
+    setServiceCurrent('A carregar a semana...', '');
+    try{
+      const response = await fetch(`/api/srv/week?date=${encodeURIComponent(ymd(serviceWeekBase))}&_=${Date.now()}`, { cache: 'no-store' });
+      const data = await response.json();
+      if(loadSeq !== serviceWeekLoadSeq) return;
+      if(!response.ok || data.error) throw new Error(data.error || 'Erro ao carregar o serviço semanal.');
+      serviceWeekBase = parseLocalYmd(data.week_start) || serviceWeekBase;
+      if(input) input.value = ymd(serviceWeekBase);
+      updateServiceWeekRange();
+
+      if(select) select.value = data.state === 'uniform' ? String(data.uniform_user || '') : '';
+      if(clear) clear.disabled = data.state === 'empty';
+      if(data.state === 'uniform'){
+        const firstAssignment = (data.days || []).flatMap(day => day.users || [])[0];
+        setServiceCurrent(`Serviço atual: ${firstAssignment ? firstAssignment.nome : data.uniform_user}.`, '');
+      }else if(data.state === 'mixed'){
+        const weekdayLabels = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+        const detail = (data.days || []).map((day, index) => {
+          const names = (day.users || []).map(user => user.nome || user.login).join(', ') || 'Sem serviço';
+          return `${weekdayLabels[index] || ''}: ${names}`;
+        }).join(' · ');
+        setServiceCurrent(`A semana tem ajustes por dia. Ao gravar, toda a semana ficará com o utilizador selecionado. ${detail}`, 'warning');
+      }else{
+        setServiceCurrent('Ainda não existe ninguém de serviço nesta semana.', '');
+      }
+    }catch(error){
+      if(loadSeq !== serviceWeekLoadSeq) return;
+      setServiceCurrent(error.message || 'Erro ao carregar o serviço semanal.', 'error');
+    }finally{
+      if(loadSeq === serviceWeekLoadSeq){
+        const current = document.getElementById('serviceCurrent');
+        const isEmpty = current && current.textContent.includes('Ainda não existe');
+        setServiceBusy(false);
+        if(clear && isEmpty) clear.disabled = true;
+      }
+    }
+  }
+
+  async function openServiceModal(){
+    try{
+      await loadUsers();
+      renderServiceUsers();
+      const today = new Date();
+      const calendarIsCurrentMonth = currentBase.getFullYear() === today.getFullYear()
+        && currentBase.getMonth() === today.getMonth();
+      const anchor = calendarIsCurrentMonth ? today : firstOfMonth(currentBase);
+      serviceWeekBase = startOfServiceWeek(anchor);
+      const modalElement = document.getElementById('serviceModal');
+      if(window.bootstrap && modalElement){
+        bootstrap.Modal.getOrCreateInstance(modalElement).show();
+      }
+      await loadServiceWeek();
+    }catch(error){
+      console.error(error);
+      setStatus(error.message || 'Erro ao abrir o serviço semanal.', true);
+    }
+  }
+
+  async function saveServiceWeek(clearWeek){
+    if(!serviceWeekBase) return;
+    const select = document.getElementById('serviceUser');
+    const utilizador = clearWeek ? '' : String(select ? select.value : '').trim();
+    if(!clearWeek && !utilizador){
+      setServiceCurrent('Selecione o utilizador que ficará de serviço.', 'error');
+      return;
+    }
+    if(clearWeek && !window.confirm('Remover o serviço de todos os dias desta semana?')) return;
+
+    setServiceBusy(true);
+    setServiceCurrent(clearWeek ? 'A limpar a semana...' : 'A gravar a semana...', '');
+    try{
+      const response = await fetch('/api/srv/week', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ week_start: ymd(serviceWeekBase), utilizador }),
+      });
+      const data = await response.json();
+      if(!response.ok || data.error) throw new Error(data.error || 'Erro ao gravar o serviço semanal.');
+      const modalElement = document.getElementById('serviceModal');
+      if(window.bootstrap && modalElement){
+        bootstrap.Modal.getOrCreateInstance(modalElement).hide();
+      }
+      await loadMonth();
+      setStatus(clearWeek
+        ? 'Serviço removido desta semana.'
+        : `${data.nome || utilizador} ficou de serviço de segunda-feira a domingo.`);
+    }catch(error){
+      setServiceCurrent(error.message || 'Erro ao gravar o serviço semanal.', 'error');
+      setServiceBusy(false);
+    }
+  }
+
   async function loadMonth(){
     const loadSeq = ++ndLoadSeq;
     const loadBase = new Date(currentBase.getFullYear(), currentBase.getMonth(), 1);
@@ -1167,6 +1493,7 @@
       if(!res.ok || data.error) throw new Error(data.error || 'Erro ao carregar');
       ndRows = (data && data.rows) || [];
       cleaningsByDate = (data && data.limpezas) || {};
+      serviceByDate = (data && data.servico) || {};
       const visibleRows = applyDepartmentFilter(false);
       const suffix = visibleRows.length === ndRows.length ? '' : ` de ${ndRows.length}`;
       setStatus(`${visibleRows.length}${suffix} registos carregados.`);
@@ -1176,6 +1503,7 @@
       ndRows = [];
       ndByDate = {};
       cleaningsByDate = {};
+      serviceByDate = {};
       renderMonth();
       setStatus(e.message || 'Falha ao carregar calend\u00e1rio.', true);
     }
@@ -1299,10 +1627,42 @@
     return `<span class="nd-badge nd-availability" style="${escapeHtml(ndBadgeStyle(bg))}" title="${escapeHtml(`${user.nome} · A trabalhar`)}"><span class="nd-badge-name">${escapeHtml(user.nome)}</span></span>`;
   }
 
+  function ndServiceBadge(user){
+    const name = String(user.nome || user.login || '').trim();
+    const bg = userColor(user.cor);
+    return `<span class="nd-badge nd-service-person" style="${escapeHtml(ndBadgeStyle(bg))}" title="${escapeHtml(`${name} · De serviço`)}"><span class="nd-badge-name">${escapeHtml(name)}</span></span>`;
+  }
+
+  function renderServiceDepartment(users){
+    const serviceUsers = Array.isArray(users) ? users.filter(user => String(user.nome || user.login || '').trim()) : [];
+    if(!serviceUsers.length) return '';
+    const people = new Set(serviceUsers.map(user => String(user.login || user.nome || '').trim().toUpperCase()));
+    const count = people.size;
+    return `<div class="nd-list nd-list-separated nd-service-list">
+      <div class="nd-day-department-group nd-service-department">
+        <div class="nd-day-department-separator" title="SERVIÇO: ${count} ${count === 1 ? 'pessoa' : 'pessoas'}">
+          <span class="nd-day-department-name">SERVIÇO</span>
+          <span class="nd-day-department-line" aria-hidden="true"></span>
+          <span class="nd-day-department-count">${count}</span>
+        </div>
+        <div class="nd-day-department-items">${serviceUsers.map(ndServiceBadge).join('')}</div>
+      </div>
+    </div>`;
+  }
+
   function departmentDisplayName(value){
     const normalized = normalizeDepartment(value);
     const option = departmentsCache.find(item => normalizeDepartment(item.value) === normalized);
     return option ? option.label : (normalized || 'Sem departamento');
+  }
+
+  function compareDepartments(leftValue, rightValue){
+    const left = normalizeDepartment(leftValue);
+    const right = normalizeDepartment(rightValue);
+    const rank = value => value.toLocaleUpperCase('pt-PT') === 'EXTERNOS' ? 2 : (value ? 0 : 1);
+    const rankDifference = rank(left) - rank(right);
+    if(rankDifference) return rankDifference;
+    return departmentDisplayName(left).localeCompare(departmentDisplayName(right), 'pt-PT');
   }
 
   function renderDayItems(items, badgeRenderer){
@@ -1314,7 +1674,7 @@
       groups.get(department).push(item);
     });
     return Array.from(groups.entries())
-      .sort((left, right) => departmentDisplayName(left[0]).localeCompare(departmentDisplayName(right[0]), 'pt-PT'))
+      .sort((left, right) => compareDepartments(left[0], right[0]))
       .map(([department, groupItems]) => {
         const people = new Set(groupItems.map(item => String(item.login || item.nome || '').trim().toUpperCase()));
         const count = people.size;
@@ -1353,6 +1713,7 @@
 
   function toggleViewMode(){
     ndViewMode = ndViewMode === 'folgas' ? 'disponibilidades' : 'folgas';
+    persistViewMode();
     renderMonth();
     syncViewModeUi();
     setStatus(ndViewMode === 'disponibilidades'
@@ -1408,6 +1769,10 @@
         const cleaningBadge = cleaningCount > 0
           ? `<span class="nd-cleaning-count" title="${cleaningCount} limpezas"><i class="fa-solid fa-broom"></i>${cleaningCount}</span>`
           : '';
+        const serviceDepartment = ndViewMode === 'disponibilidades'
+          && selectedDepartments.has('SERVIÇO')
+          ? renderServiceDepartment(serviceByDate[key] || [])
+          : '';
         visibleRows += visibleItems.length;
         const isToday = (new Date().toDateString() === cell.toDateString());
         const wdIdx = (cell.getDay()+6)%7;
@@ -1415,6 +1780,7 @@
         html += `<td class="day-cell ${isToday?'today':''}${weekendCls}" data-date="${key}">
                    <div class="day-number"><span class="nd-day-value">${cell.getDate()}</span>${cleaningBadge}</div>
                    <div class="nd-list${ndShowDepartmentSeparators ? ' nd-list-separated' : ''}">${badges}</div>
+                   ${serviceDepartment}
                  </td>`;
       }
       html += '</tr>';
@@ -1552,16 +1918,41 @@
   }
 
   document.addEventListener('DOMContentLoaded', ()=>{
+    restoreViewMode();
+    syncViewModeUi();
     restoreDepartmentSeparators();
     syncDepartmentSeparatorsUi();
     const prevBtn = document.getElementById('prev-month');
     const nextBtn = document.getElementById('next-month');
     const todayBtn = document.getElementById('ndTodayBtn');
     const viewModeBtn = document.getElementById('ndViewModeBtn');
+    const serviceBtn = document.getElementById('ndServiceBtn');
+    const serviceWeekDate = document.getElementById('serviceWeekDate');
+    const servicePrevWeek = document.getElementById('servicePrevWeek');
+    const serviceNextWeek = document.getElementById('serviceNextWeek');
+    const serviceSave = document.getElementById('serviceSave');
+    const serviceClear = document.getElementById('serviceClear');
     if(prevBtn) prevBtn.addEventListener('click', ()=>{ currentBase = new Date(currentBase.getFullYear(), currentBase.getMonth()-1, 1); loadMonth(); });
     if(nextBtn) nextBtn.addEventListener('click', ()=>{ currentBase = new Date(currentBase.getFullYear(), currentBase.getMonth()+1, 1); loadMonth(); });
     if(todayBtn) todayBtn.addEventListener('click', ()=>{ const now = new Date(); currentBase = new Date(now.getFullYear(), now.getMonth(), 1); loadMonth(); });
     if(viewModeBtn) viewModeBtn.addEventListener('click', toggleViewMode);
+    if(serviceBtn) serviceBtn.addEventListener('click', openServiceModal);
+    if(serviceWeekDate) serviceWeekDate.addEventListener('change', ()=>{
+      const selected = parseLocalYmd(serviceWeekDate.value);
+      if(!selected) return;
+      serviceWeekBase = startOfServiceWeek(selected);
+      loadServiceWeek();
+    });
+    if(servicePrevWeek) servicePrevWeek.addEventListener('click', ()=>{
+      serviceWeekBase = serviceAddDays(serviceWeekBase || startOfServiceWeek(new Date()), -7);
+      loadServiceWeek();
+    });
+    if(serviceNextWeek) serviceNextWeek.addEventListener('click', ()=>{
+      serviceWeekBase = serviceAddDays(serviceWeekBase || startOfServiceWeek(new Date()), 7);
+      loadServiceWeek();
+    });
+    if(serviceSave) serviceSave.addEventListener('click', ()=>saveServiceWeek(false));
+    if(serviceClear) serviceClear.addEventListener('click', ()=>saveServiceWeek(true));
 
     const departmentFilter = document.getElementById('ndDepartmentFilter');
     const departmentToggle = document.getElementById('ndDepartmentToggle');

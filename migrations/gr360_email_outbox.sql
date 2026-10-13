@@ -69,9 +69,47 @@ BEGIN
         CONSTRAINT CK_GR360_EMAIL_OUTBOX_TENTATIVAS
             CHECK (TENTATIVAS >= 0 AND MAX_TENTATIVAS BETWEEN 1 AND 100),
         CONSTRAINT CK_GR360_EMAIL_OUTBOX_PERFIL
-            CHECK (PERFIL_DBMAIL = N'PHC GR360')
+            CHECK (LEN(LTRIM(RTRIM(PERFIL_DBMAIL))) > 0)
     );
 END;
+GO
+
+/* Atualiza instalações existentes sem alterar mensagens já enfileiradas. */
+IF COL_LENGTH(N'dbo.GR360_EMAIL_OUTBOX', N'PERFIL_DBMAIL') IS NULL
+BEGIN
+    ALTER TABLE dbo.GR360_EMAIL_OUTBOX
+        ADD PERFIL_DBMAIL sysname NOT NULL
+            CONSTRAINT DF_GR360_EMAIL_OUTBOX_PERFIL DEFAULT (N'PHC GR360') WITH VALUES;
+END;
+GO
+
+IF NOT EXISTS
+(
+    SELECT 1
+    FROM sys.default_constraints AS D
+    INNER JOIN sys.columns AS C
+            ON C.object_id = D.parent_object_id
+           AND C.column_id = D.parent_column_id
+    WHERE D.parent_object_id = OBJECT_ID(N'dbo.GR360_EMAIL_OUTBOX')
+      AND C.name = N'PERFIL_DBMAIL'
+)
+BEGIN
+    ALTER TABLE dbo.GR360_EMAIL_OUTBOX
+        ADD CONSTRAINT DF_GR360_EMAIL_OUTBOX_PERFIL
+            DEFAULT (N'PHC GR360') FOR PERFIL_DBMAIL;
+END;
+GO
+
+IF OBJECT_ID(N'dbo.CK_GR360_EMAIL_OUTBOX_PERFIL', N'C') IS NOT NULL
+BEGIN
+    ALTER TABLE dbo.GR360_EMAIL_OUTBOX
+        DROP CONSTRAINT CK_GR360_EMAIL_OUTBOX_PERFIL;
+END;
+GO
+
+ALTER TABLE dbo.GR360_EMAIL_OUTBOX WITH CHECK
+    ADD CONSTRAINT CK_GR360_EMAIL_OUTBOX_PERFIL
+        CHECK (LEN(LTRIM(RTRIM(PERFIL_DBMAIL))) > 0);
 GO
 
 IF OBJECT_ID(N'dbo.GR360_EMAIL_OUTBOX_ANEXO', N'U') IS NULL
@@ -255,6 +293,7 @@ BEGIN
         @Bcc nvarchar(max),
         @Corpo nvarchar(max),
         @Formato varchar(10),
+        @PerfilDbMail sysname,
         @AnexosFinais nvarchar(max),
         @MailItemId int,
         @Erro nvarchar(max);
@@ -268,6 +307,7 @@ BEGIN
             Q.BCC,
             Q.CORPO,
             Q.FORMATO_CORPO,
+            Q.PERFIL_DBMAIL,
             NULLIF(LTRIM(RTRIM(Q.ANEXOS)), N'')
         FROM dbo.GR360_EMAIL_OUTBOX AS Q
         INNER JOIN @Selecionados AS S ON S.EMAIL_ID = Q.EMAIL_ID
@@ -276,7 +316,7 @@ BEGIN
 
     OPEN EmailCursor;
     FETCH NEXT FROM EmailCursor
-        INTO @EmailId, @Assunto, @Para, @Cc, @Bcc, @Corpo, @Formato, @AnexosFinais;
+        INTO @EmailId, @Assunto, @Para, @Cc, @Bcc, @Corpo, @Formato, @PerfilDbMail, @AnexosFinais;
 
     WHILE @@FETCH_STATUS = 0
     BEGIN
@@ -354,10 +394,11 @@ BEGIN
             SET @MailItemId = NULL;
             SET @Cc = NULLIF(LTRIM(RTRIM(@Cc)), N'');
             SET @Bcc = NULLIF(LTRIM(RTRIM(@Bcc)), N'');
+            SET @PerfilDbMail = COALESCE(NULLIF(LTRIM(RTRIM(@PerfilDbMail)), N''), N'PHC GR360');
             SET @AnexosFinais = NULLIF(LTRIM(RTRIM(@AnexosFinais)), N'');
 
             EXEC msdb.dbo.sp_send_dbmail
-                @profile_name = N'PHC GR360',
+                @profile_name = @PerfilDbMail,
                 @recipients = @Para,
                 @copy_recipients = @Cc,
                 @blind_copy_recipients = @Bcc,
@@ -414,7 +455,7 @@ BEGIN
         END CATCH;
 
         FETCH NEXT FROM EmailCursor
-            INTO @EmailId, @Assunto, @Para, @Cc, @Bcc, @Corpo, @Formato, @AnexosFinais;
+            INTO @EmailId, @Assunto, @Para, @Cc, @Bcc, @Corpo, @Formato, @PerfilDbMail, @AnexosFinais;
     END;
 
     CLOSE EmailCursor;

@@ -250,6 +250,7 @@ class US(UserMixin, db.Model):
     EMAIL    = db.Column(db.String(120), unique=True, nullable=False)
     COR      = db.Column(db.String(20), nullable=True)
     ADMIN    = db.Column(db.Boolean, default=False, nullable=False)
+    EXTERNO  = db.Column(db.Boolean, default=False, nullable=False)
     EQUIPA   = db.Column(db.String(25), nullable=True)
     DEV      = db.Column(db.Boolean, default=False, nullable=False)
     MNADMIN  = db.Column(db.Boolean, default=False, nullable=False)

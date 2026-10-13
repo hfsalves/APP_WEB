@@ -143,6 +143,19 @@ class ExpenseProcessingServiceTests(unittest.TestCase):
         net_b, vat_b = service._vat_amounts_from_gross('0.20', '23')
         self.assertEqual(Decimal('0.30'), (net_a + vat_a + net_b + vat_b).quantize(Decimal('0.01')))
 
+    def test_phc_line_fills_local_and_euro_unit_values(self):
+        values = service._phc_bi_money_values('10.20')
+
+        self.assertEqual(Decimal('10.20'), values['epu'])
+        self.assertEqual(Decimal('10.20'), values['edebito'])
+        self.assertEqual(Decimal('10.20'), values['ettdeb'])
+        self.assertEqual(Decimal('10.20'), values['epcusto'])
+        self.assertEqual(Decimal('2044.91640'), values['pu'])
+        self.assertEqual(values['pu'], values['debito'])
+        self.assertEqual(values['pu'], values['ttdeb'])
+        self.assertEqual(values['pu'], values['pcusto'])
+        self.assertEqual(values['pu'], values['prorc'])
+
     def test_reference_migration_preserves_useful_text_in_history(self):
         migration = (Path(__file__).resolve().parents[1] / 'migrations' / 'tp073_expense_processing_post_receipt.sql').read_text(encoding='utf-8')
         self.assertIn("'MIGRACAO_TP073'", migration)

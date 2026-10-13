@@ -82,6 +82,23 @@ def _phc_value(value: Any) -> Decimal:
     return (_safe_decimal(value) * PHC_CONVERSION_RATE).quantize(Decimal('0.00001'), rounding=ROUND_HALF_UP)
 
 
+def _phc_bi_money_values(net_value: Any) -> dict[str, Decimal]:
+    """Return the matching local and euro values required by a PHC BI row."""
+    euro_value = _safe_decimal(net_value)
+    local_value = _phc_value(euro_value)
+    return {
+        'pu': local_value,
+        'epu': euro_value,
+        'debito': local_value,
+        'edebito': euro_value,
+        'ttdeb': local_value,
+        'ettdeb': euro_value,
+        'pcusto': local_value,
+        'epcusto': euro_value,
+        'prorc': local_value,
+    }
+
+
 def _vat_amounts_from_gross(gross_value: Any, rate_value: Any) -> tuple[Decimal, Decimal]:
     gross = _safe_decimal(gross_value)
     rate = _safe_decimal(rate_value)
@@ -2763,7 +2780,6 @@ def launch_expenses_to_phc(stamps: list[str], user) -> dict[str, Any]:
                 row = line['row']
                 article = line['article']
                 phc_net = line['phc_net'].quantize(Decimal('0.01'))
-                local_net = _phc_value(phc_net)
                 bi_values = {
                     'bistamp': line['bistamp'],
                     'bostamp': bostamp,
@@ -2778,14 +2794,7 @@ def launch_expenses_to_phc(stamps: list[str], user) -> dict[str, Any]:
                     # QTT2 is the quantity satisfied by downstream documents.
                     # A new internal dossier line must always start unsatisfied.
                     'qtt2': Decimal('0.0000'),
-                    'pu': local_net,
-                    'debito': local_net,
-                    'edebito': phc_net,
-                    'ttdeb': local_net,
-                    'ettdeb': phc_net,
-                    'pcusto': local_net,
-                    'epcusto': phc_net,
-                    'prorc': local_net,
+                    **_phc_bi_money_values(phc_net),
                     'iva': line['taxaiva'],
                     'tabiva': line['tabiva'],
                     'ivaincl': 0,

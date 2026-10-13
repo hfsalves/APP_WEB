@@ -10,6 +10,7 @@ from flask import current_app
 from sqlalchemy import text
 
 from models import db
+from services.auth_service import hash_password
 
 
 def _conn_part(conn_str: str, key: str) -> str:
@@ -51,6 +52,20 @@ def _phc_conn_str(database_name: str, server_name: str = "") -> str:
     return conn_str
 
 
+def _portal_table_columns(table_name: str) -> set[str]:
+    rows = db.session.execute(text("""
+        SELECT UPPER(COLUMN_NAME) AS COLUMN_NAME
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = 'dbo'
+          AND TABLE_NAME = :table_name
+    """), {"table_name": str(table_name or "").strip()}).scalars().all()
+    return {str(value or "").strip().upper() for value in rows}
+
+
+def _first_existing_column(columns: set[str], candidates: list[str]) -> str:
+    return next((candidate for candidate in candidates if candidate.upper() in columns), "")
+
+
 def _active_fe_sources() -> list[dict]:
     rows = db.session.execute(text("""
         SELECT
@@ -67,20 +82,176 @@ def _active_fe_sources() -> list[dict]:
 
 
 def collaborator_user_company_options() -> list[dict]:
-    """Return the active companies that can be assigned to a local user."""
-    rows = db.session.execute(text("""
+    """Return active companies, including whether they can supply PHC employees."""
+    columns = _portal_table_columns("FE")
+    database_column = _first_existing_column(columns, [
+        "PHC_DATABASE", "PHC_DB", "DBPHC", "BDPHC",
+        "ERP_DATABASE", "ERP_DB", "DBERP", "BDERP",
+        "DATABASE_NAME", "DB_NAME", "DBNAME",
+        "BASEDADOS", "BASE_DADOS", "BD", "NOMEBD",
+    ])
+    server_column = _first_existing_column(columns, [
+        "PHC_SERVER", "SERVER_PHC", "ERP_SERVER", "SERVER_ERP",
+        "SQLSERVER", "SQL_SERVER", "SERVIDOR", "SERVER",
+    ])
+    database_select = f"LTRIM(RTRIM(ISNULL([{database_column}], '')))" if database_column else "CAST('' AS varchar(128))"
+    server_select = f"LTRIM(RTRIM(ISNULL([{server_column}], '')))" if server_column else "CAST('' AS varchar(128))"
+    rows = db.session.execute(text(f"""
         SELECT
             ISNULL(FEID, 0) AS FEID,
-            LTRIM(RTRIM(ISNULL(NOME, ''))) AS NOME
+            LTRIM(RTRIM(ISNULL(NOME, ''))) AS NOME,
+            {database_select} AS PHC_DB,
+            {server_select} AS PHC_SERVER
         FROM dbo.FE
         WHERE ISNULL(ATIVA, 1) = 1
         ORDER BY ISNULL(NOME, ''), ISNULL(FEID, 0)
     """)).mappings().all()
     return [
-        {"feid": int(row.get("FEID") or 0), "nome": str(row.get("NOME") or "").strip()}
+        {
+            "feid": int(row.get("FEID") or 0),
+            "nome": str(row.get("NOME") or "").strip(),
+            "phc_configured": bool(str(row.get("PHC_DB") or "").strip()),
+        }
         for row in rows
         if int(row.get("FEID") or 0)
     ]
+
+
+def _collaborator_user_company(feid: int) -> dict | None:
+    columns = _portal_table_columns("FE")
+    database_column = _first_existing_column(columns, [
+        "PHC_DATABASE", "PHC_DB", "DBPHC", "BDPHC",
+        "ERP_DATABASE", "ERP_DB", "DBERP", "BDERP",
+        "DATABASE_NAME", "DB_NAME", "DBNAME",
+        "BASEDADOS", "BASE_DADOS", "BD", "NOMEBD",
+    ])
+    server_column = _first_existing_column(columns, [
+        "PHC_SERVER", "SERVER_PHC", "ERP_SERVER", "SERVER_ERP",
+        "SQLSERVER", "SQL_SERVER", "SERVIDOR", "SERVER",
+    ])
+    database_select = f"LTRIM(RTRIM(ISNULL([{database_column}], '')))" if database_column else "CAST('' AS varchar(128))"
+    server_select = f"LTRIM(RTRIM(ISNULL([{server_column}], '')))" if server_column else "CAST('' AS varchar(128))"
+    row = db.session.execute(text(f"""
+        SELECT TOP 1
+            ISNULL(FEID, 0) AS FEID,
+            LTRIM(RTRIM(ISNULL(NOME, ''))) AS NOME,
+            {database_select} AS PHC_DB,
+            {server_select} AS PHC_SERVER
+        FROM dbo.FE
+        WHERE ISNULL(FEID, 0) = :feid
+          AND ISNULL(ATIVA, 1) = 1
+    """), {"feid": int(feid or 0)}).mappings().first()
+    return dict(row) if row else None
+
+
+def _source_table_columns(cursor, table_name: str) -> set[str]:
+    cursor.execute("""
+        SELECT LOWER(COLUMN_NAME) AS COLUMN_NAME
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = 'dbo'
+          AND TABLE_NAME = ?
+    """, str(table_name or "").strip())
+    return {str(row[0] or "").strip().lower() for row in cursor.fetchall()}
+
+
+def _read_company_employees(company: dict, query: str = "", employee_no: int = 0) -> list[dict]:
+    database_name = str(company.get("PHC_DB") or "").strip()
+    if not database_name:
+        raise ValueError("A empresa selecionada não tem uma base PHC configurada.")
+
+    conn_str = _phc_conn_str(database_name, company.get("PHC_SERVER") or "")
+    with pyodbc.connect(conn_str, timeout=12) as conn:
+        cursor = conn.cursor()
+        columns = _source_table_columns(cursor, "PE")
+        missing = sorted({"no", "nome"} - columns)
+        if missing:
+            raise ValueError(f"A tabela PE não contém os campos necessários: {', '.join(missing)}.")
+
+        status_select = "ISNULL(CONVERT(int, PE.STATUS), 1)" if "status" in columns else "1"
+        status_filter = "ISNULL(PE.STATUS, 1) <> 3" if "status" in columns else ""
+        stadesc_select = (
+            "LTRIM(RTRIM(ISNULL(CONVERT(varchar(120), PE.STADESC), '')))"
+            if "stadesc" in columns else "CAST('' AS varchar(120))"
+        )
+        email_select = (
+            "LTRIM(RTRIM(ISNULL(CONVERT(varchar(160), PE.EMAIL), '')))"
+            if "email" in columns else "CAST('' AS varchar(160))"
+        )
+        ncont_select = (
+            "LTRIM(RTRIM(ISNULL(CONVERT(varchar(40), PE.NCONT), '')))"
+            if "ncont" in columns else "CAST('' AS varchar(40))"
+        )
+
+        where_parts = ["ISNULL(PE.NO, 0) <> 0", status_filter]
+        params: list = []
+        if int(employee_no or 0):
+            where_parts.append("PE.NO = ?")
+            params.append(int(employee_no))
+        else:
+            clean_query = str(query or "").strip()[:80]
+            if clean_query:
+                like_value = f"%{clean_query}%"
+                search_parts = [
+                    "LTRIM(RTRIM(ISNULL(CONVERT(varchar(160), PE.NOME), ''))) LIKE ?",
+                    "CONVERT(varchar(20), PE.NO) LIKE ?",
+                ]
+                params.extend([like_value, like_value])
+                if "email" in columns:
+                    search_parts.append("LTRIM(RTRIM(ISNULL(CONVERT(varchar(160), PE.EMAIL), ''))) LIKE ?")
+                    params.append(like_value)
+                if "ncont" in columns:
+                    search_parts.append("LTRIM(RTRIM(ISNULL(CONVERT(varchar(40), PE.NCONT), ''))) LIKE ?")
+                    params.append(like_value)
+                where_parts.append("(" + " OR ".join(search_parts) + ")")
+
+        where_sql = " AND ".join(part for part in where_parts if part)
+        cursor.execute(f"""
+            SELECT TOP 200
+                ISNULL(CONVERT(int, PE.NO), 0) AS NO,
+                LTRIM(RTRIM(ISNULL(CONVERT(varchar(160), PE.NOME), ''))) AS NOME,
+                {status_select} AS STATUS,
+                {stadesc_select} AS STADESC,
+                {email_select} AS EMAIL,
+                {ncont_select} AS NCONT
+            FROM dbo.PE AS PE
+            WHERE {where_sql}
+            ORDER BY LTRIM(RTRIM(ISNULL(CONVERT(varchar(160), PE.NOME), ''))), PE.NO
+        """, *params)
+        return [
+            {
+                "no": int(row.NO or 0),
+                "nome": str(row.NOME or "").strip(),
+                "status": int(row.STATUS or 0),
+                "estado": str(row.STADESC or "").strip(),
+                "email": str(row.EMAIL or "").strip(),
+                "ncont": str(row.NCONT or "").strip(),
+            }
+            for row in cursor.fetchall()
+            if int(row.NO or 0)
+        ]
+
+
+def collaborator_user_employee_options(feid: int, query: str = "") -> dict:
+    company = _collaborator_user_company(int(feid or 0))
+    if not company:
+        raise ValueError("Empresa inválida ou inativa.")
+    rows = _read_company_employees(company, query=query)
+    return {
+        "ok": True,
+        "empresa": {"feid": int(company["FEID"]), "nome": str(company.get("NOME") or "").strip()},
+        "rows": rows,
+        "limited": len(rows) >= 200,
+    }
+
+
+def _collaborator_user_employee(feid: int, employee_no: int) -> tuple[dict, dict]:
+    company = _collaborator_user_company(int(feid or 0))
+    if not company:
+        raise ValueError("Empresa inválida ou inativa.")
+    rows = _read_company_employees(company, employee_no=int(employee_no or 0))
+    if not rows:
+        raise ValueError("O funcionário selecionado não existe ou já não está ativo nessa empresa.")
+    return company, rows[0]
 
 
 def _source_us_columns(cursor) -> set[str]:
@@ -309,6 +480,7 @@ def _insert_or_update_user(row: dict) -> tuple[str, bool]:
     nome = str(row.get("nome") or login).strip()[:60]
     email = str(row.get("email") or "").strip()[:120]
     password = str(row.get("password") or "").strip()[:128]
+    home = str(row.get("home") or "").strip().strip("/")[:120]
     vendedor = int(row.get("vendedor") or 0)
     if not email:
         email = _generated_missing_email(login)
@@ -350,7 +522,7 @@ def _insert_or_update_user(row: dict) -> tuple[str, bool]:
         VALUES
         (
             :USSTAMP, :NOME, :LOGIN, :PASSWORD, :EMAIL,
-            0, '', '', 0, '', 0, 0, 0,
+            0, '', '', 0, :HOME, 0, 0, 0,
             '', '', 0, '', 0, 0, 'LIGHT MODE',
             0, 0, 0,
             1, 0, '', '', :VENDEDOR
@@ -361,6 +533,7 @@ def _insert_or_update_user(row: dict) -> tuple[str, bool]:
         "LOGIN": login[:60],
         "PASSWORD": password,
         "EMAIL": email,
+        "HOME": home,
         "VENDEDOR": vendedor,
     })
     return usstamp, True
@@ -459,14 +632,97 @@ def _ensure_collaborator_accesses(login: str, usstamp: str) -> None:
         """), {**params, "acessosstamp": uuid.uuid4().hex.upper()[:25]})
 
 
+def _local_us_columns() -> set[str]:
+    return _portal_table_columns("US")
+
+
+def _require_employee_link_columns() -> set[str]:
+    columns = _local_us_columns()
+    missing = sorted({"PENO", "PENOME", "PEFEID"} - columns)
+    if missing:
+        raise RuntimeError(
+            "A estrutura de utilizadores não suporta a associação ao funcionário PHC. "
+            "Execute a migration migrations/us_employee_link.sql."
+        )
+    return columns
+
+
+def _employee_link_conflict(pefeid: int, peno: int) -> dict | None:
+    columns = _require_employee_link_columns()
+    active_filter = "AND ISNULL(IS_ACTIVE, 1) = 1" if "IS_ACTIVE" in columns else ""
+    row = db.session.execute(text(f"""
+        SELECT TOP 1
+            LTRIM(RTRIM(ISNULL(USSTAMP, ''))) AS USSTAMP,
+            LTRIM(RTRIM(ISNULL(LOGIN, ''))) AS LOGIN,
+            LTRIM(RTRIM(ISNULL(NOME, ''))) AS NOME
+        FROM dbo.US
+        WHERE ISNULL(PEFEID, 0) = :pefeid
+          AND ISNULL(PENO, 0) = :peno
+          AND ISNULL(INATIVO, 0) = 0
+          {active_filter}
+        ORDER BY LOGIN
+    """), {"pefeid": int(pefeid), "peno": int(peno)}).mappings().first()
+    return dict(row) if row else None
+
+
+def _set_user_employee_link(usstamp: str, company: dict, employee: dict) -> None:
+    columns = _require_employee_link_columns()
+    assignments = ["PENO = :peno", "PENOME = :penome", "PEFEID = :pefeid"]
+    params = {
+        "peno": int(employee.get("no") or 0),
+        "penome": str(employee.get("nome") or "").strip()[:60],
+        "pefeid": int(company.get("FEID") or 0),
+        "usstamp": str(usstamp or "").strip(),
+    }
+    if "PEEMPRESA" in columns:
+        assignments.append("PEEMPRESA = :peempresa")
+        params["peempresa"] = str(company.get("NOME") or "").strip()[:120]
+    db.session.execute(text(f"""
+        UPDATE dbo.US
+           SET {', '.join(assignments)}
+         WHERE USSTAMP = :usstamp
+    """), params)
+
+
+def _set_initial_password_hash(usstamp: str, password: str) -> None:
+    columns = _local_us_columns()
+    if not {"PASSWORD_HASH", "PASSWORD_ALGO"}.issubset(columns):
+        return
+    password_hash, password_algo = hash_password(password)
+    assignments = [
+        "PASSWORD_HASH = :password_hash",
+        "PASSWORD_ALGO = :password_algo",
+    ]
+    if "PASSWORD_MIGRADA" in columns:
+        assignments.append("PASSWORD_MIGRADA = 1")
+    if "PASSWORD_CHANGED_AT" in columns:
+        assignments.append("PASSWORD_CHANGED_AT = :changed_at")
+    db.session.execute(text(f"""
+        UPDATE dbo.US
+           SET {', '.join(assignments)}
+         WHERE USSTAMP = :usstamp
+    """), {
+        "password_hash": password_hash,
+        "password_algo": password_algo,
+        "changed_at": datetime.now(),
+        "usstamp": str(usstamp or "").strip(),
+    })
+
+
 def create_collaborator_user(payload: dict, user_login: str) -> dict:
-    """Create a local collaborator user, entity links and self-service ACLs."""
+    """Create a GR360-only login linked to an employee from a selected PHC company."""
     payload = payload if isinstance(payload, dict) else {}
     nome = str(payload.get("nome") or "").strip()
     login = str(payload.get("login") or "").strip()
     password = str(payload.get("password") or "").strip()
     email = str(payload.get("email") or "").strip()
     raw_feids = payload.get("feids") if isinstance(payload.get("feids"), list) else []
+    try:
+        employer_feid = int(payload.get("employer_feid") or 0)
+        employee_no = int(payload.get("employee_no") or 0)
+        principal_feid = int(payload.get("principal_feid") or 0)
+    except (TypeError, ValueError):
+        raise ValueError("Empresa ou funcionário inválido.")
 
     if not nome:
         raise ValueError("Nome em falta.")
@@ -474,6 +730,8 @@ def create_collaborator_user(payload: dict, user_login: str) -> dict:
         raise ValueError("Login em falta.")
     if not password:
         raise ValueError("Password em falta.")
+    if len(password) < 4:
+        raise ValueError("A password deve ter pelo menos 4 caracteres.")
     if not email or "@" not in email:
         raise ValueError("Indique um email válido.")
     if len(nome) > 60 or len(login) > 60 or len(password) > 128 or len(email) > 120:
@@ -489,6 +747,16 @@ def create_collaborator_user(payload: dict, user_login: str) -> dict:
             feids.append(feid)
     if not feids:
         raise ValueError("Selecione pelo menos uma empresa.")
+    if not employer_feid:
+        raise ValueError("Selecione a empresa onde o colaborador trabalha.")
+    if not employee_no:
+        raise ValueError("Selecione o funcionário da empresa.")
+    if employer_feid not in feids:
+        raise ValueError("A empresa onde o colaborador trabalha também deve estar nas empresas acessíveis.")
+    if not principal_feid:
+        principal_feid = employer_feid
+    if principal_feid not in feids:
+        raise ValueError("A empresa principal deve fazer parte das empresas acessíveis.")
 
     available_feids = {row["feid"] for row in collaborator_user_company_options()}
     invalid_feids = [str(feid) for feid in feids if feid not in available_feids]
@@ -499,18 +767,29 @@ def create_collaborator_user(payload: dict, user_login: str) -> dict:
     if _email_conflict(email):
         raise ValueError(f"Já existe um utilizador com o email {email}.")
 
+    employer, employee = _collaborator_user_employee(employer_feid, employee_no)
+    employee_conflict = _employee_link_conflict(employer_feid, employee_no)
+    if employee_conflict:
+        raise ValueError(
+            f"O funcionário {employee.get('nome') or employee_no} já está associado "
+            f"ao utilizador {employee_conflict.get('LOGIN') or employee_conflict.get('NOME') or '-'}."
+        )
+
     with db.session.begin_nested():
         usstamp, created = _insert_or_update_user({
             "nome": nome,
             "login": login,
             "password": password,
             "email": email,
+            "home": "dashboard",
             "vendedor": 0,
         })
         if not created:
             raise ValueError(f"Já existe um utilizador com o login {login}.")
-        for index, feid in enumerate(feids):
-            _ensure_user_company(usstamp, feid, index == 0, user_login)
+        _set_initial_password_hash(usstamp, password)
+        _set_user_employee_link(usstamp, employer, employee)
+        for feid in feids:
+            _ensure_user_company(usstamp, feid, feid == principal_feid, user_login)
         _ensure_collaborator_accesses(login, usstamp)
     db.session.commit()
     return {
@@ -518,6 +797,11 @@ def create_collaborator_user(payload: dict, user_login: str) -> dict:
         "usstamp": usstamp,
         "login": login,
         "empresas": len(feids),
+        "employee": {
+            "pefeid": employer_feid,
+            "peno": employee_no,
+            "penome": str(employee.get("nome") or "").strip(),
+        },
     }
 
 

@@ -159,6 +159,31 @@
   background: color-mix(in srgb, var(--sz-color-primary) 7%, transparent);
 }
 
+.gr-submeasure-lines-table .gr-submeasure-budget-group td {
+  padding: 0.55rem 0.75rem;
+  border-top: 1px solid var(--sz-color-border);
+  border-bottom: 1px solid var(--sz-color-border);
+  background: color-mix(in srgb, var(--sz-color-primary) 9%, var(--sz-color-surface));
+}
+
+.gr-submeasure-budget-group td > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.gr-submeasure-budget-group strong {
+  color: var(--sz-color-text);
+  font-size: var(--sz-font-size-sm);
+}
+
+.gr-submeasure-budget-group span {
+  color: var(--sz-color-text-muted);
+  font-size: var(--sz-font-size-xs);
+  font-weight: 700;
+}
+
 .gr-submeasure-status {
   display: flex;
   flex-direction: column;

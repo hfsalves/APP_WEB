@@ -11,6 +11,7 @@ from services.gr360_audit_service import audit_table_write, should_audit_table
 from services.multiempresa_service import get_current_feid, MissingCurrentEntityError
 from services.phc_user_import_service import (
     collaborator_user_company_options,
+    collaborator_user_employee_options,
     create_collaborator_user,
     import_phc_users,
     inactivate_phc_user,
@@ -45,6 +46,20 @@ EVENT_CURSOR_SQL_FORBIDDEN_RE = re.compile(
 def _ensure_dashboard_links_if_needed(table_name: str) -> None:
     if str(table_name or '').strip().upper() in DASHBOARD_LINKS_TABLES:
         ensure_dashboard_links_schema()
+
+
+def _json_safe_record(record: dict) -> dict:
+    """Convert SQL values unsupported by Flask's JSON provider.
+
+    SQL Server ``rowversion``/``timestamp`` columns are returned by pyodbc as
+    bytes.  Dynamic lists select every physical column, including hidden
+    concurrency columns such as ``TK.TK_VERSION``, so those values must be
+    normalized before the response is passed to ``jsonify``.
+    """
+    return {
+        key: bytes(value).hex() if isinstance(value, (bytes, bytearray, memoryview)) else value
+        for key, value in record.items()
+    }
 
 
 def _generic_audit_enabled(table_name: str) -> bool:
@@ -2445,9 +2460,30 @@ def us_collaborator_wizard_options():
     if not has_permission('US', 'inserir'):
         return jsonify({'error': 'Sem permissão para criar utilizadores'}), 403
     try:
-        return jsonify({'ok': True, 'empresas': collaborator_user_company_options()})
+        companies = collaborator_user_company_options()
+        return jsonify({
+            'ok': True,
+            'empresas': companies,
+            'empresas_empregadoras': [row for row in companies if row.get('phc_configured')],
+        })
     except Exception as e:
         current_app.logger.exception('Erro ao carregar empresas para criação de utilizador')
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/us/collaborator_wizard/employees', methods=['GET'])
+@login_required
+def us_collaborator_wizard_employees():
+    if not has_permission('US', 'inserir'):
+        return jsonify({'error': 'Sem permissão para criar utilizadores'}), 403
+    try:
+        feid = int(request.args.get('feid') or 0)
+        query = str(request.args.get('q') or '').strip()
+        return jsonify(collaborator_user_employee_options(feid, query))
+    except (TypeError, ValueError) as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        current_app.logger.exception('Erro ao carregar funcionários PHC para criação de utilizador')
         return jsonify({'error': str(e)}), 500
 
 
@@ -3607,7 +3643,7 @@ def list_or_describe(table_name):
                 menu_orderby
             )
             rows = db.session.execute(apply_default_order(stmt.order_by(None))).fetchall()
-        records = [dict(r._mapping) for r in rows]
+        records = [_json_safe_record(dict(r._mapping)) for r in rows]
         # 1. Recolhe os campos VIRTUAL para esta tabela
         virtual_fields = (
             Campo.query
