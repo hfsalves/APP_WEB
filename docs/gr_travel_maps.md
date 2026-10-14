@@ -32,7 +32,8 @@ Os POST exigem JSON e o token de sessão enviado em `X-Travel-CSRF`.
 Todos os endpoints exigem autenticação, contexto GR360 e ACL salarial. Os dois
 últimos revalidam o âmbito da empresa. As respostas usam `private, no-store`.
 - `GET /api/gr_mapas/contexto?feid=2&ano=2026&mes=9&employee_key=...`:
-  trabalhador, obras candidatas e versão guardada. `autos_feid` pode repetir-se
+  trabalhador, ficha atual PE/PE2 (`payroll.employee_profile`), obras candidatas
+  e versão guardada. `autos_feid` pode repetir-se
   para selecionar até oito empresas. Se houver versão anterior, a seleção
   original é recuperada por omissão.
 - `GET /api/gr_mapas/propostas?feid=2&ano=2026&mes=9`: resumos das versões atuais.
@@ -110,19 +111,55 @@ ou múltiplas não escolhem uma morada arbitrária. `CCUSTO` é preservado como 
 sem o transformar automaticamente numa associação inequívoca à obra.
 O leitor de autos não deduz o país da base PHC nem uma presença individual na obra.
 
+## Morada e viatura da ficha PHC
+
+Uma nova proposta usa a casa do trabalhador como origem: `PE.MORADA`,
+`PE.CODPOST` e `PE.LOCAL`, pela identidade `PE.PESTAMP` já resolvida no recibo.
+Código postal que já contenha a localidade não a repete. Sem morada, a origem
+fica por indicar; uma localidade isolada não é tratada como endereço de casa.
+O leitor consulta apenas a ficha do trabalhador selecionado, após autorização
+da empresa, sem acrescentar moradas ao painel mensal de todos os trabalhadores.
+
+A matrícula vem de `PE2.MATRICULA`, com `PE2.PE2STAMP = PE.PESTAMP`.
+O campo foi confirmado nas bases PHC configuradas; em HSOLS_PT, os 61
+trabalhadores com recibos em setembro de 2026 tinham morada mas nenhum tinha
+matrícula preenchida na consulta de 14/10/2026. Ausência de PE2/campo/valor é
+explícita e permite indicação manual. Correspondências múltiplas são recusadas.
+Não se deduz o proprietário da viatura nem o país de residência da nacionalidade.
+
+Cada proposta guarda os valores originais, base, tabela, stamp, campos e instante
+da leitura. São dados da **ficha atual**, cuja aplicação ao mês histórico exige
+revisão. Valores mantidos têm proveniência PHC; correções têm proveniência
+DECLARADO e conservam a fonte anterior. As deslocações continuam INFERIDAS.
+Propostas existentes conservam os pressupostos guardados ao reabrir, sem serem
+substituídos pela ficha atual. Uma mudança de morada/matrícula PHC usada nas
+linhas impede validar a proposta antiga; é necessário gerar uma nova versão.
+
 ## Motor determinístico
 
 `engine.py` não usa LLM, rede ou base de dados. Recebe fotografias dos dados
 PHC/autos e pressupostos explícitos. Obras com vários autos são deduplicadas
 por empresa/base/processo; um auto adicional não aumenta a frequência de visitas.
 
-Entradas humanas: origem, país da base, país de referência das AC (PT por
-omissão), viatura/proprietário, obras selecionadas, país/local de cada obra,
-distância de ida e de regresso, fonte da distância, máximo de visitas, dias
+Origem e matrícula são pré-preenchidas pela ficha PHC, quando disponíveis.
+Entradas humanas: eventuais correções à origem/viatura, país da origem, país
+de referência das AC (PT por omissão), proprietário, obras selecionadas,
+país/local de cada obra, distância de ida e de regresso, fonte da distância,
+limite de deslocações por obra e mês, dias
 excluídos, opção de fins de semana e eventuais valores unitários. Todos estes
 pressupostos ficam guardados com autor e explicação. A fonte operacional é
 exclusivamente o auto; os pressupostos humanos não são apresentados como
 registos de presença.
+
+Sem `max_trips` ou com valor `null`, o limite é o número de dias do calendário
+disponível (com exclusões e opção de fins de semana), no máximo uma deslocação
+KM por dia. Não existe um limite arbitrário de 10 nem cálculo a partir dos metros
+executados. O campo «Limite opcional/mês» (`max_trips`, 0–31) permite indicar
+uma restrição conhecida para a obra. A proposta guarda o limite efetivo e a
+origem `max_trips_source = CALENDARIO` ou `DECLARADO`. Não representa visitas
+comprovadas nem limita os dias de ajudas de custo. O calendário conjunto KM/AC
+pode reduzir ainda mais as viagens possíveis. Versões antigas mantêm o limite
+que foi guardado originalmente.
 
 **Distâncias:** nesta entrega são declaradas com a respetiva referência; não
 há geocodificação nem consulta automática a um serviço rodoviário. O cálculo

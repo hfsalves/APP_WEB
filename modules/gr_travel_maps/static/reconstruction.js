@@ -41,21 +41,32 @@
       blocked_dates:$('builderBlocked').value.split(',').map(v=>v.trim()).filter(Boolean),
       rates:{km:numericValue($('builderKmRate')), ac_nacional:numericValue($('builderNationalRate')), ac_estrangeiro:numericValue($('builderForeignRate'))},
       works:[...inputRows.entries()].filter(([,r])=>r.use.checked).map(([key,r])=>({key,country:r.country.value,city:r.city.value,
-        outward_km:numericValue(r.outward_km),return_km:numericValue(r.return_km),distance_source:r.distance_source.value,max_trips:Number(r.max_trips.value)}))};
+        outward_km:numericValue(r.outward_km),return_km:numericValue(r.return_km),distance_source:r.distance_source.value,max_trips:r.max_trips.value===''?null:Number(r.max_trips.value)}))};
   }
   function populateInputs(data) {
     $('builderAllowanceCountry').value=data.allowance_country || 'PT'; $('builderWeekends').checked=!!data.include_weekends;
     for(const [id,key] of [['builderOrigin','origin'],['builderCountry','origin_country'],['builderVehicle','vehicle'],['builderOwner','owner'],['builderNote','note']]) $(id).value=data[key] || '';
     $('builderBlocked').value=(data.blocked_dates || []).join(', ');
     for(const [id,key] of [['builderKmRate','km'],['builderNationalRate','ac_nacional'],['builderForeignRate','ac_estrangeiro']]) $(id).value=data.rates?.[key] ?? '';
+    renderProfileSources();
+  }
+  function renderProfileSources() {
+    const profile=context?.payroll.employee_profile || {};
+    for(const [id,sourceId,key,reference] of [['builderOrigin','builderOriginSource','origin','PE.MORADA / CODPOST / LOCAL'],['builderVehicle','builderVehicleSource','vehicle','PE2.MATRICULA']]) {
+      const value=$(id).value.trim(), original=profile[key] || '';
+      $(sourceId).textContent=original && value===original ? `Fonte: ${reference}${context?.sources_current?'':' (fotografia guardada)'}.` :
+        value ? 'Valor declarado ou recuperado da proposta; confirmar a fonte.' :
+        key==='origin' ? 'Morada em falta no PHC; indique a origem.' : 'Sem matrícula preenchida no PHC; indique a viatura.';
+    }
   }
   function renderWorks(previous={}) {
     const chosen=new Map((previous.works||[]).map(w=>[w.key,w])); inputRows.clear(); $('builderWorks').replaceChildren();
     for(const work of context.works) {
       const old=chosen.get(work.key); const tr=node('tr'); const controls={use:field(!!old,'checkbox',`Usar ${work.work}`)};
       cell(tr).append(controls.use); const title=cell(tr,`${work.work} · ${work.company.name}`); title.append(node('small',`${work.client} · ${work.evidence.length} auto(s)`));
-      for(const [key,value,type,label] of [['country',old?.country||'','text','País'],['city',old?.city??work.locality,'text','Local'],['outward_km',old?.outward_km,'number','Ida km'],['return_km',old?.return_km,'number','Regresso km'],['distance_source',old?.distance_source||'','text','Fonte da distância'],['max_trips',old?.max_trips??10,'number','Máximo de visitas']]) {
+      for(const [key,value,type,label] of [['country',old?.country||'','text','País'],['city',old?.city??work.locality,'text','Local'],['outward_km',old?.outward_km,'number','Ida km'],['return_km',old?.return_km,'number','Regresso km'],['distance_source',old?.distance_source||'','text','Fonte da distância'],['max_trips',old?.max_trips_source==='CALENDARIO'?'':old?.max_trips??'','number','Limite opcional de deslocações por mês']]) {
         const input=field(value,type,`${label} · ${work.work}`); if(type==='number'){input.min='0';input.step=key==='max_trips'?'1':'.01';input.max=key==='max_trips'?'31':'2500';} if(key==='country'){input.maxLength=2;input.placeholder='PT / FR';} controls[key]=input; cell(tr).append(input);
+        if(key==='max_trips'){input.setAttribute('aria-describedby','builderTripLimitHelp');input.placeholder='Automático';input.title='Deixe vazio para usar o calendário. Indique um limite inferior apenas se tiver informação concreta.';}
       }
       inputRows.set(work.key,controls); $('builderWorks').append(tr);
     }
@@ -97,11 +108,13 @@
       context=result;saved=result.saved;history=result.history;
       for(const check of $('builderCompanies').querySelectorAll('input')) check.checked=result.measurement_companies.includes(Number(check.value));
       // The saved snapshot may use other companies; reopen the same evidence selection.
-      const chosen=previous || saved?.current.document.inputs;
+      // Preserve saved/manual assumptions; PHC defaults apply only to a new proposal.
+      const profile=result.payroll.employee_profile || {};
+      const chosen=previous || saved?.current.document.inputs || {origin:profile.origin || '',vehicle:profile.vehicle || '',origin_country:'PT'};
       $('builderEmployee').textContent=`${result.payroll.employee.name} · ${result.payroll.company.name} · ${result.payroll.year}-${String(result.payroll.month).padStart(2,'0')}`;
       $('builderStatus').textContent=result.storage_ready?'Os valores PHC são preservados em cada versão.':'A consulta está disponível. É necessário instalar o armazenamento para guardar propostas.';
       if(result.source_warnings.length) error(result.source_warnings.join(' '));
-      if(chosen)populateInputs(chosen);renderWorks(chosen||{});renderVersion();
+      populateInputs(chosen);renderWorks(chosen);renderVersion();
     }catch(exc){context=null;$('builderResult').hidden=true;error(exc.message);}finally{busy=false;controls();}
   }
   function changes() {
@@ -134,5 +147,6 @@
     write(`propostas/${saved.header.id}/${action}`,{reason:$('builderReason').value,expected_version:saved.header.version,acknowledge_inference:$('builderAcknowledged').checked});});
   $('builderHistory').addEventListener('change',async()=>{if(busy||!saved)return;busy=true;controls();error();try{saved=await api(`propostas/${saved.header.id}?version=${$('builderHistory').value}`);history=saved.history;renderVersion();}catch(exc){error(exc.message);}finally{busy=false;controls();}});
   $('builderLoadWorks').addEventListener('click',()=>load(true));$('builderReload').addEventListener('click',()=>load());
+  for(const id of ['builderOrigin','builderVehicle']) $(id).addEventListener('input',renderProfileSources);
   (async()=>{try{const companies=await api('empresas');$('builderCompanies').replaceChildren(...companies.rows.map(company=>{const label=node('label');const check=field(String(company.feid)===query.get('feid'),'checkbox');check.value=company.feid;label.append(check,node('span',company.name));return label;}));await load();}catch(exc){error(exc.message);}})();
 })();

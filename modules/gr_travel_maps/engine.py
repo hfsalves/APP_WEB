@@ -9,7 +9,7 @@ import json
 
 from .config import CATEGORIES, TravelMapsError, period_bounds
 
-ENGINE_VERSION = 'autos-v1'
+ENGINE_VERSION = 'autos-v2'
 MAX_STATES = 6000
 MAX_WORKS = 40
 D = Decimal
@@ -105,13 +105,17 @@ def normalize_inputs(raw, available, start, end):
         distance_source = text(selection.get('distance_source', ''), 'Fonte da distância', 500)
         if outward is not None and (not result['origin'] or not distance_source):
             raise TravelMapsError('Uma distância requer origem e fonte do percurso.')
-        maximum = selection.get('max_trips', 10)
+        maximum = selection.get('max_trips')
+        automatic_limit = maximum in (None, '')
+        if automatic_limit:
+            maximum = len(calendar_days(start, end, result['blocked_dates'], result['include_weekends']))
         if type(maximum) is not int or not 0 <= maximum <= 31:
-            raise TravelMapsError('O limite de visitas por obra deve estar entre 0 e 31.')
+            raise TravelMapsError('O limite de deslocações por obra e mês deve estar entre 0 e 31.')
         result['works'].append({
             'key': key, 'country': country(selection.get('country', '')),
             'city': text(selection.get('city', work['locality']), 'Local', 300),
             'outward_km': outward, 'return_km': back, 'distance_source': distance_source, 'max_trips': maximum,
+            'max_trips_source': 'CALENDARIO' if automatic_limit else 'DECLARADO',
         })
     result['works'].sort(key=lambda item: (known[item['key']]['company']['feid'], known[item['key']]['work'], item['key']))
     rates = raw.get('rates', {})
@@ -221,7 +225,9 @@ def make_entry(category, day, quantity, work, selection, inputs, employee):
             'country': {'kind': 'DECLARADO', 'reference': inputs['note']},
             'allowance_classification': {'kind': 'CALCULADO', 'reference_country': inputs['allowance_country'],
                                         'rule': 'País da obra comparado com o país de referência declarado das AC.'},
-            'origin': {'kind': 'DECLARADO', 'reference': inputs['note']},
+            'origin': deepcopy(inputs['provenance']['origin']),
+            'vehicle': deepcopy(inputs['provenance']['vehicle']),
+            'owner': {'kind': 'DECLARADO', 'reference': inputs['note']},
             'quantity': {'kind': 'CALCULADO', 'rule': 'ida + regresso' if category == 'km' else 'distribuição dos dias PHC pelo calendário disponível'},
             'rate': rate_source,
         },
@@ -234,7 +240,20 @@ def build(payroll, measurements, raw_inputs):
     if not employee['identity_resolved']:
         raise TravelMapsError('Resolva a identidade PHC do trabalhador antes de guardar propostas.')
     available = candidates(measurements)
+    profile = payroll.get('employee_profile', {})
+    if isinstance(raw_inputs, dict):
+        raw_inputs = {**{field: profile.get(field, '') for field in ('origin', 'vehicle')}, **raw_inputs}
     inputs = normalize_inputs(raw_inputs, available, start, end)
+    # Only server-read PE/PE2 data may establish PHC provenance. Client metadata is ignored.
+    inputs['provenance'] = {}
+    for field in ('origin', 'vehicle'):
+        source = profile.get('provenance', {}).get(field)
+        if source and inputs[field] and inputs[field] == profile.get(field):
+            inputs['provenance'][field] = deepcopy(source)
+        else:
+            inputs['provenance'][field] = {'kind': 'DECLARADO', 'reference': inputs['note']}
+            if source:
+                inputs['provenance'][field]['previous_source'] = deepcopy(source)
     document = {'engine_version': ENGINE_VERSION, 'payroll': deepcopy(payroll), 'measurements': deepcopy(measurements),
                 'inputs': inputs, 'entries': [], 'warnings': [
                     'As datas e a associação trabalhador/obra são inferidas; os autos não comprovam presenças.',
@@ -242,6 +261,7 @@ def build(payroll, measurements, raw_inputs):
                     ('Calendário inclui fins de semana por opção do revisor.' if inputs['include_weekends'] else 'Calendário convencional de segunda a sexta.') + ' Feriados e ausências só são excluídos quando indicados pelo revisor.',
                     'O valor unitário PHC é uma referência salarial, não uma verificação de elegibilidade fiscal.',
                 ], 'validation': None, 'search_truncated': False}
+    document['warnings'].extend(profile.get('warnings', []))
     free = calendar_days(start, end, inputs['blocked_dates'], inputs['include_weekends'])
     works = {work['key']: work for work in available}
     selections = inputs['works']

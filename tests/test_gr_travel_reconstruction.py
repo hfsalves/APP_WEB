@@ -46,6 +46,13 @@ def fixtures():
     return payroll, batches, inputs
 
 
+def profile_fixture():
+    return {'origin': 'Rua da casa 1, Braga', 'vehicle': 'AA-00-BB', 'warnings': [],
+            'provenance': {field: {'kind': 'PHC', 'temporal_scope': 'CURRENT_EMPLOYEE_RECORD',
+                'references': [{'database': 'HSOLS_PT', 'table': table, 'stamp': 'PE12', 'fields': fields}]}
+                for field, table, fields in [('origin', 'PE', ['MORADA', 'CODPOST', 'LOCAL']), ('vehicle', 'PE2', ['MATRICULA'])]}}
+
+
 class EngineTests(unittest.TestCase):
     def setUp(self):
         self.payroll, self.batches, self.inputs = fixtures()
@@ -131,6 +138,25 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(len(engine.candidates(self.batches)),3)
         self.assertEqual(self.build()['reconciliation']['km']['map'],'676')
 
+    def test_default_trip_limit_uses_calendar_instead_of_arbitrary_ten(self):
+        self.inputs['works'] = [next(w for w in self.inputs['works'] if w['outward_km'] == '70')]
+        self.inputs['works'][0].pop('max_trips')
+        self.payroll['employee']['phc']['km']['quantity'] = '1680'
+        document = self.build()
+        self.assertEqual(document['inputs']['works'][0]['max_trips'], 22)
+        self.assertEqual(document['inputs']['works'][0]['max_trips_source'], 'CALENDARIO')
+        self.assertEqual(len(document['entries']), 12)
+        self.assertEqual(document['reconciliation']['km']['map'], '1680')
+        self.inputs['blocked_dates'] = engine.calendar_days(START, END, [])[:-2]
+        self.inputs['works'][0]['max_trips'] = None
+        document = self.build()
+        self.assertEqual(document['inputs']['works'][0]['max_trips'], 2)
+        self.assertEqual(len(document['entries']), 2)
+
+    def test_explicit_trip_limit_is_a_declared_restriction(self):
+        document = self.build()
+        self.assertTrue(all(w['max_trips'] == 3 and w['max_trips_source'] == 'DECLARADO' for w in document['inputs']['works']))
+
     def test_nonpositive_autos_and_unknown_works_cannot_be_selected(self):
         self.batches[0]['rows'][0]['has_positive_measurement']=False
         with self.assertRaises(config.TravelMapsError):self.build()
@@ -195,6 +221,37 @@ class EngineTests(unittest.TestCase):
         document=self.build();engine.check_entries(document,validating=True)
         next(e for e in document['entries'] if e['category']=='km')['vehicle']=''
         with self.assertRaises(config.TravelMapsError):engine.check_entries(document,validating=True)
+
+    def test_employee_home_defaults_are_snapshotted_and_remain_inferred_trips(self):
+        self.payroll['employee_profile'] = profile_fixture()
+        del self.inputs['origin']; del self.inputs['vehicle']
+        document = self.build()
+        for entry in document['entries']:
+            self.assertEqual(entry['origin'], 'Rua da casa 1, Braga')
+            self.assertEqual(entry['vehicle'], 'AA-00-BB')
+            self.assertEqual(entry['provenance']['origin']['kind'], 'PHC')
+            self.assertEqual(entry['provenance']['vehicle']['kind'], 'PHC')
+            self.assertEqual(entry['provenance']['owner']['kind'], 'DECLARADO')
+            self.assertEqual(entry['evidence_type'], 'INFERIDO')
+        self.payroll['employee_profile']['origin'] = 'Outra morada'
+        self.assertEqual(document['payroll']['employee_profile']['origin'], 'Rua da casa 1, Braga')
+
+    def test_override_of_employee_home_cannot_forge_phc_provenance(self):
+        self.payroll['employee_profile'] = profile_fixture()
+        self.inputs['provenance'] = {'origin': {'kind': 'PHC', 'table': 'FORGED'}}
+        document = self.build()
+        for entry in document['entries']:
+            self.assertEqual(entry['origin'], 'Base de teste')
+            self.assertEqual(entry['provenance']['origin']['kind'], 'DECLARADO')
+            self.assertEqual(entry['provenance']['origin']['previous_source']['references'][0]['table'], 'PE')
+
+    def test_edit_vehicle_preserves_original_phc_source_and_value(self):
+        self.payroll['employee_profile'] = profile_fixture()
+        document = self.build(); entry = document['entries'][0]
+        changed = engine.edit(document, [{'id': entry['id'], 'vehicle': 'CC-11-DD'}], 'reviewer', 'Outra viatura')
+        updated = next(e for e in changed['entries'] if e['id'] == entry['id'])
+        self.assertEqual(updated['provenance']['vehicle']['previous_source']['kind'], 'PHC')
+        self.assertEqual(document['entries'][0]['vehicle'], 'AA-00-BB')
 
 
 class StoreTests(unittest.TestCase):
@@ -342,6 +399,27 @@ class WorkflowTests(unittest.TestCase):
         response=self.post(f"propostas/{created['header']['id']}/validar",{'expected_version':1,'request_id':str(uuid.uuid4()),'reason':'Test','acknowledge_inference':True})
         self.assertEqual(response.status_code,409)
         self.assertEqual(store.get(self.db_engine,created['header']['id'])['current']['document']['payroll']['employee']['phc']['km']['quantity'],'684')
+
+    def test_changed_employee_home_blocks_validation_and_keeps_saved_address(self):
+        self.payroll['employee_profile'] = profile_fixture()
+        self.inputs['origin'] = self.payroll['employee_profile']['origin']
+        created = self.generate()
+        self.payroll['employee_profile']['origin'] = 'Nova casa'
+        response = self.post(f"propostas/{created['header']['id']}/validar", {'expected_version': 1, 'request_id': str(uuid.uuid4()), 'reason': 'Revisão', 'acknowledge_inference': True})
+        self.assertEqual(response.status_code, 409, response.json)
+        self.assertIn('morada ou matrícula', response.json['error'])
+        context = self.client.get('/api/gr_mapas/contexto?feid=2&ano=2026&mes=9&employee_key=' + self.payroll['employee']['key']).json
+        self.assertEqual(context['payroll']['employee_profile']['origin'], 'Nova casa')
+        self.assertEqual(context['saved']['current']['document']['inputs']['origin'], 'Rua da casa 1, Braga')
+        self.assertEqual(context['saved']['header']['version'], 1)
+
+    def test_profile_read_timestamp_does_not_invalidate_unchanged_data(self):
+        self.payroll['employee_profile'] = profile_fixture()
+        self.inputs['origin'] = self.payroll['employee_profile']['origin']
+        created = self.generate()
+        self.payroll['employee_profile']['read_at'] = '2026-10-15T00:00:00Z'
+        response = self.post(f"propostas/{created['header']['id']}/validar", {'expected_version': 1, 'request_id': str(uuid.uuid4()), 'reason': 'Conferido', 'acknowledge_inference': True})
+        self.assertEqual(response.status_code, 200, response.json)
 
     def test_changed_auto_blocks_validation(self):
         created=self.generate();self.batches[0]['rows'][0]['has_positive_measurement']=False

@@ -40,7 +40,8 @@ def payroll_snapshot(feid, year, month, employee_key, user):
     if employee is None:
         raise store.NotFound('O trabalhador não tem recibo neste período e empresa.')
     return {key: panel[key] for key in ('company', 'year', 'month', 'read_at', 'mapping', 'period_basis')} | {
-        'employee': employee, 'warnings': panel['warnings']}
+        'employee': employee, 'warnings': panel['warnings'],
+        'employee_profile': service.employee_profile(feid, employee, user)}
 
 
 def payroll_fingerprint(payroll):
@@ -171,6 +172,15 @@ def ensure_sources_current(document, user):
     current = payroll_snapshot(original['company']['feid'], original['year'], original['month'], original['employee']['key'], user)
     if payroll_fingerprint(current) != payroll_fingerprint(original):
         raise store.Conflict('O PHC mudou desde esta proposta. Gere uma nova versão antes de validar.')
+    for entry in document['entries']:
+        if not entry['included']:
+            continue
+        for field in ('origin', 'vehicle'):
+            source = entry['provenance'].get(field, {})
+            if source.get('kind') == 'PHC':
+                profile = current.get('employee_profile', {})
+                if entry[field] != profile.get(field) or source != profile.get('provenance', {}).get(field):
+                    raise store.Conflict('A morada ou matrícula PHC usada na proposta mudou. Gere uma nova versão antes de validar.')
     used = {entry['work_key'] for entry in document['entries'] if entry['included']}
     relevant = [work for work in engine.candidates(document['measurements']) if work['key'] in used]
     batches = [service.monthly_measurements(batch['company']['feid'], original['year'], original['month'], user)

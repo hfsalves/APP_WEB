@@ -180,6 +180,66 @@ class TravelMapServiceTests(unittest.TestCase):
             sources.rows(cursor, "SELECT 1")
 
 
+class EmployeeProfileTests(unittest.TestCase):
+    def setUp(self):
+        self.employee = {'pestamp': 'PE12', 'identity_resolved': True}
+        self.details = {'pe': {'PESTAMP': 'PE12', 'MORADA': ' Rua de teste 1 ', 'CODPOST': '4700-001', 'LOCAL': 'Braga'},
+                        'pe2': {'PE2STAMP': 'PE12', 'MATRICULA': ' AA-00-BB '},
+                        'fields': {'PE': ['PESTAMP', 'MORADA', 'CODPOST', 'LOCAL'], 'PE2': ['PE2STAMP', 'MATRICULA']}}
+
+    def profile(self):
+        with patch.object(service, 'company_for_user', return_value=COMPANY), patch.object(sources, 'employee_details', return_value=self.details):
+            return service.employee_profile(2, self.employee, object())
+
+    def test_address_and_plate_have_exact_phc_sources_without_assuming_owner(self):
+        profile = self.profile()
+        self.assertEqual(profile['origin'], 'Rua de teste 1, 4700-001 Braga')
+        self.assertEqual(profile['vehicle'], 'AA-00-BB')
+        self.assertEqual(profile['provenance']['origin']['references'][0]['fields'], ['MORADA', 'CODPOST', 'LOCAL'])
+        self.assertEqual(profile['provenance']['vehicle']['references'][0]['table'], 'PE2')
+        self.assertEqual(profile['original'], self.details)
+        self.assertNotIn('owner', profile)
+
+    def test_postal_code_with_locality_does_not_duplicate_it(self):
+        self.details['pe']['CODPOST'] = '4700-001 BRAGA'
+        self.assertEqual(self.profile()['origin'], 'Rua de teste 1, 4700-001 BRAGA')
+
+    def test_missing_address_or_plate_remains_unknown(self):
+        self.details['pe']['MORADA'] = ' '
+        self.details['pe2']['MATRICULA'] = ''
+        profile = self.profile()
+        self.assertEqual(profile['origin'], '')
+        self.assertEqual(profile['vehicle'], '')
+        self.assertEqual(profile['provenance'], {})
+        self.assertIn('Morada em falta', profile['warnings'][0])
+
+    def test_unauthorized_or_unresolved_employee_is_not_read(self):
+        with patch.object(service, 'company_for_user', side_effect=config.TravelMapsError('Sem acesso')), patch.object(sources, 'employee_details') as read:
+            with self.assertRaises(config.TravelMapsError): service.employee_profile(2, self.employee, object())
+        read.assert_not_called()
+        self.employee['identity_resolved'] = False
+        with patch.object(service, 'company_for_user', return_value=COMPANY), patch.object(sources, 'employee_details') as read:
+            self.assertEqual(service.employee_profile(2, self.employee, object())['origin'], '')
+        read.assert_not_called()
+
+    def test_selected_employee_queries_use_stamp_parameters(self):
+        with patch.object(sources, 'reader'), patch.object(sources, 'columns', side_effect=[set(self.details['fields']['PE']), set(self.details['fields']['PE2'])]), patch.object(sources, 'rows', side_effect=[[self.details['pe']], [self.details['pe2']]]) as read:
+            self.assertEqual(sources.employee_details(COMPANY, 'PE12'), self.details)
+        self.assertIn('WHERE PESTAMP = ?', read.call_args_list[0].args[1])
+        self.assertIn('WHERE PE2STAMP = ?', read.call_args_list[1].args[1])
+        self.assertTrue(all(call.args[2] == ('PE12',) for call in read.call_args_list))
+
+    def test_optional_pe2_and_ambiguous_identity(self):
+        with patch.object(sources, 'reader'), patch.object(sources, 'columns', side_effect=[{'PESTAMP'}, set()]), patch.object(sources, 'rows', return_value=[{'PESTAMP': 'PE12'}]) as read:
+            self.assertIsNone(sources.employee_details(COMPANY, 'PE12')['pe2'])
+            self.assertEqual(read.call_count, 1)
+        for records in ([], [{'PESTAMP': 'PE12'}, {'PESTAMP': 'PE12'}]):
+            with patch.object(sources, 'reader'), patch.object(sources, 'columns', side_effect=[{'PESTAMP'}, set()]), patch.object(sources, 'rows', return_value=records):
+                with self.assertRaises(config.SourceUnavailable): sources.employee_details(COMPANY, 'PE12')
+        with patch.object(sources, 'reader'), patch.object(sources, 'columns', side_effect=[{'PESTAMP'}, {'PE2STAMP', 'MATRICULA'}]), patch.object(sources, 'rows', side_effect=[[self.details['pe']], [self.details['pe2'], self.details['pe2']]]):
+            with self.assertRaises(config.SourceUnavailable): sources.employee_details(COMPANY, 'PE12')
+
+
 class TravelMapRouteTests(unittest.TestCase):
     def setUp(self):
         self.app = Flask(__name__)

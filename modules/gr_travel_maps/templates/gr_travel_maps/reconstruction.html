@@ -19,22 +19,24 @@
         <h2>Pressupostos da proposta</h2>
         <form id="builderForm">
           <div class="travel-input-grid">
-            <label class="sz_field">Origem / base<input class="sz_input" id="builderOrigin" maxlength="300" placeholder="Morada ou local de partida"></label>
-            <label class="sz_field">País da base<input class="sz_input" id="builderCountry" maxlength="2" value="PT" placeholder="PT"></label>
+            <label class="sz_field">Origem — casa do trabalhador<input class="sz_input" id="builderOrigin" maxlength="300" placeholder="Morada da ficha PE" aria-describedby="builderOriginSource"><small id="builderOriginSource" class="travel-muted"></small></label>
+            <label class="sz_field">País da origem<input class="sz_input" id="builderCountry" maxlength="2" value="PT" placeholder="PT"></label>
             <label class="sz_field">País de referência das AC<input class="sz_input" id="builderAllowanceCountry" maxlength="2" value="PT" placeholder="PT"></label>
-            <label class="sz_field">Matrícula / viatura<input class="sz_input" id="builderVehicle" maxlength="80"></label>
+            <label class="sz_field">Matrícula / viatura<input class="sz_input" id="builderVehicle" maxlength="80" aria-describedby="builderVehicleSource"><small id="builderVehicleSource" class="travel-muted"></small></label>
             <label class="sz_field">Proprietário da viatura<input class="sz_input" id="builderOwner" maxlength="200"></label>
             <label class="sz_field">Valor por km (€)<input class="sz_input" id="builderKmRate" type="number" min="0" step="0.000001" data-sz-decimals="6" placeholder="Usar taxa única do PHC"></label>
             <label class="sz_field">AC nacional / dia (€)<input class="sz_input" id="builderNationalRate" type="number" min="0" step="0.000001" data-sz-decimals="6" placeholder="Usar taxa única do PHC"></label>
             <label class="sz_field">AC estrangeiro / dia (€)<input class="sz_input" id="builderForeignRate" type="number" min="0" step="0.000001" data-sz-decimals="6" placeholder="Usar taxa única do PHC"></label>
             <label class="sz_field">Dias excluídos<input class="sz_input" id="builderBlocked" placeholder="2026-09-01, 2026-09-02"></label>
           </div>
+          <p class="travel-muted">A morada e a matrícula são lidas da ficha atual do trabalhador no PHC. Confirme que se aplicam ao mês do mapa. Pode corrigir os valores, ficando a alteração registada na nova proposta.</p>
           <label class="travel-review-check"><input type="checkbox" id="builderWeekends"> Incluir fins de semana como datas possíveis (pressuposto a validar).</label>
-          <label class="sz_field">Fonte / explicação dos pressupostos<textarea class="sz_textarea sz_input" id="builderNote" rows="2" maxlength="1000" required placeholder="Indique de onde vêm a origem, os países e outros elementos declarados."></textarea></label>
+          <label class="sz_field">Fonte / explicação dos pressupostos<textarea class="sz_textarea sz_input" id="builderNote" rows="2" maxlength="1000" required placeholder="Explique os pressupostos e eventuais correções à morada ou matrícula do PHC."></textarea></label>
           <fieldset class="travel-company-choice"><legend>Empresas onde procurar autos</legend><div id="builderCompanies"></div><button type="button" class="sz_button sz_button_secondary" id="builderLoadWorks">Carregar obras destas empresas</button></fieldset>
           <p class="travel-muted">Só entram obras com medição positiva no mês. Selecione as candidatas e indique os percursos. Regresso vazio assume a mesma distância da ida, guardando essa inferência. País e local são necessários para ajudas de custo. Sem dados suficientes, a diferença fica por reconciliar.</p>
+          <p class="travel-muted" id="builderTripLimitHelp">O motor limita as deslocações pelo calendário disponível, no máximo uma viagem de ida e volta por dia. Não é preciso preencher um número de visitas. O limite opcional por obra serve apenas para indicar uma restrição conhecida; não é calculado pelos metros executados nem limita os dias de ajudas de custo.</p>
           <div class="travel-scroll" tabindex="0" aria-label="Obras e percursos candidatos">
-            <table class="sz_table travel-table travel-work-inputs"><thead><tr><th>Usar</th><th>Obra / autos</th><th>País</th><th>Local</th><th>Ida (km)</th><th>Regresso (km)</th><th>Fonte da distância</th><th>Máx. visitas</th></tr></thead><tbody id="builderWorks"></tbody></table>
+            <table class="sz_table travel-table travel-work-inputs"><thead><tr><th>Usar</th><th>Obra / autos</th><th>País</th><th>Local</th><th>Ida (km)</th><th>Regresso (km)</th><th>Fonte da distância</th><th>Limite opcional/mês</th></tr></thead><tbody id="builderWorks"></tbody></table>
           </div>
           <button class="sz_button sz_button_primary" type="submit" id="builderGenerate" disabled>Gerar e guardar proposta inferida</button>
         </form>
@@ -64,5 +66,5 @@
 {% endblock %}
 {% block scripts %}
 {{ super() }}
-<script src="{{ url_for('gr_travel_maps.static', filename='reconstruction.js') }}?v=1" defer></script>
+<script src="{{ url_for('gr_travel_maps.static', filename='reconstruction.js') }}?v=2" defer></script>
 {% endblock %}

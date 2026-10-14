@@ -90,6 +90,25 @@ def payroll_rows(company, start, end, codes: list[int]) -> list[dict]:
         """, (*codes, start, end))
 
 
+def employee_details(company, pestamp):
+    """Read only the selected employee's current address and vehicle, never all PE data."""
+    with reader(company) as cursor:
+        pe, pe2 = columns(cursor, 'PE'), columns(cursor, 'PE2')
+        require(pe, ('PESTAMP',), 'PE')
+        fields = {'PE': [name for name in ('PESTAMP', 'MORADA', 'CODPOST', 'LOCAL') if name in pe],
+                  'PE2': [name for name in ('PE2STAMP', 'MATRICULA') if name in pe2]}
+        records = rows(cursor, 'SELECT ' + ', '.join(f'[{name}]' for name in fields['PE']) +
+                       ' FROM dbo.PE WHERE PESTAMP = ?', (pestamp,))
+        if len(records) != 1:
+            raise SourceUnavailable('A ficha PE do trabalhador não tem uma correspondência única.')
+        vehicles = []
+        if 'PE2STAMP' in pe2 and 'MATRICULA' in pe2:
+            vehicles = rows(cursor, 'SELECT PE2STAMP, MATRICULA FROM dbo.PE2 WHERE PE2STAMP = ?', (pestamp,))
+        if len(vehicles) > 1:
+            raise SourceUnavailable('A ficha PE2 do trabalhador tem correspondências múltiplas.')
+        return {'pe': records[0], 'pe2': vehicles[0] if vehicles else None, 'fields': fields}
+
+
 def measurement_rows(company, start, end) -> tuple[list[dict], list[dict]]:
     with reader(company) as cursor:
         series = rows(cursor, """

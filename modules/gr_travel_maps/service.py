@@ -155,6 +155,39 @@ def monthly_panel(feid, year, month, user):
     }
 
 
+def employee_profile(feid, employee, user):
+    company = company_for_user(feid, user)
+    result = {'origin': '', 'vehicle': '', 'provenance': {}, 'original': {},
+              'read_at': datetime.now(timezone.utc).isoformat(), 'warnings': []}
+    if not employee.get('identity_resolved') or not employee.get('pestamp'):
+        result['warnings'].append('Ficha PHC por identificar: morada e matrícula por confirmar.')
+        return result
+    details = sources.employee_details(company, employee['pestamp'])
+    pe, pe2 = details['pe'], details['pe2'] or {}
+    result['original'] = details
+    address, postal, locality = (clean(pe.get(field)) for field in ('MORADA', 'CODPOST', 'LOCAL'))
+    # A locality alone is not a home address. Keep missing street data visible.
+    if address:
+        # CODPOST may already contain the locality in PHC.
+        tail = postal if locality and postal.casefold().endswith(locality.casefold()) else ' '.join(filter(None, (postal, locality)))
+        result['origin'] = ', '.join(filter(None, (address, tail)))
+        result['provenance']['origin'] = {'kind': 'PHC', 'temporal_scope': 'CURRENT_EMPLOYEE_RECORD',
+            'references': [{'database': company['phc_db'], 'table': 'PE', 'stamp': employee['pestamp'],
+                            'fields': [field for field in ('MORADA', 'CODPOST', 'LOCAL') if field in details['fields']['PE']]}]}
+    else:
+        result['warnings'].append('Morada em falta na ficha PE. Indique a origem e a respetiva fonte.')
+    result['vehicle'] = clean(pe2.get('MATRICULA'))
+    if result['vehicle']:
+        result['provenance']['vehicle'] = {'kind': 'PHC', 'temporal_scope': 'CURRENT_EMPLOYEE_RECORD',
+            'references': [{'database': company['phc_db'], 'table': 'PE2', 'stamp': clean(pe2['PE2STAMP']),
+                            'fields': ['MATRICULA']}]}
+    else:
+        result['warnings'].append('Matrícula não preenchida em PE2.MATRICULA.' if 'MATRICULA' in details['fields']['PE2']
+                                  else 'Campo PE2.MATRICULA indisponível nesta base PHC.')
+    result['warnings'].append('A ficha PHC é atual: confirme a morada e a viatura aplicáveis ao mês reconstruído. O proprietário da viatura requer confirmação.')
+    return result
+
+
 def monthly_measurements(feid, year, month, user):
     start, end = period_bounds(year, month)
     company = company_for_user(feid, user)

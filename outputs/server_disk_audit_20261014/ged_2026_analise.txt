@@ -1,0 +1,71 @@
+GED — INDICADORES DE EVOLUÇÃO EM 2026
+Recolha: 2026-10-14T15:11:39.1085258+01:00 a 2026-10-14T15:18:28.7514158+01:00
+Período das datas: 01/01/2026 a 14/10/2026, inclusive.
+A recolha lê apenas metadados de ficheiros, com suporte a caminhos longos. Nenhum documento foi alterado, movido ou apagado.
+
+O QUE É POSSÍVEL MEDIR
+Não foi obtido um inventário comparável de 01/01/2026. Não foram encontradas cópias de sombra locais nem relatórios FSRM de armazenamento nos locais verificados. Existem componentes Netwrix instalados, mas não foi obtido deles um inventário histórico de tamanhos nesta análise.
+O principal indicador é o tamanho atual dos ficheiros que ainda existem e cujo CreationTime é de 2026. É uma aproximação do volume de entradas no sistema de ficheiros, não uma medida do crescimento líquido. Não inclui ficheiros criados e depois apagados durante o ano; os ficheiros podem ter crescido ou encolhido após a criação. Cópias/reposições/migrações podem alterar CreationTime.
+Ficheiros antigos com LastWriteTime em 2026 representam material mexido, mas a sua dimensão atual não informa quantos bytes foram acrescentados. Esta métrica não deve ser somada à anterior como crescimento.
+Datas de criação ou modificação a partir de 15/10/2026 foram excluídas dos indicadores do período e contabilizadas à parte.
+
+SEPARAÇÃO USADA
+Projetos: ficheiros sob categorias de segundo nível da GED que contêm PROJET ou PROJECT, como DIRECTION PROJETS e DIRETION PROJETS. Restante GED: todas as outras categorias e ficheiros da raiz. A separação é por pasta; não classifica o conteúdo dos ficheiros. DROPBOX, por exemplo, fica na restante GED, mesmo que contenha material relativo a obras.
+
+RESUMO
+Projetos: ocupação atual 726.46 GiB; ficheiros criados em 2026 151.51 GiB (88,150 ficheiros); destes, 5.80 GiB têm última modificação anterior a 2026; ficheiros criados antes de 2026 e modificados este ano ocupam atualmente 12.29 GiB.
+Restante GED: ocupação atual 243.19 GiB; ficheiros criados em 2026 105.59 GiB (96,149 ficheiros); destes, 81.43 GiB têm última modificação anterior a 2026; ficheiros criados antes de 2026 e modificados este ano ocupam atualmente 0.27 GiB.
+Total GED atual: 969.66 GiB. Ficheiros com criação em 2026: 257.10 GiB.
+
+DISTRIBUIÇÃO MENSAL DO VOLUME ATUAL DOS FICHEIROS COM CRIAÇÃO EM 2026
+2026-01: projetos 20.58 GiB; restante GED 4.04 GiB; total 24.62 GiB.
+2026-02: projetos 10.36 GiB; restante GED 1.73 GiB; total 12.09 GiB.
+2026-03: projetos 17.03 GiB; restante GED 2.04 GiB; total 19.07 GiB.
+2026-04: projetos 14.06 GiB; restante GED 2.04 GiB; total 16.11 GiB.
+2026-05: projetos 15.21 GiB; restante GED 86.00 GiB; total 101.21 GiB.
+2026-06: projetos 15.43 GiB; restante GED 2.78 GiB; total 18.21 GiB.
+2026-07: projetos 16.73 GiB; restante GED 2.72 GiB; total 19.45 GiB.
+2026-08: projetos 9.02 GiB; restante GED 1.54 GiB; total 10.56 GiB.
+2026-09: projetos 26.95 GiB; restante GED 1.94 GiB; total 28.90 GiB.
+2026-10: projetos 6.14 GiB; restante GED 0.75 GiB; total 6.88 GiB.
+
+PASTAS DE PROJETOS — MAIOR VOLUME COM CRIAÇÃO EM 2026
+HSOLS_FR\DIRECTION PROJETS: criação 2026 131.38 GiB; volume atual 654.79 GiB; parte com modificação anterior a 2026 4.16 GiB.
+HSOLS_INTERSOL_LOR\DIRETION PROJETS: criação 2026 7.60 GiB; volume atual 7.60 GiB; parte com modificação anterior a 2026 1.18 GiB.
+HSOLS_INTERSOL_AL\DIRETION PROJETS: criação 2026 7.26 GiB; volume atual 7.43 GiB; parte com modificação anterior a 2026 0.15 GiB.
+HSOLS_MA\DIRECTION PROJETS: criação 2026 1.77 GiB; volume atual 7.34 GiB; parte com modificação anterior a 2026 0.01 GiB.
+HSOLS_DE\DIRECTION PROJETS: criação 2026 1.38 GiB; volume atual 30.74 GiB; parte com modificação anterior a 2026 0.19 GiB.
+HSOLS_INTERSOL_CH\DIRECTION PROJETS: criação 2026 1.30 GiB; volume atual 1.30 GiB; parte com modificação anterior a 2026 0.01 GiB.
+HSOLS_PT\DIRETION PROJETS: criação 2026 0.82 GiB; volume atual 8.54 GiB; parte com modificação anterior a 2026 0.09 GiB.
+HSOLS_ES\DIRETION PROJETS: criação 2026 0.00 GiB; volume atual 8.73 GiB; parte com modificação anterior a 2026 0.00 GiB.
+GR360_TRAD\DIRETION PROJETS: criação 2026 0.00 GiB; volume atual 0.00 GiB; parte com modificação anterior a 2026 0.00 GiB.
+
+RESTANTE GED — MAIOR VOLUME COM CRIAÇÃO EM 2026
+HSOLS_INTERSOL_AL\DROPBOX: criação 2026 42.04 GiB; volume atual 42.04 GiB; parte com modificação anterior a 2026 38.98 GiB.
+HSOLS_INTERSOL_LOR\DROPBOX: criação 2026 24.16 GiB; volume atual 24.16 GiB; parte com modificação anterior a 2026 21.80 GiB.
+HSOLS_INTERSOL_CH\DROPBOX: criação 2026 17.45 GiB; volume atual 17.45 GiB; parte com modificação anterior a 2026 17.45 GiB.
+HSOLS_FR\FACTURATION_FOURNISSEURS: criação 2026 3.23 GiB; volume atual 25.93 GiB; parte com modificação anterior a 2026 0.02 GiB.
+HSOLS_GR360_PT\HSOLS_MASTER: criação 2026 2.18 GiB; volume atual 2.18 GiB; parte com modificação anterior a 2026 2.18 GiB.
+HSOLS_FR\NOTE_FRAIS: criação 2026 1.96 GiB; volume atual 8.28 GiB; parte com modificação anterior a 2026 0.00 GiB.
+HSOLS_FR\COURRIER_INTERNE_EXTERIEUR: criação 2026 1.29 GiB; volume atual 12.86 GiB; parte com modificação anterior a 2026 0.00 GiB.
+HSOLS_INTERSOL_AL\DOCUMENTS_FOURNISSEURS: criação 2026 0.95 GiB; volume atual 0.95 GiB; parte com modificação anterior a 2026 0.63 GiB.
+HSOLS_INTERSOL_AL\FACTURATION_FOURNISSEURS: criação 2026 0.92 GiB; volume atual 0.92 GiB; parte com modificação anterior a 2026 0.00 GiB.
+HSOLS_DE\FACTURATION_FOURNISSEURS: criação 2026 0.79 GiB; volume atual 8.84 GiB; parte com modificação anterior a 2026 0.00 GiB.
+HSOLS_PT\NOTE_FRAIS: criação 2026 0.64 GiB; volume atual 4.25 GiB; parte com modificação anterior a 2026 0.00 GiB.
+HSOLS_INTERSOL_LOR\FACTURACTION_FOURNISSEURS: criação 2026 0.63 GiB; volume atual 0.65 GiB; parte com modificação anterior a 2026 0.00 GiB.
+HSOLS_PT\FACTURACTION_FOURNISSEURS: criação 2026 0.60 GiB; volume atual 5.29 GiB; parte com modificação anterior a 2026 0.00 GiB.
+HSOLS_FR\PAIEMENTS_FOURNISSEURS: criação 2026 0.58 GiB; volume atual 2.07 GiB; parte com modificação anterior a 2026 0.00 GiB.
+HSOLS_INTERSOL_LOR\NOTE_FRAIS: criação 2026 0.55 GiB; volume atual 0.55 GiB; parte com modificação anterior a 2026 0.00 GiB.
+
+QUALIDADE DOS DADOS
+Ficheiros inventariados: 705,401; pastas: 211,762; erros de leitura: 0; pontos de reanálise ignorados: 0.
+Tamanho de ficheiros com CreationTime posterior ao período: 0.04 GiB; com LastWriteTime posterior ao período: 0.00 GiB. Essas datas não foram usadas para atribuir volume a 2026.
+Os valores são tamanhos lógicos; diferem dos blocos alocados e da dimensão da VM. Esta análise restringe-se à GED.
+Para confirmar o crescimento líquido, comparar a mesma árvore de ficheiros com um inventário/backup datado no início do ano, incluindo os tamanhos de ficheiros antigos, alterações e eliminações.
+
+INTERPRETAÇÃO DOS PRINCIPAIS INDICADORES
+Na restante GED, DROPBOX representa 83.65 GiB de ficheiros criados em 2026, 79.2% do indicador anual deste grupo. Sem DROPBOX, o indicador anual da restante GED é 21.94 GiB.
+81.43 GiB (77.1%) dos ficheiros com criação em 2026 na restante GED têm LastWriteTime anterior a 2026. Isto sugere cópia/reposição de material antigo; não prova qual foi a operação que os criou neste local.
+O pico mensal da restante GED é maio, com cerca de 86 GiB. As três pastas DROPBOX são os principais volumes novos identificados no ano; a distribuição mensal recolhida é do grupo inteiro, pelo que não foi assumido que todos os ficheiros DROPBOX tenham sido criados em maio.
+Na HSOLS_FR, o indicador anual de projetos inclui CHANTIERS (70,34 GiB), DCE 2026 (42,09 GiB) e Said ABDER (16,77 GiB). Os três valores estão incluídos no total de DIRECTION PROJETS e não devem ser somados de novo.
+Estes dados não permitem atribuir todo o restante volume de documentos à app. Faturas, correspondência e despesas existentes também podem ter sido produzidas ou importadas por outros fluxos.
