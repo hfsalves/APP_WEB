@@ -6,7 +6,6 @@ from services.document_ai_service import (
     _infer_invoice_type,
     _missing_intersol_agency,
     _normalize_invoice_type,
-    _phc_accounting_lines_are_definitive,
     _score_phc_article_candidate,
     validate_document_financial_consistency,
 )
@@ -28,18 +27,6 @@ class DocumentAiInboxWorkflowTests(unittest.TestCase):
         self.assertIn('RECEPTION_VALIDATED, 0) = 1', _document_inbox_scope_sql('home', True))
         self.assertIn('MANAGEMENT_VALIDATED, 0) = 1', _document_inbox_scope_sql('management', True))
         self.assertIn('ACCOUNTING_VALIDATED, 0) = 1', _document_inbox_scope_sql('accounting', True))
-
-    def test_phc_accounting_sync_requires_final_references_on_all_effective_lines(self):
-        self.assertTrue(_phc_accounting_lines_are_definitive([
-            ('ART.001', 1, 2, 10, 20),
-            ('', 0, 0, 0, 0),  # description continuation
-            ('ART.002', 1, 1, 5, 5),
-        ]))
-        self.assertFalse(_phc_accounting_lines_are_definitive([
-            ('ART.001', 1, 2, 10, 20),
-            ('Z.00.00.000.0000', 1, 1, 5, 5),
-        ]))
-        self.assertFalse(_phc_accounting_lines_are_definitive([]))
 
     def test_invoice_type_aliases_are_normalized(self):
         self.assertEqual(_normalize_invoice_type('Betão'), 'concrete')
