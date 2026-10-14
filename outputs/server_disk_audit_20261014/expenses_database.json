@@ -1,0 +1,49 @@
+{
+  "expense_totals": [
+    {
+      "records": 801,
+      "bytes": 1819342996,
+      "first_created": "2026-06-22 14:21:19",
+      "last_created": "2026-10-13 19:02:51.867000"
+    }
+  ],
+  "expense_monthly": [
+    {
+      "month": "2026-06",
+      "records": 8,
+      "bytes": 18525317
+    },
+    {
+      "month": "2026-07",
+      "records": 117,
+      "bytes": 271271795
+    },
+    {
+      "month": "2026-08",
+      "records": 308,
+      "bytes": 709963528
+    },
+    {
+      "month": "2026-09",
+      "records": 226,
+      "bytes": 488443737
+    },
+    {
+      "month": "2026-10",
+      "records": 142,
+      "bytes": 331138619
+    }
+  ],
+  "expense_path_groups": [
+    {
+      "path_group": "app_static",
+      "records": 754,
+      "bytes": 1819342996
+    },
+    {
+      "path_group": "",
+      "records": 47,
+      "bytes": 0
+    }
+  ]
+}

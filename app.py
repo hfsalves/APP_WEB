@@ -775,6 +775,9 @@ def create_app():
     from modules.gr_client_measurements.routes import bp as gr_client_measurements_bp
     app.register_blueprint(gr_client_measurements_bp)
 
+    from modules.gr_travel_maps.routes import bp as gr_travel_maps_bp
+    app.register_blueprint(gr_travel_maps_bp)
+
     from modules.gr_budgets.routes import bp as gr_budgets_bp
     app.register_blueprint(gr_budgets_bp)
 
@@ -2936,6 +2939,16 @@ def create_app():
                 if isinstance(child, dict) and child.get('url')
             }
             menu_forms = {m.tabela: _app_relative_url(getattr(m, 'form', None) or '') for m in menu_items}
+
+            # Payroll data requires its own ACL, independently of access to works/autos.
+            from modules.gr_travel_maps.access import can_consult as can_consult_travel_maps
+            if can_consult_travel_maps(current_user, perms) and '/mapas-deslocacoes' not in existing_urls:
+                menu_structure.append({
+                    'name': 'Mapas de deslocações',
+                    'url': '/mapas-deslocacoes',
+                    'icon': 'fa-solid fa-route',
+                    'novo': True,
+                })
 
         return {
             'menu_items'     : menu_items,

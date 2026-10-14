@@ -1,0 +1,451 @@
+{
+  "DiskRates": [
+    {
+      "Name": "C:",
+      "DiskReadBytesPersec": 257847,
+      "DiskWriteBytesPersec": 0,
+      "PercentDiskTime": 0
+    },
+    {
+      "Name": "D:",
+      "DiskReadBytesPersec": 821889,
+      "DiskWriteBytesPersec": 0,
+      "PercentDiskTime": 92
+    },
+    {
+      "Name": "E:",
+      "DiskReadBytesPersec": 0,
+      "DiskWriteBytesPersec": 0,
+      "PercentDiskTime": 0
+    },
+    {
+      "Name": "HarddiskVolume1",
+      "DiskReadBytesPersec": 0,
+      "DiskWriteBytesPersec": 0,
+      "PercentDiskTime": 0
+    },
+    {
+      "Name": "HarddiskVolume2",
+      "DiskReadBytesPersec": 0,
+      "DiskWriteBytesPersec": 0,
+      "PercentDiskTime": 0
+    },
+    {
+      "Name": "HarddiskVolume5",
+      "DiskReadBytesPersec": 0,
+      "DiskWriteBytesPersec": 0,
+      "PercentDiskTime": 0
+    },
+    {
+      "Name": "_Total",
+      "DiskReadBytesPersec": 1079737,
+      "DiskWriteBytesPersec": 0,
+      "PercentDiskTime": 15
+    }
+  ],
+  "Time": "2026-10-14T10:26:12.9022371+01:00",
+  "ByClient": [
+    {
+      "Name": "192.168.115.4",
+      "Count": 1025
+    },
+    {
+      "Name": "10.0.2.117",
+      "Count": 12
+    },
+    {
+      "Name": "10.0.1.131",
+      "Count": 835
+    },
+    {
+      "Name": "192.168.115.1",
+      "Count": 176
+    },
+    {
+      "Name": "10.0.1.110",
+      "Count": 43
+    },
+    {
+      "Name": "10.0.1.104",
+      "Count": 24
+    },
+    {
+      "Name": "10.0.1.103",
+      "Count": 1
+    },
+    {
+      "Name": "10.0.1.15",
+      "Count": 10
+    },
+    {
+      "Name": "10.0.1.115",
+      "Count": 15
+    },
+    {
+      "Name": "10.0.4.103",
+      "Count": 2
+    },
+    {
+      "Name": "10.0.1.119",
+      "Count": 10
+    },
+    {
+      "Name": "10.0.1.128",
+      "Count": 7
+    },
+    {
+      "Name": "10.0.3.55",
+      "Count": 8
+    },
+    {
+      "Name": "10.0.2.116",
+      "Count": 3
+    },
+    {
+      "Name": "192.168.115.5",
+      "Count": 25
+    },
+    {
+      "Name": "10.0.1.118",
+      "Count": 10
+    },
+    {
+      "Name": "10.0.5.103",
+      "Count": 6
+    },
+    {
+      "Name": "10.0.1.114",
+      "Count": 1
+    },
+    {
+      "Name": "10.0.40.101",
+      "Count": 2
+    },
+    {
+      "Name": "10.0.1.105",
+      "Count": 21
+    },
+    {
+      "Name": "10.0.1.101",
+      "Count": 7
+    },
+    {
+      "Name": "10.0.1.135",
+      "Count": 6
+    },
+    {
+      "Name": "10.0.1.13",
+      "Count": 1
+    }
+  ],
+  "Sessions": [
+    {
+      "ClientComputerName": "10.0.5.103",
+      "NumOpens": 6,
+      "Dialect": "3.1.1"
+    },
+    {
+      "ClientComputerName": "10.0.1.13",
+      "NumOpens": 1,
+      "Dialect": "3.1.1"
+    },
+    {
+      "ClientComputerName": "10.0.4.103",
+      "NumOpens": 2,
+      "Dialect": "3.1.1"
+    },
+    {
+      "ClientComputerName": "10.0.1.101",
+      "NumOpens": 7,
+      "Dialect": "3.1.1"
+    },
+    {
+      "ClientComputerName": "10.0.1.110",
+      "NumOpens": 43,
+      "Dialect": "3.1.1"
+    },
+    {
+      "ClientComputerName": "10.0.5.109",
+      "NumOpens": 0,
+      "Dialect": "3.1.1"
+    },
+    {
+      "ClientComputerName": "192.168.115.4",
+      "NumOpens": 1025,
+      "Dialect": "3.1.1"
+    },
+    {
+      "ClientComputerName": "10.0.1.131",
+      "NumOpens": 835,
+      "Dialect": "3.1.1"
+    },
+    {
+      "ClientComputerName": "10.0.1.17",
+      "NumOpens": 0,
+      "Dialect": "3.0"
+    },
+    {
+      "ClientComputerName": "10.0.1.105",
+      "NumOpens": 7,
+      "Dialect": "3.1.1"
+    },
+    {
+      "ClientComputerName": "10.0.1.114",
+      "NumOpens": 1,
+      "Dialect": "3.1.1"
+    },
+    {
+      "ClientComputerName": "10.0.1.119",
+      "NumOpens": 10,
+      "Dialect": "3.1.1"
+    },
+    {
+      "ClientComputerName": "10.0.1.135",
+      "NumOpens": 6,
+      "Dialect": "3.1.1"
+    },
+    {
+      "ClientComputerName": "10.0.1.118",
+      "NumOpens": 2,
+      "Dialect": "3.1.1"
+    },
+    {
+      "ClientComputerName": "10.0.3.55",
+      "NumOpens": 8,
+      "Dialect": "3.1.1"
+    },
+    {
+      "ClientComputerName": "10.0.1.104",
+      "NumOpens": 24,
+      "Dialect": "3.1.1"
+    },
+    {
+      "ClientComputerName": "10.0.1.15",
+      "NumOpens": 8,
+      "Dialect": "3.1.1"
+    },
+    {
+      "ClientComputerName": "10.0.1.105",
+      "NumOpens": 14,
+      "Dialect": "3.1.1"
+    },
+    {
+      "ClientComputerName": "10.0.1.128",
+      "NumOpens": 7,
+      "Dialect": "3.1.1"
+    },
+    {
+      "ClientComputerName": "10.0.1.15",
+      "NumOpens": 2,
+      "Dialect": "3.1.1"
+    },
+    {
+      "ClientComputerName": "10.0.2.116",
+      "NumOpens": 3,
+      "Dialect": "3.1.1"
+    },
+    {
+      "ClientComputerName": "192.168.115.1",
+      "NumOpens": 176,
+      "Dialect": "3.1.1"
+    },
+    {
+      "ClientComputerName": "10.0.1.118",
+      "NumOpens": 8,
+      "Dialect": "3.1.1"
+    },
+    {
+      "ClientComputerName": "10.0.5.103",
+      "NumOpens": 0,
+      "Dialect": "3.1.1"
+    },
+    {
+      "ClientComputerName": "10.0.2.117",
+      "NumOpens": 4,
+      "Dialect": "3.1.1"
+    },
+    {
+      "ClientComputerName": "10.0.1.103",
+      "NumOpens": 1,
+      "Dialect": "3.1.1"
+    },
+    {
+      "ClientComputerName": "10.0.1.115",
+      "NumOpens": 15,
+      "Dialect": "3.1.1"
+    },
+    {
+      "ClientComputerName": "10.0.40.101",
+      "NumOpens": 2,
+      "Dialect": "3.1.1"
+    },
+    {
+      "ClientComputerName": "10.0.2.117",
+      "NumOpens": 8,
+      "Dialect": "3.1.1"
+    },
+    {
+      "ClientComputerName": "192.168.115.5",
+      "NumOpens": 25,
+      "Dialect": "3.1.1"
+    }
+  ],
+  "open_object_count": 2250,
+  "ByClientRoot": [
+    {
+      "client": "192.168.115.4",
+      "root": "D:\\INTERSOL_CR",
+      "open_objects": 1025
+    },
+    {
+      "client": "10.0.2.117",
+      "root": "D:\\GED",
+      "open_objects": 4
+    },
+    {
+      "client": "10.0.1.131",
+      "root": "D:\\DAF",
+      "open_objects": 713
+    },
+    {
+      "client": "192.168.115.1",
+      "root": "D:\\GED",
+      "open_objects": 176
+    },
+    {
+      "client": "10.0.1.110",
+      "root": "D:\\GED",
+      "open_objects": 43
+    },
+    {
+      "client": "10.0.1.131",
+      "root": "D:\\GED",
+      "open_objects": 122
+    },
+    {
+      "client": "10.0.1.104",
+      "root": "D:\\GED",
+      "open_objects": 24
+    },
+    {
+      "client": "10.0.1.103",
+      "root": "D:\\DAF",
+      "open_objects": 1
+    },
+    {
+      "client": "10.0.1.15",
+      "root": "C:\\Windows",
+      "open_objects": 8
+    },
+    {
+      "client": "10.0.1.115",
+      "root": "E:\\Publico",
+      "open_objects": 2
+    },
+    {
+      "client": "10.0.4.103",
+      "root": "D:\\GED",
+      "open_objects": 2
+    },
+    {
+      "client": "10.0.1.119",
+      "root": "D:\\GED",
+      "open_objects": 9
+    },
+    {
+      "client": "10.0.1.128",
+      "root": "D:\\GED",
+      "open_objects": 7
+    },
+    {
+      "client": "10.0.3.55",
+      "root": "C:\\Windows",
+      "open_objects": 8
+    },
+    {
+      "client": "10.0.2.116",
+      "root": "D:\\GED",
+      "open_objects": 3
+    },
+    {
+      "client": "192.168.115.5",
+      "root": "D:\\GED",
+      "open_objects": 25
+    },
+    {
+      "client": "10.0.1.118",
+      "root": "C:\\Windows",
+      "open_objects": 8
+    },
+    {
+      "client": "10.0.5.103",
+      "root": "D:\\GED",
+      "open_objects": 6
+    },
+    {
+      "client": "10.0.1.118",
+      "root": "D:\\GED",
+      "open_objects": 2
+    },
+    {
+      "client": "10.0.1.114",
+      "root": "D:\\DAF",
+      "open_objects": 1
+    },
+    {
+      "client": "10.0.40.101",
+      "root": "E:\\Scan_Guias_CTB",
+      "open_objects": 2
+    },
+    {
+      "client": "10.0.1.105",
+      "root": "D:\\GED",
+      "open_objects": 19
+    },
+    {
+      "client": "10.0.2.117",
+      "root": "C:\\Windows",
+      "open_objects": 8
+    },
+    {
+      "client": "10.0.1.115",
+      "root": "D:\\DAF",
+      "open_objects": 13
+    },
+    {
+      "client": "10.0.1.101",
+      "root": "D:\\DAF",
+      "open_objects": 4
+    },
+    {
+      "client": "10.0.1.15",
+      "root": "D:\\GED",
+      "open_objects": 2
+    },
+    {
+      "client": "10.0.1.105",
+      "root": "E:\\Publico",
+      "open_objects": 2
+    },
+    {
+      "client": "10.0.1.135",
+      "root": "D:\\GED",
+      "open_objects": 6
+    },
+    {
+      "client": "10.0.1.101",
+      "root": "D:\\GED",
+      "open_objects": 3
+    },
+    {
+      "client": "10.0.1.119",
+      "root": "D:\\DAF",
+      "open_objects": 1
+    },
+    {
+      "client": "10.0.1.13",
+      "root": "\\samr",
+      "open_objects": 1
+    }
+  ]
+}

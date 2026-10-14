@@ -1,0 +1,342 @@
+[
+  {
+    "doc": "0020AEC185F74A50A041BD8CB",
+    "candidate_count": 2,
+    "same_prefix_alternatives": [
+      "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\FACTURATION_FOURNISSEURS\\2026\\9 SEPT 26\\FAC-3240-50765-BUREAU VALLEE-101321100001082.pdf",
+      "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\9 SEPT 26\\FAC-3240-50765-BUREAU VALLEE-101321100001082.pdf"
+    ],
+    "directory_errors": []
+  },
+  {
+    "doc": "0584949C035F4C16872700CA3",
+    "candidate_count": 1,
+    "same_prefix_alternatives": [],
+    "directory_errors": []
+  },
+  {
+    "doc": "074BDBE258D84C2FA86812371",
+    "candidate_count": 2,
+    "same_prefix_alternatives": [],
+    "directory_errors": []
+  },
+  {
+    "doc": "0A1CAAFC51BC41FCA6488A797",
+    "candidate_count": 2,
+    "same_prefix_alternatives": [],
+    "directory_errors": []
+  },
+  {
+    "doc": "1C6FD9DAC7A24E3893D9B9C58",
+    "candidate_count": 1,
+    "same_prefix_alternatives": [
+      "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\10 OCT 26\\RB-3687-52604-BANQUE CIC EST-LETTRES CHANGE-563984.pdf"
+    ],
+    "directory_errors": []
+  },
+  {
+    "doc": "230D5B6EE42B41449A4B03FC2",
+    "candidate_count": 1,
+    "same_prefix_alternatives": [],
+    "directory_errors": []
+  },
+  {
+    "doc": "2510215F9BC34ADF82E8FBB13",
+    "candidate_count": 2,
+    "same_prefix_alternatives": [],
+    "directory_errors": []
+  },
+  {
+    "doc": "2C7C9F26B19E4794BD877B927",
+    "candidate_count": 1,
+    "same_prefix_alternatives": [],
+    "directory_errors": []
+  },
+  {
+    "doc": "385D9013EC9A44BB9427A6F22",
+    "candidate_count": 2,
+    "same_prefix_alternatives": [],
+    "directory_errors": []
+  },
+  {
+    "doc": "3EAB530ED1134201A2330060A",
+    "candidate_count": 1,
+    "same_prefix_alternatives": [],
+    "directory_errors": []
+  },
+  {
+    "doc": "4D2CC1FFA0BF4568A9921FC1C",
+    "candidate_count": 1,
+    "same_prefix_alternatives": [],
+    "directory_errors": []
+  },
+  {
+    "doc": "57550203288C41759EEBCBD04",
+    "candidate_count": 1,
+    "same_prefix_alternatives": [],
+    "directory_errors": []
+  },
+  {
+    "doc": "63B61F340ADB467E89AEF918C",
+    "candidate_count": 1,
+    "same_prefix_alternatives": [
+      "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_AL\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\9 SEPT 26\\L-3416-52675-CIBTP-CARTE BTP-GUILHERME GUIMARAES.pdf"
+    ],
+    "directory_errors": []
+  },
+  {
+    "doc": "66E61CD6BA7D4944AD7B41844",
+    "candidate_count": 1,
+    "same_prefix_alternatives": [],
+    "directory_errors": []
+  },
+  {
+    "doc": "751C5D9D06F943CFAF8BBD3BB",
+    "candidate_count": 1,
+    "same_prefix_alternatives": [],
+    "directory_errors": []
+  },
+  {
+    "doc": "752AFE28F80C443DA82BA8013",
+    "candidate_count": 1,
+    "same_prefix_alternatives": [],
+    "directory_errors": []
+  },
+  {
+    "doc": "81668BCF78EF45578F5E2DB77",
+    "candidate_count": 1,
+    "same_prefix_alternatives": [
+      "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\10 OCT 26\\RB-3678-52672-CREDIT AGRICOL-RELEVÉ DE COMPTES N.10-2026-10-06.pdf"
+    ],
+    "directory_errors": []
+  },
+  {
+    "doc": "841F07AA2A0E4BD1BB199B152",
+    "candidate_count": 1,
+    "same_prefix_alternatives": [
+      "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\10 OCT 26\\RB-3682-52604-BANQUE CIC EST-ENGAGEMENTS AVALS-200033690.pdf"
+    ],
+    "directory_errors": []
+  },
+  {
+    "doc": "857F9B6780F44D50AECDCAFFD",
+    "candidate_count": 1,
+    "same_prefix_alternatives": [],
+    "directory_errors": []
+  },
+  {
+    "doc": "8684BCBE32B84D119489B83B0",
+    "candidate_count": 1,
+    "same_prefix_alternatives": [
+      "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\10 OCT 26\\RB-3688-52604-BANQUE CIC EST-RELEVÉ DE LETTRES-574460.pdf"
+    ],
+    "directory_errors": []
+  },
+  {
+    "doc": "88D315AD325A4C92BF4D2C9F5",
+    "candidate_count": 2,
+    "same_prefix_alternatives": [],
+    "directory_errors": []
+  },
+  {
+    "doc": "952F9391F248415694D42CD20",
+    "candidate_count": 1,
+    "same_prefix_alternatives": [],
+    "directory_errors": []
+  },
+  {
+    "doc": "9548B24E473E4C87B04D8E508",
+    "candidate_count": 1,
+    "same_prefix_alternatives": [],
+    "directory_errors": []
+  },
+  {
+    "doc": "9569B706AAFD42718CE09CF09",
+    "candidate_count": 1,
+    "same_prefix_alternatives": [],
+    "directory_errors": []
+  },
+  {
+    "doc": "A3639DC09E3947E7929798F25",
+    "candidate_count": 1,
+    "same_prefix_alternatives": [
+      "\\\\10.0.1.11\\ged\\HSOLS_FR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\10 OCT 26\\RB-4083-31197-BTP BANQUE-RELEVÉ DE COMPTES Nº92-2026-08-31.pdf"
+    ],
+    "directory_errors": []
+  },
+  {
+    "doc": "A8C538AA692A4915B5FC7C884",
+    "candidate_count": 1,
+    "same_prefix_alternatives": [],
+    "directory_errors": []
+  },
+  {
+    "doc": "B261BD1817A54403943797E80",
+    "candidate_count": 2,
+    "same_prefix_alternatives": [],
+    "directory_errors": []
+  },
+  {
+    "doc": "B3C2D34D1C1B4CCE8310E9938",
+    "candidate_count": 1,
+    "same_prefix_alternatives": [],
+    "directory_errors": []
+  },
+  {
+    "doc": "B4B1A84F109C4910B7283305E",
+    "candidate_count": 1,
+    "same_prefix_alternatives": [],
+    "directory_errors": []
+  },
+  {
+    "doc": "B736ACF1956548C4A448AB504",
+    "candidate_count": 2,
+    "same_prefix_alternatives": [],
+    "directory_errors": []
+  },
+  {
+    "doc": "B9020156FEC7468ABF08BA565",
+    "candidate_count": 2,
+    "same_prefix_alternatives": [
+      "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\FACTURATION_FOURNISSEURS\\2026\\9 SEPT 26\\FAC-3577-50144-C MATER-26M0908410.pdf",
+      "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\9 SEPT 26\\FAC-3577-50144-C ́MATER-26M0908410.pdf"
+    ],
+    "directory_errors": []
+  },
+  {
+    "doc": "BB263C9BECA642D79FBD85CC6",
+    "candidate_count": 2,
+    "same_prefix_alternatives": [],
+    "directory_errors": []
+  },
+  {
+    "doc": "BBF9FECAD0384E39915966BF0",
+    "candidate_count": 2,
+    "same_prefix_alternatives": [],
+    "directory_errors": []
+  },
+  {
+    "doc": "BDAF41CB33B84D3B92D26904C",
+    "candidate_count": 2,
+    "same_prefix_alternatives": [
+      "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_AL\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\FAC-3061-50168-DKV-26_653906620_002.pdf",
+      "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_AL\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\8 AOUT 26\\FAC-3061-50168-DKV-26_653906620_002.pdf"
+    ],
+    "directory_errors": []
+  },
+  {
+    "doc": "C6061AD87B3C4CDEB63001A8B",
+    "candidate_count": 1,
+    "same_prefix_alternatives": [],
+    "directory_errors": []
+  },
+  {
+    "doc": "C671CA30C78E46A980DE00FF0",
+    "candidate_count": 1,
+    "same_prefix_alternatives": [
+      "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\10 OCT 26\\RB-3683-52604-BANQUE CIC EST-ENGAGEMENTS PAR AVALS-200031885.pdf"
+    ],
+    "directory_errors": []
+  },
+  {
+    "doc": "C7C6DC234C874C48BF7033272",
+    "candidate_count": 2,
+    "same_prefix_alternatives": [],
+    "directory_errors": []
+  },
+  {
+    "doc": "CFCBE99AC5114C359372F6460",
+    "candidate_count": 1,
+    "same_prefix_alternatives": [
+      "\\\\10.0.1.11\\ged\\HSOLS_GR360_PT\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\10 OCT 26\\RB-162-10009-CCM-RELEVE BANCAIRE-2026-10-09.pdf"
+    ],
+    "directory_errors": []
+  },
+  {
+    "doc": "D1C20BC573FE4A1CAF8A27144",
+    "candidate_count": 1,
+    "same_prefix_alternatives": [],
+    "directory_errors": []
+  },
+  {
+    "doc": "E83087CC08E54FDDABC42C580",
+    "candidate_count": 1,
+    "same_prefix_alternatives": [],
+    "directory_errors": []
+  },
+  {
+    "doc": "EA2E070FBAF14A53834C55AD4",
+    "candidate_count": 1,
+    "same_prefix_alternatives": [],
+    "directory_errors": []
+  },
+  {
+    "doc": "EA637BCDB16344B2A4312176D",
+    "candidate_count": 2,
+    "same_prefix_alternatives": [],
+    "directory_errors": []
+  },
+  {
+    "doc": "EE1171D2D1394E06AFD470FA9",
+    "candidate_count": 1,
+    "same_prefix_alternatives": [],
+    "directory_errors": []
+  },
+  {
+    "doc": "EEFA28D7F6B84500B52B0006B",
+    "candidate_count": 2,
+    "same_prefix_alternatives": [],
+    "directory_errors": []
+  },
+  {
+    "doc": "F2F97642444C491CB04DCA64A",
+    "candidate_count": 1,
+    "same_prefix_alternatives": [],
+    "directory_errors": []
+  },
+  {
+    "doc": "F51C7626BE4A425CA271338A1",
+    "candidate_count": 2,
+    "same_prefix_alternatives": [],
+    "directory_errors": []
+  },
+  {
+    "doc": "F5AACA8AF1E9456CAE9295329",
+    "candidate_count": 1,
+    "same_prefix_alternatives": [],
+    "directory_errors": []
+  },
+  {
+    "doc": "F652EA351CE3466DB8FE95CB3",
+    "candidate_count": 2,
+    "same_prefix_alternatives": [],
+    "directory_errors": []
+  },
+  {
+    "doc": "F8D63100A2DD4A51A73703779",
+    "candidate_count": 1,
+    "same_prefix_alternatives": [],
+    "directory_errors": []
+  },
+  {
+    "doc": "FC42FD81B5464A1F9CC7EF5E8",
+    "candidate_count": 2,
+    "same_prefix_alternatives": [],
+    "directory_errors": []
+  },
+  {
+    "doc": "FF67CBC40E804ABBAE75C9648",
+    "candidate_count": 1,
+    "same_prefix_alternatives": [],
+    "directory_errors": []
+  },
+  {
+    "doc": "FFCAAA57D04849EFBFEC99297",
+    "candidate_count": 2,
+    "same_prefix_alternatives": [
+      "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_AL\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\FAC-3060-50168-DKV-26_653906620_001.pdf",
+      "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_AL\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\8 AOUT 26\\FAC-3060-50168-DKV-26_653906620_001.pdf"
+    ],
+    "directory_errors": []
+  }
+]

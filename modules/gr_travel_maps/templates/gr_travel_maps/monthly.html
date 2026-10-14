@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Mapas de deslocações{% endblock %}
+{% block extra_head %}
+{{ super() }}
+<link rel="stylesheet" href="{{ url_for('gr_travel_maps.static', filename='monthly.css') }}?v={{ static_version|default(1) }}-2">
+{% endblock %}
+{% block content %}
+<div class="sz_page travel-page" id="travelMaps" data-api-base="{{ url_for('gr_travel_maps.companies').rsplit('/', 1)[0] }}"
+      data-feid="{{ initial_feid or '' }}">
+  <div class="sz_page_container">
+    <header class="sz_contextbar sz_page_contextbar travel-header">
+      <div>
+        <div class="sz_breadcrumbs">RECURSOS HUMANOS / MAPAS</div>
+        <h1 class="sz_page_title">Mapas de deslocações</h1>
+        <p class="travel-muted">Quilómetros e ajudas de custo · consulta mensal do PHC</p>
+      </div>
+      <form id="travelFilters" class="travel-filters">
+        <div class="sz_field">
+          <label class="sz_label" for="travelCompany">Empresa empregadora</label>
+          <select class="sz_select" id="travelCompany" required disabled><option>A carregar empresas…</option></select>
+        </div>
+        <div class="sz_field">
+          <label class="sz_label" for="travelPeriod">Mês</label>
+          <input class="sz_input" id="travelPeriod" type="month" min="2000-01" max="2100-12"
+                 value="{{ '%04d-%02d'|format(initial_year, initial_month) }}" required>
+        </div>
+        <button class="sz_button sz_button_primary" id="travelRefresh" type="submit" disabled>Atualizar</button>
+      </form>
+    </header>
+
+    <section class="sz_page_body travel-body">
+      <div class="travel-notice">Os totais vêm do PHC. As propostas usam apenas autos de medição e conservam a origem inferida. A reconciliação numérica não comprova deslocações.</div>
+      <p id="travelCompaniesError" class="travel-error" role="alert" hidden></p>
+      <div class="travel-metrics" aria-label="Totais do período">
+        <article class="sz_panel"><span>Trabalhadores com recibo</span><strong id="metricEmployees">—</strong><small id="metricReceipts">—</small></article>
+        <article class="sz_panel"><span>KM no PHC</span><strong id="metricKm">—</strong><small id="metricKmAmount">—</small></article>
+        <article class="sz_panel"><span>AC nacional · dias</span><strong id="metricNational">—</strong><small id="metricNationalAmount">—</small></article>
+        <article class="sz_panel"><span>AC estrangeiro · dias</span><strong id="metricForeign">—</strong><small id="metricForeignAmount">—</small></article>
+      </div>
+
+      <section class="sz_panel travel-panel" aria-labelledby="travelMonthlyTitle">
+        <div class="travel-toolbar">
+          <div><h2 id="travelMonthlyTitle">Valores mensais</h2><p id="travelReadAt" class="travel-muted"></p></div>
+          <div class="sz_field"><label class="sz_label" for="travelSearch">Procurar trabalhador</label><input id="travelSearch" class="sz_input" type="search" placeholder="Nome ou número" autocomplete="off"></div>
+        </div>
+        <div id="travelPayrollMessages" class="travel-messages" aria-live="polite"></div>
+        <details class="travel-criteria" id="travelCriteria" hidden><summary>Critérios da consulta</summary><div id="travelCriteriaBody"></div></details>
+        <div class="travel-scroll" tabindex="0" aria-label="Tabela mensal de trabalhadores">
+          <table class="sz_table travel-table">
+            <thead><tr><th>Trabalhador</th><th>KM PHC</th><th>KM mapa</th><th>Diferença KM</th><th>AC nac. PHC</th><th>AC nac. mapa</th><th>AC estr. PHC</th><th>AC estr. mapa</th><th>Estado</th><th><span class="travel-sr-only">Detalhe</span></th></tr></thead>
+            <tbody id="travelEmployees"><tr><td colspan="10" class="travel-empty">A carregar empresas…</td></tr></tbody>
+          </table>
+        </div>
+        <p id="travelEmployeeCount" class="travel-muted travel-count" aria-live="polite"></p>
+      </section>
+
+      <section class="sz_panel travel-panel" aria-labelledby="travelAutosTitle">
+        <div class="travel-toolbar">
+          <div><h2 id="travelAutosTitle">Autos de medição do mês</h2><p class="travel-muted">Obras candidatas, sem atribuição a trabalhadores.</p></div>
+          <div class="sz_field"><label class="sz_label" for="travelWorksCompany">Empresa dos autos</label><select class="sz_select" id="travelWorksCompany" disabled><option>A carregar empresas…</option></select></div>
+        </div>
+        <p class="travel-notice">A data do auto pode diferir do período efetivo de produção. A existência de um auto não comprova uma deslocação ou presença individual.</p>
+        <div id="travelAutosMessages" class="travel-messages" aria-live="polite"></div>
+        <div class="travel-scroll" tabindex="0" aria-label="Tabela de autos de medição">
+          <table class="sz_table travel-table travel-autos-table">
+            <thead><tr><th>Auto / data</th><th>Obra</th><th>Cliente</th><th>Local registado</th><th>Medição</th></tr></thead>
+            <tbody id="travelAutos"><tr><td colspan="5" class="travel-empty">Selecione uma empresa.</td></tr></tbody>
+          </table>
+        </div>
+        <p id="travelAutoCount" class="travel-muted travel-count" aria-live="polite"></p>
+      </section>
+    </section>
+  </div>
+</div>
+<dialog id="travelDetail" class="travel-dialog" aria-labelledby="travelDetailTitle">
+  <div class="travel-dialog-header"><div><h2 id="travelDetailTitle">Detalhe do trabalhador</h2><p id="travelDetailSubtitle" class="travel-muted"></p></div><button class="sz_button sz_button_secondary" id="travelCloseDetail" type="button">Fechar</button></div>
+  <div id="travelDetailBody"></div>
+</dialog>
+{% endblock %}
+{% block scripts %}
+{{ super() }}
+<script src="{{ url_for('gr_travel_maps.static', filename='monthly.js') }}?v={{ static_version|default(1) }}-2" defer></script>
+{% endblock %}

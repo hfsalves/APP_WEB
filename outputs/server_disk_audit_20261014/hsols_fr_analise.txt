@@ -1,0 +1,44 @@
+GED HSOLS_FR — PASTAS E FICHEIROS ASSOCIADOS À APP
+Recolha das pastas em 14/10/2026; cruzamento com DOC_INBOX e com lançamentos de despesas da app no PHC.
+Os valores são tamanhos lógicos dos ficheiros inventariados. Os ficheiros associados à app foram somados por caminho físico distinto; as cópias em destinos diferentes contam separadamente.
+Total HSOLS_FR: 710.06 GiB.
+Gestão documental: 1291 ficheiros ligados a 684 documentos; 426.80 MiB.
+PDFs de despesas criados por lançamentos da app: 27 ficheiros; 237.89 MiB; não encontrados: 0.
+Total associado à app confirmado: 664.70 MiB (0.649 GiB); 0.0914% da GED HSOLS_FR.
+
+DIRECTION PROJETS: 642.351 GiB; 90.46% da GED FR; app identificada 0.00 MiB em 0 ficheiros (0.00% da pasta).
+FACTURATION_FOURNISSEURS: 25.918 GiB; 3.65% da GED FR; app identificada 240.55 MiB em 618 ficheiros (0.91% da pasta).
+BON_LIVRAISON_FOURNISSEUR: 13.335 GiB; 1.88% da GED FR; app identificada 0.00 MiB em 0 ficheiros (0.00% da pasta).
+COURRIER_INTERNE_EXTERIEUR: 12.850 GiB; 1.81% da GED FR; app identificada 186.25 MiB em 673 ficheiros (1.42% da pasta).
+NOTE_FRAIS: 8.278 GiB; 1.17% da GED FR; app identificada 237.89 MiB em 27 ficheiros (2.81% da pasta).
+PAIEMENTS_FOURNISSEURS: 2.071 GiB; 0.29% da GED FR; app identificada 0.00 MiB em 0 ficheiros (0.00% da pasta).
+BON_COMMANDE_FOURNISSEUR: 1.046 GiB; 0.15% da GED FR; app identificada 0.00 MiB em 0 ficheiros (0.00% da pasta).
+COMPTABILITE: 0.839 GiB; 0.12% da GED FR; app identificada 0.00 MiB em 0 ficheiros (0.00% da pasta).
+dossier_interno_ndf: 0.725 GiB; 0.10% da GED FR; app identificada 0.00 MiB em 0 ficheiros (0.00% da pasta).
+FLOTTE: 0.701 GiB; 0.10% da GED FR; app identificada 0.00 MiB em 0 ficheiros (0.00% da pasta).
+RH: 0.421 GiB; 0.06% da GED FR; app identificada 0.00 MiB em 0 ficheiros (0.00% da pasta).
+MAISON: 0.400 GiB; 0.06% da GED FR; app identificada 0.00 MiB em 0 ficheiros (0.00% da pasta).
+FACTURATION_CLIENTS: 0.238 GiB; 0.03% da GED FR; app identificada 0.00 MiB em 0 ficheiros (0.00% da pasta).
+CONTRATS_FOURNISSEURS: 0.235 GiB; 0.03% da GED FR; app identificada 0.00 MiB em 0 ficheiros (0.00% da pasta).
+SITUATION_TRAVAUX_SOUS-TRAITANTS: 0.159 GiB; 0.02% da GED FR; app identificada 0.00 MiB em 0 ficheiros (0.00% da pasta).
+DOCUMENTS_FOURNISSEURS: 0.107 GiB; 0.01% da GED FR; app identificada 0.00 MiB em 0 ficheiros (0.00% da pasta).
+VOYAGES: 0.096 GiB; 0.01% da GED FR; app identificada 0.00 MiB em 0 ficheiros (0.00% da pasta).
+ndf_rejete: 0.088 GiB; 0.01% da GED FR; app identificada 0.00 MiB em 0 ficheiros (0.00% da pasta).
+DOCS TRESORERIE: 0.079 GiB; 0.01% da GED FR; app identificada 0.00 MiB em 0 ficheiros (0.00% da pasta).
+DEVIS FOURNISSEURS: 0.050 GiB; 0.01% da GED FR; app identificada 0.00 MiB em 0 ficheiros (0.00% da pasta).
+ODS: 0.024 GiB; 0.00% da GED FR; app identificada 0.00 MiB em 0 ficheiros (0.00% da pasta).
+FACTURES_FOURNISSEURS_APPROUVÉES: 0.017 GiB; 0.00% da GED FR; app identificada 0.00 MiB em 0 ficheiros (0.00% da pasta).
+CONTRATS: 0.010 GiB; 0.00% da GED FR; app identificada 0.00 MiB em 0 ficheiros (0.00% da pasta).
+Fac-Fechadas: 0.010 GiB; 0.00% da GED FR; app identificada 0.00 MiB em 0 ficheiros (0.00% da pasta).
+JURIDIQUE: 0.008 GiB; 0.00% da GED FR; app identificada 0.00 MiB em 0 ficheiros (0.00% da pasta).
+BON_COMMANDE_SOUS_TRAITANT: 0.004 GiB; 0.00% da GED FR; app identificada 0.00 MiB em 0 ficheiros (0.00% da pasta).
+BON_LIVRAISON_INTERNES: 0.002 GiB; 0.00% da GED FR; app identificada 0.00 MiB em 0 ficheiros (0.00% da pasta).
+CONTRATS_CLIENTS: 0.001 GiB; 0.00% da GED FR; app identificada 0.00 MiB em 0 ficheiros (0.00% da pasta).
+BON_COMMANDE_LOCATION: 0.001 GiB; 0.00% da GED FR; app identificada 0.00 MiB em 0 ficheiros (0.00% da pasta).
+ASSURANCE: 0.001 GiB; 0.00% da GED FR; app identificada 0.00 MiB em 0 ficheiros (0.00% da pasta).
+SITUATION_TRAVAUX_CLIENTS: 0.000 GiB; 0.00% da GED FR; app identificada 0.00 MiB em 0 ficheiros (0.00% da pasta).
+
+As referências DOC_INBOX incluem ficheiros associados a documentos da app, que podem incluir referências a documentos já existentes. A atribuição não demonstra que todo o volume tenha sido criado de raiz pela app.
+Não identificar referências da app numa pasta não prova ausência absoluta de ficheiros criados pela app. Ficheiros sem referências não estão incluídos; a varredura anterior registou alguns erros de leitura e ignorou pontos de reanálise.
+As imagens OCR, cache e uploads originais guardados na pasta da aplicação não estão incluídos na medição da GED.
+Nenhum ficheiro documental foi alterado, movido ou apagado.

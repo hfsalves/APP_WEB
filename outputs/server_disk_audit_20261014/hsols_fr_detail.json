@@ -1,0 +1,493 @@
+{
+  "summary": {
+    "ged_fr_bytes": 762425348322,
+    "document_ai_bytes": 447536070,
+    "document_ai_files": 1291,
+    "document_ai_records": 684,
+    "expense_bytes": 249447726,
+    "expense_found_files": 27,
+    "expense_missing_files": 0,
+    "total_app_confirmed_bytes": 696983796,
+    "pct_ged_fr_app": 0.09141666099297087
+  },
+  "folders": [
+    {
+      "Pasta": "DIRECTION PROJETS",
+      "Total_Bytes": 689719194813,
+      "Total_GiB": 642.3511,
+      "Peso_HSOLS_FR_Percentagem": 90.4638,
+      "Ficheiros_Total": 374143,
+      "App_Bytes_Confirmados": 0,
+      "App_MiB_Confirmados": 0.0,
+      "App_Ficheiros_Confirmados": 0,
+      "App_Percentagem_Pasta": 0.0
+    },
+    {
+      "Pasta": "FACTURATION_FOURNISSEURS",
+      "Total_Bytes": 27828866647,
+      "Total_GiB": 25.9177,
+      "Peso_HSOLS_FR_Percentagem": 3.65,
+      "Ficheiros_Total": 22850,
+      "App_Bytes_Confirmados": 252233651,
+      "App_MiB_Confirmados": 240.5488,
+      "App_Ficheiros_Confirmados": 618,
+      "App_Percentagem_Pasta": 0.9064
+    },
+    {
+      "Pasta": "BON_LIVRAISON_FOURNISSEUR",
+      "Total_Bytes": 14317845895,
+      "Total_GiB": 13.3345,
+      "Peso_HSOLS_FR_Percentagem": 1.8779,
+      "Ficheiros_Total": 28688,
+      "App_Bytes_Confirmados": 0,
+      "App_MiB_Confirmados": 0.0,
+      "App_Ficheiros_Confirmados": 0,
+      "App_Percentagem_Pasta": 0.0
+    },
+    {
+      "Pasta": "COURRIER_INTERNE_EXTERIEUR",
+      "Total_Bytes": 13797667612,
+      "Total_GiB": 12.8501,
+      "Peso_HSOLS_FR_Percentagem": 1.8097,
+      "Ficheiros_Total": 25142,
+      "App_Bytes_Confirmados": 195302419,
+      "App_MiB_Confirmados": 186.2549,
+      "App_Ficheiros_Confirmados": 673,
+      "App_Percentagem_Pasta": 1.4155
+    },
+    {
+      "Pasta": "NOTE_FRAIS",
+      "Total_Bytes": 8888375795,
+      "Total_GiB": 8.2779,
+      "Peso_HSOLS_FR_Percentagem": 1.1658,
+      "Ficheiros_Total": 1444,
+      "App_Bytes_Confirmados": 249447726,
+      "App_MiB_Confirmados": 237.8919,
+      "App_Ficheiros_Confirmados": 27,
+      "App_Percentagem_Pasta": 2.8064
+    },
+    {
+      "Pasta": "PAIEMENTS_FOURNISSEURS",
+      "Total_Bytes": 2223474754,
+      "Total_GiB": 2.0708,
+      "Peso_HSOLS_FR_Percentagem": 0.2916,
+      "Ficheiros_Total": 4550,
+      "App_Bytes_Confirmados": 0,
+      "App_MiB_Confirmados": 0.0,
+      "App_Ficheiros_Confirmados": 0,
+      "App_Percentagem_Pasta": 0.0
+    },
+    {
+      "Pasta": "BON_COMMANDE_FOURNISSEUR",
+      "Total_Bytes": 1122797076,
+      "Total_GiB": 1.0457,
+      "Peso_HSOLS_FR_Percentagem": 0.1473,
+      "Ficheiros_Total": 12187,
+      "App_Bytes_Confirmados": 0,
+      "App_MiB_Confirmados": 0.0,
+      "App_Ficheiros_Confirmados": 0,
+      "App_Percentagem_Pasta": 0.0
+    },
+    {
+      "Pasta": "COMPTABILITE",
+      "Total_Bytes": 900811164,
+      "Total_GiB": 0.8389,
+      "Peso_HSOLS_FR_Percentagem": 0.1182,
+      "Ficheiros_Total": 1422,
+      "App_Bytes_Confirmados": 0,
+      "App_MiB_Confirmados": 0.0,
+      "App_Ficheiros_Confirmados": 0,
+      "App_Percentagem_Pasta": 0.0
+    },
+    {
+      "Pasta": "dossier_interno_ndf",
+      "Total_Bytes": 778434895,
+      "Total_GiB": 0.725,
+      "Peso_HSOLS_FR_Percentagem": 0.1021,
+      "Ficheiros_Total": 31,
+      "App_Bytes_Confirmados": 0,
+      "App_MiB_Confirmados": 0.0,
+      "App_Ficheiros_Confirmados": 0,
+      "App_Percentagem_Pasta": 0.0
+    },
+    {
+      "Pasta": "FLOTTE",
+      "Total_Bytes": 752838996,
+      "Total_GiB": 0.7011,
+      "Peso_HSOLS_FR_Percentagem": 0.0987,
+      "Ficheiros_Total": 661,
+      "App_Bytes_Confirmados": 0,
+      "App_MiB_Confirmados": 0.0,
+      "App_Ficheiros_Confirmados": 0,
+      "App_Percentagem_Pasta": 0.0
+    },
+    {
+      "Pasta": "RH",
+      "Total_Bytes": 452295403,
+      "Total_GiB": 0.4212,
+      "Peso_HSOLS_FR_Percentagem": 0.0593,
+      "Ficheiros_Total": 590,
+      "App_Bytes_Confirmados": 0,
+      "App_MiB_Confirmados": 0.0,
+      "App_Ficheiros_Confirmados": 0,
+      "App_Percentagem_Pasta": 0.0
+    },
+    {
+      "Pasta": "MAISON",
+      "Total_Bytes": 429419322,
+      "Total_GiB": 0.3999,
+      "Peso_HSOLS_FR_Percentagem": 0.0563,
+      "Ficheiros_Total": 1309,
+      "App_Bytes_Confirmados": 0,
+      "App_MiB_Confirmados": 0.0,
+      "App_Ficheiros_Confirmados": 0,
+      "App_Percentagem_Pasta": 0.0
+    },
+    {
+      "Pasta": "FACTURATION_CLIENTS",
+      "Total_Bytes": 256134598,
+      "Total_GiB": 0.2385,
+      "Peso_HSOLS_FR_Percentagem": 0.0336,
+      "Ficheiros_Total": 2073,
+      "App_Bytes_Confirmados": 0,
+      "App_MiB_Confirmados": 0.0,
+      "App_Ficheiros_Confirmados": 0,
+      "App_Percentagem_Pasta": 0.0
+    },
+    {
+      "Pasta": "CONTRATS_FOURNISSEURS",
+      "Total_Bytes": 252077967,
+      "Total_GiB": 0.2348,
+      "Peso_HSOLS_FR_Percentagem": 0.0331,
+      "Ficheiros_Total": 961,
+      "App_Bytes_Confirmados": 0,
+      "App_MiB_Confirmados": 0.0,
+      "App_Ficheiros_Confirmados": 0,
+      "App_Percentagem_Pasta": 0.0
+    },
+    {
+      "Pasta": "SITUATION_TRAVAUX_SOUS-TRAITANTS",
+      "Total_Bytes": 171046232,
+      "Total_GiB": 0.1593,
+      "Peso_HSOLS_FR_Percentagem": 0.0224,
+      "Ficheiros_Total": 1705,
+      "App_Bytes_Confirmados": 0,
+      "App_MiB_Confirmados": 0.0,
+      "App_Ficheiros_Confirmados": 0,
+      "App_Percentagem_Pasta": 0.0
+    },
+    {
+      "Pasta": "DOCUMENTS_FOURNISSEURS",
+      "Total_Bytes": 114502900,
+      "Total_GiB": 0.1066,
+      "Peso_HSOLS_FR_Percentagem": 0.015,
+      "Ficheiros_Total": 217,
+      "App_Bytes_Confirmados": 0,
+      "App_MiB_Confirmados": 0.0,
+      "App_Ficheiros_Confirmados": 0,
+      "App_Percentagem_Pasta": 0.0
+    },
+    {
+      "Pasta": "VOYAGES",
+      "Total_Bytes": 102521186,
+      "Total_GiB": 0.0955,
+      "Peso_HSOLS_FR_Percentagem": 0.0134,
+      "Ficheiros_Total": 293,
+      "App_Bytes_Confirmados": 0,
+      "App_MiB_Confirmados": 0.0,
+      "App_Ficheiros_Confirmados": 0,
+      "App_Percentagem_Pasta": 0.0
+    },
+    {
+      "Pasta": "ndf_rejete",
+      "Total_Bytes": 94981221,
+      "Total_GiB": 0.0885,
+      "Peso_HSOLS_FR_Percentagem": 0.0125,
+      "Ficheiros_Total": 5,
+      "App_Bytes_Confirmados": 0,
+      "App_MiB_Confirmados": 0.0,
+      "App_Ficheiros_Confirmados": 0,
+      "App_Percentagem_Pasta": 0.0
+    },
+    {
+      "Pasta": "DOCS TRESORERIE",
+      "Total_Bytes": 85133554,
+      "Total_GiB": 0.0793,
+      "Peso_HSOLS_FR_Percentagem": 0.0112,
+      "Ficheiros_Total": 180,
+      "App_Bytes_Confirmados": 0,
+      "App_MiB_Confirmados": 0.0,
+      "App_Ficheiros_Confirmados": 0,
+      "App_Percentagem_Pasta": 0.0
+    },
+    {
+      "Pasta": "DEVIS FOURNISSEURS",
+      "Total_Bytes": 53471747,
+      "Total_GiB": 0.0498,
+      "Peso_HSOLS_FR_Percentagem": 0.007,
+      "Ficheiros_Total": 172,
+      "App_Bytes_Confirmados": 0,
+      "App_MiB_Confirmados": 0.0,
+      "App_Ficheiros_Confirmados": 0,
+      "App_Percentagem_Pasta": 0.0
+    },
+    {
+      "Pasta": "ODS",
+      "Total_Bytes": 25468207,
+      "Total_GiB": 0.0237,
+      "Peso_HSOLS_FR_Percentagem": 0.0033,
+      "Ficheiros_Total": 94,
+      "App_Bytes_Confirmados": 0,
+      "App_MiB_Confirmados": 0.0,
+      "App_Ficheiros_Confirmados": 0,
+      "App_Percentagem_Pasta": 0.0
+    },
+    {
+      "Pasta": "FACTURES_FOURNISSEURS_APPROUVÉES",
+      "Total_Bytes": 18609889,
+      "Total_GiB": 0.0173,
+      "Peso_HSOLS_FR_Percentagem": 0.0024,
+      "Ficheiros_Total": 14,
+      "App_Bytes_Confirmados": 0,
+      "App_MiB_Confirmados": 0.0,
+      "App_Ficheiros_Confirmados": 0,
+      "App_Percentagem_Pasta": 0.0
+    },
+    {
+      "Pasta": "CONTRATS",
+      "Total_Bytes": 10774366,
+      "Total_GiB": 0.01,
+      "Peso_HSOLS_FR_Percentagem": 0.0014,
+      "Ficheiros_Total": 66,
+      "App_Bytes_Confirmados": 0,
+      "App_MiB_Confirmados": 0.0,
+      "App_Ficheiros_Confirmados": 0,
+      "App_Percentagem_Pasta": 0.0
+    },
+    {
+      "Pasta": "Fac-Fechadas",
+      "Total_Bytes": 10304775,
+      "Total_GiB": 0.0096,
+      "Peso_HSOLS_FR_Percentagem": 0.0014,
+      "Ficheiros_Total": 8,
+      "App_Bytes_Confirmados": 0,
+      "App_MiB_Confirmados": 0.0,
+      "App_Ficheiros_Confirmados": 0,
+      "App_Percentagem_Pasta": 0.0
+    },
+    {
+      "Pasta": "JURIDIQUE",
+      "Total_Bytes": 8884554,
+      "Total_GiB": 0.0083,
+      "Peso_HSOLS_FR_Percentagem": 0.0012,
+      "Ficheiros_Total": 69,
+      "App_Bytes_Confirmados": 0,
+      "App_MiB_Confirmados": 0.0,
+      "App_Ficheiros_Confirmados": 0,
+      "App_Percentagem_Pasta": 0.0
+    },
+    {
+      "Pasta": "BON_COMMANDE_SOUS_TRAITANT",
+      "Total_Bytes": 3804148,
+      "Total_GiB": 0.0035,
+      "Peso_HSOLS_FR_Percentagem": 0.0005,
+      "Ficheiros_Total": 79,
+      "App_Bytes_Confirmados": 0,
+      "App_MiB_Confirmados": 0.0,
+      "App_Ficheiros_Confirmados": 0,
+      "App_Percentagem_Pasta": 0.0
+    },
+    {
+      "Pasta": "BON_LIVRAISON_INTERNES",
+      "Total_Bytes": 2529280,
+      "Total_GiB": 0.0024,
+      "Peso_HSOLS_FR_Percentagem": 0.0003,
+      "Ficheiros_Total": 3,
+      "App_Bytes_Confirmados": 0,
+      "App_MiB_Confirmados": 0.0,
+      "App_Ficheiros_Confirmados": 0,
+      "App_Percentagem_Pasta": 0.0
+    },
+    {
+      "Pasta": "CONTRATS_CLIENTS",
+      "Total_Bytes": 1069865,
+      "Total_GiB": 0.001,
+      "Peso_HSOLS_FR_Percentagem": 0.0001,
+      "Ficheiros_Total": 3,
+      "App_Bytes_Confirmados": 0,
+      "App_MiB_Confirmados": 0.0,
+      "App_Ficheiros_Confirmados": 0,
+      "App_Percentagem_Pasta": 0.0
+    },
+    {
+      "Pasta": "BON_COMMANDE_LOCATION",
+      "Total_Bytes": 1005970,
+      "Total_GiB": 0.0009,
+      "Peso_HSOLS_FR_Percentagem": 0.0001,
+      "Ficheiros_Total": 25,
+      "App_Bytes_Confirmados": 0,
+      "App_MiB_Confirmados": 0.0,
+      "App_Ficheiros_Confirmados": 0,
+      "App_Percentagem_Pasta": 0.0
+    },
+    {
+      "Pasta": "ASSURANCE",
+      "Total_Bytes": 756147,
+      "Total_GiB": 0.0007,
+      "Peso_HSOLS_FR_Percentagem": 0.0001,
+      "Ficheiros_Total": 8,
+      "App_Bytes_Confirmados": 0,
+      "App_MiB_Confirmados": 0.0,
+      "App_Ficheiros_Confirmados": 0,
+      "App_Percentagem_Pasta": 0.0
+    },
+    {
+      "Pasta": "SITUATION_TRAVAUX_CLIENTS",
+      "Total_Bytes": 62976,
+      "Total_GiB": 0.0001,
+      "Peso_HSOLS_FR_Percentagem": 0.0,
+      "Ficheiros_Total": 1,
+      "App_Bytes_Confirmados": 0,
+      "App_MiB_Confirmados": 0.0,
+      "App_Ficheiros_Confirmados": 0,
+      "App_Percentagem_Pasta": 0.0
+    }
+  ],
+  "expense_files": [
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0752-BRUNO RICARDO DUARTE FILIPE.pdf",
+      "bytes": 4408939,
+      "recorded_bytes": "1288550"
+    },
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0753-KHALED ALLAOUI.pdf",
+      "bytes": 8671494,
+      "recorded_bytes": "1564786"
+    },
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0754-MIGUEL DA SILVA SANTOS.pdf",
+      "bytes": 7414589,
+      "recorded_bytes": "3096162"
+    },
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0755-HELDER GASPAR - NC.pdf",
+      "bytes": 10849692,
+      "recorded_bytes": "7331791"
+    },
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0756-HELDER GASPAR - DP.pdf",
+      "bytes": 15359525,
+      "recorded_bytes": "8455122"
+    },
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0757-HELDER GASPAR - VC.pdf",
+      "bytes": 7729104,
+      "recorded_bytes": "3255648"
+    },
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0758-HELDER GASPAR - AN.pdf",
+      "bytes": 6455084,
+      "recorded_bytes": "1858995"
+    },
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0759-BRUNO RICARDO DUARTE FILIPE.pdf",
+      "bytes": 4558635,
+      "recorded_bytes": "1233915"
+    },
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0760-KHALED ALLAOUI.pdf",
+      "bytes": 8367375,
+      "recorded_bytes": "1346578"
+    },
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0761-HELDER GASPAR - NC.pdf",
+      "bytes": 6681568,
+      "recorded_bytes": "2891138"
+    },
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0762-HELDER GASPAR - CG.pdf",
+      "bytes": 27431974,
+      "recorded_bytes": "36923983"
+    },
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0763-BRUNO RICARDO DUARTE FILIPE.pdf",
+      "bytes": 6187882,
+      "recorded_bytes": "2795787"
+    },
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0764-HELDER GASPAR - JS.pdf",
+      "bytes": 17035287,
+      "recorded_bytes": "14011199"
+    },
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0765-ANTONIO DE CARVALHO PINTO.pdf",
+      "bytes": 6349353,
+      "recorded_bytes": "2576472"
+    },
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0766-OUSSAMA DIRAA.pdf",
+      "bytes": 2990943,
+      "recorded_bytes": "64025"
+    },
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0768-KHALED ALLAOUI.pdf",
+      "bytes": 2140556,
+      "recorded_bytes": "725002"
+    },
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0769-OUSSAMA DIRAA.pdf",
+      "bytes": 14269831,
+      "recorded_bytes": "8852599"
+    },
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0772-HELDER GASPAR - JS.pdf",
+      "bytes": 11741245,
+      "recorded_bytes": "4759783"
+    },
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0773-BRUNO RICARDO DUARTE FILIPE.pdf",
+      "bytes": 5036312,
+      "recorded_bytes": "1437979"
+    },
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0774-HELDER GASPAR - CG.pdf",
+      "bytes": 6259179,
+      "recorded_bytes": "1460334"
+    },
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0775-KHALED ALLAOUI.pdf",
+      "bytes": 5860975,
+      "recorded_bytes": "170510"
+    },
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0776-MOHAMMADREZA JAMSHIDIJAM.pdf",
+      "bytes": 6918554,
+      "recorded_bytes": "2169484"
+    },
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0777-MIGUEL DA SILVA SANTOS.pdf",
+      "bytes": 9969183,
+      "recorded_bytes": "5274899"
+    },
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0778-BRUNO RICARDO DUARTE FILIPE.pdf",
+      "bytes": 3549079,
+      "recorded_bytes": "786647"
+    },
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0779-HELDER GASPAR - CG.pdf",
+      "bytes": 7477497,
+      "recorded_bytes": "3153816"
+    },
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0780-HELDER GASPAR - DP.pdf",
+      "bytes": 24724958,
+      "recorded_bytes": "12975047"
+    },
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0781-ADNANE OUAHLA.pdf",
+      "bytes": 11008913,
+      "recorded_bytes": "5837180"
+    }
+  ]
+}

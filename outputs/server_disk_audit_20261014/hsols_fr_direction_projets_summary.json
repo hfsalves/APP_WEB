@@ -1,0 +1,805 @@
+{
+  "summary": {
+    "old_bytes": 689719194813,
+    "current_bytes": 703071137483,
+    "delta_bytes": 13351942670,
+    "files": 377984,
+    "directories": 124854,
+    "errors": 0,
+    "candidate_project_folders": 1440,
+    "completed_folder_bytes": 319563900041
+  },
+  "main_folders": [
+    {
+      "Pasta": "CHANTIERS",
+      "Bytes": 594661305646,
+      "GiB": 553.8215,
+      "Ficheiros": 312526,
+      "Percentagem_Direction_Projets": 84.5805
+    },
+    {
+      "Pasta": "DCE 2026",
+      "Bytes": 52015854539,
+      "GiB": 48.4435,
+      "Ficheiros": 41594,
+      "Percentagem_Direction_Projets": 7.3984
+    },
+    {
+      "Pasta": "DCE 2025",
+      "Bytes": 34402379538,
+      "GiB": 32.0397,
+      "Ficheiros": 13467,
+      "Percentagem_Direction_Projets": 4.8932
+    },
+    {
+      "Pasta": "Said ABDER",
+      "Bytes": 18153250495,
+      "GiB": 16.9065,
+      "Ficheiros": 4874,
+      "Percentagem_Direction_Projets": 2.582
+    },
+    {
+      "Pasta": "HSOLS LABORATOIRES",
+      "Bytes": 1690704109,
+      "GiB": 1.5746,
+      "Ficheiros": 3461,
+      "Percentagem_Direction_Projets": 0.2405
+    },
+    {
+      "Pasta": "FICHES TECHNIQUES",
+      "Bytes": 1141155230,
+      "GiB": 1.0628,
+      "Ficheiros": 1107,
+      "Percentagem_Direction_Projets": 0.1623
+    },
+    {
+      "Pasta": "EQUIPEMENTS",
+      "Bytes": 765418222,
+      "GiB": 0.7129,
+      "Ficheiros": 454,
+      "Percentagem_Direction_Projets": 0.1089
+    },
+    {
+      "Pasta": "DOCUMENTS MODELES",
+      "Bytes": 221208323,
+      "GiB": 0.206,
+      "Ficheiros": 485,
+      "Percentagem_Direction_Projets": 0.0315
+    },
+    {
+      "Pasta": "AutoCAD",
+      "Bytes": 13139146,
+      "GiB": 0.0122,
+      "Ficheiros": 5,
+      "Percentagem_Direction_Projets": 0.0019
+    },
+    {
+      "Pasta": "CHANTIERS MAINTENANCE",
+      "Bytes": 4672072,
+      "GiB": 0.0044,
+      "Ficheiros": 4,
+      "Percentagem_Direction_Projets": 0.0007
+    },
+    {
+      "Pasta": "NORMS PLAINEITE",
+      "Bytes": 1902765,
+      "GiB": 0.0018,
+      "Ficheiros": 3,
+      "Percentagem_Direction_Projets": 0.0003
+    },
+    {
+      "Pasta": "PLANNING MACRO 2026",
+      "Bytes": 103963,
+      "GiB": 0.0001,
+      "Ficheiros": 2,
+      "Percentagem_Direction_Projets": 0.0
+    },
+    {
+      "Pasta": "1. CONTROL DOCUMENTS",
+      "Bytes": 12203,
+      "GiB": 0.0,
+      "Ficheiros": 1,
+      "Percentagem_Direction_Projets": 0.0
+    }
+  ],
+  "top_works": [
+    {
+      "Obra_Pasta": "FR1685_LYS2_COLOMBIER SAUGNIEU",
+      "Caminho_Relativo": "CHANTIERS\\B\\BOUYGUES\\FR1685_LYS2_COLOMBIER SAUGNIEU",
+      "Bytes": 20234153326,
+      "GiB": 18.8445,
+      "Ficheiros": 1153,
+      "Percentagem_Direction_Projets": 2.878,
+      "Obras_Concluidas_Nome_Pasta": false,
+      "Identificacao": "codigo_FR"
+    },
+    {
+      "Obra_Pasta": "FR1797_VGP MULHOUSE - BAT A,B, EXT",
+      "Caminho_Relativo": "CHANTIERS\\V\\VGP\\FR1797_VGP MULHOUSE - BAT A,B, EXT",
+      "Bytes": 16397482768,
+      "GiB": 15.2713,
+      "Ficheiros": 2113,
+      "Percentagem_Direction_Projets": 2.3323,
+      "Obras_Concluidas_Nome_Pasta": false,
+      "Identificacao": "codigo_FR"
+    },
+    {
+      "Obra_Pasta": "FR2054_VIRBAC STAR_CARROS",
+      "Caminho_Relativo": "CHANTIERS\\I\\IDEC INGENIERIE\\FR2054_VIRBAC STAR_CARROS",
+      "Bytes": 11868379907,
+      "GiB": 11.0533,
+      "Ficheiros": 774,
+      "Percentagem_Direction_Projets": 1.6881,
+      "Obras_Concluidas_Nome_Pasta": false,
+      "Identificacao": "codigo_FR"
+    },
+    {
+      "Obra_Pasta": "FR1280_LIDL_GONDREVILLE",
+      "Caminho_Relativo": "CHANTIERS\\E\\EIFFAGE\\FR1280_LIDL_GONDREVILLE",
+      "Bytes": 11367388828,
+      "GiB": 10.5867,
+      "Ficheiros": 1328,
+      "Percentagem_Direction_Projets": 1.6168,
+      "Obras_Concluidas_Nome_Pasta": false,
+      "Identificacao": "codigo_FR"
+    },
+    {
+      "Obra_Pasta": "ETZ 2  - AUGNY",
+      "Caminho_Relativo": "CHANTIERS\\G\\GSE\\1 CHANTIERS FINIS\\ETZ 2  - AUGNY",
+      "Bytes": 11300326128,
+      "GiB": 10.5242,
+      "Ficheiros": 2162,
+      "Percentagem_Direction_Projets": 1.6073,
+      "Obras_Concluidas_Nome_Pasta": true,
+      "Identificacao": "pasta_de_obra"
+    },
+    {
+      "Obra_Pasta": "FR2059_VGP ROUEN_BAT C-D",
+      "Caminho_Relativo": "CHANTIERS\\V\\VGP\\FR2059_VGP ROUEN_BAT C-D",
+      "Bytes": 10350023740,
+      "GiB": 9.6392,
+      "Ficheiros": 959,
+      "Percentagem_Direction_Projets": 1.4721,
+      "Obras_Concluidas_Nome_Pasta": false,
+      "Identificacao": "codigo_FR"
+    },
+    {
+      "Obra_Pasta": "FR1970_Plat logistique SEGRO_  Ferrières",
+      "Caminho_Relativo": "CHANTIERS\\Q\\QUARTUS\\FR1970_Plat logistique SEGRO_  Ferrières",
+      "Bytes": 9092971989,
+      "GiB": 8.4685,
+      "Ficheiros": 2280,
+      "Percentagem_Direction_Projets": 1.2933,
+      "Obras_Concluidas_Nome_Pasta": false,
+      "Identificacao": "codigo_FR"
+    },
+    {
+      "Obra_Pasta": "FR1969_GYMA_Courtenay",
+      "Caminho_Relativo": "CHANTIERS\\Q\\QUARTUS\\FR1969_GYMA_Courtenay",
+      "Bytes": 8591908903,
+      "GiB": 8.0018,
+      "Ficheiros": 1366,
+      "Percentagem_Direction_Projets": 1.2221,
+      "Obras_Concluidas_Nome_Pasta": false,
+      "Identificacao": "codigo_FR"
+    },
+    {
+      "Obra_Pasta": "FR1365_LIDL_ABLIS",
+      "Caminho_Relativo": "CHANTIERS\\I\\IDEC INGENIERIE\\Chantiers finis\\FR1365_LIDL_ABLIS",
+      "Bytes": 8544601094,
+      "GiB": 7.9578,
+      "Ficheiros": 3252,
+      "Percentagem_Direction_Projets": 1.2153,
+      "Obras_Concluidas_Nome_Pasta": true,
+      "Identificacao": "codigo_FR"
+    },
+    {
+      "Obra_Pasta": "FR1740_ITM PLATE-FORME LOGISTIQUE_MAUCHAMPS",
+      "Caminho_Relativo": "CHANTIERS\\B\\BEG\\FR1740_ITM PLATE-FORME LOGISTIQUE_MAUCHAMPS",
+      "Bytes": 7700468980,
+      "GiB": 7.1716,
+      "Ficheiros": 1061,
+      "Percentagem_Direction_Projets": 1.0953,
+      "Obras_Concluidas_Nome_Pasta": false,
+      "Identificacao": "codigo_FR"
+    },
+    {
+      "Obra_Pasta": "FR2046_Plat log_ MONTREDON-DES-CORBS",
+      "Caminho_Relativo": "CHANTIERS\\A\\A.P.R.C\\FR2046_Plat log_ MONTREDON-DES-CORBS",
+      "Bytes": 7680080223,
+      "GiB": 7.1526,
+      "Ficheiros": 394,
+      "Percentagem_Direction_Projets": 1.0924,
+      "Obras_Concluidas_Nome_Pasta": false,
+      "Identificacao": "codigo_FR"
+    },
+    {
+      "Obra_Pasta": "FR2339_GUERLAIN  ORPHIN",
+      "Caminho_Relativo": "CHANTIERS\\I\\IDEC INGENIERIE\\FR2339_GUERLAIN  ORPHIN",
+      "Bytes": 7431189838,
+      "GiB": 6.9208,
+      "Ficheiros": 983,
+      "Percentagem_Direction_Projets": 1.057,
+      "Obras_Concluidas_Nome_Pasta": false,
+      "Identificacao": "codigo_FR"
+    },
+    {
+      "Obra_Pasta": "FR1622_SISLEY_VENDOME",
+      "Caminho_Relativo": "CHANTIERS\\I\\IDEC INGENIERIE\\FR1622_SISLEY_VENDOME",
+      "Bytes": 7242648918,
+      "GiB": 6.7452,
+      "Ficheiros": 1520,
+      "Percentagem_Direction_Projets": 1.0301,
+      "Obras_Concluidas_Nome_Pasta": false,
+      "Identificacao": "codigo_FR"
+    },
+    {
+      "Obra_Pasta": "FR1485_STEF_CARVIN",
+      "Caminho_Relativo": "CHANTIERS\\C\\CUBIC\\1. chantiers finis\\FR1485_STEF_CARVIN",
+      "Bytes": 6920960678,
+      "GiB": 6.4456,
+      "Ficheiros": 685,
+      "Percentagem_Direction_Projets": 0.9844,
+      "Obras_Concluidas_Nome_Pasta": true,
+      "Identificacao": "codigo_FR"
+    },
+    {
+      "Obra_Pasta": "ITM - VERT SAINT DENIS",
+      "Caminho_Relativo": "CHANTIERS\\I\\ITM IMMO\\ITM - VERT SAINT DENIS",
+      "Bytes": 6308344801,
+      "GiB": 5.8751,
+      "Ficheiros": 1584,
+      "Percentagem_Direction_Projets": 0.8973,
+      "Obras_Concluidas_Nome_Pasta": false,
+      "Identificacao": "pasta_de_obra"
+    },
+    {
+      "Obra_Pasta": "ERBREE (35) - ITM",
+      "Caminho_Relativo": "CHANTIERS\\B\\BEG\\1. chantiers finis\\ERBREE (35) - ITM",
+      "Bytes": 6307513753,
+      "GiB": 5.8743,
+      "Ficheiros": 3940,
+      "Percentagem_Direction_Projets": 0.8971,
+      "Obras_Concluidas_Nome_Pasta": true,
+      "Identificacao": "pasta_de_obra"
+    },
+    {
+      "Obra_Pasta": "FR1621_AXIOPARC BAUDER_DRUSENHEIM",
+      "Caminho_Relativo": "CHANTIERS\\B\\BAUDER\\FR1621_AXIOPARC BAUDER_DRUSENHEIM",
+      "Bytes": 6143786674,
+      "GiB": 5.7218,
+      "Ficheiros": 1144,
+      "Percentagem_Direction_Projets": 0.8738,
+      "Obras_Concluidas_Nome_Pasta": false,
+      "Identificacao": "codigo_FR"
+    },
+    {
+      "Obra_Pasta": "FR1701_AREFIM EXT DERET_BOIGNY SUR BIONNE VENNECY",
+      "Caminho_Relativo": "CHANTIERS\\I\\IDEC INGENIERIE\\FR1701_AREFIM EXT DERET_BOIGNY SUR BIONNE VENNECY",
+      "Bytes": 6134324858,
+      "GiB": 5.713,
+      "Ficheiros": 779,
+      "Percentagem_Direction_Projets": 0.8725,
+      "Obras_Concluidas_Nome_Pasta": false,
+      "Identificacao": "codigo_FR"
+    },
+    {
+      "Obra_Pasta": "Z_FR1337_EXTENSION ITMG2_GARANCIERES",
+      "Caminho_Relativo": "CHANTIERS\\G\\GSE\\1 CHANTIERS FINIS\\Z_FR1337_EXTENSION ITMG2_GARANCIERES",
+      "Bytes": 5484061116,
+      "GiB": 5.1074,
+      "Ficheiros": 1446,
+      "Percentagem_Direction_Projets": 0.78,
+      "Obras_Concluidas_Nome_Pasta": true,
+      "Identificacao": "pasta_de_obra"
+    },
+    {
+      "Obra_Pasta": "FR1766_DENTRESSANGLE SIGMA_ Eragny Sur Oise",
+      "Caminho_Relativo": "CHANTIERS\\I\\IDEC INGENIERIE\\FR1766_DENTRESSANGLE SIGMA_ Eragny Sur Oise",
+      "Bytes": 5451700236,
+      "GiB": 5.0773,
+      "Ficheiros": 1173,
+      "Percentagem_Direction_Projets": 0.7754,
+      "Obras_Concluidas_Nome_Pasta": false,
+      "Identificacao": "codigo_FR"
+    },
+    {
+      "Obra_Pasta": "MONTBARTIER - ESSOR (82)",
+      "Caminho_Relativo": "CHANTIERS\\G\\GSE\\1 CHANTIERS FINIS\\MONTBARTIER - ESSOR (82)",
+      "Bytes": 5166376711,
+      "GiB": 4.8116,
+      "Ficheiros": 2585,
+      "Percentagem_Direction_Projets": 0.7348,
+      "Obras_Concluidas_Nome_Pasta": true,
+      "Identificacao": "pasta_de_obra"
+    },
+    {
+      "Obra_Pasta": "ITM - CASTETS (40)",
+      "Caminho_Relativo": "CHANTIERS\\G\\GSE\\1 CHANTIERS FINIS\\ITM - CASTETS (40)",
+      "Bytes": 5069964576,
+      "GiB": 4.7218,
+      "Ficheiros": 3905,
+      "Percentagem_Direction_Projets": 0.7211,
+      "Obras_Concluidas_Nome_Pasta": true,
+      "Identificacao": "pasta_de_obra"
+    },
+    {
+      "Obra_Pasta": "FR1574_SEMMARIS C6_RUNGIS",
+      "Caminho_Relativo": "CHANTIERS\\I\\IDEC INGENIERIE\\Chantiers finis\\FR1574_SEMMARIS C6_RUNGIS",
+      "Bytes": 5060527311,
+      "GiB": 4.713,
+      "Ficheiros": 320,
+      "Percentagem_Direction_Projets": 0.7198,
+      "Obras_Concluidas_Nome_Pasta": true,
+      "Identificacao": "codigo_FR"
+    },
+    {
+      "Obra_Pasta": "FR1558_LIDL_DONZERE",
+      "Caminho_Relativo": "CHANTIERS\\B\\BOUYGUES\\1. chantiers finis\\FR1558_LIDL_DONZERE",
+      "Bytes": 4970320963,
+      "GiB": 4.629,
+      "Ficheiros": 1753,
+      "Percentagem_Direction_Projets": 0.7069,
+      "Obras_Concluidas_Nome_Pasta": true,
+      "Identificacao": "codigo_FR"
+    },
+    {
+      "Obra_Pasta": "FR1569_AVENTECH_ALIXAN",
+      "Caminho_Relativo": "CHANTIERS\\I\\IDEC INGENIERIE\\Chantiers finis\\FR1569_AVENTECH_ALIXAN",
+      "Bytes": 4838672354,
+      "GiB": 4.5064,
+      "Ficheiros": 1162,
+      "Percentagem_Direction_Projets": 0.6882,
+      "Obras_Concluidas_Nome_Pasta": true,
+      "Identificacao": "codigo_FR"
+    },
+    {
+      "Obra_Pasta": "FR1715_SOTAX_SARAN",
+      "Caminho_Relativo": "CHANTIERS\\I\\IDEC INGENIERIE\\FR1715_SOTAX_SARAN",
+      "Bytes": 4591511438,
+      "GiB": 4.2762,
+      "Ficheiros": 695,
+      "Percentagem_Direction_Projets": 0.6531,
+      "Obras_Concluidas_Nome_Pasta": false,
+      "Identificacao": "codigo_FR"
+    },
+    {
+      "Obra_Pasta": "FR2012_PROJET SOREPRIM_FARLEDE",
+      "Caminho_Relativo": "CHANTIERS\\S\\SOREPRIM\\FR2012_PROJET SOREPRIM_FARLEDE",
+      "Bytes": 4459587742,
+      "GiB": 4.1533,
+      "Ficheiros": 866,
+      "Percentagem_Direction_Projets": 0.6343,
+      "Obras_Concluidas_Nome_Pasta": false,
+      "Identificacao": "codigo_FR"
+    },
+    {
+      "Obra_Pasta": "FR1787_GEDIMAT SALBRIS",
+      "Caminho_Relativo": "CHANTIERS\\I\\IDEC INGENIERIE\\FR1787_GEDIMAT SALBRIS",
+      "Bytes": 4393111128,
+      "GiB": 4.0914,
+      "Ficheiros": 1084,
+      "Percentagem_Direction_Projets": 0.6248,
+      "Obras_Concluidas_Nome_Pasta": false,
+      "Identificacao": "codigo_FR"
+    },
+    {
+      "Obra_Pasta": "CESTAS - LIDL (33)",
+      "Caminho_Relativo": "CHANTIERS\\E\\1. Chantiers finis\\EIFFAGE\\CESTAS - LIDL (33)",
+      "Bytes": 3980961711,
+      "GiB": 3.7076,
+      "Ficheiros": 1457,
+      "Percentagem_Direction_Projets": 0.5662,
+      "Obras_Concluidas_Nome_Pasta": true,
+      "Identificacao": "pasta_de_obra"
+    },
+    {
+      "Obra_Pasta": "FR2216_SCI SAINTE COLOMBE",
+      "Caminho_Relativo": "CHANTIERS\\U\\U LOGISTIQUE\\FR2216_SCI SAINTE COLOMBE",
+      "Bytes": 3972032030,
+      "GiB": 3.6992,
+      "Ficheiros": 44,
+      "Percentagem_Direction_Projets": 0.565,
+      "Obras_Concluidas_Nome_Pasta": false,
+      "Identificacao": "codigo_FR"
+    }
+  ],
+  "top_consultations": [
+    {
+      "Pasta": "2026.07.20 VINCI-CONSTRUCTION_ TANNERIES HAAS (67)",
+      "Grupo": "DCE 2026",
+      "Caminho_Relativo": "DCE 2026\\2026.07.20 VINCI-CONSTRUCTION_ TANNERIES HAAS (67)",
+      "Bytes": 8288135806,
+      "GiB": 7.7189,
+      "Ficheiros": 1075
+    },
+    {
+      "Pasta": "2024.04.02 IDEC LIDL VARS",
+      "Grupo": "DCE 2025",
+      "Caminho_Relativo": "DCE 2025\\2024.04.02 IDEC LIDL VARS",
+      "Bytes": 8123394369,
+      "GiB": 7.5655,
+      "Ficheiros": 1654
+    },
+    {
+      "Pasta": "2024.09.20 PITCH ALTAPARC BORDEAUX",
+      "Grupo": "DCE 2025",
+      "Caminho_Relativo": "DCE 2025\\2024.09.20 PITCH ALTAPARC BORDEAUX",
+      "Bytes": 6255120557,
+      "GiB": 5.8255,
+      "Ficheiros": 823
+    },
+    {
+      "Pasta": "2026.01.14 GNAT ASWO - AIS à NEUVILLE SUR OISE",
+      "Grupo": "DCE 2026",
+      "Caminho_Relativo": "DCE 2026\\2026.01.14 GNAT ASWO - AIS à NEUVILLE SUR OISE",
+      "Bytes": 6199914399,
+      "GiB": 5.7741,
+      "Ficheiros": 1331
+    },
+    {
+      "Pasta": "2026.08.06 IDEC_ BROWNFIELDS MARSEILLE",
+      "Grupo": "DCE 2026",
+      "Caminho_Relativo": "DCE 2026\\2026.08.06 IDEC_ BROWNFIELDS MARSEILLE",
+      "Bytes": 5068962519,
+      "GiB": 4.7208,
+      "Ficheiros": 479
+    },
+    {
+      "Pasta": "2026.08.14 IDEC PROLOGIS FLINS",
+      "Grupo": "DCE 2026",
+      "Caminho_Relativo": "DCE 2026\\2026.08.14 IDEC PROLOGIS FLINS",
+      "Bytes": 4632438426,
+      "GiB": 4.3143,
+      "Ficheiros": 247
+    },
+    {
+      "Pasta": "2024.07.18 IDEC  LOGISTIQUE URBAINE - VALENTON",
+      "Grupo": "DCE 2025",
+      "Caminho_Relativo": "DCE 2025\\2024.07.18 IDEC  LOGISTIQUE URBAINE - VALENTON",
+      "Bytes": 3894025755,
+      "GiB": 3.6266,
+      "Ficheiros": 214
+    },
+    {
+      "Pasta": "2022 08 02- LIDL- PARDIES",
+      "Grupo": "DCE 2025",
+      "Caminho_Relativo": "DCE 2025\\2022 08 02- LIDL- PARDIES",
+      "Bytes": 2604695989,
+      "GiB": 2.4258,
+      "Ficheiros": 15
+    },
+    {
+      "Pasta": "2022 11 19 Lidl DR 29  Reyrieux",
+      "Grupo": "DCE 2025",
+      "Caminho_Relativo": "DCE 2025\\2022 11 19 Lidl DR 29  Reyrieux",
+      "Bytes": 2592504202,
+      "GiB": 2.4145,
+      "Ficheiros": 1002
+    },
+    {
+      "Pasta": "2026.04.14 VINCI CONSTRUCTION- IKEA Extension (67)",
+      "Grupo": "DCE 2026",
+      "Caminho_Relativo": "DCE 2026\\2026.04.14 VINCI CONSTRUCTION- IKEA Extension (67)",
+      "Bytes": 2407804525,
+      "GiB": 2.2424,
+      "Ficheiros": 187
+    },
+    {
+      "Pasta": "2025.09.03 APRC  MERU  ESCHES",
+      "Grupo": "DCE 2025",
+      "Caminho_Relativo": "DCE 2025\\2025.09.03 APRC  MERU  ESCHES",
+      "Bytes": 2305601561,
+      "GiB": 2.1473,
+      "Ficheiros": 735
+    },
+    {
+      "Pasta": "2026.05.19 GSE LYSARA SAINT PRIEST",
+      "Grupo": "Said ABDER",
+      "Caminho_Relativo": "Said ABDER\\2026.05.19 GSE LYSARA SAINT PRIEST",
+      "Bytes": 2060759705,
+      "GiB": 1.9192,
+      "Ficheiros": 540
+    },
+    {
+      "Pasta": "AXESS PROLOGIS GIDI",
+      "Grupo": "Said ABDER",
+      "Caminho_Relativo": "Said ABDER\\AXESS PROLOGIS GIDI",
+      "Bytes": 2009650860,
+      "GiB": 1.8716,
+      "Ficheiros": 23
+    },
+    {
+      "Pasta": "2026.06.02 VECTURA HARIBO",
+      "Grupo": "Said ABDER",
+      "Caminho_Relativo": "Said ABDER\\2026.06.02 VECTURA HARIBO",
+      "Bytes": 1903041523,
+      "GiB": 1.7723,
+      "Ficheiros": 318
+    },
+    {
+      "Pasta": "2026.06.25 Vinci-Construction_ LITHIUM DE FRANCE",
+      "Grupo": "DCE 2026",
+      "Caminho_Relativo": "DCE 2026\\2026.06.25 Vinci-Construction_ LITHIUM DE FRANCE",
+      "Bytes": 1797277121,
+      "GiB": 1.6738,
+      "Ficheiros": 97
+    },
+    {
+      "Pasta": "2025.05.02 IDEC TIMAT",
+      "Grupo": "DCE 2025",
+      "Caminho_Relativo": "DCE 2025\\2025.05.02 IDEC TIMAT",
+      "Bytes": 1780033139,
+      "GiB": 1.6578,
+      "Ficheiros": 203
+    },
+    {
+      "Pasta": "2026.03.20 QUARTUS SEGRO CHRONOPOST BOBYGNY 93",
+      "Grupo": "Said ABDER",
+      "Caminho_Relativo": "Said ABDER\\2026.03.20 QUARTUS SEGRO CHRONOPOST BOBYGNY 93",
+      "Bytes": 1429121060,
+      "GiB": 1.331,
+      "Ficheiros": 197
+    },
+    {
+      "Pasta": "2026.02.12_VGP PARK VELIZY_SECTEUR 2",
+      "Grupo": "DCE 2026",
+      "Caminho_Relativo": "DCE 2026\\2026.02.12_VGP PARK VELIZY_SECTEUR 2",
+      "Bytes": 1375877180,
+      "GiB": 1.2814,
+      "Ficheiros": 325
+    },
+    {
+      "Pasta": "2026.03.15. Bouygues FRAMAFER",
+      "Grupo": "DCE 2026",
+      "Caminho_Relativo": "DCE 2026\\2026.03.15. Bouygues FRAMAFER",
+      "Bytes": 1304854728,
+      "GiB": 1.2152,
+      "Ficheiros": 207
+    },
+    {
+      "Pasta": "2026.05.11 BEG_ SACP 7",
+      "Grupo": "DCE 2026",
+      "Caminho_Relativo": "DCE 2026\\2026.05.11 BEG_ SACP 7",
+      "Bytes": 1293167979,
+      "GiB": 1.2044,
+      "Ficheiros": 173
+    }
+  ],
+  "completed_groups": [
+    {
+      "Pasta": "CHANTIERS\\G\\GSE\\1 CHANTIERS FINIS",
+      "Bytes": 95397242382,
+      "GiB": 88.8456,
+      "Ficheiros": 62173
+    },
+    {
+      "Pasta": "CHANTIERS\\I\\IDEC INGENIERIE\\Chantiers finis",
+      "Bytes": 53763531218,
+      "GiB": 50.0712,
+      "Ficheiros": 20002
+    },
+    {
+      "Pasta": "CHANTIERS\\SCI(s)\\Chantiers finis",
+      "Bytes": 28277067476,
+      "GiB": 26.3351,
+      "Ficheiros": 21763
+    },
+    {
+      "Pasta": "CHANTIERS\\B\\BOUYGUES\\1. chantiers finis",
+      "Bytes": 15783064500,
+      "GiB": 14.6991,
+      "Ficheiros": 12366
+    },
+    {
+      "Pasta": "CHANTIERS\\C\\CUBIC\\1. chantiers finis",
+      "Bytes": 15527379766,
+      "GiB": 14.461,
+      "Ficheiros": 6017
+    },
+    {
+      "Pasta": "CHANTIERS\\E\\1. Chantiers finis",
+      "Bytes": 14362320343,
+      "GiB": 13.376,
+      "Ficheiros": 12613
+    },
+    {
+      "Pasta": "CHANTIERS\\B\\BEG\\1. chantiers finis",
+      "Bytes": 10928494567,
+      "GiB": 10.178,
+      "Ficheiros": 9121
+    },
+    {
+      "Pasta": "CHANTIERS\\Q\\QUARTUS\\1. Chantier finis",
+      "Bytes": 10176668674,
+      "GiB": 9.4778,
+      "Ficheiros": 5626
+    },
+    {
+      "Pasta": "CHANTIERS\\S\\1. CHANTIERS FINIS",
+      "Bytes": 10021109844,
+      "GiB": 9.3329,
+      "Ficheiros": 9772
+    },
+    {
+      "Pasta": "CHANTIERS\\L\\1. Chantier finis",
+      "Bytes": 7961603809,
+      "GiB": 7.4148,
+      "Ficheiros": 7719
+    },
+    {
+      "Pasta": "CHANTIERS\\C\\1. Chantiers finis",
+      "Bytes": 7033149545,
+      "GiB": 6.5501,
+      "Ficheiros": 11956
+    },
+    {
+      "Pasta": "CHANTIERS\\P\\chantiers finis",
+      "Bytes": 6007348875,
+      "GiB": 5.5948,
+      "Ficheiros": 7244
+    },
+    {
+      "Pasta": "CHANTIERS\\G\\1. Chantier finis",
+      "Bytes": 5902623082,
+      "GiB": 5.4972,
+      "Ficheiros": 7597
+    },
+    {
+      "Pasta": "CHANTIERS\\C\\COLAS\\1. Chantiers finis",
+      "Bytes": 4511808813,
+      "GiB": 4.2019,
+      "Ficheiros": 3294
+    },
+    {
+      "Pasta": "CHANTIERS\\B\\1. Chantiers finis",
+      "Bytes": 4387202605,
+      "GiB": 4.0859,
+      "Ficheiros": 6331
+    },
+    {
+      "Pasta": "CHANTIERS\\U\\U LOGISTIQUE\\1. Chantiers finis",
+      "Bytes": 4382389249,
+      "GiB": 4.0814,
+      "Ficheiros": 2230
+    },
+    {
+      "Pasta": "CHANTIERS\\D\\1. CHANTIER FINIS",
+      "Bytes": 3799600497,
+      "GiB": 3.5387,
+      "Ficheiros": 5349
+    },
+    {
+      "Pasta": "CHANTIERS\\A\\1. Chantiers finis",
+      "Bytes": 3629550328,
+      "GiB": 3.3803,
+      "Ficheiros": 6811
+    },
+    {
+      "Pasta": "CHANTIERS\\I\\1. CHANTIERS FINIS",
+      "Bytes": 2559101084,
+      "GiB": 2.3833,
+      "Ficheiros": 2729
+    },
+    {
+      "Pasta": "CHANTIERS\\T\\1. CHANTIERS FINIS",
+      "Bytes": 2200101229,
+      "GiB": 2.049,
+      "Ficheiros": 3808
+    },
+    {
+      "Pasta": "CHANTIERS\\K\\1. Chantiers Finis",
+      "Bytes": 1785798532,
+      "GiB": 1.6632,
+      "Ficheiros": 2555
+    },
+    {
+      "Pasta": "CHANTIERS\\I\\ITM IMMO\\1. Chantier finis",
+      "Bytes": 1730400048,
+      "GiB": 1.6116,
+      "Ficheiros": 938
+    },
+    {
+      "Pasta": "CHANTIERS\\M\\1. Chantier finis",
+      "Bytes": 1622261520,
+      "GiB": 1.5108,
+      "Ficheiros": 2834
+    },
+    {
+      "Pasta": "CHANTIERS\\U\\1. Chantier finis",
+      "Bytes": 1465428666,
+      "GiB": 1.3648,
+      "Ficheiros": 2434
+    },
+    {
+      "Pasta": "CHANTIERS\\R\\1. chantiers finis",
+      "Bytes": 1015363459,
+      "GiB": 0.9456,
+      "Ficheiros": 1933
+    },
+    {
+      "Pasta": "CHANTIERS\\E\\EUROVIA\\1. Chantiers finis",
+      "Bytes": 882101570,
+      "GiB": 0.8215,
+      "Ficheiros": 1661
+    },
+    {
+      "Pasta": "CHANTIERS\\H\\1. Chantiers finis",
+      "Bytes": 854541472,
+      "GiB": 0.7959,
+      "Ficheiros": 1511
+    },
+    {
+      "Pasta": "CHANTIERS\\J\\1. CHANTIERS FINIS",
+      "Bytes": 663874918,
+      "GiB": 0.6183,
+      "Ficheiros": 890
+    },
+    {
+      "Pasta": "CHANTIERS\\F\\1. Chantiers finis",
+      "Bytes": 644231853,
+      "GiB": 0.6,
+      "Ficheiros": 1393
+    },
+    {
+      "Pasta": "CHANTIERS\\N\\Chantier finis",
+      "Bytes": 640277599,
+      "GiB": 0.5963,
+      "Ficheiros": 862
+    },
+    {
+      "Pasta": "CHANTIERS\\Z\\1. Chantiers finis",
+      "Bytes": 376351990,
+      "GiB": 0.3505,
+      "Ficheiros": 1037
+    },
+    {
+      "Pasta": "CHANTIERS\\V\\1. Chantiers Finis",
+      "Bytes": 373185080,
+      "GiB": 0.3476,
+      "Ficheiros": 723
+    },
+    {
+      "Pasta": "CHANTIERS\\O\\OLRY\\1. Chantiers finis",
+      "Bytes": 307919914,
+      "GiB": 0.2868,
+      "Ficheiros": 1035
+    },
+    {
+      "Pasta": "CHANTIERS\\V\\VOGEL TP\\1. Chantiers finis",
+      "Bytes": 202412751,
+      "GiB": 0.1885,
+      "Ficheiros": 351
+    },
+    {
+      "Pasta": "CHANTIERS\\B\\BABBI\\1. Chantiers finis",
+      "Bytes": 176639158,
+      "GiB": 0.1645,
+      "Ficheiros": 155
+    },
+    {
+      "Pasta": "CHANTIERS\\W\\1. CHANTIERS FINIS",
+      "Bytes": 123969291,
+      "GiB": 0.1155,
+      "Ficheiros": 284
+    },
+    {
+      "Pasta": "CHANTIERS\\S\\SOCOVAL\\1. Chantiers finis",
+      "Bytes": 83026732,
+      "GiB": 0.0773,
+      "Ficheiros": 135
+    },
+    {
+      "Pasta": "CHANTIERS\\M\\MEAZZA\\1. Chantiers finis",
+      "Bytes": 2937694,
+      "GiB": 0.0027,
+      "Ficheiros": 19
+    },
+    {
+      "Pasta": "CHANTIERS\\V\\VIX GAETAN\\chantiers finis",
+      "Bytes": 1819908,
+      "GiB": 0.0017,
+      "Ficheiros": 4
+    }
+  ]
+}

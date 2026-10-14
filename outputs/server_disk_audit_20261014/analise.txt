@@ -1,0 +1,219 @@
+ANÁLISE DE OCUPAÇÃO DE DISCO — GR360 / 10.0.1.11
+Recolha em 14/10/2026 (hora de Lisboa); servidor Windows: SERVIDOR
+Varredura: 2026-10-14T10:19:46.3875376+01:00 a 2026-10-14T10:31:47.9076786+01:00
+Consultas de metadados por WinRM/SMB e SELECT no SQL Server. Nenhum ficheiro documental foi apagado, movido ou alterado. Nenhuma alteração à aplicação ou à configuração do servidor foi realizada.
+
+CONCLUSÃO
+A queixa refere-se ao tamanho da VM no host de virtualização, conforme esclarecimento do utilizador. Foi identificada e consultada a VM DCSERVIDOR no host HYPERV-NEW (10.0.1.10).
+Os três VHDX dinâmicos ocupam 3 472.23 GiB (3.39 TiB). O Windows usa 3 018.34 GiB. A diferença é 453.89 GiB, concentrada sobretudo no disco E:. Não foram encontrados checkpoints nem discos diferenciais na cadeia ativa da VM.
+Os ficheiros da GED referenciados pela gestão documental da app que foi possível verificar somam 857.69 MiB (0.84 GiB). Este volume é pequeno face à ocupação da VM; a escrita direta desses ficheiros não explica, por si só, um aumento de centenas de GB ou TB.
+O valor é o volume atual de ficheiros associados à app, não uma medição exata de crescimento causado pela app: inclui referências a documentos que podem já existir anteriormente. Ficheiros sem referência na base de dados não estão incluídos nesta atribuição.
+
+VIRTUALIZAÇÃO — DIMENSÃO FÍSICA DOS DISCOS
+C: — E:\DCSERVIDOR2022.vhdx: VHDX físico 126.47 GiB; usado no Windows 102.89 GiB; diferença 23.58 GiB; tipo Dynamic; ParentPath vazio.
+D: — E:\DCSERVIDOR_D2022.vhdx: VHDX físico 1 714.94 GiB; usado no Windows 1 662.30 GiB; diferença 52.64 GiB; tipo Dynamic; ParentPath vazio.
+E: — E:\DCSERVIDOR_E2022.vhdx: VHDX físico 1 630.82 GiB; usado no Windows 1 253.15 GiB; diferença 377.67 GiB; tipo Dynamic; ParentPath vazio.
+A dimensão virtual máxima de cada disco é distinta do seu tamanho físico e do tamanho da partição do Windows. A diferença calculada acima não é espaço recuperável garantido: inclui granularidade de blocos, metadados e áreas que já foram utilizadas.
+Discos dinâmicos podem conservar blocos anteriormente utilizados. A compactação pode recuperar blocos não utilizados, mas pode também não reduzir o ficheiro. A Microsoft exige que o VHD esteja desligado da VM ou montado apenas para leitura para executar Optimize-VHD. Nenhuma compactação, alteração de VM ou operação de manutenção foi realizada.
+Referência Microsoft: https://learn.microsoft.com/en-us/powershell/module/hyper-v/optimize-vhd?view=windowsserver2022-ps
+Volume E: do host: livre 634.29 GiB, 9.5% da capacidade. É o volume que aloja os VHDX desta VM e de outras máquinas.
+
+LOGS DE SEGURANÇA DO WINDOWS — FOCO CONCRETO DE CRESCIMENTO RECENTE
+E:\365\Arquivo LOGS: 22 arquivos Archive-Security-*.evtx, 104.90 GiB, criados desde agosto de 2026.
+C:\Windows\System32\winevt\Logs: 14 arquivos de Security, 66.76 GiB, criados desde setembro de 2026; Security.evtx ativo cerca de 3.60 GiB.
+Total verificado de Security (arquivos nas duas pastas mais o log ativo): 175.26 GiB. Cada arquivo ocupa aproximadamente 4,77 GiB (5,12 GB decimais). Os nomes dos arquivos recolhidos nas duas pastas são distintos; não foram contados como duas cópias do mesmo nome.
+Security está configurado em AutoBackup, com máximo 4.77 GiB para o ficheiro ativo. O modo AutoBackup cria novos arquivos quando o log enche. Mover os arquivos de C: para E: mantém-nos dentro da mesma VM e não resolve a ocupação total dessa VM.
+A política de auditoria ativa Success and Failure em File System, Kernel Object, File Share, Detailed File Share e Filtering Platform Connection, entre outras categorias. Isto é evidência de uma política de auditoria abrangente, não de um log da aplicação GR360.
+Amostra anterior à auditoria, pedida para 13/10/2026 10:00–10:05: 2000 eventos (limite 2000) entre 2026-10-13T10:04:24.0528425+01:00 e 2026-10-13T10:04:59.4907395+01:00. O limite foi atingido, pelo que a amostra não cobre os cinco minutos completos.
+IDs mais frequentes: 5156: 665, 4658: 484, 5145: 267, 4690: 221, 4656: 221, 4663: 109, 4634: 14, 4624: 8. Predominam auditoria de ligações, objetos e acessos a partilhas; vários objetos são de DIRECTION PROJETS e existem vários clientes de rede. A amostra não permite atribuir estes logs especificamente à app. Qualquer acesso auditado, incluindo acessos da app, pode contribuir indiretamente.
+Prioridade para sistemas: rever quais eventos são necessários e a retenção/arquivo dos eventos Security. O máximo de 5,12 GB limita cada ficheiro ativo, mas não a soma dos arquivos acumulados. Não foi alterada a política nem removido qualquer arquivo.
+
+OCUPAÇÃO DOS DISCOS (1 GiB = 1 073 741 824 bytes)
+C: total 125.82 GiB; ocupado 102.89 GiB (81.8%); livre 22.93 GiB.
+D: total 1 999.98 GiB; ocupado 1 662.30 GiB (83.1%); livre 337.68 GiB.
+E: total 2 000.98 GiB; ocupado 1 253.15 GiB (62.6%); livre 747.83 GiB.
+A partilha \\10.0.1.11\GED corresponde a D:\GED.
+
+MAIORES PASTAS — PRIMEIRO NÍVEL, SEM SOMAR SUBPASTAS NOVAMENTE
+C:\
+  C:\Windows: 91.35 GiB; 439,060 ficheiros; criados desde 14/04: 77.79 GiB; desde 14/07: 75.67 GiB; desde 14/09: 75.59 GiB.
+  C:\Program Files: 6.35 GiB; 8,178 ficheiros; criados desde 14/04: 4.51 GiB; desde 14/07: 2.61 GiB; desde 14/09: 1.10 GiB.
+  C:\Program Files (x86): 3.26 GiB; 3,491 ficheiros; criados desde 14/04: 2.84 GiB; desde 14/07: 2.56 GiB; desde 14/09: 2.47 GiB.
+  C:\ProgramData: 2.25 GiB; 4,766 ficheiros; criados desde 14/04: 1.39 GiB; desde 14/07: 1.31 GiB; desde 14/09: 0.49 GiB.
+  C:\Users: 1.77 GiB; 25,225 ficheiros; criados desde 14/04: 0.24 GiB; desde 14/07: 0.05 GiB; desde 14/09: 0.02 GiB.
+  C:\System Volume Information: 0.04 GiB; 23 ficheiros; criados desde 14/04: 0.00 GiB; desde 14/07: 0.00 GiB; desde 14/09: 0.00 GiB.
+  C:\ArcVolTrc: 0.00 GiB; 2 ficheiros; criados desde 14/04: 0.00 GiB; desde 14/07: 0.00 GiB; desde 14/09: 0.00 GiB.
+  C:\inetpub: 0.00 GiB; 1 ficheiros; criados desde 14/04: 0.00 GiB; desde 14/07: 0.00 GiB; desde 14/09: 0.00 GiB.
+  C:\ΩWGUA.Bin: 0.00 GiB; 66 ficheiros; criados desde 14/04: 0.00 GiB; desde 14/07: 0.00 GiB; desde 14/09: 0.00 GiB.
+  C:\!WGUA.Bin: 0.00 GiB; 66 ficheiros; criados desde 14/04: 0.00 GiB; desde 14/07: 0.00 GiB; desde 14/09: 0.00 GiB.
+  C:\Recovery: 0.00 GiB; 1 ficheiros; criados desde 14/04: 0.00 GiB; desde 14/07: 0.00 GiB; desde 14/09: 0.00 GiB.
+  C:\$Recycle.Bin: 0.00 GiB; 5 ficheiros; criados desde 14/04: 0.00 GiB; desde 14/07: 0.00 GiB; desde 14/09: 0.00 GiB.
+D:\
+  D:\GED: 957.16 GiB; 701,407 ficheiros; criados desde 14/04: 194.97 GiB; desde 14/07: 60.71 GiB; desde 14/09: 17.35 GiB.
+  D:\DAF: 389.76 GiB; 214,185 ficheiros; criados desde 14/04: 27.64 GiB; desde 14/07: 12.06 GiB; desde 14/09: 4.39 GiB.
+  D:\Comercial: 162.55 GiB; 36,231 ficheiros; criados desde 14/04: 18.41 GiB; desde 14/07: 2.93 GiB; desde 14/09: 2.45 GiB.
+  D:\Produção: 67.35 GiB; 28,033 ficheiros; criados desde 14/04: 0.00 GiB; desde 14/07: 0.00 GiB; desde 14/09: 0.00 GiB.
+  D:\INTERSOL_CR: 62.06 GiB; 50,835 ficheiros; criados desde 14/04: 59.76 GiB; desde 14/07: 0.00 GiB; desde 14/09: 0.00 GiB.
+  D:\$RECYCLE.BIN: 6.61 GiB; 364 ficheiros; criados desde 14/04: 0.00 GiB; desde 14/07: 0.00 GiB; desde 14/09: 0.00 GiB.
+  D:\SFTP: 0.05 GiB; 4 ficheiros; criados desde 14/04: 0.00 GiB; desde 14/07: 0.00 GiB; desde 14/09: 0.00 GiB.
+  D:\ArcVolTrc: 0.01 GiB; 2 ficheiros; criados desde 14/04: 0.00 GiB; desde 14/07: 0.00 GiB; desde 14/09: 0.00 GiB.
+  D:\System Volume Information: 0.00 GiB; 3 ficheiros; criados desde 14/04: 0.00 GiB; desde 14/07: 0.00 GiB; desde 14/09: 0.00 GiB.
+E:\
+  E:\Administração: 872.19 GiB; 349,274 ficheiros; criados desde 14/04: 25.85 GiB; desde 14/07: 2.27 GiB; desde 14/09: 0.00 GiB.
+  E:\Secretariado: 176.51 GiB; 115,298 ficheiros; criados desde 14/04: 0.00 GiB; desde 14/07: 0.00 GiB; desde 14/09: 0.00 GiB.
+  E:\365: 122.48 GiB; 70 ficheiros; criados desde 14/04: 104.90 GiB; desde 14/07: 104.90 GiB; desde 14/09: 38.15 GiB.
+  E:\Tecnica: 53.27 GiB; 5,936 ficheiros; criados desde 14/04: 1.47 GiB; desde 14/07: 0.17 GiB; desde 14/09: 0.17 GiB.
+  E:\Publico: 13.07 GiB; 7,624 ficheiros; criados desde 14/04: 1.13 GiB; desde 14/07: 0.14 GiB; desde 14/09: 0.05 GiB.
+  E:\CAC FR: 6.23 GiB; 6,065 ficheiros; criados desde 14/04: 6.23 GiB; desde 14/07: 0.31 GiB; desde 14/09: 0.31 GiB.
+  E:\Scan_Guias_CTB: 3.68 GiB; 7,638 ficheiros; criados desde 14/04: 3.52 GiB; desde 14/07: 3.32 GiB; desde 14/09: 1.33 GiB.
+  E:\Backup Marrocos: 3.03 GiB; 3,364 ficheiros; criados desde 14/04: 0.00 GiB; desde 14/07: 0.00 GiB; desde 14/09: 0.00 GiB.
+  E:\RH_INTERSOL: 0.64 GiB; 1,907 ficheiros; criados desde 14/04: 0.63 GiB; desde 14/07: 0.20 GiB; desde 14/09: 0.11 GiB.
+  E:\Utilizadores: 0.01 GiB; 19 ficheiros; criados desde 14/04: 0.00 GiB; desde 14/07: 0.00 GiB; desde 14/09: 0.00 GiB.
+  E:\ArcVolTrc: 0.01 GiB; 2 ficheiros; criados desde 14/04: 0.00 GiB; desde 14/07: 0.00 GiB; desde 14/09: 0.00 GiB.
+  E:\System Volume Information: 0.00 GiB; 3 ficheiros; criados desde 14/04: 0.00 GiB; desde 14/07: 0.00 GiB; desde 14/09: 0.00 GiB.
+
+PASTAS COM MAIS BYTES EM FICHEIROS CRIADOS DESDE 14/04/2026
+D:\GED: 194.97 GiB; volume atual 957.16 GiB.
+E:\365: 104.90 GiB; volume atual 122.48 GiB.
+C:\Windows: 77.79 GiB; volume atual 91.35 GiB.
+D:\INTERSOL_CR: 59.76 GiB; volume atual 62.06 GiB.
+D:\DAF: 27.64 GiB; volume atual 389.76 GiB.
+E:\Administração: 25.85 GiB; volume atual 872.19 GiB.
+D:\Comercial: 18.41 GiB; volume atual 162.55 GiB.
+E:\CAC FR: 6.23 GiB; volume atual 6.23 GiB.
+C:\Program Files: 4.51 GiB; volume atual 6.35 GiB.
+E:\Scan_Guias_CTB: 3.52 GiB; volume atual 3.68 GiB.
+C:\Program Files (x86): 2.84 GiB; volume atual 3.26 GiB.
+E:\Tecnica: 1.47 GiB; volume atual 53.27 GiB.
+CreationTime indica quando o ficheiro foi criado neste sistema de ficheiros. Cópias, reposições e migrações podem alterar esta data. LastWriteTime indica a última modificação, não os bytes efetivamente acrescentados. Estes grupos de datas não são o crescimento líquido do disco; faltam inventários históricos comparáveis.
+
+DETALHE GED
+GED total: 957.16 GiB; 701,407 ficheiros. Volume associado à app verificado: 0.0875% da GED.
+D:\GED\HSOLS_FR\DIRECTION PROJETS: 642.35 GiB; criados desde 14/04: 86.26 GiB.
+D:\GED\HSOLS_INTERSOL_AL\DROPBOX: 42.04 GiB; criados desde 14/04: 42.04 GiB.
+D:\GED\HSOLS_DE\DIRECTION PROJETS: 30.73 GiB; criados desde 14/04: 1.06 GiB.
+D:\GED\HSOLS_FR\FACTURATION_FOURNISSEURS: 25.92 GiB; criados desde 14/04: 1.80 GiB.
+D:\GED\HSOLS_INTERSOL_LOR\DROPBOX: 24.16 GiB; criados desde 14/04: 24.16 GiB.
+D:\GED\HSOLS_INTERSOL_CH\DROPBOX: 17.45 GiB; criados desde 14/04: 17.45 GiB.
+D:\GED\HSOLS_FR\BON_LIVRAISON_FOURNISSEUR: 13.33 GiB; criados desde 14/04: 0.04 GiB.
+D:\GED\HSOLS_FR\COURRIER_INTERNE_EXTERIEUR: 12.85 GiB; criados desde 14/04: 0.68 GiB.
+D:\GED\HSOLS_DE\ARCHIVES DOCUMENTS HSOLS DE: 10.18 GiB; criados desde 14/04: 0.00 GiB.
+D:\GED\HSOLS_DE\FACTURATION_FOURNISSEURS: 8.84 GiB; criados desde 14/04: 0.42 GiB.
+D:\GED\HSOLS_ES\DIRETION PROJETS: 8.73 GiB; criados desde 14/04: 0.00 GiB.
+D:\GED\HSOLS_DE\BON_LIVRAISON_FOURNISSEUR: 8.60 GiB; criados desde 14/04: 0.08 GiB.
+D:\GED\HSOLS_PT\DIRETION PROJETS: 8.54 GiB; criados desde 14/04: 0.58 GiB.
+D:\GED\HSOLS_FR\NOTE_FRAIS: 8.28 GiB; criados desde 14/04: 1.21 GiB.
+D:\GED\HSOLS_INTERSOL_LOR\DIRETION PROJETS: 7.60 GiB; criados desde 14/04: 3.74 GiB.
+D:\GED\HSOLS_INTERSOL_AL\DIRETION PROJETS: 7.42 GiB; criados desde 14/04: 4.99 GiB.
+D:\GED\HSOLS_MA\DIRECTION PROJETS: 7.34 GiB; criados desde 14/04: 1.35 GiB.
+D:\GED\HSOLS_PT\FACTURACTION_FOURNISSEURS: 5.29 GiB; criados desde 14/04: 0.41 GiB.
+D:\GED\HSOLS_PT\NOTE_FRAIS: 4.25 GiB; criados desde 14/04: 0.38 GiB.
+D:\GED\HSOLS_PT\COURRIER_INTERNE_EXTERIEUR: 3.93 GiB; criados desde 14/04: 0.24 GiB.
+
+GESTÃO DOCUMENTAL DA APP — BASE DE DADOS GR360_CORE EM SRVPHC / 10.0.1.12
+1,780 registos DOC_INBOX; 528.88 MiB de originais registados; primeiro registo 2026-07-22 13:43:02; último 2026-10-14 09:02:18.003000.
+2026-07: 9 documentos, 2.68 MiB de originais.
+2026-08: 172 documentos, 46.65 MiB de originais.
+2026-09: 1,093 documentos, 354.06 MiB de originais.
+2026-10: 506 documentos, 125.49 MiB de originais.
+Todos os 1 780 registos apontam para /static/...; esta referência pública, por si só, não identifica o servidor físico onde a app guarda os originais.
+Não foram encontrados hashes repetidos em DOC_INBOX. As cinco origens DOC_SOURCE estão desativadas; a importação contínua por essas origens não está ativa segundo a configuração atual da base de dados.
+2,612 caminhos GED distintos em metadados; 2,511 ficheiros encontrados; 101 caminhos não confirmados. Soma dos encontrados: 857.69 MiB.
+FACTURATION_FOURNISSEURS: 1,182 ficheiros; 473.93 MiB.
+COURRIER_INTERNE_EXTERIEUR: 1,325 ficheiros; 383.21 MiB.
+FACTURACTION_FOURNISSEURS: 4 ficheiros; 0.55 MiB.
+1392 documentos com caminhos GED candidatos atuais; 1340 com pelo menos um ficheiro encontrado; 52 sem candidato encontrado. Isto exige uma verificação própria de integridade; não demonstra que os originais da app tenham desaparecido.
+Os 101 caminhos não encontrados incluem referências alternativas ou anteriores. Nas amostras verificadas, o SMB devolveu STATUS_OBJECT_NAME_NOT_FOUND (ficheiro não encontrado).
+
+ESCRITAS PREVISTAS NO CÓDIGO DO REPOSITÓRIO
+services/document_ai_service.py:2871 — a integração de certas faturas grava o PDF em COURRIER_INTERNE_EXTERIEUR e FACTURATION_FOURNISSEURS: duas cópias físicas na GED.
+services/document_ai_service.py:2107 — correspondência segue para COURRIER_INTERNE_EXTERIEUR/Courriers Reçus/<ano>/<mês>.
+services/document_ai_service.py:11526 e :11555 — uploads e importações guardam uma cópia em <DOCUMENT_AI_STORAGE_ROOT ou raiz da app>/static/images/document_ai.
+services/document_ai_processing_orchestrator.py:28 — OCR guarda PNGs por página em <raiz da app>/static/images/document_ai_preprocessed; o nome determinístico reutiliza o ficheiro da mesma página em reprocessamentos.
+services/document_ai_service.py:780 — recuperação de GED cria cache em <raiz de armazenamento>/.document_ai_cache/<documento>; não foi identificada expiração automática neste fluxo.
+services/document_ai_service.py:11486 — eliminação na inbox é lógica e mantém os ficheiros. Não é uma operação de libertação de disco.
+services/document_ai_service.py:12349 — o robot consulta o hash antes de copiar um ficheiro já existente. O fluxo de upload também elimina a cópia rejeitada como duplicada.
+Estas observações descrevem o código consultado no checkout; a versão efetivamente instalada não foi comparada nesta análise.
+Pastas físicas da app encontradas na varredura dos três discos: nenhuma pasta com os nomes APP_WEB, document_ai, document_ai_preprocessed ou .document_ai_cache nas áreas acessíveis.
+
+BASE DE DADOS E OUTROS CONSUMOS
+SQL em SRVPHC: GR360_CORE (ROWS), 136.00 MiB, D:\BDADOS\GR360_CORE.mdf.
+SQL em SRVPHC: GR360_CORE_log (LOG), 264.00 MiB, D:\BDADOS\GR360_CORE_log.ldf.
+Os ficheiros SQL estão no servidor 10.0.1.12, não no 10.0.1.11. DOC_INBOX reserva 53.50 MiB.
+Despesas de colaboradores: 801 registos, 1.69 GiB de anexos originais registados; os caminhos com ficheiro apontam para /static/... (754 registos), sendo os restantes 47 sem caminho nem tamanho. Este valor não foi atribuído fisicamente ao servidor 10.0.1.11.
+GED NOTE_FRAIS (inclui os documentos de despesas e outros existentes): 16.80 GiB.
+  D:\GED\HSOLS_FR\NOTE_FRAIS: 8.28 GiB.
+  D:\GED\HSOLS_PT\NOTE_FRAIS: 4.25 GiB.
+  D:\GED\HSOLS_DE\NOTE_FRAIS: 1.31 GiB.
+  D:\GED\HSOLS_MA\NOTE_FRAIS: 0.86 GiB.
+  D:\GED\HSOLS_GR_EQP\NOTE_FRAIS: 0.79 GiB.
+  D:\GED\HSOLS_INTERSOL_LOR\NOTE_FRAIS: 0.55 GiB.
+  D:\GED\HSOLS_INTERSOL_AL\NOTE_FRAIS: 0.28 GiB.
+  D:\GED\HSOLS_GRE\note_frais: 0.20 GiB.
+  D:\GED\HSOLS_INTERSOL_CH\NOTE_FRAIS: 0.16 GiB.
+  D:\GED\HSOLS_ES\NOTE_FRAIS: 0.11 GiB.
+  D:\GED\HSOLS_IND\NOTE_FRAIS: 0.02 GiB.
+services/colaborador_despesas_service.py:2050 — os PDFs finais de despesas são gravados na GED, na pasta <entidade>/NOTE_FRAIS/<ano>. app.py:25900 — documentos enviados pelos clientes ficam em <raiz da app>/storage/client_documents, salvo configuração externa do sistema de ficheiros.
+Cópias de sombra locais: 0; armazenamento VSS utilizado: 0.00 GiB. Não foi observada ocupação significativa por VSS nesta recolha.
+Foram observados serviços Arcserve de backup no servidor. Isto não mede a dimensão de backups/checkpoints da VM no hipervisor.
+Amostra de atividade SMB em 2026-10-14T10:26:12.9022371+01:00: 2250 objetos abertos, maioritariamente por outros clientes. Ter um objeto aberto não demonstra escrita nem crescimento. Os contadores de disco recolhidos são apenas uma amostra instantânea durante a própria auditoria e não servem para atribuir atividade histórica.
+
+FICHEIROS MAIORES QUE 2 GiB — ATÉ 30 MAIORES
+E:\Administração\AC\António Cruz - direction@hsols.com - In-Place Archive.pst: 93.15 GiB; criação 2025-08-19T14:27:36.6893442+01:00; modificação 2025-08-20T16:07:19.9008274+01:00.
+E:\Administração\AC\António Cruz - direction@hsols.com - In-Place Archive - Spllited.pst: 55.24 GiB; criação 2026-04-02T00:21:20.3550518+01:00; modificação 2026-04-01T15:07:09.8724638+01:00.
+E:\Administração\HG\Documents\Ficheiros do Outlook\archive 2018.pst: 47.50 GiB; criação 2023-08-01T22:57:15.6514198+01:00; modificação 2023-08-01T20:21:15.1200064+01:00.
+E:\Administração\HG\Documents\Fichiers Outlook\archive 2022.pst: 47.50 GiB; criação 2023-08-02T02:50:33.2977521+01:00; modificação 2023-08-01T20:21:15.1158418+01:00.
+E:\Administração\HG\Documents\Ficheiros do Outlook\Archives.pst: 47.05 GiB; criação 2023-08-02T00:49:06.9697940+01:00; modificação 2023-08-01T20:21:15.3480088+01:00.
+E:\Administração\AC\administrativa.pst: 37.88 GiB; criação 2026-04-02T00:19:42.4802020+01:00; modificação 2026-04-01T15:06:49.6209196+01:00.
+E:\Administração\AC\António Cruz - direction@hsols.com - In-Place Archive 2.pst: 32.48 GiB; criação 2026-03-22T22:48:03.4352181+00:00; modificação 2026-03-22T23:11:14.0804580+00:00.
+D:\DAF\DAF_CTR_GESTAO\Ficheiros Outlook\gestion@hsols.com.pst: 29.75 GiB; criação 2021-04-21T10:05:06.4960304+01:00; modificação 2025-10-30T17:44:08.0665259+00:00.
+E:\Administração\PST HG\archive 2018.pst: 24.76 GiB; criação 2020-11-13T11:05:16.7552964+00:00; modificação 2020-11-13T11:47:56.8415956+00:00.
+E:\365\Controleur\controleur@hsols.com.pst: 16.36 GiB; criação 2025-07-26T19:44:32.6660644+01:00; modificação 2025-07-26T19:40:23.6389133+01:00.
+D:\DAF\DAF_RH\PT\DOCS NATALIE RAMIRES\Documents\Ficheiros do Outlook\Outlook.pst: 15.93 GiB; criação 2021-10-25T09:52:44.9384966+01:00; modificação 2021-09-30T17:01:14.9780400+01:00.
+E:\Administração\NR\Documents\Ficheiros do Outlook\Outlook.pst: 15.93 GiB; criação 2021-10-01T13:48:42.2043089+01:00; modificação 2021-09-30T17:01:14.9780400+01:00.
+E:\Administração\HG\Documents\Ficheiros do Outlook\helder@hsols.com.pst: 13.42 GiB; criação 2023-08-02T02:09:00.0085925+01:00; modificação 2023-08-05T19:42:57.7887833+01:00.
+E:\Secretariado\Commun\Isabelle\Outlook.pst: 11.57 GiB; criação 2020-08-21T12:49:34.8650552+01:00; modificação 2018-11-05T09:05:07.6406150+00:00.
+D:\Comercial\PT\PST_ASILVA\comercial@mgsoleras.es.pst: 10.08 GiB; criação 2023-08-08T08:19:05.8862671+01:00; modificação 2023-08-08T08:17:02.4762873+01:00.
+E:\Administração\Empresas\Documentação\MG SOLERAS\IVO QUINA\francisco@mgsoleras.es.pst: 10.06 GiB; criação 2021-02-18T09:57:03.8509069+00:00; modificação 2021-01-22T13:16:52.6121776+00:00.
+D:\GED\HSOLS_FR\DIRECTION PROJETS\CHANTIERS\B\BOUYGUES\FR1685_LYS2_COLOMBIER SAUGNIEU\TECHNIQUE\14. DCE\2024.03.19  BOUYGUES  Projet LYS2 SAINT EXUPERY\Dossier initial\OneDrive_1_19-03-2024.zip: 9.94 GiB; criação 2024-03-19T16:34:20.5803886+00:00; modificação 2024-03-19T16:57:13.1048190+00:00.
+E:\Administração\Empresas\Documentação\MG SOLERAS\IVO QUINA\quina@mgsoleras.es.pst: 9.54 GiB; criação 2021-02-18T09:32:34.8497811+00:00; modificação 2021-01-22T13:16:52.5808603+00:00.
+E:\Administração\Empresas\Documentação\MG SOLERAS\MGSOLERAS\Outlook IVO PST\quina@mgsoleras.es.pst: 9.43 GiB; criação 2021-01-20T11:29:00.2839056+00:00; modificação 2020-12-17T10:30:49.4876911+00:00.
+D:\DAF\DAF_FIN\ES\MGSOLERAS\Outlook IVO PST\quina@mgsoleras.es.pst: 9.43 GiB; criação 2020-12-22T13:24:27.9245132+00:00; modificação 2020-12-17T10:30:49.4876911+00:00.
+D:\Produção\COO\BACKUP\Ficheiros do Outlook\comercial@mgsoleras.es.pst: 9.37 GiB; criação 2022-12-20T09:03:06.4943443+00:00; modificação 2022-12-20T09:00:16.2409237+00:00.
+E:\Tecnica\Mediçoes\Mediçoes\2026\RAESS\2026.03.15 GA ENTREPRISE_ Projet MATE à Ensisheim (68)\0- Dossier de Consultation\Consultation\0- Dossier de Consultation\GMP2 DRAFT 20260320.zip: 9.07 GiB; criação 2026-03-29T12:26:44.8752054+01:00; modificação 2026-03-26T17:37:11.6195086+00:00.
+D:\Comercial\PT\PST_ASILVA\comercial@betaoconcept.com.pst: 8.74 GiB; criação 2023-08-08T08:18:59.9308957+01:00; modificação 2023-08-08T08:17:02.4756651+01:00.
+E:\Administração\Alexandra\Fichiers Outlook\sv301019\h.ebeling@hsols.com.pst: 7.36 GiB; criação 2020-11-20T12:05:30.2649056+00:00; modificação 2019-10-30T08:46:45.0570742+00:00.
+E:\Administração\HG\Documents\Fichiers Outlook\archive 2020.pst: 7.09 GiB; criação 2023-08-02T02:31:35.3289431+01:00; modificação 2022-04-20T19:03:46.4224614+01:00.
+D:\Produção\COO\BACKUP\Ficheiros do Outlook\comercial@betaoconcept.com.pst: 6.60 GiB; criação 2022-12-20T09:02:53.6623668+00:00; modificação 2022-12-20T09:01:31.0505766+00:00.
+E:\Administração\HG\Documents\Fichiers Outlook\archive 2022_2.pst: 6.04 GiB; criação 2023-08-02T04:10:31.4031024+01:00; modificação 2023-08-01T20:21:15.1026274+01:00.
+E:\Administração\HG\Documents\Ficheiros do Outlook\archive.pst: 5.35 GiB; criação 2023-08-02T00:39:49.7614384+01:00; modificação 2022-04-20T19:03:46.4185757+01:00.
+E:\Administração\HG\Documents\Fichiers Outlook\archive 2023.pst: 5.23 GiB; criação 2023-08-02T04:20:26.8542896+01:00; modificação 2023-08-01T20:21:15.1508027+01:00.
+D:\Comercial\MA\DCE\TGCC\COEUR DE VILLE\C03& C04\PLANS LOTS C03 & C04.zip: 5.00 GiB; criação 2026-06-26T10:57:44.0347298+01:00; modificação 2026-06-26T11:03:51.7199665+01:00.
+
+LIMITAÇÕES E VALIDAÇÃO COM SISTEMAS
+Foram inventariados 2,009,156 ficheiros em 586,526 pastas, 3 006.44 GiB de tamanhos lógicos. Erros de acesso/leitura: 402; pontos de reanálise ignorados: 87.
+A soma dos tamanhos lógicos não coincide necessariamente com os bytes alocados: existem metadados NTFS, ficheiros protegidos, compressão, ligações físicas e áreas inacessíveis. Não foram seguidos pontos de reanálise para evitar percorrer destinos alheios ou contar duplicados.
+Área/ficheiro não inventariado: D:\GED\HSOLS_INTERSOL_LOR\DIRETION PROJETS\CHANTIERS\C\COSTANTINI\IS2403_CREDIT AGRICOLE NANCY\ADMINISTRATIF\1. CONTRAT - AVENANTS - DEVIS\3.1 CONTRAT\Annexes contrat Intersol\Annexes 3\17. Plans architecte\232-DCE-PROJET RESISTANCE-IND 3-PDF\DETAILS MURS RIDEAUX INT
+Área/ficheiro não inventariado: D:\GED\HSOLS_FR\DIRECTION PROJETS\CHANTIERS\V\VGP\FR2059_VGP ROUEN_BAT C-D\TECHNIQUE\13. DCE\2025.10.20 VGPPARKS ROUEN\28.10.2025\DCE DEF - Lot 34\A - Données contextuelles\A4 - Lotissement aménageur\A4-5 DOE Aménageur\A4-5-2 DOE dépollutions et démolitions site
+Área/ficheiro não inventariado: D:\GED\HSOLS_FR\DIRECTION PROJETS\CHANTIERS\V\VGP\FR2059_VGP ROUEN_BAT C-D\TECHNIQUE\13. DCE\2025.10.20 VGPPARKS ROUEN\28.10.2025\DCE DEF - Lot 34\A - Données contextuelles\A4 - Lotissement aménageur\A4-3 - Arrêtés PA\A4-3-3 Arrêté AE sur PA\A4-3-3-2 Arrêté
+Área/ficheiro não inventariado: D:\GED\HSOLS_FR\DIRECTION PROJETS\CHANTIERS\V\VGP\FR2059_VGP ROUEN_BAT C-D\TECHNIQUE\13. DCE\2025.10.20 VGPPARKS ROUEN\28.10.2025\DCE DEF - Lot 34\A - Données contextuelles\A4 - Lotissement aménageur\A4-3 - Arrêtés PA\A4-3-1 Arrêté PA\A4-3-1-5 Arrêté PAM04
+Área/ficheiro não inventariado: D:\GED\HSOLS_FR\DIRECTION PROJETS\CHANTIERS\V\VGP\FR2059_VGP ROUEN_BAT C-D\TECHNIQUE\13. DCE\2025.10.20 VGPPARKS ROUEN\28.10.2025\DCE DEF - Lot 34\A - Données contextuelles\A4 - Lotissement aménageur\A4-3 - Arrêtés PA\A4-3-1 Arrêté PA\A4-3-1-4 Arrêté PAM03
+Área/ficheiro não inventariado: D:\GED\HSOLS_FR\DIRECTION PROJETS\CHANTIERS\V\VGP\FR2059_VGP ROUEN_BAT C-D\TECHNIQUE\13. DCE\2025.10.20 VGPPARKS ROUEN\28.10.2025\DCE DEF - Lot 34\A - Données contextuelles\A4 - Lotissement aménageur\A4-3 - Arrêtés PA\A4-3-1 Arrêté PA\A4-3-1-3 Arrêté PAM02
+Área/ficheiro não inventariado: D:\GED\HSOLS_FR\DIRECTION PROJETS\CHANTIERS\V\VGP\FR2059_VGP ROUEN_BAT C-D\TECHNIQUE\13. DCE\2025.10.20 VGPPARKS ROUEN\28.10.2025\DCE DEF - Lot 34\A - Données contextuelles\A4 - Lotissement aménageur\A4-3 - Arrêtés PA\A4-3-1 Arrêté PA\A4-3-1-2 Arrêté PAM01
+Área/ficheiro não inventariado: D:\GED\HSOLS_FR\DIRECTION PROJETS\CHANTIERS\V\VGP\FR2059_VGP ROUEN_BAT C-D\TECHNIQUE\13. DCE\2025.10.20 VGPPARKS ROUEN\28.10.2025\DCE DEF - Lot 34\A - Données contextuelles\A4 - Lotissement aménageur\A4-3 - Arrêtés PA\A4-3-1 Arrêté PA\A4-3-1-1 Arrêté PA initial
+Área/ficheiro não inventariado: D:\GED\HSOLS_FR\DIRECTION PROJETS\CHANTIERS\V\VGP\FR2059_VGP ROUEN_BAT C-D\TECHNIQUE\13. DCE\2025.10.20 VGPPARKS ROUEN\28.10.2025\DCE DEF - Lot 34\A - Données contextuelles\A4 - Lotissement aménageur\A4-1 - Dossier PA\pa16.2-attestation-be-site-et-sols-pollues
+Área/ficheiro não inventariado: D:\GED\HSOLS_FR\DIRECTION PROJETS\CHANTIERS\V\VGP\FR2059_VGP ROUEN_BAT C-D\TECHNIQUE\13. DCE\2025.10.20 VGPPARKS ROUEN\28.10.2025\DCE DEF - Lot 34\A - Données contextuelles\A4 - Lotissement aménageur\A4-1 - Dossier PA\pa09-plan-hypothese-imlantation-des-batiments
+Área/ficheiro não inventariado: D:\GED\HSOLS_FR\DIRECTION PROJETS\CHANTIERS\V\VGP\FR2059_VGP ROUEN_BAT C-D\TECHNIQUE\13. DCE\2025.10.20 VGPPARKS ROUEN\28.10.2025\DCE DEF - Lot 34\A - Données contextuelles\A4 - Lotissement aménageur\A4-1 - Dossier PA\pa06-pa07-photo-terrain-environnement-proche-et-lointain
+Área/ficheiro não inventariado: D:\GED\HSOLS_FR\DIRECTION PROJETS\CHANTIERS\V\VECTURA IMMOBILIER\FR2011_Ext de l´Usine LISI_LA ROUQUETTE\TECHNIQUE\13. DCE\2025.08.08 VECTURA LISI LA ROQUETTE\__MACOSX\Dossier DCE\Docs communs\DOE T2\5 - couverture bardage - FACE LR\DOE - NOV 2019\DOE ATELIER
+Área/ficheiro não inventariado: D:\GED\HSOLS_FR\DIRECTION PROJETS\CHANTIERS\V\VECTURA IMMOBILIER\FR2011_Ext de l´Usine LISI_LA ROUQUETTE\TECHNIQUE\13. DCE\2025.08.08 VECTURA LISI LA ROQUETTE\__MACOSX\Dossier DCE\Docs communs\DOE T2\2 - GO - ANDRIEU\DOE JUILLET 2019\DOE LISI VDR2\Section 04 - PLANS
+Área/ficheiro não inventariado: D:\GED\HSOLS_FR\DIRECTION PROJETS\CHANTIERS\V\VECTURA IMMOBILIER\FR2011_Ext de l´Usine LISI_LA ROUQUETTE\TECHNIQUE\13. DCE\2025.08.08 VECTURA LISI LA ROQUETTE\__MACOSX\Dossier DCE\Docs communs\DOE T2\2 - GO - ANDRIEU\DOE JUILLET 2019\DOE LISI VDR2\Section 01 - RAPPORTS
+Área/ficheiro não inventariado: D:\GED\HSOLS_FR\DIRECTION PROJETS\CHANTIERS\V\VECTURA IMMOBILIER\FR2011_Ext de l´Usine LISI_LA ROUQUETTE\TECHNIQUE\13. DCE\2025.08.08 VECTURA LISI LA ROQUETTE\Dossier DCE\Docs communs\DOE T2\5 - couverture bardage - FACE LR\DOE - NOV 2019\DOE ATELIER\Plan PDF
+O estado foi recolhido com o servidor em utilização, pelo que os números podem variar durante a recolha.
+Para quantificar o crescimento histórico líquido, comparar os tamanhos físicos destes três VHDX e os bytes usados de C:/D:/E: com a monitorização de há 3–6 meses. Foi medido o estado atual do hipervisor; não foram disponibilizadas medições históricas nem foi auditado um repositório de backups externo.
+Prioridade: analisar as pastas de maior volume recente identificadas acima e validar a sua política de retenção com os responsáveis. A eliminação ou alteração da retenção de documentos não foi autorizada nem realizada nesta análise.
+Na app, rever a retenção das imagens OCR, cache e eventuais ficheiros sem referência apenas no host onde a app guarda os ficheiros. A dupla cópia GED é um requisito atual do fluxo; deve ser avaliada funcionalmente antes de qualquer alteração.
+Ordem de ação sugerida: 1) validar retenção da auditoria Security e destino dos arquivos; 2) avaliar uma janela de manutenção para eventual recuperação de blocos dos VHDX, sobretudo E:, sem garantir antecipadamente o ganho; 3) comparar tendências de armazenamento de projetos/Dropbox e os VHDX com dados históricos; 4) tratar a integridade das 52 referências documentais sem ficheiro GED confirmado como ocorrência separada.
+
+FICHEIROS DE EVIDÊNCIA
+inventory.json: volumes, partilhas, VSS e serviços; disk_scan.json: agregados brutos da varredura; pastas.csv: tamanhos por pasta; meses.csv: grupos de datas de criação/modificação; database.json: SELECT e referências documentais limitadas aos campos usados pela análise; ged_app_files.json: tamanhos das referências GED; ged_candidate_checks.json e ged_missing_path_review.json: caminhos não encontrados e pesquisa de alternativas pelo prefixo; recolha_disco.ps1: script de recolha sem credenciais.
+hyperv_guest.json e hyperv_host.json: identidade e VHDX da VM; log_details.json: tamanhos e datas dos logs; security_sample.json: contagens de eventos e configuração de auditoria; virtual_machine.json: dados de virtualização; expenses_database.json: totais de despesas; smb_activity.json: agregado de objetos SMB abertos (sem caminhos individuais).

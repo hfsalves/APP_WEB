@@ -1,0 +1,139 @@
+GED HSOLS_FR — DIRECTION PROJETS
+Recolha de 2026-10-14T11:16:20.2278667+01:00 a 2026-10-14T11:16:43.8549236+01:00
+Raiz: D:\GED\HSOLS_FR\DIRECTION PROJETS\
+Total atual: 654.79 GiB (0.703 TB decimais); 377,984 ficheiros; 124,854 pastas.
+Erros de leitura: 0; pontos de reanálise ignorados: 0.
+A primeira varredura indicava 642.35 GiB. A nova recolha usa caminhos estendidos do Windows, conseguiu incluir caminhos longos e terminou sem erros. O valor atual é 654.79 GiB. A diferença de 12.43 GiB entre recolhas não deve ser interpretada como crescimento ocorrido entre elas.
+
+PASTAS PRINCIPAIS (SEM DUPLA CONTAGEM)
+CHANTIERS: 553.822 GiB; 84.58%; 312,526 ficheiros.
+DCE 2026: 48.444 GiB; 7.40%; 41,594 ficheiros.
+DCE 2025: 32.040 GiB; 4.89%; 13,467 ficheiros.
+Said ABDER: 16.907 GiB; 2.58%; 4,874 ficheiros.
+HSOLS LABORATOIRES: 1.575 GiB; 0.24%; 3,461 ficheiros.
+FICHES TECHNIQUES: 1.063 GiB; 0.16%; 1,107 ficheiros.
+EQUIPEMENTS: 0.713 GiB; 0.11%; 454 ficheiros.
+DOCUMENTS MODELES: 0.206 GiB; 0.03%; 485 ficheiros.
+AutoCAD: 0.012 GiB; 0.00%; 5 ficheiros.
+CHANTIERS MAINTENANCE: 0.004 GiB; 0.00%; 4 ficheiros.
+NORMS PLAINEITE: 0.002 GiB; 0.00%; 3 ficheiros.
+PLANNING MACRO 2026: 0.000 GiB; 0.00%; 2 ficheiros.
+1. CONTROL DOCUMENTS: 0.000 GiB; 0.00%; 1 ficheiros.
+
+MAIORES OBRAS/PASTAS DE OBRA EM CHANTIERS
+CHANTIERS\B\BOUYGUES\FR1685_LYS2_COLOMBIER SAUGNIEU: 18.845 GiB; 1,153 ficheiros; identificação: codigo_FR.
+CHANTIERS\V\VGP\FR1797_VGP MULHOUSE - BAT A,B, EXT: 15.271 GiB; 2,113 ficheiros; identificação: codigo_FR.
+CHANTIERS\I\IDEC INGENIERIE\FR2054_VIRBAC STAR_CARROS: 11.053 GiB; 774 ficheiros; identificação: codigo_FR.
+CHANTIERS\E\EIFFAGE\FR1280_LIDL_GONDREVILLE: 10.587 GiB; 1,328 ficheiros; identificação: codigo_FR.
+CHANTIERS\G\GSE\1 CHANTIERS FINIS\ETZ 2  - AUGNY: 10.524 GiB; 2,162 ficheiros; identificação: pasta_de_obra.
+CHANTIERS\V\VGP\FR2059_VGP ROUEN_BAT C-D: 9.639 GiB; 959 ficheiros; identificação: codigo_FR.
+CHANTIERS\Q\QUARTUS\FR1970_Plat logistique SEGRO_  Ferrières: 8.469 GiB; 2,280 ficheiros; identificação: codigo_FR.
+CHANTIERS\Q\QUARTUS\FR1969_GYMA_Courtenay: 8.002 GiB; 1,366 ficheiros; identificação: codigo_FR.
+CHANTIERS\I\IDEC INGENIERIE\Chantiers finis\FR1365_LIDL_ABLIS: 7.958 GiB; 3,252 ficheiros; identificação: codigo_FR.
+CHANTIERS\B\BEG\FR1740_ITM PLATE-FORME LOGISTIQUE_MAUCHAMPS: 7.172 GiB; 1,061 ficheiros; identificação: codigo_FR.
+CHANTIERS\A\A.P.R.C\FR2046_Plat log_ MONTREDON-DES-CORBS: 7.153 GiB; 394 ficheiros; identificação: codigo_FR.
+CHANTIERS\I\IDEC INGENIERIE\FR2339_GUERLAIN  ORPHIN: 6.921 GiB; 983 ficheiros; identificação: codigo_FR.
+CHANTIERS\I\IDEC INGENIERIE\FR1622_SISLEY_VENDOME: 6.745 GiB; 1,520 ficheiros; identificação: codigo_FR.
+CHANTIERS\C\CUBIC\1. chantiers finis\FR1485_STEF_CARVIN: 6.446 GiB; 685 ficheiros; identificação: codigo_FR.
+CHANTIERS\I\ITM IMMO\ITM - VERT SAINT DENIS: 5.875 GiB; 1,584 ficheiros; identificação: pasta_de_obra.
+CHANTIERS\B\BEG\1. chantiers finis\ERBREE (35) - ITM: 5.874 GiB; 3,940 ficheiros; identificação: pasta_de_obra.
+CHANTIERS\B\BAUDER\FR1621_AXIOPARC BAUDER_DRUSENHEIM: 5.722 GiB; 1,144 ficheiros; identificação: codigo_FR.
+CHANTIERS\I\IDEC INGENIERIE\FR1701_AREFIM EXT DERET_BOIGNY SUR BIONNE VENNECY: 5.713 GiB; 779 ficheiros; identificação: codigo_FR.
+CHANTIERS\G\GSE\1 CHANTIERS FINIS\Z_FR1337_EXTENSION ITMG2_GARANCIERES: 5.107 GiB; 1,446 ficheiros; identificação: pasta_de_obra.
+CHANTIERS\I\IDEC INGENIERIE\FR1766_DENTRESSANGLE SIGMA_ Eragny Sur Oise: 5.077 GiB; 1,173 ficheiros; identificação: codigo_FR.
+CHANTIERS\G\GSE\1 CHANTIERS FINIS\MONTBARTIER - ESSOR (82): 4.812 GiB; 2,585 ficheiros; identificação: pasta_de_obra.
+CHANTIERS\G\GSE\1 CHANTIERS FINIS\ITM - CASTETS (40): 4.722 GiB; 3,905 ficheiros; identificação: pasta_de_obra.
+CHANTIERS\I\IDEC INGENIERIE\Chantiers finis\FR1574_SEMMARIS C6_RUNGIS: 4.713 GiB; 320 ficheiros; identificação: codigo_FR.
+CHANTIERS\B\BOUYGUES\1. chantiers finis\FR1558_LIDL_DONZERE: 4.629 GiB; 1,753 ficheiros; identificação: codigo_FR.
+CHANTIERS\I\IDEC INGENIERIE\Chantiers finis\FR1569_AVENTECH_ALIXAN: 4.506 GiB; 1,162 ficheiros; identificação: codigo_FR.
+CHANTIERS\I\IDEC INGENIERIE\FR1715_SOTAX_SARAN: 4.276 GiB; 695 ficheiros; identificação: codigo_FR.
+CHANTIERS\S\SOREPRIM\FR2012_PROJET SOREPRIM_FARLEDE: 4.153 GiB; 866 ficheiros; identificação: codigo_FR.
+CHANTIERS\I\IDEC INGENIERIE\FR1787_GEDIMAT SALBRIS: 4.091 GiB; 1,084 ficheiros; identificação: codigo_FR.
+CHANTIERS\E\1. Chantiers finis\EIFFAGE\CESTAS - LIDL (33): 3.708 GiB; 1,457 ficheiros; identificação: pasta_de_obra.
+CHANTIERS\U\U LOGISTIQUE\FR2216_SCI SAINTE COLOMBE: 3.699 GiB; 44 ficheiros; identificação: codigo_FR.
+
+MAIORES DOSSIERS DE CONSULTA/DCE
+DCE 2026\2026.07.20 VINCI-CONSTRUCTION_ TANNERIES HAAS (67): 7.719 GiB; 1,075 ficheiros.
+DCE 2025\2024.04.02 IDEC LIDL VARS: 7.566 GiB; 1,654 ficheiros.
+DCE 2025\2024.09.20 PITCH ALTAPARC BORDEAUX: 5.825 GiB; 823 ficheiros.
+DCE 2026\2026.01.14 GNAT ASWO - AIS à NEUVILLE SUR OISE: 5.774 GiB; 1,331 ficheiros.
+DCE 2026\2026.08.06 IDEC_ BROWNFIELDS MARSEILLE: 4.721 GiB; 479 ficheiros.
+DCE 2026\2026.08.14 IDEC PROLOGIS FLINS: 4.314 GiB; 247 ficheiros.
+DCE 2025\2024.07.18 IDEC  LOGISTIQUE URBAINE - VALENTON: 3.627 GiB; 214 ficheiros.
+DCE 2025\2022 08 02- LIDL- PARDIES: 2.426 GiB; 15 ficheiros.
+DCE 2025\2022 11 19 Lidl DR 29  Reyrieux: 2.414 GiB; 1,002 ficheiros.
+DCE 2026\2026.04.14 VINCI CONSTRUCTION- IKEA Extension (67): 2.242 GiB; 187 ficheiros.
+DCE 2025\2025.09.03 APRC  MERU  ESCHES: 2.147 GiB; 735 ficheiros.
+Said ABDER\2026.05.19 GSE LYSARA SAINT PRIEST: 1.919 GiB; 540 ficheiros.
+Said ABDER\AXESS PROLOGIS GIDI: 1.872 GiB; 23 ficheiros.
+Said ABDER\2026.06.02 VECTURA HARIBO: 1.772 GiB; 318 ficheiros.
+DCE 2026\2026.06.25 Vinci-Construction_ LITHIUM DE FRANCE: 1.674 GiB; 97 ficheiros.
+DCE 2025\2025.05.02 IDEC TIMAT: 1.658 GiB; 203 ficheiros.
+Said ABDER\2026.03.20 QUARTUS SEGRO CHRONOPOST BOBYGNY 93: 1.331 GiB; 197 ficheiros.
+DCE 2026\2026.02.12_VGP PARK VELIZY_SECTEUR 2: 1.281 GiB; 325 ficheiros.
+DCE 2026\2026.03.15. Bouygues FRAMAFER: 1.215 GiB; 207 ficheiros.
+DCE 2026\2026.05.11 BEG_ SACP 7: 1.204 GiB; 173 ficheiros.
+
+GRUPOS DE OBRAS CONCLUÍDAS / ARQUIVO
+CHANTIERS\G\GSE\1 CHANTIERS FINIS: 88.846 GiB.
+CHANTIERS\I\IDEC INGENIERIE\Chantiers finis: 50.071 GiB.
+CHANTIERS\SCI(s)\Chantiers finis: 26.335 GiB.
+CHANTIERS\B\BOUYGUES\1. chantiers finis: 14.699 GiB.
+CHANTIERS\C\CUBIC\1. chantiers finis: 14.461 GiB.
+CHANTIERS\E\1. Chantiers finis: 13.376 GiB.
+CHANTIERS\B\BEG\1. chantiers finis: 10.178 GiB.
+CHANTIERS\Q\QUARTUS\1. Chantier finis: 9.478 GiB.
+CHANTIERS\S\1. CHANTIERS FINIS: 9.333 GiB.
+CHANTIERS\L\1. Chantier finis: 7.415 GiB.
+CHANTIERS\C\1. Chantiers finis: 6.550 GiB.
+CHANTIERS\P\chantiers finis: 5.595 GiB.
+CHANTIERS\G\1. Chantier finis: 5.497 GiB.
+CHANTIERS\C\COLAS\1. Chantiers finis: 4.202 GiB.
+CHANTIERS\B\1. Chantiers finis: 4.086 GiB.
+CHANTIERS\U\U LOGISTIQUE\1. Chantiers finis: 4.081 GiB.
+CHANTIERS\D\1. CHANTIER FINIS: 3.539 GiB.
+CHANTIERS\A\1. Chantiers finis: 3.380 GiB.
+CHANTIERS\I\1. CHANTIERS FINIS: 2.383 GiB.
+CHANTIERS\T\1. CHANTIERS FINIS: 2.049 GiB.
+Soma dos grupos identificados pelos nomes de pastas de obras concluídas/arquivo: 297.62 GiB. Estes grupos estão incluídos em CHANTIERS e contêm várias obras; não devem ser somados novamente ao total.
+
+TIPOS DE FICHEIRO
+.pdf: 255.901 GiB; 205,180 ficheiros.
+.zip: 192.565 GiB; 3,199 ficheiros.
+.dwg: 81.576 GiB; 12,764 ficheiros.
+.msg: 19.761 GiB; 15,162 ficheiros.
+.ifc: 16.372 GiB; 150 ficheiros.
+.jpg: 15.778 GiB; 16,700 ficheiros.
+.rvt: 14.124 GiB; 51 ficheiros.
+.bak: 9.506 GiB; 647 ficheiros.
+.doc: 7.971 GiB; 9,204 ficheiros.
+.rar: 6.116 GiB; 120 ficheiros.
+.7z: 5.315 GiB; 104 ficheiros.
+.docx: 3.933 GiB; 3,872 ficheiros.
+.fdp: 3.648 GiB; 147 ficheiros.
+.mp4: 2.497 GiB; 49 ficheiros.
+.db: 2.092 GiB; 24,118 ficheiros.
+
+MAIORES FICHEIROS (SEM LEITURA DO CONTEÚDO)
+D:\GED\HSOLS_FR\DIRECTION PROJETS\CHANTIERS\B\BOUYGUES\FR1685_LYS2_COLOMBIER SAUGNIEU\TECHNIQUE\14. DCE\2024.03.19  BOUYGUES  Projet LYS2 SAINT EXUPERY\Dossier initial\OneDrive_1_19-03-2024.zip: 9.942 GiB.
+D:\GED\HSOLS_FR\DIRECTION PROJETS\CHANTIERS\I\IDEC INGENIERIE\FR2054_VIRBAC STAR_CARROS\TECHNIQUE\13. DCE\2025.11.28 IDEC VIRBAC STAR\CONSULTATION\02-ETUDES_2025-11-28_08-31-52am.zip: 4.992 GiB.
+D:\GED\HSOLS_FR\DIRECTION PROJETS\CHANTIERS\C\CUBIC\1. chantiers finis\FR1485_STEF_CARVIN\TECHNIQUE\DCE\OneDrive_1_04-11-2023.zip: 4.388 GiB.
+D:\GED\HSOLS_FR\DIRECTION PROJETS\CHANTIERS\I\IDEC INGENIERIE\FR1701_AREFIM EXT DERET_BOIGNY SUR BIONNE VENNECY\TECHNIQUE\14. DCE\2024.10.09 IDEC Arefim Extension Deret\04-CONSULTATIONS_selected_2024-10-08_07-53-19am.zip: 4.027 GiB.
+D:\GED\HSOLS_FR\DIRECTION PROJETS\CHANTIERS\B\BEG\FR1740_ITM PLATE-FORME LOGISTIQUE_MAUCHAMPS\TECHNIQUE\14. DCE\OneDrive_1_08-11-2024.zip: 3.969 GiB.
+D:\GED\HSOLS_FR\DIRECTION PROJETS\CHANTIERS\Q\QUARTUS\FR1969_GYMA_Courtenay\TECHNIQUE\13. DCE\2025.11.17 QUARTUS Liberfy GYMA à Courtenay\OneDrive_1_21-11-2025.zip: 3.767 GiB.
+D:\GED\HSOLS_FR\DIRECTION PROJETS\CHANTIERS\U\U LOGISTIQUE\FR2216_SCI SAINTE COLOMBE\FR2216_Plat logistique STE COLOMBE\TECHNIQUE\13. DCE\SCI SAINTE COLOMBE - DCE.zip: 3.545 GiB.
+D:\GED\HSOLS_FR\DIRECTION PROJETS\CHANTIERS\V\VGP\FR2059_VGP ROUEN_BAT C-D\TECHNIQUE\13. DCE\2025.10.20 VGPPARKS ROUEN\28.10.2025\DCE DEF - Lot 34.zip: 3.230 GiB.
+D:\GED\HSOLS_FR\DIRECTION PROJETS\CHANTIERS\A\A.P.R.C\FR2046_Plat log_ MONTREDON-DES-CORBS\TECHNIQUE\13. DCE\2025.12.23 APRC USAGE DE STOCKAGE DE PIECES AUTOMOBILES – TECHNOPARC PECHE PERRY – MONTREDON-DES-CORBIERES (11 100)\251223_ALLI_MONT_COMPLEMENTS.zip: 3.092 GiB.
+D:\GED\HSOLS_FR\DIRECTION PROJETS\CHANTIERS\G\GSE\1 CHANTIERS FINIS\ETZ 2  - AUGNY\ADMINISTRATIF\CONTRAT - AVENANT\Annexe Contrat\Annexe 2.4 - Performance Package (version 24.07.19).zip: 2.993 GiB.
+D:\GED\HSOLS_FR\DIRECTION PROJETS\DCE 2026\2026.07.20 VINCI-CONSTRUCTION_ TANNERIES HAAS (67)\Tanneries Haas.zip: 2.282 GiB.
+D:\GED\HSOLS_FR\DIRECTION PROJETS\CHANTIERS\E\EIFFAGE\FR1280_LIDL_GONDREVILLE\TECHNIQUE\DCE\Pièces_écrites_et_graphiques.zip: 2.026 GiB.
+D:\GED\HSOLS_FR\DIRECTION PROJETS\DCE 2025\2022 08 02- LIDL- PARDIES\DR28_LIDL_PARDIES_DCE_V0.rar: 1.970 GiB.
+D:\GED\HSOLS_FR\DIRECTION PROJETS\CHANTIERS\B\BOUYGUES\FR1685_LYS2_COLOMBIER SAUGNIEU\TECHNIQUE\14. DCE\2024.03.19  BOUYGUES  Projet LYS2 SAINT EXUPERY\Dossier consultation exe\OneDrive_2024-09-22.zip: 1.897 GiB.
+D:\GED\HSOLS_FR\DIRECTION PROJETS\DCE 2025\2024.04.02 IDEC LIDL VARS\LIDL VINCI\240412 - DCE INITIAL\Annexe 05 - PC\PLUi - DOSSIER ARRET.zip: 1.854 GiB.
+
+CRITÉRIOS
+Os tamanhos são lógicos, obtidos dos metadados dos ficheiros; não medem os blocos alocados nem um histórico de crescimento.
+As obras foram identificadas pela organização das pastas: código FR, pasta direta dentro do cliente em CHANTIERS ou presença das subpastas ADMINISTRATIF/TECHNIQUE/FINANCIER. Não foi feito um cruzamento com o cadastro de obras do PHC. Fases agrupadas sob uma pasta de obra contam no total dessa pasta; pastas descendentes não foram contadas novamente como obras independentes.
+Os CSV preservam o caminho relativo completo para distinguir obras com nomes semelhantes e pastas de consulta distintas.
+Não somar linhas de níveis diferentes de hierarquia: os totais das pastas incluem os respetivos descendentes.
+Nenhum documento foi modificado, movido ou apagado.

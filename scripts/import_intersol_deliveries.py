@@ -192,14 +192,17 @@ def allocate(excel: list[dict[str, Any]], source: list[dict[str, Any]]) -> list[
     result = []
     for row in sorted(excel, key=lambda x: (x["bc"], x["delivery_date"], x["delivery"], x["ref"])):
         remaining = row["qty"]
+        is_credit = row["price"] < ZERO
         candidates = [line for line in by_bc[row["bc"]]
-                      if line["remaining"] > ZERO and clean(line["REF"]) == row["ref"]
-                      and money(line.get("EDEBITO")) == money(row["price"])]
+                      if (line["remaining"] < ZERO if is_credit else line["remaining"] > ZERO)
+                      and clean(line["REF"]) == row["ref"]
+                      and (abs(money(line.get("EDEBITO"))) == abs(money(row["price"])) if is_credit
+                           else money(line.get("EDEBITO")) == money(row["price"]))]
         # Suppliers occasionally export a calculated unit price with more
         # decimals than the BC.  If article and price differ by at most one
         # cent, the current BC line is still the intended origin; retain the
         # supplier's invoiced unit price on the imported document.
-        if not candidates:
+        if not candidates and not is_credit:
             candidates = [line for line in by_bc[row["bc"]]
                           if line["remaining"] > ZERO and clean(line["REF"]) == row["ref"]
                           and abs(decimal(line.get("EDEBITO")) - row["price"]) <= Decimal("0.01")]
@@ -207,7 +210,7 @@ def allocate(excel: list[dict[str, Any]], source: list[dict[str, Any]]) -> list[
         # while the approved BC holds it under its dedicated surcharge code.
         # Match only that unambiguous semantic/price pair, retaining the BC
         # article on the linked PHC line.
-        if not candidates and "SURCHARGECARBURANT" in normalized(row.get("design")):
+        if not candidates and not is_credit and "SURCHARGECARBURANT" in normalized(row.get("design")):
             candidates = [line for line in by_bc[row["bc"]]
                           if line["remaining"] > ZERO
                           and money(line.get("EDEBITO")) == money(row["price"])
@@ -215,22 +218,22 @@ def allocate(excel: list[dict[str, Any]], source: list[dict[str, Any]]) -> list[
         # The environmental contribution has two supplier/article codings in
         # the HSOLS exports.  On older BCs, .0091 (eco participation) is the
         # contractual equivalent of exported .0094, at the same unit price.
-        if not candidates and row["ref"] == "S.03.05.000.0094" and "CONTRIBUTIONENVIRONNEMENTALE" in normalized(row.get("design")):
+        if not candidates and not is_credit and row["ref"] == "S.03.05.000.0094" and "CONTRIBUTIONENVIRONNEMENTALE" in normalized(row.get("design")):
             candidates = [line for line in by_bc[row["bc"]]
                           if line["remaining"] > ZERO and clean(line["REF"]) == "S.03.05.000.0091"
                           and money(line.get("EDEBITO")) == money(row["price"])]
         # A few quarry exports call their fixed "FRAIS" line an
         # administrative charge and assign the generic .0093 code.  Preserve
         # the contractual FRAIS line as the origin when its price is unique.
-        if not candidates and "FRAISADMINISTRATIFS" in normalized(row.get("design")):
+        if not candidates and not is_credit and "FRAISADMINISTRATIFS" in normalized(row.get("design")):
             candidates = [line for line in by_bc[row["bc"]]
                           if line["remaining"] > ZERO and money(line.get("EDEBITO")) == money(row["price"])
                           and normalized(line.get("DESIGN")) == "FRAIS"]
         for line in candidates:
             if remaining <= ZERO:
                 break
-            part = min(remaining, line["remaining"])
-            line["remaining"] -= part
+            part = min(remaining, -line["remaining"] if is_credit else line["remaining"])
+            line["remaining"] += part if is_credit else -part
             remaining -= part
             result.append({"excel": row, "source": line, "qty": part})
         if remaining > ZERO:
@@ -326,7 +329,7 @@ def create_tax(cursor, stamp: str, items: list[dict[str, Any]], initials: str) -
 
 def create_line(cursor, *, item: dict[str, Any], stamp: str, ndos: int, name: str, number: int,
                 when: date, origin_header: dict[str, Any], parent: str, parent_header: str,
-                next_ndos: int, next_name: str, next_number_value: int, initials: str) -> str:
+                next_ndos: int, next_name: str, next_number_value: int, lordem: int, initials: str) -> str:
     source, excel = item["source"], item["excel"]
     line_stamp = _new_stamp()
     unit_price, total = excel["price"], item["qty"] * excel["price"]
@@ -343,7 +346,10 @@ def create_line(cursor, *, item: dict[str, Any], stamp: str, ndos: int, name: st
                    "qtt": item["qty"], "qtt2": ZERO, "pu": _phc_value(unit_price), "debito": _phc_value(unit_price), "edebito": unit_price,
                    "ttdeb": _phc_value(total), "ettdeb": total, "pcusto": _phc_value(unit_price), "epcusto": unit_price, "prorc": _phc_value(unit_price),
                    "no": origin_header.get("NO"), "nome": clean(origin_header.get("NOME"))[:55], "ccusto": clean(source.get("CCUSTO") or origin_header.get("CCUSTO")),
-                   "lordem": int(decimal(source.get("LORDEM"))) or 1000, "obistamp": parent, "oobistamp": parent, "oobostamp": parent_header,
+                   # Imported lines need their own document-local sequence.
+                   # Reusing BC LORDEM creates duplicates and makes PHC group
+                   # unrelated BLs together in the dossier grid.
+                   "lordem": lordem, "obistamp": parent, "oobistamp": parent, "oobostamp": parent_header,
                    "ndoc": next_ndos, "nmdoc": next_name, "fno": next_number_value, "fechada": 0, **audit(initials)})
     insert(cursor, "BI", copied)
     insert(cursor, "BI2", {"bi2stamp": line_stamp, "bostamp": stamp, "origbistamp": parent, "qttenc": item["qty"] if ndos == BL_NDOS else ZERO, **audit(initials)})
@@ -382,7 +388,7 @@ def execute(cursor, allocations: list[dict[str, Any]], headers: dict[int, dict[s
                 last_origin = current_origin
             position += 1
             line = create_line(cursor, item=item, stamp=stamp, ndos=BL_NDOS, name=names[BL_NDOS], number=number, when=when, origin_header=origin,
-                               parent=clean(item["source"]["BISTAMP"]), parent_header=clean(origin["BOSTAMP"]), next_ndos=0, next_name="", next_number_value=0, initials=initials)
+                               parent=clean(item["source"]["BISTAMP"]), parent_header=clean(origin["BOSTAMP"]), next_ndos=0, next_name="", next_number_value=0, lordem=position * 1000, initials=initials)
             # INTERSOL's dossier trigger updates the BC quantity satisfied when
             # a child BL line is inserted.  Do not add it again here.
             bl_lines[id(item)] = line
@@ -419,10 +425,10 @@ def execute(cursor, allocations: list[dict[str, Any]], headers: dict[int, dict[s
             if item["excel"].get("direct_pf"):
                 create_line(cursor, item=item, stamp=stamp, ndos=PF_NDOS, name=names[PF_NDOS], number=number, when=when, origin_header=origin,
                             parent=clean(item["source"]["BISTAMP"]), parent_header=current_bc,
-                            next_ndos=55, next_name="V/Facture", next_number_value=0, initials=initials)
+                            next_ndos=55, next_name="V/Facture", next_number_value=0, lordem=position * 1000, initials=initials)
             else:
                 line = create_line(cursor, item=item, stamp=stamp, ndos=PF_NDOS, name=names[PF_NDOS], number=number, when=when, origin_header=origin,
-                                   parent=bl_lines[id(item)], parent_header=bl_stamp, next_ndos=55, next_name="V/Facture", next_number_value=0, initials=initials)
+                                   parent=bl_lines[id(item)], parent_header=bl_stamp, next_ndos=55, next_name="V/Facture", next_number_value=0, lordem=position * 1000, initials=initials)
                 cursor.execute("UPDATE dbo.BI SET QTT2=0,FECHADA=0,NDOC=?,NMDOC=?,FNO=?,USRINIS=?,USRDATA=?,USRHORA=? WHERE BISTAMP=?", (PF_NDOS, names[PF_NDOS], number, initials, datetime.now(), datetime.now().strftime('%H:%M:%S'), bl_lines[id(item)]))
     # Imports remain open.  QTT2 is deliberately zero on every imported
     # material line and separator line; source BC state is not forced here.

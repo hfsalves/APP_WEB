@@ -1,0 +1,119 @@
+{
+  "fr_expense_launches": [
+    {
+      "ESTADO": "LANCADO",
+      "PHC_DB": "HSOLS_FR",
+      "launches": 27
+    }
+  ],
+  "fr_expense_ged_refs": [
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0752-BRUNO RICARDO DUARTE FILIPE.pdf",
+      "recorded_bytes": "1288550"
+    },
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0753-KHALED ALLAOUI.pdf",
+      "recorded_bytes": "1564786"
+    },
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0754-MIGUEL DA SILVA SANTOS.pdf",
+      "recorded_bytes": "3096162"
+    },
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0755-HELDER GASPAR - NC.pdf",
+      "recorded_bytes": "7331791"
+    },
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0756-HELDER GASPAR - DP.pdf",
+      "recorded_bytes": "8455122"
+    },
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0757-HELDER GASPAR - VC.pdf",
+      "recorded_bytes": "3255648"
+    },
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0758-HELDER GASPAR - AN.pdf",
+      "recorded_bytes": "1858995"
+    },
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0759-BRUNO RICARDO DUARTE FILIPE.pdf",
+      "recorded_bytes": "1233915"
+    },
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0760-KHALED ALLAOUI.pdf",
+      "recorded_bytes": "1346578"
+    },
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0761-HELDER GASPAR - NC.pdf",
+      "recorded_bytes": "2891138"
+    },
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0762-HELDER GASPAR - CG.pdf",
+      "recorded_bytes": "36923983"
+    },
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0763-BRUNO RICARDO DUARTE FILIPE.pdf",
+      "recorded_bytes": "2795787"
+    },
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0764-HELDER GASPAR - JS.pdf",
+      "recorded_bytes": "14011199"
+    },
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0765-ANTONIO DE CARVALHO PINTO.pdf",
+      "recorded_bytes": "2576472"
+    },
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0766-OUSSAMA DIRAA.pdf",
+      "recorded_bytes": "64025"
+    },
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0768-KHALED ALLAOUI.pdf",
+      "recorded_bytes": "725002"
+    },
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0769-OUSSAMA DIRAA.pdf",
+      "recorded_bytes": "8852599"
+    },
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0772-HELDER GASPAR - JS.pdf",
+      "recorded_bytes": "4759783"
+    },
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0773-BRUNO RICARDO DUARTE FILIPE.pdf",
+      "recorded_bytes": "1437979"
+    },
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0774-HELDER GASPAR - CG.pdf",
+      "recorded_bytes": "1460334"
+    },
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0775-KHALED ALLAOUI.pdf",
+      "recorded_bytes": "170510"
+    },
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0776-MOHAMMADREZA JAMSHIDIJAM.pdf",
+      "recorded_bytes": "2169484"
+    },
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0777-MIGUEL DA SILVA SANTOS.pdf",
+      "recorded_bytes": "5274899"
+    },
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0778-BRUNO RICARDO DUARTE FILIPE.pdf",
+      "recorded_bytes": "786647"
+    },
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0779-HELDER GASPAR - CG.pdf",
+      "recorded_bytes": "3153816"
+    },
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0780-HELDER GASPAR - DP.pdf",
+      "recorded_bytes": "12975047"
+    },
+    {
+      "path": "\\\\10.0.1.11\\ged\\HSOLS_FR\\NOTE_FRAIS\\2026\\NDF-0781-ADNANE OUAHLA.pdf",
+      "recorded_bytes": "5837180"
+    }
+  ]
+}

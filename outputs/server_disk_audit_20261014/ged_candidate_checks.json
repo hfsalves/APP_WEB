@@ -1,0 +1,636 @@
+{
+  "documents_with_candidates": 1392,
+  "documents_with_any_confirmed_file": 1340,
+  "documents_with_no_confirmed_candidate": [
+    {
+      "doc": "0020AEC185F74A50A041BD8CB",
+      "candidates": [
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\FACTURATION_FOURNISSEURS\\2026\\9 SEPT 26\\FAC-3240-50765-BV.GEISPO@BUREAU-VALLEE.FR-101321100001082.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\9 SEPT 26\\FAC-3240-50765-BV.GEISPO@BUREAU-VALLEE.FR-101321100001082.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\FACTURATION_FOURNISSEURS\\2026\\9 SEPT 26\\FAC-3240-50765-BV.GEISPO@BUREAU-VALLEE.FR-101321100001082.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\FACTURATION_FOURNISSEURS\\2026\\9 SEPT 26\\FAC-3240-50765-BV.GEISPO@BUREAU-VALLEE.FR-101321100001082.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\9 SEPT 26\\FAC-3240-50765-BV.GEISPO@BUREAU-VALLEE.FR-101321100001082.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\FACTURATION_FOURNISSEURS\\2026\\9 SEPT 26\\FAC-3240-50765-BV.GEISPO@BUREAU-VALLEE.FR-101321100001082.pdf"
+      ],
+      "statuses": [
+        "confirmed",
+        "confirmed"
+      ]
+    },
+    {
+      "doc": "0584949C035F4C16872700CA3",
+      "candidates": [
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\9 SEPT 26\\L-3376-52758-ADECCO-CONTRAT MISE DISPO-45936-2026-08-26.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\9 SEPT 26\\L-3376-52758-ADECCO-CONTRAT MISE DISPO-45936-2026-08-26.pdf"
+      ],
+      "statuses": [
+        "confirmed",
+        "confirmed"
+      ]
+    },
+    {
+      "doc": "074BDBE258D84C2FA86812371",
+      "candidates": [
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-3254-50318-CIBOMAT - POINT P - HAGUENAU-410C0005336169.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\8 AOUT 26\\NC-3254-50318-CIBOMAT - POINT P - HAGUENAU-410C0005336169.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-3254-50318-CIBOMAT - POINT P - HAGUENAU-410C0005336169.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-3254-50318-CIBOMAT - POINT P - HAGUENAU-410C0005336169.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\8 AOUT 26\\NC-3254-50318-CIBOMAT - POINT P - HAGUENAU-410C0005336169.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-3254-50318-CIBOMAT - POINT P - HAGUENAU-410C0005336169.pdf"
+      ],
+      "statuses": [
+        "confirmed",
+        "confirmed"
+      ]
+    },
+    {
+      "doc": "0A1CAAFC51BC41FCA6488A797",
+      "candidates": [
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-3615-31319-CEMEX BETONS SUD OUEST-5709010000108376.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\8 AOUT 26\\NC-3615-31319-CEMEX BETONS SUD OUEST-5709010000108376.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-3615-31319-CEMEX BETONS SUD OUEST-5709010000108376.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-3615-31319-CEMEX BETONS SUD OUEST-5709010000108376.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\8 AOUT 26\\NC-3615-31319-CEMEX BETONS SUD OUEST-5709010000108376.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-3615-31319-CEMEX BETONS SUD OUEST-5709010000108376.pdf"
+      ],
+      "statuses": [
+        "confirmed",
+        "confirmed"
+      ]
+    },
+    {
+      "doc": "1C6FD9DAC7A24E3893D9B9C58",
+      "candidates": [
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\10 OCT 26\\RB-3687-52604-BANQUE CIC EST-DEMANDE D'ACCORD-2026-09-15.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\10 OCT 26\\RB-3687-52604-BANQUE CIC EST-DEMANDE D'ACCORD-2026-09-15.pdf"
+      ],
+      "statuses": [
+        "confirmed",
+        "confirmed"
+      ]
+    },
+    {
+      "doc": "230D5B6EE42B41449A4B03FC2",
+      "candidates": [
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\10 OCT 26\\L-3672-52071-REPUBLIQUE FRANCAISE-AVIS 3808656200-2026-10-03.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\10 OCT 26\\L-3672-52071-REPUBLIQUE FRANCAISE-AVIS 3808656200-2026-10-03.pdf"
+      ],
+      "statuses": [
+        "confirmed",
+        "confirmed"
+      ]
+    },
+    {
+      "doc": "2510215F9BC34ADF82E8FBB13",
+      "candidates": [
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-3706-31243-GM MECANIQUE-1237.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\8 AOUT 26\\NC-3706-31243-GM MECANIQUE-1237.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-3706-31243-GM MECANIQUE-1237.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-3706-31243-GM MECANIQUE-1237.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\8 AOUT 26\\NC-3706-31243-GM MECANIQUE-1237.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-3706-31243-GM MECANIQUE-1237.pdf"
+      ],
+      "statuses": [
+        "confirmed",
+        "confirmed"
+      ]
+    },
+    {
+      "doc": "2C7C9F26B19E4794BD877B927",
+      "candidates": [
+        "\\\\10.0.1.11\\ged\\HSOLS_PT\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\10 OCT 26\\L-1035-30130-MILLENNIUM BCP-EXTRATO SILVER AC-2026-10-01.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_PT\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\10 OCT 26\\L-1035-30130-MILLENNIUM BCP-EXTRATO SILVER AC-2026-10-01.pdf"
+      ],
+      "statuses": [
+        "confirmed",
+        "confirmed"
+      ]
+    },
+    {
+      "doc": "385D9013EC9A44BB9427A6F22",
+      "candidates": [
+        "\\\\10.0.1.11\\ged\\HSOLS_PT\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-858-30049-HILARIO & ALVES-A26_2183.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_PT\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\8 AOUT 26\\NC-858-30049-HILARIO & ALVES-A26_2183.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_PT\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-858-30049-HILARIO & ALVES-A26_2183.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_PT\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-858-30049-HILARIO & ALVES-A26_2183.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_PT\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\8 AOUT 26\\NC-858-30049-HILARIO & ALVES-A26_2183.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_PT\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-858-30049-HILARIO & ALVES-A26_2183.pdf"
+      ],
+      "statuses": [
+        "confirmed",
+        "confirmed"
+      ]
+    },
+    {
+      "doc": "3EAB530ED1134201A2330060A",
+      "candidates": [
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\10 OCT 26\\L-4048-30976-MINISTERE DE L INTERIEUR-AMENDE FORFAITAIRE MAJORÉ-2026-09-24.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\10 OCT 26\\L-4048-30976-MINISTERE DE L INTERIEUR-AMENDE FORFAITAIRE MAJORÉ-2026-09-24.pdf"
+      ],
+      "statuses": [
+        "confirmed",
+        "confirmed"
+      ]
+    },
+    {
+      "doc": "4D2CC1FFA0BF4568A9921FC1C",
+      "candidates": [
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\9 SEPT 26\\L-3384-55430-M. LAROCHE-DÉPÔT CHÈQUE-2026-08-31.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\9 SEPT 26\\L-3384-55430-M. LAROCHE-DÉPÔT CHÈQUE-2026-08-31.pdf"
+      ],
+      "statuses": [
+        "confirmed",
+        "confirmed"
+      ]
+    },
+    {
+      "doc": "57550203288C41759EEBCBD04",
+      "candidates": [
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\10 OCT 26\\L-4036-30976-MINISTERE DE L INTERIEUR-AVIS 3809048070-2026-10-01.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\10 OCT 26\\L-4036-30976-MINISTERE DE L INTERIEUR-AVIS 3809048070-2026-10-01.pdf"
+      ],
+      "statuses": [
+        "confirmed",
+        "confirmed"
+      ]
+    },
+    {
+      "doc": "63B61F340ADB467E89AEF918C",
+      "candidates": [
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_AL\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\9 SEPT 26\\L-3416-52675-CIBTP-CARTE BTP-GUILHERME-2026-09-04.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_AL\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\9 SEPT 26\\L-3416-52675-CIBTP-CARTE BTP-GUILHERME-2026-09-04.pdf"
+      ],
+      "statuses": [
+        "confirmed",
+        "confirmed"
+      ]
+    },
+    {
+      "doc": "66E61CD6BA7D4944AD7B41844",
+      "candidates": [
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\9 SEPT 26\\L-3393-52675-CIBTP-REÇU DE REDEVANCE-2026-09-17.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\9 SEPT 26\\L-3393-52675-CIBTP-REÇU DE REDEVANCE-2026-09-17.pdf"
+      ],
+      "statuses": [
+        "confirmed",
+        "confirmed"
+      ]
+    },
+    {
+      "doc": "751C5D9D06F943CFAF8BBD3BB",
+      "candidates": [
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\9 SEPT 26\\L-3375-52758-ADECCO-CONTRAT MISE DISPO-45937-2026-08-26.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\9 SEPT 26\\L-3375-52758-ADECCO-CONTRAT MISE DISPO-45937-2026-08-26.pdf"
+      ],
+      "statuses": [
+        "confirmed",
+        "confirmed"
+      ]
+    },
+    {
+      "doc": "752AFE28F80C443DA82BA8013",
+      "candidates": [
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\9 SEPT 26\\L-3379-52699-BTP BANQUE-RELEVÉ DE COMPTE 5-2026-08-31.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\9 SEPT 26\\L-3379-52699-BTP BANQUE-RELEVÉ DE COMPTE 5-2026-08-31.pdf"
+      ],
+      "statuses": [
+        "confirmed",
+        "confirmed"
+      ]
+    },
+    {
+      "doc": "81668BCF78EF45578F5E2DB77",
+      "candidates": [
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\10 OCT 26\\RB-3678-52672-CREDIT AGRICOL-RELEVÉ DE COMPTES-2026-10-06.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\10 OCT 26\\RB-3678-52672-CREDIT AGRICOL-RELEVÉ DE COMPTES-2026-10-06.pdf"
+      ],
+      "statuses": [
+        "confirmed",
+        "confirmed"
+      ]
+    },
+    {
+      "doc": "841F07AA2A0E4BD1BB199B152",
+      "candidates": [
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\10 OCT 26\\RB-3682-52604-BANQUE CIC EST-ENGAGEMENTS AVALS-2026-09-30.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\10 OCT 26\\RB-3682-52604-BANQUE CIC EST-ENGAGEMENTS AVALS-2026-09-30.pdf"
+      ],
+      "statuses": [
+        "confirmed",
+        "confirmed"
+      ]
+    },
+    {
+      "doc": "857F9B6780F44D50AECDCAFFD",
+      "candidates": [
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\9 SEPT 26\\L-3223-51577-LCR-2026-08-06.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\9 SEPT 26\\L-3223-51577-LCR-2026-08-06.pdf"
+      ],
+      "statuses": [
+        "confirmed",
+        "confirmed"
+      ]
+    },
+    {
+      "doc": "8684BCBE32B84D119489B83B0",
+      "candidates": [
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\10 OCT 26\\RB-3688-52604-BANQUE CIC EST-RELEVÉ DE LETTRES-2026-09-23.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\10 OCT 26\\RB-3688-52604-BANQUE CIC EST-RELEVÉ DE LETTRES-2026-09-23.pdf"
+      ],
+      "statuses": [
+        "confirmed",
+        "confirmed"
+      ]
+    },
+    {
+      "doc": "88D315AD325A4C92BF4D2C9F5",
+      "candidates": [
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-3110-50318-CIBOMAT - POINT P - HAGUENAU-410C0005335955.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\8 AOUT 26\\NC-3110-50318-CIBOMAT - POINT P - HAGUENAU-410C0005335955.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-3110-50318-CIBOMAT - POINT P - HAGUENAU-410C0005335955.pdf"
+      ],
+      "statuses": [
+        "confirmed"
+      ]
+    },
+    {
+      "doc": "952F9391F248415694D42CD20",
+      "candidates": [
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\9 SEPT 26\\L-3783-30976-MINISTERE DE L INTERIEUR-AVIS 3866451970-2026-09-16.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\9 SEPT 26\\L-3783-30976-MINISTERE DE L INTERIEUR-AVIS 3866451970-2026-09-16.pdf"
+      ],
+      "statuses": [
+        "confirmed",
+        "confirmed"
+      ]
+    },
+    {
+      "doc": "9548B24E473E4C87B04D8E508",
+      "candidates": [
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\9 SEPT 26\\L-3771-10568-SAS IDEC SANTE-SISLEY-FRANCOS-2026-09-07.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\9 SEPT 26\\L-3771-10568-SAS IDEC SANTE-SISLEY-FRANCOS-2026-09-07.pdf"
+      ],
+      "statuses": [
+        "confirmed",
+        "confirmed"
+      ]
+    },
+    {
+      "doc": "9569B706AAFD42718CE09CF09",
+      "candidates": [
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\10 OCT 26\\L-4032-30976-MINISTERE DE L INTERIEUR-AVIS 3853580230-2026-09-30.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\10 OCT 26\\L-4032-30976-MINISTERE DE L INTERIEUR-AVIS 3853580230-2026-09-30.pdf"
+      ],
+      "statuses": [
+        "confirmed",
+        "confirmed"
+      ]
+    },
+    {
+      "doc": "A3639DC09E3947E7929798F25",
+      "candidates": [
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\10 OCT 26\\RB-4083-31197-BTP BANQUE-RELEVÉ DE COMPTES-2026-08-31.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\10 OCT 26\\RB-4083-31197-BTP BANQUE-RELEVÉ DE COMPTES-2026-08-31.pdf"
+      ],
+      "statuses": [
+        "confirmed",
+        "confirmed"
+      ]
+    },
+    {
+      "doc": "A8C538AA692A4915B5FC7C884",
+      "candidates": [
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\10 OCT 26\\L-4028-30976-MINISTERE DE L INTERIEUR-AVIS 3896091270-2026-09-30.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\10 OCT 26\\L-4028-30976-MINISTERE DE L INTERIEUR-AVIS 3896091270-2026-09-30.pdf"
+      ],
+      "statuses": [
+        "confirmed",
+        "confirmed"
+      ]
+    },
+    {
+      "doc": "B261BD1817A54403943797E80",
+      "candidates": [
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-3648-30269-AUTODISTRIBUTION ALSACE ELECTRO DIESEL-150069898.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\8 AOUT 26\\NC-3648-30269-AUTODISTRIBUTION ALSACE ELECTRO DIESEL-150069898.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-3648-30269-AUTODISTRIBUTION ALSACE ELECTRO DIESEL-150069898.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-3648-30269-AUTODISTRIBUTION ALSACE ELECTRO DIESEL-150069898.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\8 AOUT 26\\NC-3648-30269-AUTODISTRIBUTION ALSACE ELECTRO DIESEL-150069898.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-3648-30269-AUTODISTRIBUTION ALSACE ELECTRO DIESEL-150069898.pdf"
+      ],
+      "statuses": [
+        "confirmed",
+        "confirmed"
+      ]
+    },
+    {
+      "doc": "B3C2D34D1C1B4CCE8310E9938",
+      "candidates": [
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\10 OCT 26\\L-4021-AUTOVISION PL-CONTRÔLE TECHNIQUE-2026-10-02.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\10 OCT 26\\L-4021-AUTOVISION PL-CONTRÔLE TECHNIQUE-2026-10-02.pdf"
+      ],
+      "statuses": [
+        "confirmed",
+        "confirmed"
+      ]
+    },
+    {
+      "doc": "B4B1A84F109C4910B7283305E",
+      "candidates": [
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\10 OCT 26\\L-3536-MINISTERIO DEL INTERIOR-INFRACTION 240460204279-2026-08-18.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\10 OCT 26\\L-3536-MINISTERIO DEL INTERIOR-INFRACTION 240460204279-2026-08-18.pdf"
+      ],
+      "statuses": [
+        "confirmed",
+        "confirmed"
+      ]
+    },
+    {
+      "doc": "B736ACF1956548C4A448AB504",
+      "candidates": [
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-3707-30932-CHAVIGNY BETON-6270740.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\8 AOUT 26\\NC-3707-30932-CHAVIGNY BETON-6270740.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-3707-30932-CHAVIGNY BETON-6270740.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-3707-30932-CHAVIGNY BETON-6270740.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\8 AOUT 26\\NC-3707-30932-CHAVIGNY BETON-6270740.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-3707-30932-CHAVIGNY BETON-6270740.pdf"
+      ],
+      "statuses": [
+        "confirmed",
+        "confirmed"
+      ]
+    },
+    {
+      "doc": "B9020156FEC7468ABF08BA565",
+      "candidates": [
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\FACTURATION_FOURNISSEURS\\2026\\9 SEPT 26\\FAC-3577-50144-C ´MATER-26M0908410.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\9 SEPT 26\\FAC-3577-50144-C ´MATER-26M0908410.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\FACTURATION_FOURNISSEURS\\2026\\9 SEPT 26\\FAC-3577-50144-C ´MATER-26M0908410.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\FACTURATION_FOURNISSEURS\\2026\\9 SEPT 26\\FAC-3577-50144-C ´MATER-26M0908410.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\9 SEPT 26\\FAC-3577-50144-C ´MATER-26M0908410.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\FACTURATION_FOURNISSEURS\\2026\\9 SEPT 26\\FAC-3577-50144-C ´MATER-26M0908410.pdf"
+      ],
+      "statuses": [
+        "confirmed",
+        "confirmed"
+      ]
+    },
+    {
+      "doc": "BB263C9BECA642D79FBD85CC6",
+      "candidates": [
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-3708-10022_25-KILOUTOU-38506477.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\8 AOUT 26\\NC-3708-10022_25-KILOUTOU-38506477.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-3708-10022_25-KILOUTOU-38506477.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-3708-10022_25-KILOUTOU-38506477.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\8 AOUT 26\\NC-3708-10022_25-KILOUTOU-38506477.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-3708-10022_25-KILOUTOU-38506477.pdf"
+      ],
+      "statuses": [
+        "confirmed",
+        "confirmed"
+      ]
+    },
+    {
+      "doc": "BBF9FECAD0384E39915966BF0",
+      "candidates": [
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-3628-31025-MAILEVA-AVC-2608-M00020.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\8 AOUT 26\\NC-3628-31025-MAILEVA-AVC-2608-M00020.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-3628-31025-MAILEVA-AVC-2608-M00020.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-3628-31025-MAILEVA-AVC-2608-M00020.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\8 AOUT 26\\NC-3628-31025-MAILEVA-AVC-2608-M00020.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-3628-31025-MAILEVA-AVC-2608-M00020.pdf"
+      ],
+      "statuses": [
+        "confirmed",
+        "confirmed"
+      ]
+    },
+    {
+      "doc": "BDAF41CB33B84D3B92D26904C",
+      "candidates": [
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_AL\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\FAC-3061-50168-MARION BON-26_653906620_002.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_AL\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\8 AOUT 26\\FAC-3061-50168-MARION BON-26_653906620_002.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_AL\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\FAC-3061-50168-MARION BON-26_653906620_002.pdf"
+      ],
+      "statuses": [
+        "confirmed"
+      ]
+    },
+    {
+      "doc": "C6061AD87B3C4CDEB63001A8B",
+      "candidates": [
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\10 OCT 26\\L-4043-30976-MINISTERE DE L INTERIEUR-AVIS 3815054740-2026-09-21.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\10 OCT 26\\L-4043-30976-MINISTERE DE L INTERIEUR-AVIS 3815054740-2026-09-21.pdf"
+      ],
+      "statuses": [
+        "confirmed",
+        "confirmed"
+      ]
+    },
+    {
+      "doc": "C671CA30C78E46A980DE00FF0",
+      "candidates": [
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\10 OCT 26\\RB-3683-52604-BANQUE CIC EST-ENGAGEMENTS PAR AVALS-2026-09-30.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\10 OCT 26\\RB-3683-52604-BANQUE CIC EST-ENGAGEMENTS PAR AVALS-2026-09-30.pdf"
+      ],
+      "statuses": [
+        "confirmed",
+        "confirmed"
+      ]
+    },
+    {
+      "doc": "C7C6DC234C874C48BF7033272",
+      "candidates": [
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-3647-10028-ABC AUTO BETON CONTROLES-F2603285.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\8 AOUT 26\\NC-3647-10028-ABC AUTO BETON CONTROLES-F2603285.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-3647-10028-ABC AUTO BETON CONTROLES-F2603285.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-3647-10028-ABC AUTO BETON CONTROLES-F2603285.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\8 AOUT 26\\NC-3647-10028-ABC AUTO BETON CONTROLES-F2603285.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-3647-10028-ABC AUTO BETON CONTROLES-F2603285.pdf"
+      ],
+      "statuses": [
+        "confirmed",
+        "confirmed"
+      ]
+    },
+    {
+      "doc": "CFCBE99AC5114C359372F6460",
+      "candidates": [
+        "\\\\10.0.1.11\\ged\\HSOLS_GR360_PT\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\10 OCT 26\\RB-162-10009-CCM-RELEVE ET INFORMATIONS-2026-10-09.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_GR360_PT\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\10 OCT 26\\RB-162-10009-CCM-RELEVE ET INFORMATIONS-2026-10-09.pdf"
+      ],
+      "statuses": [
+        "confirmed",
+        "confirmed"
+      ]
+    },
+    {
+      "doc": "D1C20BC573FE4A1CAF8A27144",
+      "candidates": [
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\9 SEPT 26\\L-3373-52071-REPUBLIQUE FRANCAISE-AVIS 6680097138-2026-09-15.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\9 SEPT 26\\L-3373-52071-REPUBLIQUE FRANCAISE-AVIS 6680097138-2026-09-15.pdf"
+      ],
+      "statuses": [
+        "confirmed",
+        "confirmed"
+      ]
+    },
+    {
+      "doc": "E83087CC08E54FDDABC42C580",
+      "candidates": [
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\9 SEPT 26\\L-3773-10010-ADECCO-CONTRAT MISE DISPO-05562-2026-09-17.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\9 SEPT 26\\L-3773-10010-ADECCO-CONTRAT MISE DISPO-05562-2026-09-17.pdf"
+      ],
+      "statuses": [
+        "confirmed",
+        "confirmed"
+      ]
+    },
+    {
+      "doc": "EA2E070FBAF14A53834C55AD4",
+      "candidates": [
+        "\\\\10.0.1.11\\ged\\HSOLS_PT\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\9 SEPT 26\\L-848-30049-HILARIO & ALVES-RECIBO DE PAGAMENTO-2026-08-06.pdf"
+      ],
+      "statuses": [
+        "confirmed"
+      ]
+    },
+    {
+      "doc": "EA637BCDB16344B2A4312176D",
+      "candidates": [
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-3253-50318-CIBOMAT - POINT P - HAGUENAU-410C0005335216.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\8 AOUT 26\\NC-3253-50318-CIBOMAT - POINT P - HAGUENAU-410C0005335216.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-3253-50318-CIBOMAT - POINT P - HAGUENAU-410C0005335216.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-3253-50318-CIBOMAT - POINT P - HAGUENAU-410C0005335216.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\8 AOUT 26\\NC-3253-50318-CIBOMAT - POINT P - HAGUENAU-410C0005335216.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-3253-50318-CIBOMAT - POINT P - HAGUENAU-410C0005335216.pdf"
+      ],
+      "statuses": [
+        "confirmed",
+        "confirmed"
+      ]
+    },
+    {
+      "doc": "EE1171D2D1394E06AFD470FA9",
+      "candidates": [
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\10 OCT 26\\L-4084-31197-BTP BANQUE-RELEVÉ DE COMPTES-2026-09-30.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\10 OCT 26\\L-4084-31197-BTP BANQUE-RELEVÉ DE COMPTES-2026-09-30.pdf"
+      ],
+      "statuses": [
+        "confirmed",
+        "confirmed"
+      ]
+    },
+    {
+      "doc": "EEFA28D7F6B84500B52B0006B",
+      "candidates": [
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-3657-30452-VICAT-90277324.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\8 AOUT 26\\NC-3657-30452-VICAT-90277324.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-3657-30452-VICAT-90277324.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-3657-30452-VICAT-90277324.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\8 AOUT 26\\NC-3657-30452-VICAT-90277324.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-3657-30452-VICAT-90277324.pdf"
+      ],
+      "statuses": [
+        "confirmed",
+        "confirmed"
+      ]
+    },
+    {
+      "doc": "F2F97642444C491CB04DCA64A",
+      "candidates": [
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\10 OCT 26\\L-3535-EPCPLC-STATIONNEMENT 101581681-2026-09-19.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\10 OCT 26\\L-3535-EPCPLC-STATIONNEMENT 101581681-2026-09-19.pdf"
+      ],
+      "statuses": [
+        "confirmed",
+        "confirmed"
+      ]
+    },
+    {
+      "doc": "F51C7626BE4A425CA271338A1",
+      "candidates": [
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-3624-10053-B.H.R. SAS-2608228733.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\8 AOUT 26\\NC-3624-10053-B.H.R. SAS-2608228733.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-3624-10053-B.H.R. SAS-2608228733.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-3624-10053-B.H.R. SAS-2608228733.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\8 AOUT 26\\NC-3624-10053-B.H.R. SAS-2608228733.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-3624-10053-B.H.R. SAS-2608228733.pdf"
+      ],
+      "statuses": [
+        "confirmed",
+        "confirmed"
+      ]
+    },
+    {
+      "doc": "F5AACA8AF1E9456CAE9295329",
+      "candidates": [
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\9 SEPT 26\\L-3762-30976-MINISTERE DE L INTERIEUR-AVIS 8386208031-2026-09-10.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\9 SEPT 26\\L-3762-30976-MINISTERE DE L INTERIEUR-AVIS 8386208031-2026-09-10.pdf"
+      ],
+      "statuses": [
+        "confirmed",
+        "confirmed"
+      ]
+    },
+    {
+      "doc": "F652EA351CE3466DB8FE95CB3",
+      "candidates": [
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-3705-30957-WTW-ZFG2026_T_00005439001.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\8 AOUT 26\\NC-3705-30957-WTW-ZFG2026_T_00005439001.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-3705-30957-WTW-ZFG2026_T_00005439001.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-3705-30957-WTW-ZFG2026_T_00005439001.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\8 AOUT 26\\NC-3705-30957-WTW-ZFG2026_T_00005439001.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-3705-30957-WTW-ZFG2026_T_00005439001.pdf"
+      ],
+      "statuses": [
+        "confirmed",
+        "confirmed"
+      ]
+    },
+    {
+      "doc": "F8D63100A2DD4A51A73703779",
+      "candidates": [
+        "\\\\10.0.1.11\\ged\\HSOLS_PT\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\9 SEPT 26\\L-974-30166-AGEAS PORTUGAL-SEGURO AUTO BF-99-BE-2026-09-19.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_PT\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\9 SEPT 26\\L-974-30166-AGEAS PORTUGAL-SEGURO AUTO BF-99-BE-2026-09-19.pdf"
+      ],
+      "statuses": [
+        "confirmed",
+        "confirmed"
+      ]
+    },
+    {
+      "doc": "FC42FD81B5464A1F9CC7EF5E8",
+      "candidates": [
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-3378-30315-ARCELORMITTAL-90002695.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\8 AOUT 26\\NC-3378-30315-ARCELORMITTAL-90002695.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_FR\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\NC-3378-30315-ARCELORMITTAL-90002695.pdf"
+      ],
+      "statuses": [
+        "confirmed"
+      ]
+    },
+    {
+      "doc": "FF67CBC40E804ABBAE75C9648",
+      "candidates": [
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\10 OCT 26\\L-3686-52604-BANQUE CIC EST-RELEVÉ BANCAIRE-2026-09-30.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_LOR\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\10 OCT 26\\L-3686-52604-BANQUE CIC EST-RELEVÉ BANCAIRE-2026-09-30.pdf"
+      ],
+      "statuses": [
+        "confirmed",
+        "confirmed"
+      ]
+    },
+    {
+      "doc": "FFCAAA57D04849EFBFEC99297",
+      "candidates": [
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_AL\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\FAC-3060-50168-MARION BON-26_653906620_001.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_AL\\COURRIER_INTERNE_EXTERIEUR\\Courriers Reçus\\2026\\8 AOUT 26\\FAC-3060-50168-MARION BON-26_653906620_001.pdf",
+        "\\\\10.0.1.11\\ged\\HSOLS_INTERSOL_AL\\FACTURATION_FOURNISSEURS\\2026\\8 AOUT 26\\FAC-3060-50168-MARION BON-26_653906620_001.pdf"
+      ],
+      "statuses": [
+        "confirmed"
+      ]
+    }
+  ]
+}
