@@ -1,70 +1,85 @@
 {% extends 'base.html' %}
-{% block title %}Reconstrução de deslocações{% endblock %}
+{% block title %}Calendário de deslocações{% endblock %}
 {% block extra_head %}
 {{ super() }}
-<link rel="stylesheet" href="{{ url_for('gr_travel_maps.static', filename='monthly.css') }}?v=2">
+<link rel="stylesheet" href="{{ url_for('gr_travel_maps.static', filename='monthly.css') }}?v={{ static_version|default(1) }}-8">
 {% endblock %}
 {% block content %}
-<div class="sz_page travel-page" id="travelBuilder" data-api-base="{{ url_for('gr_travel_maps.companies').rsplit('/', 1)[0] }}" data-csrf="{{ csrf_token }}">
+<div class="sz_page travel-page" id="travelBuilder" data-api-base="{{ url_for('gr_travel_maps.companies').rsplit('/', 1)[0] }}" data-csrf="{{ csrf_token }}" data-preference-key="{{ preference_key }}">
   <div class="sz_page_container">
     <header class="sz_contextbar sz_page_contextbar travel-header">
-      <div><a href="{{ url_for('gr_travel_maps.page') }}">← Painel mensal</a><h1 class="sz_page_title">Reconstrução de deslocações</h1><p class="travel-muted" id="builderEmployee">A carregar trabalhador…</p></div>
+      <div><a href="{{ url_for('gr_travel_maps.page') }}">← Painel mensal</a><h1 class="sz_page_title">Calendário de deslocações</h1><p class="travel-muted" id="builderEmployee">A carregar trabalhador…</p></div>
       <button type="button" class="sz_button sz_button_secondary" id="builderReload">Atualizar dados</button>
     </header>
     <div class="sz_page_body travel-body">
-      <p class="travel-notice">As propostas são inferidas. Um auto de medição identifica uma obra candidata, sem comprovar a presença do trabalhador. A validação humana fica registada separadamente da origem inferida.</p>
+      <p class="travel-notice" id="builderSourceNotice">As obras e datas são cruzadas com o planeamento e o histórico das equipas. As deslocações e ajudas de custo continuam inferidas, sujeitas a revisão humana.</p>
+      <p id="builderPlanningSummary" class="travel-muted"></p>
       <p id="builderError" class="travel-error" role="alert" hidden></p>
       <p id="builderStatus" class="travel-muted" aria-live="polite"></p>
       <section class="sz_panel travel-builder-panel">
-        <h2>Pressupostos da proposta</h2>
         <form id="builderForm">
-          <div class="travel-input-grid">
-            <label class="sz_field">Origem — casa do trabalhador<input class="sz_input" id="builderOrigin" maxlength="300" placeholder="Morada da ficha PE" aria-describedby="builderOriginSource"><small id="builderOriginSource" class="travel-muted"></small></label>
-            <label class="sz_field">País da origem<input class="sz_input" id="builderCountry" maxlength="2" value="PT" placeholder="PT"></label>
-            <label class="sz_field">País de referência das AC<input class="sz_input" id="builderAllowanceCountry" maxlength="2" value="PT" placeholder="PT"></label>
-            <label class="sz_field">Matrícula / viatura<input class="sz_input" id="builderVehicle" maxlength="80" aria-describedby="builderVehicleSource"><small id="builderVehicleSource" class="travel-muted"></small></label>
-            <label class="sz_field">Proprietário da viatura<input class="sz_input" id="builderOwner" maxlength="200"></label>
-            <label class="sz_field">Valor por km (€)<input class="sz_input" id="builderKmRate" type="number" min="0" step="0.000001" data-sz-decimals="6" placeholder="Usar taxa única do PHC"></label>
-            <label class="sz_field">AC nacional / dia (€)<input class="sz_input" id="builderNationalRate" type="number" min="0" step="0.000001" data-sz-decimals="6" placeholder="Usar taxa única do PHC"></label>
-            <label class="sz_field">AC estrangeiro / dia (€)<input class="sz_input" id="builderForeignRate" type="number" min="0" step="0.000001" data-sz-decimals="6" placeholder="Usar taxa única do PHC"></label>
-            <label class="sz_field">Dias excluídos<input class="sz_input" id="builderBlocked" placeholder="2026-09-01, 2026-09-02"></label>
+          <fieldset class="travel-company-choice"><legend>Empresas onde consultar obras e autos</legend><div id="builderCompanies"></div><small class="travel-muted">As obras são associadas ao planeamento da equipa. Os autos acrescentam evidência de produção. A escolha fica memorizada neste navegador para o seu utilizador.</small></fieldset>
+          <div class="travel-input-grid travel-home-grid">
+            <label class="sz_field">Partida — casa do trabalhador<input class="sz_input" id="builderOrigin" maxlength="300" placeholder="Morada da ficha PE"><small id="builderOriginSource" class="travel-muted"></small></label>
+            <label class="sz_field">Matrícula particular<input class="sz_input" id="builderVehicle" maxlength="80"><small id="builderVehicleSource" class="travel-muted"></small></label>
+            <label class="sz_field">Proprietário da viatura<input class="sz_input" id="builderOwner" maxlength="200" placeholder="Confirmar proprietário"></label>
           </div>
-          <p class="travel-muted">A morada e a matrícula são lidas da ficha atual do trabalhador no PHC. Confirme que se aplicam ao mês do mapa. Pode corrigir os valores, ficando a alteração registada na nova proposta.</p>
-          <label class="travel-review-check"><input type="checkbox" id="builderWeekends"> Incluir fins de semana como datas possíveis (pressuposto a validar).</label>
-          <label class="sz_field">Fonte / explicação dos pressupostos<textarea class="sz_textarea sz_input" id="builderNote" rows="2" maxlength="1000" required placeholder="Explique os pressupostos e eventuais correções à morada ou matrícula do PHC."></textarea></label>
-          <fieldset class="travel-company-choice"><legend>Empresas onde procurar autos</legend><div id="builderCompanies"></div><button type="button" class="sz_button sz_button_secondary" id="builderLoadWorks">Carregar obras destas empresas</button></fieldset>
-          <p class="travel-muted">Só entram obras com medição positiva no mês. Selecione as candidatas e indique os percursos. Regresso vazio assume a mesma distância da ida, guardando essa inferência. País e local são necessários para ajudas de custo. Sem dados suficientes, a diferença fica por reconciliar.</p>
-          <p class="travel-muted" id="builderTripLimitHelp">O motor limita as deslocações pelo calendário disponível, no máximo uma viagem de ida e volta por dia. Não é preciso preencher um número de visitas. O limite opcional por obra serve apenas para indicar uma restrição conhecida; não é calculado pelos metros executados nem limita os dias de ajudas de custo.</p>
-          <div class="travel-scroll" tabindex="0" aria-label="Obras e percursos candidatos">
-            <table class="sz_table travel-table travel-work-inputs"><thead><tr><th>Usar</th><th>Obra / autos</th><th>País</th><th>Local</th><th>Ida (km)</th><th>Regresso (km)</th><th>Fonte da distância</th><th>Limite opcional/mês</th></tr></thead><tbody id="builderWorks"></tbody></table>
+          <details class="travel-settings"><summary>Ajustar calendário e pressupostos</summary>
+            <div class="travel-input-grid">
+              <label class="sz_field">País da casa<input class="sz_input" id="builderCountry" maxlength="2" value="PT"></label>
+              <label class="sz_field">País de referência das AC<input class="sz_input" id="builderAllowanceCountry" maxlength="2" value="PT"></label>
+              <label class="sz_field">Regressos<select class="sz_select" id="builderReturnPolicy"><option value="auto">Automático, no próprio dia ou mais tarde</option><option value="same_day">No próprio dia</option><option value="later">Noutro dia</option></select></label>
+              <label class="sz_field">Limite de condução por dia (h)<input class="sz_input" id="builderDrivingHours" type="number" min="1" max="24" step="0.5" value="10"><small class="travel-muted">Pressuposto da proposta, ajustável.</small></label>
+              <label class="sz_field">Dias excluídos<input class="sz_input" id="builderBlocked" placeholder="2026-09-01, 2026-09-02"></label>
+              <label class="sz_field">Valor por km (€)<input class="sz_input" id="builderKmRate" type="number" min="0" step="0.000001" data-sz-decimals="6" placeholder="Taxa do PHC"></label>
+              <label class="sz_field">AC nacional / dia (€)<input class="sz_input" id="builderNationalRate" type="number" min="0" step="0.000001" data-sz-decimals="6" placeholder="Taxa do PHC"></label>
+              <label class="sz_field">AC estrangeiro / dia (€)<input class="sz_input" id="builderForeignRate" type="number" min="0" step="0.000001" data-sz-decimals="6" placeholder="Taxa do PHC"></label>
+            </div>
+            <label class="travel-review-check" id="builderWeekendsField"><input type="checkbox" id="builderWeekends"> Incluir fins de semana como datas possíveis.</label>
+            <p class="travel-muted">Com planeamento, só são usadas datas associadas à equipa, incluindo fins de semana registados. Os dias excluídos continuam a ser respeitados.</p>
+            <label class="sz_field">Nota / fonte das correções<textarea class="sz_input" id="builderNote" rows="2" maxlength="1000" placeholder="Explique alterações ou restrições conhecidas."></textarea></label>
+          </details>
+          <div class="travel-actions"><button class="sz_button sz_button_primary" type="submit" id="builderGenerate" disabled>Reconstruir calendário automaticamente</button><span class="travel-muted">Casa–obra e obra–obra · distâncias rodoviárias · regressos ligados à ida</span></div>
+          <div id="builderProgress" class="travel-progress" hidden>
+            <div role="status" aria-live="polite" aria-atomic="true"><strong id="builderProgressTitle"></strong><p id="builderProgressDetail" class="travel-muted"></p></div>
+            <progress id="builderProgressBar" aria-label="Progresso da fase atual"></progress>
+            <div class="travel-progress-footer"><span id="builderProgressCount" class="travel-muted"></span><span id="builderProgressTime" class="travel-muted"></span></div>
           </div>
-          <button class="sz_button sz_button_primary" type="submit" id="builderGenerate" disabled>Gerar e guardar proposta inferida</button>
         </form>
       </section>
-      <section class="sz_panel travel-builder-panel" id="builderResult" hidden>
-        <div class="travel-header"><div><h2 id="builderVersionTitle">Proposta</h2><p id="builderVersionMeta" class="travel-muted"></p></div><label class="sz_field">Versão a consultar<select id="builderHistory" class="sz_select"></select></label></div>
-        <p class="travel-notice" id="builderHistorical" hidden>Está a consultar uma versão histórica, apenas para leitura.</p>
-        <div class="travel-scroll"><table class="sz_table travel-table"><thead><tr><th>Tipo</th><th>PHC guardado</th><th>Mapa</th><th>Diferença</th><th>Reconciliação</th><th>Valor do mapa</th></tr></thead><tbody id="builderTotals"></tbody></table></div>
-        <p class="travel-muted">100% significa coincidência numérica; não aumenta a confiança nas deslocações. Rubricas sem total PHC ficam fora da validação.</p>
-        <p id="builderValidationScope" class="travel-muted"></p>
-        <details><summary>Avisos e pressupostos</summary><ul id="builderWarnings"></ul></details>
-        <div class="travel-scroll" tabindex="0" aria-label="Linhas propostas para revisão"><table class="sz_table travel-table travel-entry-inputs"><thead><tr><th>Incluir</th><th>Tipo / origem</th><th>Data proposta</th><th>Obra / local</th><th>KM / dias</th><th>Taxa (€)</th><th>Motivo</th><th>Viatura / proprietário</th></tr></thead><tbody id="builderEntries"></tbody></table></div>
+      <section class="sz_panel travel-builder-panel">
+        <div id="builderOutcome" class="travel-notice" role="status" tabindex="-1" hidden><strong id="builderOutcomeText"></strong><p id="builderDiagnostics" class="travel-muted"></p></div>
+        <div class="travel-scroll"><table class="sz_table travel-table"><thead><tr><th>Tipo</th><th>PHC</th><th>Calendário</th><th>Diferença</th><th>Reconciliação</th><th>Valor</th></tr></thead><tbody id="builderTotals"></tbody></table></div>
+        <div class="travel-header"><div><h2 id="builderVersionTitle">Dias do mês</h2><p id="builderVersionMeta" class="travel-muted"></p></div><label class="sz_field" id="builderHistoryLabel" hidden>Versão<select id="builderHistory" class="sz_select"></select></label></div>
+        <p class="travel-notice" id="builderHistorical" hidden>Versão histórica, apenas para consulta. A reconstrução seguinte cria uma nova versão.</p>
+        <div class="travel-scroll"><table class="sz_table travel-table travel-calendar"><thead><tr><th>Dia</th><th>Planeamento · equipa / obra</th><th>Percurso proposto</th><th>KM</th><th>Ajudas de custo</th><th>Estado / revisão</th></tr></thead><tbody id="builderCalendar"></tbody></table></div>
+        <details id="builderWarningsDetails"><summary>Avisos e locais por resolver</summary><ul id="builderWarnings"></ul></details>
+        <details id="builderLocationsDetails" class="travel-settings"><summary>Obras e locais considerados — corrigir morada ou coordenadas</summary>
+          <p class="travel-muted">São consideradas as obras do planeamento da equipa. Se o trabalhador tem uma única obra, também se procuram visitas possíveis a obras de outras equipas nas mesmas datas. Estas visitas ficam assinaladas como hipóteses sem registo de presença. As correções entram na próxima reconstrução.</p>
+          <div class="travel-scroll"><table class="sz_table travel-table travel-location-table"><thead><tr><th>Local / fonte</th><th>Morada / local</th><th>País</th><th>Latitude (opcional)</th><th>Longitude (opcional)</th><th>Resultado</th></tr></thead><tbody id="builderLocations"></tbody></table></div>
+        </details>
         <details><summary>Proveniência e dados da versão</summary><pre id="builderEvidence" class="travel-evidence"></pre></details>
-        <div id="builderReview">
-          <label class="sz_field">Motivo da alteração ou decisão<textarea id="builderReason" class="sz_input" rows="2" maxlength="1000" placeholder="Explique as correções, a rejeição ou a aceitação das diferenças."></textarea></label>
-          <label class="travel-review-check"><input id="builderAcknowledged" type="checkbox"> Revi as datas, os percursos, os valores e as diferenças. Reconheço que os elementos propostos continuam com origem inferida.</label>
-          <div class="travel-actions">
-            <button type="button" class="sz_button sz_button_secondary" id="builderSave">Guardar alterações como nova versão</button>
-            <button type="button" class="sz_button sz_button_secondary" id="builderReject">Rejeitar proposta</button>
-            <button type="button" class="sz_button sz_button_primary" id="builderValidate">Validar mapa</button>
-          </div>
+        <div id="builderReview" hidden>
+          <p id="builderValidationScope" class="travel-muted"></p>
+          <label class="sz_field">Motivo da decisão<textarea id="builderReason" class="sz_input" rows="2" maxlength="1000"></textarea></label>
+          <label class="travel-review-check"><input id="builderAcknowledged" type="checkbox"> Revi os dias, as ligações entre viagens e as diferenças. Os percursos e a presença continuam com origem inferida.</label>
+          <label class="travel-review-check" id="builderHypothesesField" hidden><input id="builderHypothesesConfirmed" type="checkbox"> Confirmei que as deslocações assinaladas como hipóteses ocorreram. Excluí as que não consegui confirmar.</label>
+          <div class="travel-actions"><button type="button" class="sz_button sz_button_secondary" id="builderReject">Rejeitar proposta</button><button type="button" class="sz_button sz_button_primary" id="builderValidate">Validar mapa</button></div>
         </div>
+        <p class="travel-muted">Moradas: <a href="https://github.com/komoot/photon" target="_blank" rel="noopener noreferrer">Photon</a> · alternativa aproximada por código postal/localidade: <a href="https://www.geonames.org/" target="_blank" rel="noopener noreferrer">GeoNames (CC BY 4.0)</a>, consultada localmente · percursos: <a href="https://project-osrm.org/" target="_blank" rel="noopener noreferrer">OSRM</a> · dados © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>. São enviados apenas locais e coordenadas, sem nomes de trabalhadores ou valores salariais.</p>
       </section>
     </div>
   </div>
 </div>
+<dialog class="travel-dialog" id="calendarDayDialog" aria-labelledby="calendarDayTitle">
+  <div class="travel-dialog-header"><div><h2 id="calendarDayTitle">Rever dia</h2><p class="travel-muted">Os troços da mesma viagem aparecem juntos, incluindo o regresso noutra data.</p></div><button type="button" class="sz_button sz_button_secondary" id="calendarDayClose">Fechar</button></div>
+  <p id="calendarDayError" class="travel-error" role="alert" hidden></p>
+  <div id="calendarDayLines"></div>
+  <label class="sz_field">Motivo da alteração<textarea class="sz_input" id="calendarDayReason" maxlength="1000" rows="2"></textarea></label>
+  <button type="button" class="sz_button sz_button_primary" id="calendarDaySave">Guardar alterações como nova versão</button>
+</dialog>
 {% endblock %}
 {% block scripts %}
 {{ super() }}
-<script src="{{ url_for('gr_travel_maps.static', filename='reconstruction.js') }}?v=2" defer></script>
+<script src="{{ url_for('gr_travel_maps.static', filename='reconstruction.js') }}?v={{ static_version|default(1) }}-8" defer></script>
 {% endblock %}

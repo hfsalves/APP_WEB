@@ -5,7 +5,7 @@ from copy import deepcopy
 from datetime import datetime, timezone
 
 from models import db
-from . import engine, service, store
+from . import engine, service, store, distances, itinerary, progress, planning
 from .config import TravelMapsError, period_bounds
 
 
@@ -104,7 +104,15 @@ def context(feid, year, month, employee_key, companies, user):
         batches = deepcopy(saved['current']['document']['measurements'])
         ids = [batch['company']['feid'] for batch in batches]
         source_warnings.append('Autos atuais indisponíveis. São apresentadas as evidências históricas guardadas. ' + str(exc))
-    return {'payroll': payroll, 'works': engine.candidates(batches), 'measurement_companies': ids,
+    plan = None
+    try:
+        plan = planning.snapshot(payroll, batches, user)
+    except TravelMapsError as exc:
+        if saved is None or exc.status_code == 403:
+            raise
+        plan = deepcopy(saved['current']['document'].get('planning'))
+        source_warnings.append('Planeamento atual indisponível. É apresentada a versão histórica. ' + str(exc))
+    return {'payroll': payroll, 'works': engine.candidates(batches, plan), 'planning': plan, 'measurement_companies': ids,
             'sources_current': not source_warnings, 'source_warnings': source_warnings,
             'storage_ready': installed, 'saved': saved,
             'history': visible_history(db_engine, saved['header']['id'], user) if saved else []}
@@ -152,19 +160,56 @@ def save(db_engine, document, payload, user, action, state):
 
 
 def generate(payload, user):
+    return progress.finish(generate_steps(payload, user))
+
+
+def generate_steps(payload, user, *, persist=True):
     # Establish company scope before touching the persistence layer.
     service.company_for_user(payload.get('feid'), user)
-    db_engine = database()
+    db_engine = database() if persist else None
+    yield progress.event('payroll', 'A ler os valores PHC e a ficha do trabalhador…')
     payroll = payroll_snapshot(payload.get('feid'), payload.get('year'), payload.get('month'), payload.get('employee_key'), user)
-    previous = store.find(db_engine, store.scope(payroll))
+    previous = store.find(db_engine, store.scope(payroll)) if persist else None
     if previous:
         authorize(previous, user)
     ids = measurement_companies(payload.get('measurement_companies'), payroll['company']['feid'], user)
-    batches = [service.monthly_measurements(company, payroll['year'], payroll['month'], user) for company in ids]
-    document = engine.build(payroll, batches, payload.get('inputs'))
+    batches = []
+    for index, company in enumerate(ids):
+        company_name = service.company_for_user(company, user)['name']
+        yield progress.event('measurements', f'A ler autos de medição: {company_name}…',
+                             completed=index, total=len(ids))
+        batches.append(service.monthly_measurements(company, payroll['year'], payroll['month'], user))
+    plan = None
+    if not persist or payload.get('mode') == 'AUTOMATIC':
+        yield progress.event('planning', 'A cruzar o trabalhador com as equipas, obras e datas do planeamento…')
+        plan = planning.snapshot(payroll, batches, user)
+    document = yield from build_document_steps(payroll, batches, payload if persist else {**payload, 'mode': 'AUTOMATIC'}, plan)
     document['assumptions_by'] = actor(user)
     document['warnings'] = list(dict.fromkeys([*document['warnings'], *payroll['employee']['warnings']]))
-    return save(db_engine, document, payload, user, 'GENERATE', 'POR_VALIDAR')
+    if persist:
+        yield progress.event('saving', 'A guardar a proposta e o histórico…')
+        return save(db_engine, document, payload, user, 'GENERATE', 'POR_VALIDAR')
+    return {'document': document, 'persisted': False}
+
+
+def build_document(payroll, batches, payload):
+    return progress.finish(build_document_steps(payroll, batches, payload))
+
+
+def build_document_steps(payroll, batches, payload, plan=None):
+    if payload.get('mode') == 'AUTOMATIC':
+        raw = payload.get('inputs', {})
+        if not isinstance(raw, dict):
+            raise TravelMapsError('Pressupostos inválidos.')
+        graph = yield from distances.prepare_steps(payroll, batches, raw, plan)
+        yield progress.event('combinations', 'A procurar combinações de quilómetros e ajudas de custo para distribuir pelo calendário…')
+        return itinerary.build(payroll, batches, raw, graph, plan)
+    yield progress.event('combinations', 'A procurar combinações de quilómetros e ajudas de custo…')
+    return engine.build(payroll, batches, payload.get('inputs'))
+
+
+def preview(payload, user):
+    return progress.finish(generate_steps(payload, user, persist=False))
 
 
 def ensure_sources_current(document, user):
@@ -172,6 +217,10 @@ def ensure_sources_current(document, user):
     current = payroll_snapshot(original['company']['feid'], original['year'], original['month'], original['employee']['key'], user)
     if payroll_fingerprint(current) != payroll_fingerprint(original):
         raise store.Conflict('O PHC mudou desde esta proposta. Gere uma nova versão antes de validar.')
+    if document.get('planning') is not None:
+        actual_plan = planning.snapshot(current, document['measurements'], user)
+        if actual_plan['fingerprint'] != document['planning']['fingerprint']:
+            raise store.Conflict('As equipas, datas, obras ou ausências do planeamento mudaram. Reconstrua antes de validar.')
     for entry in document['entries']:
         if not entry['included']:
             continue
@@ -181,15 +230,14 @@ def ensure_sources_current(document, user):
                 profile = current.get('employee_profile', {})
                 if entry[field] != profile.get(field) or source != profile.get('provenance', {}).get(field):
                     raise store.Conflict('A morada ou matrícula PHC usada na proposta mudou. Gere uma nova versão antes de validar.')
-    used = {entry['work_key'] for entry in document['entries'] if entry['included']}
-    relevant = [work for work in engine.candidates(document['measurements']) if work['key'] in used]
+    used = {key for entry in document['entries'] if entry['included'] for key in entry.get('work_keys', [entry['work_key']])}
+    relevant = [work for work in engine.candidates(document['measurements'], document.get('planning')) if work['key'] in used]
     batches = [service.monthly_measurements(batch['company']['feid'], original['year'], original['month'], user)
                for batch in document['measurements']]
-    actual = {work['key']: work for work in engine.candidates(batches)}
+    records = {(batch['company']['phc_db'], record['bostamp']): record for batch in batches for record in batch['rows']}
     for work in relevant:
         # Additional autos need not invalidate a proposal; original references must still match.
-        records = {record['bostamp']: record for record in actual.get(work['key'], {}).get('evidence', [])}
-        if any(engine.digest(records.get(record['bostamp'])) != engine.digest(record) for record in work['evidence']):
+        if any(engine.digest(records.get((record['source']['database'], record['bostamp']))) != engine.digest(record) for record in work['evidence']):
             raise store.Conflict('Um auto usado na proposta mudou ou deixou de ter medição positiva. Gere uma nova versão.')
 
 
@@ -214,6 +262,9 @@ def change(map_id, payload, user, action):
             raise store.Conflict('Só pode validar uma proposta por validar.')
         if payload.get('acknowledge_inference') is not True:
             raise TravelMapsError('Confirme explicitamente que reviu as inferências e as diferenças.')
+        hypotheses = [e['id'] for e in document['entries'] if e['included'] and e.get('hypothesis')]
+        if hypotheses and payload.get('confirm_hypothetical_travel') is not True:
+            raise TravelMapsError('Confirme que as deslocações assinaladas como hipóteses ocorreram, ou exclua essas viagens antes de validar.')
         if not any(entry['included'] for entry in document['entries']):
             raise TravelMapsError('Não existem linhas incluídas para validar.')
         if any(value['phc'] is not None and engine.D(value['phc']) < 0 for value in document['reconciliation'].values()):
@@ -224,7 +275,7 @@ def change(map_id, payload, user, action):
         document['validation'] = {'actor': actor(user), 'user_stamp': str(getattr(user, 'USSTAMP', '') or ''),
             'at': datetime.now(timezone.utc).isoformat(), 'reason': note,
             'scope': [key for key in engine.CATEGORIES if document['payroll']['employee']['phc'][key]['quantity'] is not None],
-            'acknowledge_inference': True}
+            'acknowledge_inference': True, 'confirmed_hypothetical_entries': hypotheses}
         for entry in document['entries']:
             entry['validation_state'] = 'VALIDADO' if entry['included'] else 'REJEITADO'
             # Evidence stays INFERIDO, regardless of approval and numeric reconciliation.

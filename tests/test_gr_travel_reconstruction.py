@@ -360,6 +360,7 @@ class WorkflowTests(unittest.TestCase):
                 error=config.TravelMapsError('Sem acesso');error.status_code=403;raise error
             return {'feid':int(feid),'phc_db':'HSOLS_PT' if int(feid)==2 else 'HSOLS_FR','name':'Empresa'}
         patches=[patch.object(reconstruction.db.session,'get_bind',return_value=self.db_engine),
+            patch.object(reconstruction.planning,'snapshot',return_value=None),  # legacy autos-only fixtures
             patch.object(reconstruction,'payroll_snapshot',side_effect=lambda *args:deepcopy(self.payroll)),
             patch.object(service,'company_for_user',side_effect=company),
             patch.object(service,'monthly_measurements',side_effect=lambda feid,*args:deepcopy(next(batch for batch in self.batches if batch['company']['feid']==int(feid))))]

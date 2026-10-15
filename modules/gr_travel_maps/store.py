@@ -60,7 +60,7 @@ def ready(engine):
 
 def require_schema(engine):
     if not ready(engine):
-        raise StorageUnavailable('O armazenamento de propostas ainda não foi instalado. A leitura PHC continua disponível.')
+        raise StorageUnavailable('A gravação dos mapas está indisponível. Pode consultar os dados e calcular uma pré-visualização, mas ainda não pode guardar nem validar.')
 
 
 def scope(payroll):

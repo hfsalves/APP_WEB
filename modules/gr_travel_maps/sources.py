@@ -95,7 +95,7 @@ def employee_details(company, pestamp):
     with reader(company) as cursor:
         pe, pe2 = columns(cursor, 'PE'), columns(cursor, 'PE2')
         require(pe, ('PESTAMP',), 'PE')
-        fields = {'PE': [name for name in ('PESTAMP', 'MORADA', 'CODPOST', 'LOCAL') if name in pe],
+        fields = {'PE': [name for name in ('PESTAMP', 'MORADA', 'CODPOST', 'LOCAL', 'U_MATPRO') if name in pe],
                   'PE2': [name for name in ('PE2STAMP', 'MATRICULA') if name in pe2]}
         records = rows(cursor, 'SELECT ' + ', '.join(f'[{name}]' for name in fields['PE']) +
                        ' FROM dbo.PE WHERE PESTAMP = ?', (pestamp,))
@@ -155,3 +155,18 @@ def measurement_rows(company, start, end) -> tuple[list[dict], list[dict]]:
             ORDER BY B.DATAOBRA, B.OBRANO, B.BOSTAMP
         """, (*codes, start, end))
         return result, series
+
+
+def planned_work_rows(company, stamps):
+    """Resolve master planning works by shared OPCSTAMP, never by code suffix."""
+    if not stamps:
+        return []
+    if len(stamps) > 500:
+        raise SourceUnavailable('Demasiadas obras no planeamento deste trabalhador.')
+    with reader(company) as cursor:
+        actual = columns(cursor, 'OPC')
+        require(actual, ('OPCSTAMP', 'PROCESSO', 'NOME'), 'OPC')
+        return rows(cursor, f"""SELECT O.OPCSTAMP, O.PROCESSO, O.NOME,
+            {optional('O', actual, 'U_MORADA')} AS MORADA,
+            {optional('O', actual, 'U_LOCAL')} AS LOCALIDADE
+            FROM dbo.OPC O WHERE O.OPCSTAMP IN ({','.join('?' for _ in stamps)}) ORDER BY O.OPCSTAMP, O.PROCESSO""", stamps)

@@ -50,6 +50,8 @@ class ClientMeasurementsNotFoundError(SubcontractorMeasurementsNotFoundError):
     pass
 
 
+PRODUCTION_ITEM_REF = "V.01.01.000.0021"
+PRODUCTION_ITEM_REF_PATTERN = re.compile(r"^[A-Z]\.\d{2}\.\d{2}\.\d{3}\.\d{4}$")
 MARKET_PROCESS_PREFIXES = {
     "HSOLS_PT": "PT",
     "HSOLS_FR": "FR",
@@ -108,7 +110,12 @@ def _budget_line_description(line: dict[str, Any]) -> str:
 
 
 def _budget_line_reference(line: dict[str, Any]) -> str:
-    return _text_value(line.get("REF"))
+    source_ref = _text_value(line.get("REF")).upper()
+    if PRODUCTION_ITEM_REF_PATTERN.fullmatch(source_ref):
+        return source_ref
+    # Abbreviated budget references such as DTI/DTE are not PHC articles.
+    # The originating line remains traceable through OOBISTAMP/OBISTAMP.
+    return PRODUCTION_ITEM_REF
 
 
 def _budget_group_stamps(headers: list[dict[str, Any]]) -> list[str]:
@@ -1713,8 +1720,24 @@ def create_measurement_auto(payload: dict[str, Any], user) -> dict[str, Any]:
                           NULLIF(LTRIM(RTRIM(I.OBISTAMP)), '')
                       )
                     WHERE I.BOSTAMP = B.BOSTAMP
-                      AND LTRIM(RTRIM(ISNULL(I.REF, ''))) = LTRIM(RTRIM(ISNULL(SOURCE_I.REF, '')))
-                ) AS SOURCE_REF_COUNT,
+                      AND LTRIM(RTRIM(ISNULL(I.REF, ''))) =
+                          CASE
+                              WHEN LEN(LTRIM(RTRIM(ISNULL(SOURCE_I.REF, '')))) = 16
+                               AND UPPER(LTRIM(RTRIM(ISNULL(SOURCE_I.REF, '')))) LIKE
+                                   '[A-Z].[0-9][0-9].[0-9][0-9].[0-9][0-9][0-9].[0-9][0-9][0-9][0-9]'
+                              THEN UPPER(LTRIM(RTRIM(SOURCE_I.REF)))
+                              ELSE ?
+                          END
+                ) AS EXPECTED_REF_COUNT,
+                (
+                    SELECT ISNULL(SUM(ROUND(
+                        ISNULL(I.QTT, 0) * ISNULL(I.EDEBITO, 0)
+                        * (1.0 - ISNULL(I.DESCONTO, 0) / 100.0),
+                        2
+                    )), 0)
+                    FROM dbo.BI I
+                    WHERE I.BOSTAMP = B.BOSTAMP
+                ) AS INSERTED_VALUE,
                 (
                     SELECT COUNT(*)
                     FROM dbo.BI I
@@ -1734,7 +1757,13 @@ def create_measurement_auto(payload: dict[str, Any], user) -> dict[str, Any]:
               AND B.OBRANO = ?
               AND B.BOANO = ?
             """,
-            (bostamp, auto_ndos, obrano, dataobra.year),
+            (
+                PRODUCTION_ITEM_REF,
+                bostamp,
+                auto_ndos,
+                obrano,
+                dataobra.year,
+            ),
         )
 
     verified = verified_rows[0] if verified_rows else None
@@ -1756,7 +1785,11 @@ def create_measurement_auto(payload: dict[str, Any], user) -> dict[str, Any]:
         not verified
         or int(_number_value(verified.get("LINE_COUNT"))) != expected_lines
         or int(_number_value(verified.get("LINE2_COUNT"))) != expected_lines
-        or int(_number_value(verified.get("SOURCE_REF_COUNT"))) != expected_lines
+        or int(_number_value(verified.get("EXPECTED_REF_COUNT"))) != expected_lines
+        or _decimal(verified.get("INSERTED_VALUE")).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP
+        )
+        != total_deb
         or int(_number_value(verified.get("MEASUREMENT_FIELDS_COUNT"))) != expected_lines
         or not bool(verified.get("HAS_BO2"))
         or not bool(verified.get("HAS_BO3"))

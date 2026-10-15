@@ -1,0 +1,2702 @@
+{
+  "source": "/Users/hugoalves/Downloads/BETAOCONCEPT_Equipas Setembro 26.xlsx",
+  "source_sha256": "a5cbc43629f6fba53950d0eb10341b203f431e4d4e3763e91a5081f4c8878ee0",
+  "database": "HSOLS_MASTER",
+  "mode": "apply",
+  "started_at": "2026-10-14T16:27:52.069239+00:00",
+  "period": [
+    "2026-08-22",
+    "2026-09-21"
+  ],
+  "policy": "Importar apenas códigos FR validados contra processo HS, equipa e nome/descrição. Sem correspondências por nome.",
+  "insert_columns": [
+    "u_planostamp",
+    "data",
+    "fref",
+    "processo"
+  ],
+  "omitted": [
+    {
+      "date": "2026-08-24",
+      "sheet": "BC6 Ferro",
+      "team_code": "306",
+      "source_row": 17,
+      "source_reference": "Nancy intersol",
+      "status": "Pendente"
+    },
+    {
+      "date": "2026-08-24",
+      "sheet": "BC7 Ferro",
+      "team_code": "307",
+      "source_row": 17,
+      "source_reference": "faubourg promotion",
+      "status": "Pendente"
+    },
+    {
+      "date": "2026-08-25",
+      "sheet": "BC6 Ferro",
+      "team_code": "306",
+      "source_row": 18,
+      "source_reference": "Nancy intersol",
+      "status": "Pendente"
+    },
+    {
+      "date": "2026-08-25",
+      "sheet": "BC7 Ferro",
+      "team_code": "307",
+      "source_row": 18,
+      "source_reference": "faubourg promotion",
+      "status": "Pendente"
+    },
+    {
+      "date": "2026-08-26",
+      "sheet": "BC6 Ferro",
+      "team_code": "306",
+      "source_row": 19,
+      "source_reference": "Nancy intersol",
+      "status": "Pendente"
+    },
+    {
+      "date": "2026-08-26",
+      "sheet": "BC7 Ferro",
+      "team_code": "307",
+      "source_row": 19,
+      "source_reference": "faubourg promotion",
+      "status": "Pendente"
+    },
+    {
+      "date": "2026-08-27",
+      "sheet": "BC7 Ferro",
+      "team_code": "307",
+      "source_row": 20,
+      "source_reference": "faubourg promotion",
+      "status": "Pendente"
+    },
+    {
+      "date": "2026-08-31",
+      "sheet": "BC1",
+      "team_code": "301",
+      "source_row": 24,
+      "source_reference": "viagem Portugal - França",
+      "status": "Deslocação"
+    },
+    {
+      "date": "2026-09-03",
+      "sheet": "BC7 Ferro",
+      "team_code": "307",
+      "source_row": 27,
+      "source_reference": "parking intersol nancy",
+      "status": "Pendente"
+    },
+    {
+      "date": "2026-09-04",
+      "sheet": "BC7 Ferro",
+      "team_code": "307",
+      "source_row": 28,
+      "source_reference": "parking intersol nancy",
+      "status": "Pendente"
+    },
+    {
+      "date": "2026-09-05",
+      "sheet": "BC2",
+      "team_code": "302",
+      "source_row": 32,
+      "source_reference": "viagem sozinho França/Portugal de carro",
+      "status": "Deslocação"
+    },
+    {
+      "date": "2026-09-05",
+      "sheet": "BC6 Ferro",
+      "team_code": "306",
+      "source_row": 29,
+      "source_reference": "Nancy intersol",
+      "status": "Pendente"
+    },
+    {
+      "date": "2026-09-05",
+      "sheet": "BC7 Ferro",
+      "team_code": "307",
+      "source_row": 29,
+      "source_reference": "Nancy intersol",
+      "status": "Pendente"
+    },
+    {
+      "date": "2026-09-07",
+      "sheet": "BC7 Ferro",
+      "team_code": "307",
+      "source_row": 31,
+      "source_reference": "parking intersol nancy",
+      "status": "Pendente"
+    },
+    {
+      "date": "2026-09-08",
+      "sheet": "BC6 Ferro",
+      "team_code": "306",
+      "source_row": 32,
+      "source_reference": "Nancy intersol",
+      "status": "Pendente"
+    },
+    {
+      "date": "2026-09-08",
+      "sheet": "BC7 Ferro",
+      "team_code": "307",
+      "source_row": 32,
+      "source_reference": "Nancy intersol",
+      "status": "Pendente"
+    },
+    {
+      "date": "2026-09-09",
+      "sheet": "BC6 Ferro",
+      "team_code": "306",
+      "source_row": 33,
+      "source_reference": "Nancy intersol",
+      "status": "Pendente"
+    },
+    {
+      "date": "2026-09-09",
+      "sheet": "BC7 Ferro",
+      "team_code": "307",
+      "source_row": 33,
+      "source_reference": "Nancy intersol",
+      "status": "Pendente"
+    },
+    {
+      "date": "2026-09-10",
+      "sheet": "BC6 Ferro",
+      "team_code": "306",
+      "source_row": 34,
+      "source_reference": "Nancy intersol",
+      "status": "Pendente"
+    },
+    {
+      "date": "2026-09-10",
+      "sheet": "BC7 Ferro",
+      "team_code": "307",
+      "source_row": 34,
+      "source_reference": "Nancy intersol",
+      "status": "Pendente"
+    },
+    {
+      "date": "2026-09-11",
+      "sheet": "BC2",
+      "team_code": "302",
+      "source_row": 40,
+      "source_reference": "Quartus Courtenay",
+      "status": "Pendente"
+    },
+    {
+      "date": "2026-09-11",
+      "sheet": "BC5  ",
+      "team_code": "305",
+      "source_row": 36,
+      "source_reference": "Quartus Courtenay",
+      "status": "Pendente"
+    },
+    {
+      "date": "2026-09-11",
+      "sheet": "BC6 Ferro",
+      "team_code": "306",
+      "source_row": 35,
+      "source_reference": "Nancy intersol",
+      "status": "Pendente"
+    },
+    {
+      "date": "2026-09-11",
+      "sheet": "BC7 Ferro",
+      "team_code": "307",
+      "source_row": 35,
+      "source_reference": "Nancy intersol",
+      "status": "Pendente"
+    },
+    {
+      "date": "2026-09-12",
+      "sheet": "BC2",
+      "team_code": "302",
+      "source_row": 41,
+      "source_reference": "viagem montargis/moulusse",
+      "status": "Deslocação"
+    },
+    {
+      "date": "2026-09-12",
+      "sheet": "BC6 Ferro",
+      "team_code": "306",
+      "source_row": 36,
+      "source_reference": "Nancy intersol",
+      "status": "Pendente"
+    },
+    {
+      "date": "2026-09-12",
+      "sheet": "BC7 Ferro",
+      "team_code": "307",
+      "source_row": 36,
+      "source_reference": "Nancy intersol",
+      "status": "Pendente"
+    },
+    {
+      "date": "2026-09-14",
+      "sheet": "BC6 Ferro",
+      "team_code": "306",
+      "source_row": 39,
+      "source_reference": "câmara fria paris ramiro",
+      "status": "Pendente"
+    },
+    {
+      "date": "2026-09-14",
+      "sheet": "BC7 Ferro",
+      "team_code": "307",
+      "source_row": 38,
+      "source_reference": "câmara fria paris ramiro",
+      "status": "Pendente"
+    },
+    {
+      "date": "2026-09-15",
+      "sheet": "BC6 Ferro",
+      "team_code": "306",
+      "source_row": 41,
+      "source_reference": "câmara fria paris ramiro",
+      "status": "Pendente"
+    },
+    {
+      "date": "2026-09-15",
+      "sheet": "BC7 Ferro",
+      "team_code": "307",
+      "source_row": 39,
+      "source_reference": "câmara fria paris ramiro",
+      "status": "Pendente"
+    },
+    {
+      "date": "2026-09-16",
+      "sheet": "BC6 Ferro",
+      "team_code": "306",
+      "source_row": 43,
+      "source_reference": "parking intersol nancy",
+      "status": "Pendente"
+    },
+    {
+      "date": "2026-09-16",
+      "sheet": "BC7 Ferro",
+      "team_code": "307",
+      "source_row": 40,
+      "source_reference": "parking intersol nancy",
+      "status": "Pendente"
+    },
+    {
+      "date": "2026-09-17",
+      "sheet": "BC2",
+      "team_code": "302",
+      "source_row": 46,
+      "source_reference": "intersol transporte de quartz",
+      "status": "Pendente"
+    },
+    {
+      "date": "2026-09-17",
+      "sheet": "BC6 Ferro",
+      "team_code": "306",
+      "source_row": 45,
+      "source_reference": "parking intersol nancy",
+      "status": "Pendente"
+    },
+    {
+      "date": "2026-09-17",
+      "sheet": "BC7 Ferro",
+      "team_code": "307",
+      "source_row": 41,
+      "source_reference": "parking intersol nancy",
+      "status": "Pendente"
+    },
+    {
+      "date": "2026-09-18",
+      "sheet": "BC2",
+      "team_code": "302",
+      "source_row": 47,
+      "source_reference": "intersol bleyer",
+      "status": "Pendente"
+    },
+    {
+      "date": "2026-09-18",
+      "sheet": "BC4",
+      "team_code": "304",
+      "source_row": 43,
+      "source_reference": "IDEC Benzons",
+      "status": "Pendente"
+    },
+    {
+      "date": "2026-09-18",
+      "sheet": "BC6 Ferro",
+      "team_code": "306",
+      "source_row": 47,
+      "source_reference": "intersol Manuel sarreguemines",
+      "status": "Pendente"
+    },
+    {
+      "date": "2026-09-18",
+      "sheet": "BC7 Ferro",
+      "team_code": "307",
+      "source_row": 42,
+      "source_reference": "intersol Manuel sarreguemines",
+      "status": "Pendente"
+    },
+    {
+      "date": "2026-09-19",
+      "sheet": "BC6 Ferro",
+      "team_code": "306",
+      "source_row": 48,
+      "source_reference": "intersol Manuel sarreguemines",
+      "status": "Pendente"
+    },
+    {
+      "date": "2026-09-19",
+      "sheet": "BC7 Ferro",
+      "team_code": "307",
+      "source_row": 43,
+      "source_reference": "intersol Manuel sarreguemines",
+      "status": "Pendente"
+    },
+    {
+      "date": "2026-09-21",
+      "sheet": "BC2",
+      "team_code": "302",
+      "source_row": 50,
+      "source_reference": "intersol vendenheim",
+      "status": "Pendente"
+    },
+    {
+      "date": "2026-09-21",
+      "sheet": "BC4",
+      "team_code": "304",
+      "source_row": 46,
+      "source_reference": "IDEC Benzons",
+      "status": "Pendente"
+    },
+    {
+      "date": "2026-09-21",
+      "sheet": "BC6 Ferro",
+      "team_code": "306",
+      "source_row": 51,
+      "source_reference": "intersol Manuel sarreguemines",
+      "status": "Pendente"
+    },
+    {
+      "date": "2026-09-21",
+      "sheet": "BC7 Ferro",
+      "team_code": "307",
+      "source_row": 45,
+      "source_reference": "intersol Manuel sarreguemines",
+      "status": "Pendente"
+    }
+  ],
+  "existing": [],
+  "inserted": [
+    {
+      "date": "2026-08-22",
+      "sheet": "BC4",
+      "team_code": "304",
+      "source_row": 15,
+      "source_reference": "FR2090_SCI MANON",
+      "target_code": "HS2090",
+      "u_planostamp": "E3537EADF115420C98B995F17"
+    },
+    {
+      "date": "2026-08-22",
+      "sheet": "BC5  ",
+      "team_code": "305",
+      "source_row": 15,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970",
+      "u_planostamp": "F1E76B4D52FA4AACB4E094A2A"
+    },
+    {
+      "date": "2026-08-24",
+      "sheet": "BC1",
+      "team_code": "301",
+      "source_row": 17,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053",
+      "u_planostamp": "3D45CB3C17CC41229CA5FBC76"
+    },
+    {
+      "date": "2026-08-24",
+      "sheet": "BC2",
+      "team_code": "302",
+      "source_row": 17,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970",
+      "u_planostamp": "6AF6A2A3AD8A46F9B27AAB2D7"
+    },
+    {
+      "date": "2026-08-24",
+      "sheet": "BC3",
+      "team_code": "303",
+      "source_row": 17,
+      "source_reference": "FR2035_AXDEV ADPARK_Croissy",
+      "target_code": "HS2035",
+      "u_planostamp": "403EEB9F58834FA8940EA2443"
+    },
+    {
+      "date": "2026-08-24",
+      "sheet": "BC4",
+      "team_code": "304",
+      "source_row": 17,
+      "source_reference": "FR2090_SCI MANON",
+      "target_code": "HS2090",
+      "u_planostamp": "CAB67B7D729748CE84B088254"
+    },
+    {
+      "date": "2026-08-24",
+      "sheet": "BC5  ",
+      "team_code": "305",
+      "source_row": 17,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970",
+      "u_planostamp": "32E858BD827043BB82AF1788F"
+    },
+    {
+      "date": "2026-08-25",
+      "sheet": "BC1",
+      "team_code": "301",
+      "source_row": 18,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053",
+      "u_planostamp": "C97CEB09C1A64930A96D32512"
+    },
+    {
+      "date": "2026-08-25",
+      "sheet": "BC2",
+      "team_code": "302",
+      "source_row": 18,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970",
+      "u_planostamp": "6D19B170AE804AB29CD692DE5"
+    },
+    {
+      "date": "2026-08-25",
+      "sheet": "BC3",
+      "team_code": "303",
+      "source_row": 18,
+      "source_reference": "FR2035_AXDEV ADPARK_Croissy",
+      "target_code": "HS2035",
+      "u_planostamp": "5CC3FED248E14BBF84483877C"
+    },
+    {
+      "date": "2026-08-25",
+      "sheet": "BC4",
+      "team_code": "304",
+      "source_row": 18,
+      "source_reference": "FR2090_SCI MANON",
+      "target_code": "HS2090",
+      "u_planostamp": "13E890AB4BB043C397EF0C8F5"
+    },
+    {
+      "date": "2026-08-25",
+      "sheet": "BC5  ",
+      "team_code": "305",
+      "source_row": 18,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970",
+      "u_planostamp": "3C46753B6E3541FFAA413A1FF"
+    },
+    {
+      "date": "2026-08-26",
+      "sheet": "BC1",
+      "team_code": "301",
+      "source_row": 19,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053",
+      "u_planostamp": "C13F5BED5D734AE68AD6E79E7"
+    },
+    {
+      "date": "2026-08-26",
+      "sheet": "BC2",
+      "team_code": "302",
+      "source_row": 19,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970",
+      "u_planostamp": "29083C3D8B474FF881BFAFDCB"
+    },
+    {
+      "date": "2026-08-26",
+      "sheet": "BC3",
+      "team_code": "303",
+      "source_row": 19,
+      "source_reference": "FR2035_AXDEV ADPARK_Croissy",
+      "target_code": "HS2035",
+      "u_planostamp": "2C5A987217A046C9B8FFFC93F"
+    },
+    {
+      "date": "2026-08-26",
+      "sheet": "BC4",
+      "team_code": "304",
+      "source_row": 19,
+      "source_reference": "FR2090_SCI MANON",
+      "target_code": "HS2090",
+      "u_planostamp": "F86716350B3D4710899C4BED3"
+    },
+    {
+      "date": "2026-08-26",
+      "sheet": "BC5  ",
+      "team_code": "305",
+      "source_row": 19,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970",
+      "u_planostamp": "76C7A9C1C2054BDCA8F7ADE87"
+    },
+    {
+      "date": "2026-08-27",
+      "sheet": "BC1",
+      "team_code": "301",
+      "source_row": 20,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053",
+      "u_planostamp": "0D22806A684A484F8C43D8CD9"
+    },
+    {
+      "date": "2026-08-27",
+      "sheet": "BC2",
+      "team_code": "302",
+      "source_row": 20,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970",
+      "u_planostamp": "C5D42272A1FE482BBA86BA631"
+    },
+    {
+      "date": "2026-08-27",
+      "sheet": "BC3",
+      "team_code": "303",
+      "source_row": 20,
+      "source_reference": "FR2035_AXDEV ADPARK_Croissy",
+      "target_code": "HS2035",
+      "u_planostamp": "DA56CDB7823E4470AC40C7033"
+    },
+    {
+      "date": "2026-08-27",
+      "sheet": "BC4",
+      "team_code": "304",
+      "source_row": 20,
+      "source_reference": "FR2090_SCI MANON",
+      "target_code": "HS2090",
+      "u_planostamp": "0896FED7C8304299AD06DE4DA"
+    },
+    {
+      "date": "2026-08-27",
+      "sheet": "BC5  ",
+      "team_code": "305",
+      "source_row": 20,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970",
+      "u_planostamp": "57F2F334112141ACB279FD0CC"
+    },
+    {
+      "date": "2026-08-27",
+      "sheet": "BC6 Ferro",
+      "team_code": "306",
+      "source_row": 20,
+      "source_reference": "FR2056_VIRTUO  BEZONS",
+      "target_code": "HS2056",
+      "u_planostamp": "159CFF7FB14F420790C5E698A"
+    },
+    {
+      "date": "2026-08-28",
+      "sheet": "BC1",
+      "team_code": "301",
+      "source_row": 21,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053",
+      "u_planostamp": "8AA97EE007314F948CF66F354"
+    },
+    {
+      "date": "2026-08-28",
+      "sheet": "BC2",
+      "team_code": "302",
+      "source_row": 21,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970",
+      "u_planostamp": "E883911684CF4F6B8062619F6"
+    },
+    {
+      "date": "2026-08-28",
+      "sheet": "BC3",
+      "team_code": "303",
+      "source_row": 21,
+      "source_reference": "FR2035_AXDEV ADPARK_Croissy",
+      "target_code": "HS2035",
+      "u_planostamp": "B5712BFAAA524F3CAB0FD5432"
+    },
+    {
+      "date": "2026-08-28",
+      "sheet": "BC4",
+      "team_code": "304",
+      "source_row": 21,
+      "source_reference": "FR2090_SCI MANON",
+      "target_code": "HS2090",
+      "u_planostamp": "425907484A9541729DA4E7854"
+    },
+    {
+      "date": "2026-08-28",
+      "sheet": "BC5  ",
+      "team_code": "305",
+      "source_row": 21,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970",
+      "u_planostamp": "62D836C480FA4CA49CB39F888"
+    },
+    {
+      "date": "2026-08-28",
+      "sheet": "BC6 Ferro",
+      "team_code": "306",
+      "source_row": 21,
+      "source_reference": "FR2056_VIRTUO  BEZONS",
+      "target_code": "HS2056",
+      "u_planostamp": "0ECC6BF6498E4BC9834138CF5"
+    },
+    {
+      "date": "2026-08-28",
+      "sheet": "BC7 Ferro",
+      "team_code": "307",
+      "source_row": 21,
+      "source_reference": "FR2056_VIRTUO  BEZONS",
+      "target_code": "HS2056",
+      "u_planostamp": "04767C95C85C45F9B989BFBCC"
+    },
+    {
+      "date": "2026-08-29",
+      "sheet": "BC2",
+      "team_code": "302",
+      "source_row": 22,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970",
+      "u_planostamp": "55CF2E1A130D47D99B794CEB6"
+    },
+    {
+      "date": "2026-08-29",
+      "sheet": "BC3",
+      "team_code": "303",
+      "source_row": 22,
+      "source_reference": "FR2035_AXDEV ADPARK_Croissy",
+      "target_code": "HS2035",
+      "u_planostamp": "A1DA59CF4AF345A58534A57BF"
+    },
+    {
+      "date": "2026-08-29",
+      "sheet": "BC5  ",
+      "team_code": "305",
+      "source_row": 22,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970",
+      "u_planostamp": "27658CB8A3C74D95B691D4C57"
+    },
+    {
+      "date": "2026-08-31",
+      "sheet": "BC1",
+      "team_code": "301",
+      "source_row": 25,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053",
+      "u_planostamp": "22CF36B983F54CDAA01AAD315"
+    },
+    {
+      "date": "2026-08-31",
+      "sheet": "BC2",
+      "team_code": "302",
+      "source_row": 24,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970",
+      "u_planostamp": "111805DDB9FF4119A6B5ADA3E"
+    },
+    {
+      "date": "2026-08-31",
+      "sheet": "BC3",
+      "team_code": "303",
+      "source_row": 24,
+      "source_reference": "FR2035_AXDEV ADPARK_Croissy",
+      "target_code": "HS2035",
+      "u_planostamp": "A21511266DDC4F569880CE277"
+    },
+    {
+      "date": "2026-08-31",
+      "sheet": "BC4",
+      "team_code": "304",
+      "source_row": 24,
+      "source_reference": "FR2090_SCI MANON",
+      "target_code": "HS2090",
+      "u_planostamp": "C3604687A0F84AFFBE1465336"
+    },
+    {
+      "date": "2026-08-31",
+      "sheet": "BC5  ",
+      "team_code": "305",
+      "source_row": 24,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970",
+      "u_planostamp": "F490C08DB08F427BAB9C87B63"
+    },
+    {
+      "date": "2026-08-31",
+      "sheet": "BC6 Ferro",
+      "team_code": "306",
+      "source_row": 24,
+      "source_reference": "FR2056_VIRTUO  BEZONS",
+      "target_code": "HS2056",
+      "u_planostamp": "BFAC827D89794EE2A83F14F65"
+    },
+    {
+      "date": "2026-08-31",
+      "sheet": "BC7 Ferro",
+      "team_code": "307",
+      "source_row": 24,
+      "source_reference": "FR2056_VIRTUO  BEZONS",
+      "target_code": "HS2056",
+      "u_planostamp": "F4BD9CE4040D4BC780D7C5773"
+    },
+    {
+      "date": "2026-09-01",
+      "sheet": "BC1",
+      "team_code": "301",
+      "source_row": 26,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053",
+      "u_planostamp": "AC26E8216B034DDA9DD73F65F"
+    },
+    {
+      "date": "2026-09-01",
+      "sheet": "BC2",
+      "team_code": "302",
+      "source_row": 25,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970",
+      "u_planostamp": "D75CA992809747C5A156BBCFF"
+    },
+    {
+      "date": "2026-09-01",
+      "sheet": "BC3",
+      "team_code": "303",
+      "source_row": 25,
+      "source_reference": "FR2035_AXDEV ADPARK_Croissy",
+      "target_code": "HS2035",
+      "u_planostamp": "A94EA8C8501F4AD4911181A2B"
+    },
+    {
+      "date": "2026-09-01",
+      "sheet": "BC4",
+      "team_code": "304",
+      "source_row": 25,
+      "source_reference": "FR1822 SCI JULIE",
+      "target_code": "HS1822",
+      "u_planostamp": "8FE57D62319A40D8BF2D9AB08"
+    },
+    {
+      "date": "2026-09-01",
+      "sheet": "BC5  ",
+      "team_code": "305",
+      "source_row": 25,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970",
+      "u_planostamp": "410F139850E741CFACFBE5C1C"
+    },
+    {
+      "date": "2026-09-01",
+      "sheet": "BC6 Ferro",
+      "team_code": "306",
+      "source_row": 25,
+      "source_reference": "FR2056_VIRTUO  BEZONS",
+      "target_code": "HS2056",
+      "u_planostamp": "03B1B66EF2E54B0893DF91F1D"
+    },
+    {
+      "date": "2026-09-01",
+      "sheet": "BC7 Ferro",
+      "team_code": "307",
+      "source_row": 25,
+      "source_reference": "FR2056_VIRTUO  BEZONS",
+      "target_code": "HS2056",
+      "u_planostamp": "0FE825AC65DE4F6E9E982D93B"
+    },
+    {
+      "date": "2026-09-02",
+      "sheet": "BC1",
+      "team_code": "301",
+      "source_row": 27,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053",
+      "u_planostamp": "B67E2C60D65841328C5896C65"
+    },
+    {
+      "date": "2026-09-02",
+      "sheet": "BC2",
+      "team_code": "302",
+      "source_row": 26,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053",
+      "u_planostamp": "05BE2594C68A48E584EF0A4EC"
+    },
+    {
+      "date": "2026-09-02",
+      "sheet": "BC2",
+      "team_code": "302",
+      "source_row": 27,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970",
+      "u_planostamp": "81F1A6BCD84C42EF955F82D6C"
+    },
+    {
+      "date": "2026-09-02",
+      "sheet": "BC3",
+      "team_code": "303",
+      "source_row": 26,
+      "source_reference": "FR2035_AXDEV ADPARK_Croissy",
+      "target_code": "HS2035",
+      "u_planostamp": "77084FB65C2E455085CE4EAD3"
+    },
+    {
+      "date": "2026-09-02",
+      "sheet": "BC4",
+      "team_code": "304",
+      "source_row": 26,
+      "source_reference": "FR1822 SCI JULIE",
+      "target_code": "HS1822",
+      "u_planostamp": "4ABE3199566D4AAA8506F7BA7"
+    },
+    {
+      "date": "2026-09-02",
+      "sheet": "BC5  ",
+      "team_code": "305",
+      "source_row": 26,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970",
+      "u_planostamp": "A05ADE41F7FA45F8AC90F3C0A"
+    },
+    {
+      "date": "2026-09-02",
+      "sheet": "BC6 Ferro",
+      "team_code": "306",
+      "source_row": 26,
+      "source_reference": "FR2056_VIRTUO  BEZONS",
+      "target_code": "HS2056",
+      "u_planostamp": "2D1A72615C83496EA2C7A93C1"
+    },
+    {
+      "date": "2026-09-02",
+      "sheet": "BC7 Ferro",
+      "team_code": "307",
+      "source_row": 26,
+      "source_reference": "FR2056_VIRTUO  BEZONS",
+      "target_code": "HS2056",
+      "u_planostamp": "7A0509F7D0DA40D89DF075DF2"
+    },
+    {
+      "date": "2026-09-03",
+      "sheet": "BC1",
+      "team_code": "301",
+      "source_row": 28,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053",
+      "u_planostamp": "A3001041C5FD4D9C80DA4B434"
+    },
+    {
+      "date": "2026-09-03",
+      "sheet": "BC2",
+      "team_code": "302",
+      "source_row": 28,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053",
+      "u_planostamp": "9F14EF9F1EC14230945B4668B"
+    },
+    {
+      "date": "2026-09-03",
+      "sheet": "BC2",
+      "team_code": "302",
+      "source_row": 29,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970",
+      "u_planostamp": "3DC5CFE783D84E36A2E620ED2"
+    },
+    {
+      "date": "2026-09-03",
+      "sheet": "BC3",
+      "team_code": "303",
+      "source_row": 27,
+      "source_reference": "FR2035_AXDEV ADPARK_Croissy",
+      "target_code": "HS2035",
+      "u_planostamp": "3B54046097814BD5A149B8317"
+    },
+    {
+      "date": "2026-09-03",
+      "sheet": "BC4",
+      "team_code": "304",
+      "source_row": 27,
+      "source_reference": "FR1822 SCI JULIE",
+      "target_code": "HS1822",
+      "u_planostamp": "E6F0B3315C6B4F4D92C0C8B92"
+    },
+    {
+      "date": "2026-09-03",
+      "sheet": "BC5  ",
+      "team_code": "305",
+      "source_row": 27,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970",
+      "u_planostamp": "29A6A9BC09F64695A66CE1911"
+    },
+    {
+      "date": "2026-09-03",
+      "sheet": "BC6 Ferro",
+      "team_code": "306",
+      "source_row": 27,
+      "source_reference": "FR2056_VIRTUO  BEZONS",
+      "target_code": "HS2056",
+      "u_planostamp": "24BA31C54EFF4565ACF75702B"
+    },
+    {
+      "date": "2026-09-04",
+      "sheet": "BC1",
+      "team_code": "301",
+      "source_row": 29,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053",
+      "u_planostamp": "82A4C948277F46E7BD914808A"
+    },
+    {
+      "date": "2026-09-04",
+      "sheet": "BC2",
+      "team_code": "302",
+      "source_row": 30,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053",
+      "u_planostamp": "B4E79A3595F64D5CA4427D023"
+    },
+    {
+      "date": "2026-09-04",
+      "sheet": "BC2",
+      "team_code": "302",
+      "source_row": 31,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970",
+      "u_planostamp": "6541FB961D11498286EFA42B1"
+    },
+    {
+      "date": "2026-09-04",
+      "sheet": "BC3",
+      "team_code": "303",
+      "source_row": 28,
+      "source_reference": "FR2035_AXDEV ADPARK_Croissy",
+      "target_code": "HS2035",
+      "u_planostamp": "3239AE638C7F4E18ADEDA6602"
+    },
+    {
+      "date": "2026-09-04",
+      "sheet": "BC4",
+      "team_code": "304",
+      "source_row": 28,
+      "source_reference": "FR1822 SCI JULIE",
+      "target_code": "HS1822",
+      "u_planostamp": "EACADA4BA1BC48B78FA02A232"
+    },
+    {
+      "date": "2026-09-04",
+      "sheet": "BC5  ",
+      "team_code": "305",
+      "source_row": 28,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970",
+      "u_planostamp": "F5A9BB9B393C439BA67321EC2"
+    },
+    {
+      "date": "2026-09-04",
+      "sheet": "BC6 Ferro",
+      "team_code": "306",
+      "source_row": 28,
+      "source_reference": "FR2056_VIRTUO  BEZONS",
+      "target_code": "HS2056",
+      "u_planostamp": "0AFA7F1DCEE4493788F9F1844"
+    },
+    {
+      "date": "2026-09-05",
+      "sheet": "BC1",
+      "team_code": "301",
+      "source_row": 30,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053",
+      "u_planostamp": "C355FC2DDEF2449EB2A2C4F98"
+    },
+    {
+      "date": "2026-09-07",
+      "sheet": "BC1",
+      "team_code": "301",
+      "source_row": 32,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053",
+      "u_planostamp": "09415EA3CFA84992985F6D1D6"
+    },
+    {
+      "date": "2026-09-07",
+      "sheet": "BC2",
+      "team_code": "302",
+      "source_row": 34,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970",
+      "u_planostamp": "A4ECF90A1DD94B8CA67A3E782"
+    },
+    {
+      "date": "2026-09-07",
+      "sheet": "BC3",
+      "team_code": "303",
+      "source_row": 31,
+      "source_reference": "FR2035_AXDEV ADPARK_Croissy",
+      "target_code": "HS2035",
+      "u_planostamp": "2EC3678AEF76424788D574BC8"
+    },
+    {
+      "date": "2026-09-07",
+      "sheet": "BC4",
+      "team_code": "304",
+      "source_row": 31,
+      "source_reference": "FR2090_SCI MANON",
+      "target_code": "HS2090",
+      "u_planostamp": "8BAC767F56364655B758D5FD9"
+    },
+    {
+      "date": "2026-09-07",
+      "sheet": "BC5  ",
+      "team_code": "305",
+      "source_row": 31,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970",
+      "u_planostamp": "07A23C109E504FF692FC93C38"
+    },
+    {
+      "date": "2026-09-07",
+      "sheet": "BC6 Ferro",
+      "team_code": "306",
+      "source_row": 31,
+      "source_reference": "FR2056_VIRTUO  BEZONS",
+      "target_code": "HS2056",
+      "u_planostamp": "4BFBDD02E48041F9AA51A10F1"
+    },
+    {
+      "date": "2026-09-08",
+      "sheet": "BC1",
+      "team_code": "301",
+      "source_row": 33,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053",
+      "u_planostamp": "8D986027BA4D47F1BB38EC00E"
+    },
+    {
+      "date": "2026-09-08",
+      "sheet": "BC2",
+      "team_code": "302",
+      "source_row": 35,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970",
+      "u_planostamp": "CBC01A16846C4F5EA402DC6DF"
+    },
+    {
+      "date": "2026-09-08",
+      "sheet": "BC3",
+      "team_code": "303",
+      "source_row": 32,
+      "source_reference": "FR2035_AXDEV ADPARK_Croissy",
+      "target_code": "HS2035",
+      "u_planostamp": "57BA4DD38E914D84A7D77A39D"
+    },
+    {
+      "date": "2026-09-08",
+      "sheet": "BC4",
+      "team_code": "304",
+      "source_row": 32,
+      "source_reference": "FR2090_SCI MANON",
+      "target_code": "HS2090",
+      "u_planostamp": "7A14739FA1E040539146D63A6"
+    },
+    {
+      "date": "2026-09-08",
+      "sheet": "BC5  ",
+      "team_code": "305",
+      "source_row": 32,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970",
+      "u_planostamp": "36032F96B63740EE87E9039B0"
+    },
+    {
+      "date": "2026-09-09",
+      "sheet": "BC1",
+      "team_code": "301",
+      "source_row": 34,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053",
+      "u_planostamp": "ACBCD26C9A874A9184DCB9DFA"
+    },
+    {
+      "date": "2026-09-09",
+      "sheet": "BC2",
+      "team_code": "302",
+      "source_row": 36,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970",
+      "u_planostamp": "85B7C51A525040A9979CC3D8A"
+    },
+    {
+      "date": "2026-09-09",
+      "sheet": "BC3",
+      "team_code": "303",
+      "source_row": 33,
+      "source_reference": "FR2035_AXDEV ADPARK_Croissy",
+      "target_code": "HS2035",
+      "u_planostamp": "CEE47CD0B426412EAD001D1A5"
+    },
+    {
+      "date": "2026-09-09",
+      "sheet": "BC4",
+      "team_code": "304",
+      "source_row": 33,
+      "source_reference": "FR2090_SCI MANON",
+      "target_code": "HS2090",
+      "u_planostamp": "ED2BE593FC884F97A15C99445"
+    },
+    {
+      "date": "2026-09-09",
+      "sheet": "BC5  ",
+      "team_code": "305",
+      "source_row": 33,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970",
+      "u_planostamp": "966329FB5B8B4EBB8B9F45411"
+    },
+    {
+      "date": "2026-09-10",
+      "sheet": "BC1",
+      "team_code": "301",
+      "source_row": 35,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053",
+      "u_planostamp": "32EB54EFA9CB4CFA951F902D1"
+    },
+    {
+      "date": "2026-09-10",
+      "sheet": "BC2",
+      "team_code": "302",
+      "source_row": 37,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970",
+      "u_planostamp": "C062ED58AEAA4498AB7EBD37D"
+    },
+    {
+      "date": "2026-09-10",
+      "sheet": "BC2",
+      "team_code": "302",
+      "source_row": 38,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053",
+      "u_planostamp": "E2FA714BF3044AE3BBD125E09"
+    },
+    {
+      "date": "2026-09-10",
+      "sheet": "BC3",
+      "team_code": "303",
+      "source_row": 34,
+      "source_reference": "FR2201_Extension SODEXO_MOISSY CRAMAYEL",
+      "target_code": "HS2201",
+      "u_planostamp": "1E5D5FBDF2644E54BEB40CE92"
+    },
+    {
+      "date": "2026-09-10",
+      "sheet": "BC4",
+      "team_code": "304",
+      "source_row": 34,
+      "source_reference": "FR2090_SCI MANON",
+      "target_code": "HS2090",
+      "u_planostamp": "EEC5AC775E1A45CC97B8215EE"
+    },
+    {
+      "date": "2026-09-10",
+      "sheet": "BC5  ",
+      "team_code": "305",
+      "source_row": 34,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970",
+      "u_planostamp": "DFA195C40E584B10816300574"
+    },
+    {
+      "date": "2026-09-11",
+      "sheet": "BC1",
+      "team_code": "301",
+      "source_row": 36,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053",
+      "u_planostamp": "8A31BAEFFEC54822A41E75DA9"
+    },
+    {
+      "date": "2026-09-11",
+      "sheet": "BC2",
+      "team_code": "302",
+      "source_row": 39,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970",
+      "u_planostamp": "35CB010E58F64809937704397"
+    },
+    {
+      "date": "2026-09-11",
+      "sheet": "BC3",
+      "team_code": "303",
+      "source_row": 35,
+      "source_reference": "FR2201_Extension SODEXO_MOISSY CRAMAYEL",
+      "target_code": "HS2201",
+      "u_planostamp": "6FD882993A234B6883ED4B76E"
+    },
+    {
+      "date": "2026-09-11",
+      "sheet": "BC4",
+      "team_code": "304",
+      "source_row": 35,
+      "source_reference": "FR2090_SCI MANON",
+      "target_code": "HS2090",
+      "u_planostamp": "D2FAE2BBCAC34795855640FC6"
+    },
+    {
+      "date": "2026-09-11",
+      "sheet": "BC5  ",
+      "team_code": "305",
+      "source_row": 35,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970",
+      "u_planostamp": "5B659C20D15545ED938733667"
+    },
+    {
+      "date": "2026-09-12",
+      "sheet": "BC4",
+      "team_code": "304",
+      "source_row": 36,
+      "source_reference": "FR2090_SCI MANON",
+      "target_code": "HS2090",
+      "u_planostamp": "E0C5B3EC02CA4ADC8E7DB801E"
+    },
+    {
+      "date": "2026-09-12",
+      "sheet": "BC5  ",
+      "team_code": "305",
+      "source_row": 37,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970",
+      "u_planostamp": "21C61075386743BAA7BF2DDC7"
+    },
+    {
+      "date": "2026-09-14",
+      "sheet": "BC1",
+      "team_code": "301",
+      "source_row": 39,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053",
+      "u_planostamp": "637D7141EFC34FBD8B9C850C2"
+    },
+    {
+      "date": "2026-09-14",
+      "sheet": "BC2",
+      "team_code": "302",
+      "source_row": 43,
+      "source_reference": "FR2047_Plat log  Panattoni_Huningue",
+      "target_code": "HS2047",
+      "u_planostamp": "FAEBD8E267F14B15B99CFE0DC"
+    },
+    {
+      "date": "2026-09-14",
+      "sheet": "BC3",
+      "team_code": "303",
+      "source_row": 38,
+      "source_reference": "FR2201_Extension SODEXO_MOISSY CRAMAYEL",
+      "target_code": "HS2201",
+      "u_planostamp": "E8FFFE88E89643F48350AA650"
+    },
+    {
+      "date": "2026-09-14",
+      "sheet": "BC4",
+      "team_code": "304",
+      "source_row": 38,
+      "source_reference": "FR2044_Maison Bray CHANTONNAY",
+      "target_code": "HS2044",
+      "u_planostamp": "97CFD5964DCC4FE89946CF49A"
+    },
+    {
+      "date": "2026-09-14",
+      "sheet": "BC4",
+      "team_code": "304",
+      "source_row": 39,
+      "source_reference": "FR2165_CORSALIS_SORIGNY",
+      "target_code": "HS2165",
+      "u_planostamp": "CC89BB1D540549DF9341AE502"
+    },
+    {
+      "date": "2026-09-14",
+      "sheet": "BC5  ",
+      "team_code": "305",
+      "source_row": 39,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970",
+      "u_planostamp": "25D1A54A45EA4CA7B8516C1A7"
+    },
+    {
+      "date": "2026-09-14",
+      "sheet": "BC6 Ferro",
+      "team_code": "306",
+      "source_row": 38,
+      "source_reference": "FR2056_VIRTUO  BEZONS",
+      "target_code": "HS2056",
+      "u_planostamp": "C68B7AE67BB6417D92C902763"
+    },
+    {
+      "date": "2026-09-15",
+      "sheet": "BC1",
+      "team_code": "301",
+      "source_row": 40,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053",
+      "u_planostamp": "9E33DABAEEB7484B834F19F04"
+    },
+    {
+      "date": "2026-09-15",
+      "sheet": "BC2",
+      "team_code": "302",
+      "source_row": 44,
+      "source_reference": "FR2047_Plat log  Panattoni_Huningue",
+      "target_code": "HS2047",
+      "u_planostamp": "0FCF8F280A114D37AF8E26FBE"
+    },
+    {
+      "date": "2026-09-15",
+      "sheet": "BC3",
+      "team_code": "303",
+      "source_row": 39,
+      "source_reference": "FR2201_Extension SODEXO_MOISSY CRAMAYEL",
+      "target_code": "HS2201",
+      "u_planostamp": "81B388DE9288415891A13A655"
+    },
+    {
+      "date": "2026-09-15",
+      "sheet": "BC4",
+      "team_code": "304",
+      "source_row": 40,
+      "source_reference": "FR2044_Maison Bray CHANTONNAY",
+      "target_code": "HS2044",
+      "u_planostamp": "BEE4518A54CE4A2A90414F312"
+    },
+    {
+      "date": "2026-09-15",
+      "sheet": "BC5  ",
+      "team_code": "305",
+      "source_row": 40,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970",
+      "u_planostamp": "EFDCDFF797F548A09DABA7311"
+    },
+    {
+      "date": "2026-09-15",
+      "sheet": "BC6 Ferro",
+      "team_code": "306",
+      "source_row": 40,
+      "source_reference": "FR2056_VIRTUO  BEZONS",
+      "target_code": "HS2056",
+      "u_planostamp": "37CE5F7F8B0041AEAD201174B"
+    },
+    {
+      "date": "2026-09-16",
+      "sheet": "BC1",
+      "team_code": "301",
+      "source_row": 41,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053",
+      "u_planostamp": "5792F4A7187D4DA5983C8956C"
+    },
+    {
+      "date": "2026-09-16",
+      "sheet": "BC2",
+      "team_code": "302",
+      "source_row": 45,
+      "source_reference": "FR2047_Plat log  Panattoni_Huningue",
+      "target_code": "HS2047",
+      "u_planostamp": "5B50AE294A6A428FB90E7240E"
+    },
+    {
+      "date": "2026-09-16",
+      "sheet": "BC3",
+      "team_code": "303",
+      "source_row": 40,
+      "source_reference": "FR2201_Extension SODEXO_MOISSY CRAMAYEL",
+      "target_code": "HS2201",
+      "u_planostamp": "FFE751A4927A49E781C64DB25"
+    },
+    {
+      "date": "2026-09-16",
+      "sheet": "BC4",
+      "team_code": "304",
+      "source_row": 41,
+      "source_reference": "FR2044_Maison Bray CHANTONNAY",
+      "target_code": "HS2044",
+      "u_planostamp": "C8E9F275B2434AF18242E47CB"
+    },
+    {
+      "date": "2026-09-16",
+      "sheet": "BC5  ",
+      "team_code": "305",
+      "source_row": 41,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970",
+      "u_planostamp": "77564CC461B7467DA55B5E1AD"
+    },
+    {
+      "date": "2026-09-16",
+      "sheet": "BC6 Ferro",
+      "team_code": "306",
+      "source_row": 42,
+      "source_reference": "FR2056_VIRTUO  BEZONS",
+      "target_code": "HS2056",
+      "u_planostamp": "02C3A80D737541A1B3B289891"
+    },
+    {
+      "date": "2026-09-17",
+      "sheet": "BC1",
+      "team_code": "301",
+      "source_row": 42,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053",
+      "u_planostamp": "1E8018CD970A4F9688731F291"
+    },
+    {
+      "date": "2026-09-17",
+      "sheet": "BC3",
+      "team_code": "303",
+      "source_row": 41,
+      "source_reference": "FR2201_Extension SODEXO_MOISSY CRAMAYEL",
+      "target_code": "HS2201",
+      "u_planostamp": "1B7A1A744325415F90890E167"
+    },
+    {
+      "date": "2026-09-17",
+      "sheet": "BC4",
+      "team_code": "304",
+      "source_row": 42,
+      "source_reference": "FR2086_BRIOCHES FONTENEAU BOUFFERE",
+      "target_code": "HS2086",
+      "u_planostamp": "1C9959B24E4B491CBAA1BE1BD"
+    },
+    {
+      "date": "2026-09-17",
+      "sheet": "BC5  ",
+      "team_code": "305",
+      "source_row": 42,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970",
+      "u_planostamp": "2828A507886D4786ABBB7F165"
+    },
+    {
+      "date": "2026-09-17",
+      "sheet": "BC6 Ferro",
+      "team_code": "306",
+      "source_row": 44,
+      "source_reference": "FR2056_VIRTUO  BEZONS",
+      "target_code": "HS2056",
+      "u_planostamp": "A6223AC60B6E46219F60D6B77"
+    },
+    {
+      "date": "2026-09-18",
+      "sheet": "BC1",
+      "team_code": "301",
+      "source_row": 43,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053",
+      "u_planostamp": "97F1F3C0C07849FF9E9B6A095"
+    },
+    {
+      "date": "2026-09-18",
+      "sheet": "BC3",
+      "team_code": "303",
+      "source_row": 42,
+      "source_reference": "FR2201_Extension SODEXO_MOISSY CRAMAYEL",
+      "target_code": "HS2201",
+      "u_planostamp": "8EAEA6E315734C72A1E8B0E80"
+    },
+    {
+      "date": "2026-09-18",
+      "sheet": "BC5  ",
+      "team_code": "305",
+      "source_row": 43,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970",
+      "u_planostamp": "388F409B93ED4884A31E32553"
+    },
+    {
+      "date": "2026-09-18",
+      "sheet": "BC6 Ferro",
+      "team_code": "306",
+      "source_row": 46,
+      "source_reference": "FR2056_VIRTUO  BEZONS",
+      "target_code": "HS2056",
+      "u_planostamp": "F78B54A3489F42CDA1B211AE3"
+    },
+    {
+      "date": "2026-09-19",
+      "sheet": "BC1",
+      "team_code": "301",
+      "source_row": 44,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053",
+      "u_planostamp": "7784072659364393ACD34F6F0"
+    },
+    {
+      "date": "2026-09-19",
+      "sheet": "BC3",
+      "team_code": "303",
+      "source_row": 43,
+      "source_reference": "FR2035_AXDEV ADPARK_Croissy",
+      "target_code": "HS2035",
+      "u_planostamp": "1B1B51209CEA4DEA860D7FE9B"
+    },
+    {
+      "date": "2026-09-19",
+      "sheet": "BC5  ",
+      "team_code": "305",
+      "source_row": 44,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970",
+      "u_planostamp": "A67F32124CC749BDA8F344052"
+    },
+    {
+      "date": "2026-09-20",
+      "sheet": "BC1",
+      "team_code": "301",
+      "source_row": 45,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053",
+      "u_planostamp": "6211F39AAB994243A7DBF6D5D"
+    },
+    {
+      "date": "2026-09-21",
+      "sheet": "BC1",
+      "team_code": "301",
+      "source_row": 46,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053",
+      "u_planostamp": "0A1A39871F6248CC85B5226B5"
+    },
+    {
+      "date": "2026-09-21",
+      "sheet": "BC3",
+      "team_code": "303",
+      "source_row": 45,
+      "source_reference": "FR2035_AXDEV ADPARK_Croissy",
+      "target_code": "HS2035",
+      "u_planostamp": "F18E756732024F598B2E29FBE"
+    },
+    {
+      "date": "2026-09-21",
+      "sheet": "BC5  ",
+      "team_code": "305",
+      "source_row": 46,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970",
+      "u_planostamp": "41120AC78CC64DBDA711070D0"
+    },
+    {
+      "date": "2026-09-21",
+      "sheet": "BC6 Ferro",
+      "team_code": "306",
+      "source_row": 50,
+      "source_reference": "FR2056_VIRTUO  BEZONS",
+      "target_code": "HS2056",
+      "u_planostamp": "8D0B04860E3B4563A5F33FB9D"
+    }
+  ],
+  "to_insert": [
+    {
+      "date": "2026-08-22",
+      "sheet": "BC4",
+      "team_code": "304",
+      "source_row": 15,
+      "source_reference": "FR2090_SCI MANON",
+      "target_code": "HS2090"
+    },
+    {
+      "date": "2026-08-22",
+      "sheet": "BC5  ",
+      "team_code": "305",
+      "source_row": 15,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970"
+    },
+    {
+      "date": "2026-08-24",
+      "sheet": "BC1",
+      "team_code": "301",
+      "source_row": 17,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053"
+    },
+    {
+      "date": "2026-08-24",
+      "sheet": "BC2",
+      "team_code": "302",
+      "source_row": 17,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970"
+    },
+    {
+      "date": "2026-08-24",
+      "sheet": "BC3",
+      "team_code": "303",
+      "source_row": 17,
+      "source_reference": "FR2035_AXDEV ADPARK_Croissy",
+      "target_code": "HS2035"
+    },
+    {
+      "date": "2026-08-24",
+      "sheet": "BC4",
+      "team_code": "304",
+      "source_row": 17,
+      "source_reference": "FR2090_SCI MANON",
+      "target_code": "HS2090"
+    },
+    {
+      "date": "2026-08-24",
+      "sheet": "BC5  ",
+      "team_code": "305",
+      "source_row": 17,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970"
+    },
+    {
+      "date": "2026-08-25",
+      "sheet": "BC1",
+      "team_code": "301",
+      "source_row": 18,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053"
+    },
+    {
+      "date": "2026-08-25",
+      "sheet": "BC2",
+      "team_code": "302",
+      "source_row": 18,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970"
+    },
+    {
+      "date": "2026-08-25",
+      "sheet": "BC3",
+      "team_code": "303",
+      "source_row": 18,
+      "source_reference": "FR2035_AXDEV ADPARK_Croissy",
+      "target_code": "HS2035"
+    },
+    {
+      "date": "2026-08-25",
+      "sheet": "BC4",
+      "team_code": "304",
+      "source_row": 18,
+      "source_reference": "FR2090_SCI MANON",
+      "target_code": "HS2090"
+    },
+    {
+      "date": "2026-08-25",
+      "sheet": "BC5  ",
+      "team_code": "305",
+      "source_row": 18,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970"
+    },
+    {
+      "date": "2026-08-26",
+      "sheet": "BC1",
+      "team_code": "301",
+      "source_row": 19,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053"
+    },
+    {
+      "date": "2026-08-26",
+      "sheet": "BC2",
+      "team_code": "302",
+      "source_row": 19,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970"
+    },
+    {
+      "date": "2026-08-26",
+      "sheet": "BC3",
+      "team_code": "303",
+      "source_row": 19,
+      "source_reference": "FR2035_AXDEV ADPARK_Croissy",
+      "target_code": "HS2035"
+    },
+    {
+      "date": "2026-08-26",
+      "sheet": "BC4",
+      "team_code": "304",
+      "source_row": 19,
+      "source_reference": "FR2090_SCI MANON",
+      "target_code": "HS2090"
+    },
+    {
+      "date": "2026-08-26",
+      "sheet": "BC5  ",
+      "team_code": "305",
+      "source_row": 19,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970"
+    },
+    {
+      "date": "2026-08-27",
+      "sheet": "BC1",
+      "team_code": "301",
+      "source_row": 20,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053"
+    },
+    {
+      "date": "2026-08-27",
+      "sheet": "BC2",
+      "team_code": "302",
+      "source_row": 20,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970"
+    },
+    {
+      "date": "2026-08-27",
+      "sheet": "BC3",
+      "team_code": "303",
+      "source_row": 20,
+      "source_reference": "FR2035_AXDEV ADPARK_Croissy",
+      "target_code": "HS2035"
+    },
+    {
+      "date": "2026-08-27",
+      "sheet": "BC4",
+      "team_code": "304",
+      "source_row": 20,
+      "source_reference": "FR2090_SCI MANON",
+      "target_code": "HS2090"
+    },
+    {
+      "date": "2026-08-27",
+      "sheet": "BC5  ",
+      "team_code": "305",
+      "source_row": 20,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970"
+    },
+    {
+      "date": "2026-08-27",
+      "sheet": "BC6 Ferro",
+      "team_code": "306",
+      "source_row": 20,
+      "source_reference": "FR2056_VIRTUO  BEZONS",
+      "target_code": "HS2056"
+    },
+    {
+      "date": "2026-08-28",
+      "sheet": "BC1",
+      "team_code": "301",
+      "source_row": 21,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053"
+    },
+    {
+      "date": "2026-08-28",
+      "sheet": "BC2",
+      "team_code": "302",
+      "source_row": 21,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970"
+    },
+    {
+      "date": "2026-08-28",
+      "sheet": "BC3",
+      "team_code": "303",
+      "source_row": 21,
+      "source_reference": "FR2035_AXDEV ADPARK_Croissy",
+      "target_code": "HS2035"
+    },
+    {
+      "date": "2026-08-28",
+      "sheet": "BC4",
+      "team_code": "304",
+      "source_row": 21,
+      "source_reference": "FR2090_SCI MANON",
+      "target_code": "HS2090"
+    },
+    {
+      "date": "2026-08-28",
+      "sheet": "BC5  ",
+      "team_code": "305",
+      "source_row": 21,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970"
+    },
+    {
+      "date": "2026-08-28",
+      "sheet": "BC6 Ferro",
+      "team_code": "306",
+      "source_row": 21,
+      "source_reference": "FR2056_VIRTUO  BEZONS",
+      "target_code": "HS2056"
+    },
+    {
+      "date": "2026-08-28",
+      "sheet": "BC7 Ferro",
+      "team_code": "307",
+      "source_row": 21,
+      "source_reference": "FR2056_VIRTUO  BEZONS",
+      "target_code": "HS2056"
+    },
+    {
+      "date": "2026-08-29",
+      "sheet": "BC2",
+      "team_code": "302",
+      "source_row": 22,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970"
+    },
+    {
+      "date": "2026-08-29",
+      "sheet": "BC3",
+      "team_code": "303",
+      "source_row": 22,
+      "source_reference": "FR2035_AXDEV ADPARK_Croissy",
+      "target_code": "HS2035"
+    },
+    {
+      "date": "2026-08-29",
+      "sheet": "BC5  ",
+      "team_code": "305",
+      "source_row": 22,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970"
+    },
+    {
+      "date": "2026-08-31",
+      "sheet": "BC1",
+      "team_code": "301",
+      "source_row": 25,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053"
+    },
+    {
+      "date": "2026-08-31",
+      "sheet": "BC2",
+      "team_code": "302",
+      "source_row": 24,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970"
+    },
+    {
+      "date": "2026-08-31",
+      "sheet": "BC3",
+      "team_code": "303",
+      "source_row": 24,
+      "source_reference": "FR2035_AXDEV ADPARK_Croissy",
+      "target_code": "HS2035"
+    },
+    {
+      "date": "2026-08-31",
+      "sheet": "BC4",
+      "team_code": "304",
+      "source_row": 24,
+      "source_reference": "FR2090_SCI MANON",
+      "target_code": "HS2090"
+    },
+    {
+      "date": "2026-08-31",
+      "sheet": "BC5  ",
+      "team_code": "305",
+      "source_row": 24,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970"
+    },
+    {
+      "date": "2026-08-31",
+      "sheet": "BC6 Ferro",
+      "team_code": "306",
+      "source_row": 24,
+      "source_reference": "FR2056_VIRTUO  BEZONS",
+      "target_code": "HS2056"
+    },
+    {
+      "date": "2026-08-31",
+      "sheet": "BC7 Ferro",
+      "team_code": "307",
+      "source_row": 24,
+      "source_reference": "FR2056_VIRTUO  BEZONS",
+      "target_code": "HS2056"
+    },
+    {
+      "date": "2026-09-01",
+      "sheet": "BC1",
+      "team_code": "301",
+      "source_row": 26,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053"
+    },
+    {
+      "date": "2026-09-01",
+      "sheet": "BC2",
+      "team_code": "302",
+      "source_row": 25,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970"
+    },
+    {
+      "date": "2026-09-01",
+      "sheet": "BC3",
+      "team_code": "303",
+      "source_row": 25,
+      "source_reference": "FR2035_AXDEV ADPARK_Croissy",
+      "target_code": "HS2035"
+    },
+    {
+      "date": "2026-09-01",
+      "sheet": "BC4",
+      "team_code": "304",
+      "source_row": 25,
+      "source_reference": "FR1822 SCI JULIE",
+      "target_code": "HS1822"
+    },
+    {
+      "date": "2026-09-01",
+      "sheet": "BC5  ",
+      "team_code": "305",
+      "source_row": 25,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970"
+    },
+    {
+      "date": "2026-09-01",
+      "sheet": "BC6 Ferro",
+      "team_code": "306",
+      "source_row": 25,
+      "source_reference": "FR2056_VIRTUO  BEZONS",
+      "target_code": "HS2056"
+    },
+    {
+      "date": "2026-09-01",
+      "sheet": "BC7 Ferro",
+      "team_code": "307",
+      "source_row": 25,
+      "source_reference": "FR2056_VIRTUO  BEZONS",
+      "target_code": "HS2056"
+    },
+    {
+      "date": "2026-09-02",
+      "sheet": "BC1",
+      "team_code": "301",
+      "source_row": 27,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053"
+    },
+    {
+      "date": "2026-09-02",
+      "sheet": "BC2",
+      "team_code": "302",
+      "source_row": 26,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053"
+    },
+    {
+      "date": "2026-09-02",
+      "sheet": "BC2",
+      "team_code": "302",
+      "source_row": 27,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970"
+    },
+    {
+      "date": "2026-09-02",
+      "sheet": "BC3",
+      "team_code": "303",
+      "source_row": 26,
+      "source_reference": "FR2035_AXDEV ADPARK_Croissy",
+      "target_code": "HS2035"
+    },
+    {
+      "date": "2026-09-02",
+      "sheet": "BC4",
+      "team_code": "304",
+      "source_row": 26,
+      "source_reference": "FR1822 SCI JULIE",
+      "target_code": "HS1822"
+    },
+    {
+      "date": "2026-09-02",
+      "sheet": "BC5  ",
+      "team_code": "305",
+      "source_row": 26,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970"
+    },
+    {
+      "date": "2026-09-02",
+      "sheet": "BC6 Ferro",
+      "team_code": "306",
+      "source_row": 26,
+      "source_reference": "FR2056_VIRTUO  BEZONS",
+      "target_code": "HS2056"
+    },
+    {
+      "date": "2026-09-02",
+      "sheet": "BC7 Ferro",
+      "team_code": "307",
+      "source_row": 26,
+      "source_reference": "FR2056_VIRTUO  BEZONS",
+      "target_code": "HS2056"
+    },
+    {
+      "date": "2026-09-03",
+      "sheet": "BC1",
+      "team_code": "301",
+      "source_row": 28,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053"
+    },
+    {
+      "date": "2026-09-03",
+      "sheet": "BC2",
+      "team_code": "302",
+      "source_row": 28,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053"
+    },
+    {
+      "date": "2026-09-03",
+      "sheet": "BC2",
+      "team_code": "302",
+      "source_row": 29,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970"
+    },
+    {
+      "date": "2026-09-03",
+      "sheet": "BC3",
+      "team_code": "303",
+      "source_row": 27,
+      "source_reference": "FR2035_AXDEV ADPARK_Croissy",
+      "target_code": "HS2035"
+    },
+    {
+      "date": "2026-09-03",
+      "sheet": "BC4",
+      "team_code": "304",
+      "source_row": 27,
+      "source_reference": "FR1822 SCI JULIE",
+      "target_code": "HS1822"
+    },
+    {
+      "date": "2026-09-03",
+      "sheet": "BC5  ",
+      "team_code": "305",
+      "source_row": 27,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970"
+    },
+    {
+      "date": "2026-09-03",
+      "sheet": "BC6 Ferro",
+      "team_code": "306",
+      "source_row": 27,
+      "source_reference": "FR2056_VIRTUO  BEZONS",
+      "target_code": "HS2056"
+    },
+    {
+      "date": "2026-09-04",
+      "sheet": "BC1",
+      "team_code": "301",
+      "source_row": 29,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053"
+    },
+    {
+      "date": "2026-09-04",
+      "sheet": "BC2",
+      "team_code": "302",
+      "source_row": 30,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053"
+    },
+    {
+      "date": "2026-09-04",
+      "sheet": "BC2",
+      "team_code": "302",
+      "source_row": 31,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970"
+    },
+    {
+      "date": "2026-09-04",
+      "sheet": "BC3",
+      "team_code": "303",
+      "source_row": 28,
+      "source_reference": "FR2035_AXDEV ADPARK_Croissy",
+      "target_code": "HS2035"
+    },
+    {
+      "date": "2026-09-04",
+      "sheet": "BC4",
+      "team_code": "304",
+      "source_row": 28,
+      "source_reference": "FR1822 SCI JULIE",
+      "target_code": "HS1822"
+    },
+    {
+      "date": "2026-09-04",
+      "sheet": "BC5  ",
+      "team_code": "305",
+      "source_row": 28,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970"
+    },
+    {
+      "date": "2026-09-04",
+      "sheet": "BC6 Ferro",
+      "team_code": "306",
+      "source_row": 28,
+      "source_reference": "FR2056_VIRTUO  BEZONS",
+      "target_code": "HS2056"
+    },
+    {
+      "date": "2026-09-05",
+      "sheet": "BC1",
+      "team_code": "301",
+      "source_row": 30,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053"
+    },
+    {
+      "date": "2026-09-07",
+      "sheet": "BC1",
+      "team_code": "301",
+      "source_row": 32,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053"
+    },
+    {
+      "date": "2026-09-07",
+      "sheet": "BC2",
+      "team_code": "302",
+      "source_row": 34,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970"
+    },
+    {
+      "date": "2026-09-07",
+      "sheet": "BC3",
+      "team_code": "303",
+      "source_row": 31,
+      "source_reference": "FR2035_AXDEV ADPARK_Croissy",
+      "target_code": "HS2035"
+    },
+    {
+      "date": "2026-09-07",
+      "sheet": "BC4",
+      "team_code": "304",
+      "source_row": 31,
+      "source_reference": "FR2090_SCI MANON",
+      "target_code": "HS2090"
+    },
+    {
+      "date": "2026-09-07",
+      "sheet": "BC5  ",
+      "team_code": "305",
+      "source_row": 31,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970"
+    },
+    {
+      "date": "2026-09-07",
+      "sheet": "BC6 Ferro",
+      "team_code": "306",
+      "source_row": 31,
+      "source_reference": "FR2056_VIRTUO  BEZONS",
+      "target_code": "HS2056"
+    },
+    {
+      "date": "2026-09-08",
+      "sheet": "BC1",
+      "team_code": "301",
+      "source_row": 33,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053"
+    },
+    {
+      "date": "2026-09-08",
+      "sheet": "BC2",
+      "team_code": "302",
+      "source_row": 35,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970"
+    },
+    {
+      "date": "2026-09-08",
+      "sheet": "BC3",
+      "team_code": "303",
+      "source_row": 32,
+      "source_reference": "FR2035_AXDEV ADPARK_Croissy",
+      "target_code": "HS2035"
+    },
+    {
+      "date": "2026-09-08",
+      "sheet": "BC4",
+      "team_code": "304",
+      "source_row": 32,
+      "source_reference": "FR2090_SCI MANON",
+      "target_code": "HS2090"
+    },
+    {
+      "date": "2026-09-08",
+      "sheet": "BC5  ",
+      "team_code": "305",
+      "source_row": 32,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970"
+    },
+    {
+      "date": "2026-09-09",
+      "sheet": "BC1",
+      "team_code": "301",
+      "source_row": 34,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053"
+    },
+    {
+      "date": "2026-09-09",
+      "sheet": "BC2",
+      "team_code": "302",
+      "source_row": 36,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970"
+    },
+    {
+      "date": "2026-09-09",
+      "sheet": "BC3",
+      "team_code": "303",
+      "source_row": 33,
+      "source_reference": "FR2035_AXDEV ADPARK_Croissy",
+      "target_code": "HS2035"
+    },
+    {
+      "date": "2026-09-09",
+      "sheet": "BC4",
+      "team_code": "304",
+      "source_row": 33,
+      "source_reference": "FR2090_SCI MANON",
+      "target_code": "HS2090"
+    },
+    {
+      "date": "2026-09-09",
+      "sheet": "BC5  ",
+      "team_code": "305",
+      "source_row": 33,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970"
+    },
+    {
+      "date": "2026-09-10",
+      "sheet": "BC1",
+      "team_code": "301",
+      "source_row": 35,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053"
+    },
+    {
+      "date": "2026-09-10",
+      "sheet": "BC2",
+      "team_code": "302",
+      "source_row": 37,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970"
+    },
+    {
+      "date": "2026-09-10",
+      "sheet": "BC2",
+      "team_code": "302",
+      "source_row": 38,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053"
+    },
+    {
+      "date": "2026-09-10",
+      "sheet": "BC3",
+      "team_code": "303",
+      "source_row": 34,
+      "source_reference": "FR2201_Extension SODEXO_MOISSY CRAMAYEL",
+      "target_code": "HS2201"
+    },
+    {
+      "date": "2026-09-10",
+      "sheet": "BC4",
+      "team_code": "304",
+      "source_row": 34,
+      "source_reference": "FR2090_SCI MANON",
+      "target_code": "HS2090"
+    },
+    {
+      "date": "2026-09-10",
+      "sheet": "BC5  ",
+      "team_code": "305",
+      "source_row": 34,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970"
+    },
+    {
+      "date": "2026-09-11",
+      "sheet": "BC1",
+      "team_code": "301",
+      "source_row": 36,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053"
+    },
+    {
+      "date": "2026-09-11",
+      "sheet": "BC2",
+      "team_code": "302",
+      "source_row": 39,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970"
+    },
+    {
+      "date": "2026-09-11",
+      "sheet": "BC3",
+      "team_code": "303",
+      "source_row": 35,
+      "source_reference": "FR2201_Extension SODEXO_MOISSY CRAMAYEL",
+      "target_code": "HS2201"
+    },
+    {
+      "date": "2026-09-11",
+      "sheet": "BC4",
+      "team_code": "304",
+      "source_row": 35,
+      "source_reference": "FR2090_SCI MANON",
+      "target_code": "HS2090"
+    },
+    {
+      "date": "2026-09-11",
+      "sheet": "BC5  ",
+      "team_code": "305",
+      "source_row": 35,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970"
+    },
+    {
+      "date": "2026-09-12",
+      "sheet": "BC4",
+      "team_code": "304",
+      "source_row": 36,
+      "source_reference": "FR2090_SCI MANON",
+      "target_code": "HS2090"
+    },
+    {
+      "date": "2026-09-12",
+      "sheet": "BC5  ",
+      "team_code": "305",
+      "source_row": 37,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970"
+    },
+    {
+      "date": "2026-09-14",
+      "sheet": "BC1",
+      "team_code": "301",
+      "source_row": 39,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053"
+    },
+    {
+      "date": "2026-09-14",
+      "sheet": "BC2",
+      "team_code": "302",
+      "source_row": 43,
+      "source_reference": "FR2047_Plat log  Panattoni_Huningue",
+      "target_code": "HS2047"
+    },
+    {
+      "date": "2026-09-14",
+      "sheet": "BC3",
+      "team_code": "303",
+      "source_row": 38,
+      "source_reference": "FR2201_Extension SODEXO_MOISSY CRAMAYEL",
+      "target_code": "HS2201"
+    },
+    {
+      "date": "2026-09-14",
+      "sheet": "BC4",
+      "team_code": "304",
+      "source_row": 38,
+      "source_reference": "FR2044_Maison Bray CHANTONNAY",
+      "target_code": "HS2044"
+    },
+    {
+      "date": "2026-09-14",
+      "sheet": "BC4",
+      "team_code": "304",
+      "source_row": 39,
+      "source_reference": "FR2165_CORSALIS_SORIGNY",
+      "target_code": "HS2165"
+    },
+    {
+      "date": "2026-09-14",
+      "sheet": "BC5  ",
+      "team_code": "305",
+      "source_row": 39,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970"
+    },
+    {
+      "date": "2026-09-14",
+      "sheet": "BC6 Ferro",
+      "team_code": "306",
+      "source_row": 38,
+      "source_reference": "FR2056_VIRTUO  BEZONS",
+      "target_code": "HS2056"
+    },
+    {
+      "date": "2026-09-15",
+      "sheet": "BC1",
+      "team_code": "301",
+      "source_row": 40,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053"
+    },
+    {
+      "date": "2026-09-15",
+      "sheet": "BC2",
+      "team_code": "302",
+      "source_row": 44,
+      "source_reference": "FR2047_Plat log  Panattoni_Huningue",
+      "target_code": "HS2047"
+    },
+    {
+      "date": "2026-09-15",
+      "sheet": "BC3",
+      "team_code": "303",
+      "source_row": 39,
+      "source_reference": "FR2201_Extension SODEXO_MOISSY CRAMAYEL",
+      "target_code": "HS2201"
+    },
+    {
+      "date": "2026-09-15",
+      "sheet": "BC4",
+      "team_code": "304",
+      "source_row": 40,
+      "source_reference": "FR2044_Maison Bray CHANTONNAY",
+      "target_code": "HS2044"
+    },
+    {
+      "date": "2026-09-15",
+      "sheet": "BC5  ",
+      "team_code": "305",
+      "source_row": 40,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970"
+    },
+    {
+      "date": "2026-09-15",
+      "sheet": "BC6 Ferro",
+      "team_code": "306",
+      "source_row": 40,
+      "source_reference": "FR2056_VIRTUO  BEZONS",
+      "target_code": "HS2056"
+    },
+    {
+      "date": "2026-09-16",
+      "sheet": "BC1",
+      "team_code": "301",
+      "source_row": 41,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053"
+    },
+    {
+      "date": "2026-09-16",
+      "sheet": "BC2",
+      "team_code": "302",
+      "source_row": 45,
+      "source_reference": "FR2047_Plat log  Panattoni_Huningue",
+      "target_code": "HS2047"
+    },
+    {
+      "date": "2026-09-16",
+      "sheet": "BC3",
+      "team_code": "303",
+      "source_row": 40,
+      "source_reference": "FR2201_Extension SODEXO_MOISSY CRAMAYEL",
+      "target_code": "HS2201"
+    },
+    {
+      "date": "2026-09-16",
+      "sheet": "BC4",
+      "team_code": "304",
+      "source_row": 41,
+      "source_reference": "FR2044_Maison Bray CHANTONNAY",
+      "target_code": "HS2044"
+    },
+    {
+      "date": "2026-09-16",
+      "sheet": "BC5  ",
+      "team_code": "305",
+      "source_row": 41,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970"
+    },
+    {
+      "date": "2026-09-16",
+      "sheet": "BC6 Ferro",
+      "team_code": "306",
+      "source_row": 42,
+      "source_reference": "FR2056_VIRTUO  BEZONS",
+      "target_code": "HS2056"
+    },
+    {
+      "date": "2026-09-17",
+      "sheet": "BC1",
+      "team_code": "301",
+      "source_row": 42,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053"
+    },
+    {
+      "date": "2026-09-17",
+      "sheet": "BC3",
+      "team_code": "303",
+      "source_row": 41,
+      "source_reference": "FR2201_Extension SODEXO_MOISSY CRAMAYEL",
+      "target_code": "HS2201"
+    },
+    {
+      "date": "2026-09-17",
+      "sheet": "BC4",
+      "team_code": "304",
+      "source_row": 42,
+      "source_reference": "FR2086_BRIOCHES FONTENEAU BOUFFERE",
+      "target_code": "HS2086"
+    },
+    {
+      "date": "2026-09-17",
+      "sheet": "BC5  ",
+      "team_code": "305",
+      "source_row": 42,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970"
+    },
+    {
+      "date": "2026-09-17",
+      "sheet": "BC6 Ferro",
+      "team_code": "306",
+      "source_row": 44,
+      "source_reference": "FR2056_VIRTUO  BEZONS",
+      "target_code": "HS2056"
+    },
+    {
+      "date": "2026-09-18",
+      "sheet": "BC1",
+      "team_code": "301",
+      "source_row": 43,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053"
+    },
+    {
+      "date": "2026-09-18",
+      "sheet": "BC3",
+      "team_code": "303",
+      "source_row": 42,
+      "source_reference": "FR2201_Extension SODEXO_MOISSY CRAMAYEL",
+      "target_code": "HS2201"
+    },
+    {
+      "date": "2026-09-18",
+      "sheet": "BC5  ",
+      "team_code": "305",
+      "source_row": 43,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970"
+    },
+    {
+      "date": "2026-09-18",
+      "sheet": "BC6 Ferro",
+      "team_code": "306",
+      "source_row": 46,
+      "source_reference": "FR2056_VIRTUO  BEZONS",
+      "target_code": "HS2056"
+    },
+    {
+      "date": "2026-09-19",
+      "sheet": "BC1",
+      "team_code": "301",
+      "source_row": 44,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053"
+    },
+    {
+      "date": "2026-09-19",
+      "sheet": "BC3",
+      "team_code": "303",
+      "source_row": 43,
+      "source_reference": "FR2035_AXDEV ADPARK_Croissy",
+      "target_code": "HS2035"
+    },
+    {
+      "date": "2026-09-19",
+      "sheet": "BC5  ",
+      "team_code": "305",
+      "source_row": 44,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970"
+    },
+    {
+      "date": "2026-09-20",
+      "sheet": "BC1",
+      "team_code": "301",
+      "source_row": 45,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053"
+    },
+    {
+      "date": "2026-09-21",
+      "sheet": "BC1",
+      "team_code": "301",
+      "source_row": 46,
+      "source_reference": "FR2053_ARGAN_TOURNAN EN BRIE",
+      "target_code": "HS2053"
+    },
+    {
+      "date": "2026-09-21",
+      "sheet": "BC3",
+      "team_code": "303",
+      "source_row": 45,
+      "source_reference": "FR2035_AXDEV ADPARK_Croissy",
+      "target_code": "HS2035"
+    },
+    {
+      "date": "2026-09-21",
+      "sheet": "BC5  ",
+      "team_code": "305",
+      "source_row": 46,
+      "source_reference": "FR1970_Plat logistique SEGRO",
+      "target_code": "HS1970"
+    },
+    {
+      "date": "2026-09-21",
+      "sheet": "BC6 Ferro",
+      "team_code": "306",
+      "source_row": 50,
+      "source_reference": "FR2056_VIRTUO  BEZONS",
+      "target_code": "HS2056"
+    }
+  ],
+  "before_count": 40,
+  "counts": {
+    "new": 135,
+    "existing": 0,
+    "omitted": 46
+  },
+  "after_count": 175,
+  "status": "committed",
+  "finished_at": "2026-10-14T16:27:55.391834+00:00",
+  "verification": {
+    "inserted_rows_found": 135,
+    "total_period_rows": 175,
+    "production_location_count_unchanged": 38
+  }
+}

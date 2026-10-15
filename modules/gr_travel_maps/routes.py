@@ -4,14 +4,15 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 import secrets
 import hmac
+import json
 
-from flask import Blueprint, abort, current_app, jsonify, render_template, request, session
+from flask import Blueprint, Response, abort, current_app, jsonify, render_template, request, session, stream_with_context
 from flask_login import current_user, login_required
 from werkzeug.exceptions import HTTPException
 
 from .access import can_consult, can_change, in_gr360_context
 from .config import TravelMapsError
-from . import service, reconstruction
+from . import service, reconstruction, engine
 
 
 bp = Blueprint("gr_travel_maps", __name__, template_folder="templates", static_folder="static",
@@ -97,7 +98,9 @@ def write_payload(validate=False):
 
 @bp.get('/mapas-deslocacoes/reconstrucao')
 def reconstruction_page():
-    return render_template('gr_travel_maps/reconstruction.html', csrf_token=csrf_token())
+    return render_template('gr_travel_maps/reconstruction.html', csrf_token=csrf_token(),
+        preference_key=engine.digest([str(current_user.get_id()) if hasattr(current_user, 'get_id') else str(getattr(current_user, 'USSTAMP', '')),
+                                      str(getattr(current_user, 'LOGIN', ''))]))
 
 
 @bp.get('/api/gr_mapas/contexto')
@@ -129,7 +132,47 @@ def proposal_detail(map_id):
 
 @bp.post('/api/gr_mapas/propostas')
 def generate_proposal():
+    if request.accept_mimetypes.best == 'application/x-ndjson':
+        return reconstruction_stream(write_payload())
     return respond(lambda: reconstruction.generate(write_payload(), current_user))
+
+
+@bp.post('/api/gr_mapas/prever')
+def preview_proposal():
+    if request.accept_mimetypes.best == 'application/x-ndjson':
+        return reconstruction_stream(write_payload(), persist=False)
+    return respond(lambda: reconstruction.preview(write_payload(), current_user))
+
+
+def reconstruction_stream(payload, *, persist=True):
+    """Keep authorization/context on the request; no shared jobs or worker threads."""
+    steps = reconstruction.generate_steps(payload, current_user, persist=persist)
+
+    def encode(value):
+        return json.dumps(value, ensure_ascii=False, allow_nan=False) + '\n'
+
+    def messages():
+        try:
+            while True:
+                try:
+                    item = next(steps)
+                except StopIteration as completed:
+                    yield encode({'type': 'result', 'ok': True, **completed.value})
+                    return
+                yield encode(item)
+        except TravelMapsError as exc:
+            yield encode({'type': 'error', 'ok': False, 'status': exc.status_code, 'error': str(exc)})
+        except HTTPException as exc:
+            yield encode({'type': 'error', 'ok': False, 'status': exc.code, 'error': 'Sem acesso a estes dados ou sessão expirada.'})
+        except Exception as exc:
+            current_app.logger.warning('Mapas PHC: reconstrução interrompida (%s).', type(exc).__name__)
+            yield encode({'type': 'error', 'ok': False, 'status': 502,
+                          'error': 'Não foi possível concluir a reconstrução. Atualize os dados antes de tentar novamente.'})
+        finally:
+            steps.close()
+
+    return Response(stream_with_context(messages()), content_type='application/x-ndjson; charset=utf-8',
+                    headers={'X-Accel-Buffering': 'no', 'X-Content-Type-Options': 'nosniff'})
 
 
 @bp.post('/api/gr_mapas/propostas/<map_id>/editar')

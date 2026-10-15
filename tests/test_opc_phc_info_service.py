@@ -43,6 +43,11 @@ class OpcPhcInfoProcessCodeTests(unittest.TestCase):
             FT_STANDALONE_SQL,
         )
 
+    def test_structured_phc_references_are_production(self):
+        pattern = "'[A-Z].[0-9][0-9].[0-9][0-9].[0-9][0-9][0-9].[0-9][0-9][0-9][0-9]'"
+        self.assertIn(pattern, AUTOS_SQL)
+        self.assertIn(pattern, FT_STANDALONE_SQL)
+
 
 if __name__ == "__main__":
     unittest.main()

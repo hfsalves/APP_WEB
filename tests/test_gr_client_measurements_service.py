@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 
 from modules.gr_client_measurements.service import (
     ClientMeasurementsValidationError,
+    PRODUCTION_ITEM_REF,
     _build_tax_totals,
     _budget_group_stamps,
     _budget_line_reference,
@@ -25,14 +26,20 @@ def _source_line(stamp: str, qty: str, value: str, price: str) -> dict:
 
 
 class PrepareMeasurementLinesTests(unittest.TestCase):
-    def test_preserves_each_budget_line_reference(self):
+    def test_uses_specific_structured_reference_or_default_production_article(self):
+        self.assertEqual(PRODUCTION_ITEM_REF, _budget_line_reference({"REF": "DTE"}))
+        self.assertEqual(PRODUCTION_ITEM_REF, _budget_line_reference({"REF": "DTI"}))
         self.assertEqual(
             "V.03.00.000.0001",
-            _budget_line_reference({"REF": "  V.03.00.000.0001  "}),
+            _budget_line_reference({"REF": "V.03.00.000.0001"}),
         )
         self.assertEqual(
-            "V.01.01.000.0021",
-            _budget_line_reference({"REF": "V.01.01.000.0021"}),
+            "P.02.08.000.0021",
+            _budget_line_reference({"REF": " p.02.08.000.0021 "}),
+        )
+        self.assertEqual(
+            PRODUCTION_ITEM_REF,
+            _budget_line_reference({"REF": "V.1.01.000.0021"}),
         )
 
     def test_keeps_unmeasured_budget_lines(self):

@@ -44,7 +44,9 @@ def country(value):
     return value
 
 
-def candidates(measurements):
+def candidates(measurements, planning=None):
+    if planning is not None:
+        return deepcopy(planning['works'] + planning.get('extra_works', []))
     grouped = {}
     for batch in measurements:
         for record in batch['rows']:
@@ -61,7 +63,7 @@ def candidates(measurements):
     return sorted(grouped.values(), key=lambda w: (w['company']['feid'], w['work'], w['key']))
 
 
-def normalize_inputs(raw, available, start, end):
+def normalize_inputs(raw, available, start, end, max_works=MAX_WORKS):
     if not isinstance(raw, dict):
         raise TravelMapsError('Pressupostos inválidos.')
     result = {
@@ -88,12 +90,12 @@ def normalize_inputs(raw, available, start, end):
         result['blocked_dates'].append(day.isoformat())
     result['blocked_dates'] = sorted(set(result['blocked_dates']))
     selections = raw.get('works', [])
-    if not isinstance(selections, list) or len(selections) > MAX_WORKS:
-        raise TravelMapsError(f'Selecione no máximo {MAX_WORKS} obras por proposta.')
+    if not isinstance(selections, list) or len(selections) > max_works:
+        raise TravelMapsError(f'Selecione no máximo {max_works} obras por proposta.')
     known, seen = {w['key']: w for w in available}, set()
     for selection in selections:
         if not isinstance(selection, dict) or selection.get('key') not in known or selection['key'] in seen:
-            raise TravelMapsError('Obra repetida ou sem auto com medição positiva neste mês.')
+            raise TravelMapsError('Obra repetida ou sem correspondência nas fontes desta proposta.')
         key = selection['key']; seen.add(key)
         work = known[key]
         outward = selection.get('outward_km')
@@ -213,13 +215,14 @@ def make_entry(category, day, quantity, work, selection, inputs, employee):
         'work_key': work['key'], 'work': work['work'], 'client': work['client'],
         'country': selection['country'] or None, 'city': selection['city'],
         'origin': inputs['origin'], 'destination': work['address'] or selection['city'] or work['work'],
-        'reason': f'Atividade proposta na obra {work["work"]}, com auto de medição no mês.',
+        'reason': f'Atividade proposta na obra {work["work"]}, ' + ('associada à equipa no planeamento.' if work.get('planning_refs') else 'com auto de medição no mês.'),
         'travel_type': 'IDA_VOLTA' if category == 'km' else category.upper(),
         'vehicle': inputs['vehicle'], 'owner': inputs['owner'], 'included': True,
         'evidence_type': 'INFERIDO', 'validation_state': 'POR_VALIDAR',
         'confidence': {'level': 'BAIXA', 'reason': 'O auto não identifica presença, trabalhador ou viagem.'},
         'provenance': {
-            'work': {'kind': 'AUTO_MEDICAO', 'references': references},
+            'work': {'kind': 'PLANEAMENTO' if work.get('planning_refs') else 'AUTO_MEDICAO',
+                     'references': deepcopy(work.get('planning_refs') or references), 'measurement_references': references},
             'date': {'kind': 'INFERIDO', 'rule': 'Primeiros dias livres do calendário convencional do mês.'},
             'employee_assignment': {'kind': 'INFERIDO', 'rule': 'Obra selecionada para proposta; não existe registo de presença.'},
             'country': {'kind': 'DECLARADO', 'reference': inputs['note']},
@@ -234,16 +237,16 @@ def make_entry(category, day, quantity, work, selection, inputs, employee):
     }
 
 
-def build(payroll, measurements, raw_inputs):
+def build(payroll, measurements, raw_inputs, *, max_works=MAX_WORKS, available=None):
     start, end = period_bounds(payroll['year'], payroll['month'])
     employee = payroll['employee']
     if not employee['identity_resolved']:
         raise TravelMapsError('Resolva a identidade PHC do trabalhador antes de guardar propostas.')
-    available = candidates(measurements)
+    available = candidates(measurements) if available is None else available
     profile = payroll.get('employee_profile', {})
     if isinstance(raw_inputs, dict):
         raw_inputs = {**{field: profile.get(field, '') for field in ('origin', 'vehicle')}, **raw_inputs}
-    inputs = normalize_inputs(raw_inputs, available, start, end)
+    inputs = normalize_inputs(raw_inputs, available, start, end, max_works)
     # Only server-read PE/PE2 data may establish PHC provenance. Client metadata is ignored.
     inputs['provenance'] = {}
     for field in ('origin', 'vehicle'):
@@ -265,10 +268,10 @@ def build(payroll, measurements, raw_inputs):
     free = calendar_days(start, end, inputs['blocked_dates'], inputs['include_weekends'])
     works = {work['key']: work for work in available}
     selections = inputs['works']
-    selected_refs = {(works[selection['key']]['company']['feid'], record['bostamp'])
+    selected_refs = {(record['source']['database'], record['bostamp'])
                      for selection in selections for record in works[selection['key']]['evidence']}
     for batch in document['measurements']:
-        batch['rows'] = [record for record in batch['rows'] if (batch['company']['feid'], record['bostamp']) in selected_refs]
+        batch['rows'] = [record for record in batch['rows'] if (batch['company']['phc_db'], record['bostamp']) in selected_refs]
     # AC occupies dates first. KM may reuse a day only at that same work.
     for category in ('ac_estrangeiro', 'ac_nacional'):
         target = employee['phc'][category]['quantity']
@@ -331,6 +334,9 @@ def build(payroll, measurements, raw_inputs):
 
 
 def check_entries(document, validating=False):
+    if document.get('mode') == 'AUTOMATIC':
+        from .itinerary import check_entries as check_itinerary
+        return check_itinerary(document, validating)
     start, end = period_bounds(document['payroll']['year'], document['payroll']['month'])
     days = set(calendar_days(start, end, document['inputs']['blocked_dates'], document['inputs'].get('include_weekends', False)))
     occupancy = {}
@@ -351,7 +357,7 @@ def check_entries(document, validating=False):
 
 def edit(document, changes, actor, note):
     result = deepcopy(document)
-    if not isinstance(changes, list) or not changes or len(changes) > 62:
+    if not isinstance(changes, list) or not changes or len(changes) > (186 if document.get('mode') == 'AUTOMATIC' else 62):
         raise TravelMapsError('Indique as linhas a alterar.')
     known = {entry['id']: entry for entry in result['entries']}
     seen = set()
@@ -375,16 +381,30 @@ def edit(document, changes, actor, note):
             else:
                 value = text(value, key, 500)
             if before != value:
+                if entry.get('driving_dates') and key in ('date', 'quantity'):
+                    raise TravelMapsError('Para alterar as datas ou a distância de uma viagem repartida, ajuste os pressupostos e reconstrua o calendário.')
                 entry[key] = value
                 entry['provenance'].setdefault('human_changes', []).append({'field': key, 'before': before, 'after': value, 'actor': actor, 'reason': note})
                 entry['provenance'][key] = {'kind': 'DECLARADO', 'actor': actor, 'reference': note,
                                             'previous_source': deepcopy(entry['provenance'].get(key))}
-        entry['start_date'] = entry['end_date'] = entry['date']
+        if not entry.get('driving_dates'):
+            entry['start_date'] = entry['end_date'] = entry['date']
         entry['amount'] = None if entry['rate'] is None else str((D(entry['quantity'])*D(entry['rate'])).quantize(D('.01'), rounding=ROUND_HALF_UP))
     result['validation'] = None
     for entry in result['entries']:
         entry['validation_state'] = 'POR_VALIDAR'
     check_entries(result)
-    result['entries'].sort(key=lambda entry: (entry['date'], entry['category'], entry['id']))
+    if result.get('planning') is not None:
+        from .scheduled import annotate
+        annotate(result, preserve_declared=True)
+    if result.get('mode') == 'AUTOMATIC':
+        for journey in result['journeys']:
+            legs = sorted((e for e in result['entries'] if e['included'] and e.get('journey_id') == journey['id']), key=lambda e: e['leg_index'])
+            if legs:
+                journey['outbound_date'], journey['return_date'] = legs[0]['start_date'], legs[-1]['date']
+    result['entries'].sort(key=lambda entry: (entry['date'], entry['category'], entry.get('journey_id', ''), entry.get('leg_index', 0), entry['id']))
     result['reconciliation'] = summarize(result)
+    if result.get('mode') == 'AUTOMATIC':
+        from .itinerary import result_summary
+        result['result'] = result_summary(result)
     return result

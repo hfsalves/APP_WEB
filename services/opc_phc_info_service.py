@@ -588,6 +588,10 @@ bi_c AS (
         CASE
             WHEN NULLIF(LTRIM(RTRIM(BI.REF)), '') IS NULL THEN 'PROD'
             WHEN BI.REF IN ('VENTES.P.SERV.', 'V.01.01.000.0021') THEN 'PROD'
+            WHEN LEN(LTRIM(RTRIM(BI.REF))) = 16
+             AND UPPER(LTRIM(RTRIM(BI.REF))) LIKE
+                 '[A-Z].[0-9][0-9].[0-9][0-9].[0-9][0-9][0-9].[0-9][0-9][0-9][0-9]'
+                THEN 'PROD'
             WHEN BI.REF IN ('AJUST.CHANTIER', 'AJUSTEMENT') THEN 'AJUST'
             WHEN BI.REF = 'AMENDE' THEN 'AMENDE'
             WHEN BI.REF = 'AVANCE.CLIENT' THEN 'ACOMPTE'
@@ -776,6 +780,10 @@ fi_c AS (
             WHEN FI.REF = 'PRORATA' THEN 'PRORATA_LINHA'
             WHEN NULLIF(LTRIM(RTRIM(FI.REF)), '') IS NULL THEN 'PROD'
             WHEN FI.REF IN ('VENTES.P.SERV.','V.01.01.000.0021') THEN 'PROD'
+            WHEN LEN(LTRIM(RTRIM(FI.REF))) = 16
+             AND UPPER(LTRIM(RTRIM(FI.REF))) LIKE
+                 '[A-Z].[0-9][0-9].[0-9][0-9].[0-9][0-9][0-9].[0-9][0-9][0-9][0-9]'
+                THEN 'PROD'
             ELSE 'OUTRO'
         END AS CLS,
         CAST(ISNULL(FI.IVA, 0) AS decimal(9,3)) AS TVAP,

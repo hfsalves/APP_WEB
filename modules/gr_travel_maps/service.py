@@ -176,14 +176,16 @@ def employee_profile(feid, employee, user):
                             'fields': [field for field in ('MORADA', 'CODPOST', 'LOCAL') if field in details['fields']['PE']]}]}
     else:
         result['warnings'].append('Morada em falta na ficha PE. Indique a origem e a respetiva fonte.')
-    result['vehicle'] = clean(pe2.get('MATRICULA'))
+    private_plate, fallback_plate = clean(pe.get('U_MATPRO')), clean(pe2.get('MATRICULA'))
+    result['vehicle'] = private_plate or fallback_plate
     if result['vehicle']:
+        table, stamp, field = ('PE', employee['pestamp'], 'U_MATPRO') if private_plate else ('PE2', clean(pe2['PE2STAMP']), 'MATRICULA')
         result['provenance']['vehicle'] = {'kind': 'PHC', 'temporal_scope': 'CURRENT_EMPLOYEE_RECORD',
-            'references': [{'database': company['phc_db'], 'table': 'PE2', 'stamp': clean(pe2['PE2STAMP']),
-                            'fields': ['MATRICULA']}]}
+            'references': [{'database': company['phc_db'], 'table': table, 'stamp': stamp, 'fields': [field]}]}
+        if private_plate and fallback_plate and private_plate.casefold() != fallback_plate.casefold():
+            result['warnings'].append('PE.U_MATPRO e PE2.MATRICULA diferem; foi usada a matrícula particular de PE.U_MATPRO.')
     else:
-        result['warnings'].append('Matrícula não preenchida em PE2.MATRICULA.' if 'MATRICULA' in details['fields']['PE2']
-                                  else 'Campo PE2.MATRICULA indisponível nesta base PHC.')
+        result['warnings'].append('Matrícula particular em falta: PE.U_MATPRO e PE2.MATRICULA sem valor disponível.')
     result['warnings'].append('A ficha PHC é atual: confirme a morada e a viatura aplicáveis ao mês reconstruído. O proprietário da viatura requer confirmação.')
     return result
 
@@ -206,6 +208,7 @@ def monthly_measurements(feid, year, month, user):
             "client": clean(row["CLIENT_NAME"]), "client_number": clean(row["CLIENT_NO"]),
             "address": clean(row.get("MORADA")), "locality": clean(row.get("LOCALIDADE")),
             "country": None, "work_matches": int(row.get("WORK_MATCHES") or 0),
+            "work_stamp": clean(row.get("OPCSTAMP")),
             "has_positive_measurement": positive,
             "employee_assignment": None,
             "source": {"database": company["phc_db"], "table": "BO", "stamp": clean(row["BOSTAMP"])},

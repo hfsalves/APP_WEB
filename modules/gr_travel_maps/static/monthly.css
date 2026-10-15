@@ -1,4 +1,5 @@
 .travel-page { --sz-page-pad-x: 1rem; --sz-page-pad-y: 1rem; }
+.travel-page [hidden] { display: none !important; }
 .travel-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
 .travel-page h1 { margin: .4rem 0; }
 .travel-page h2, .travel-dialog h2 { font-size: 1.1rem; margin: 0 0 .3rem; }
@@ -25,6 +26,7 @@
 .travel-badge { display: inline-block; padding: .25rem .5rem; border-radius: 5px; background: color-mix(in srgb, var(--sz-color-primary, #2563eb) 8%, var(--sz-color-surface, white)); color: var(--sz-color-text-secondary, #475569); font-size: .75rem; white-space: nowrap; }
 .travel-warning { color: var(--sz-color-warning, #9a6700); }
 .travel-error { color: var(--sz-color-danger, #b91c1c); }
+.travel-outcome-blocked { border-left-color: var(--sz-color-danger, #b91c1c); }
 .travel-messages { font-size: .85rem; padding: 0 1rem; }
 .travel-messages p { margin: .4rem 0 .7rem; }
 .travel-criteria { padding: 0 1rem .8rem; font-size: .85rem; color: var(--sz-color-text-secondary, #64748b); }
@@ -32,7 +34,7 @@
 .travel-criteria p { margin: .4rem 0; }
 .travel-count { padding: .5rem 1rem; }
 .travel-detail-button { white-space: nowrap; }
-.travel-dialog { width: min(1100px, 95vw); max-height: 90vh; padding: 1.5rem; border: 1px solid var(--sz-color-border, #e2e8f0); border-radius: 12px; background: var(--sz-color-surface, white); color: var(--sz-color-text, #0f172a); }
+.travel-dialog { position: fixed; inset: 0; margin: auto; width: min(1100px, 95vw); height: fit-content; max-height: 90dvh; overflow: auto; box-sizing: border-box; padding: 1.5rem; border: 1px solid var(--sz-color-border, #e2e8f0); border-radius: 12px; background: var(--sz-color-surface, white); color: var(--sz-color-text, #0f172a); }
 .travel-dialog::backdrop { background: #0f172a88; }
 .travel-dialog-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
 .travel-dialog details { margin-top: 1rem; }
@@ -67,3 +69,26 @@
 .travel-evidence { max-height: 350px; overflow: auto; font-size: .75rem; white-space: pre-wrap; overflow-wrap: anywhere; }
 .travel-review-check { display: flex; align-items: flex-start; gap: .6rem; font-size: .85rem; margin: 1rem 0; }
 .travel-actions { display: flex; gap: .6rem; flex-wrap: wrap; }
+.travel-progress { padding: 1rem; border: 1px solid var(--sz-color-border, #e2e8f0); border-radius: 8px; background: color-mix(in srgb, var(--sz-color-primary, #2563eb) 5%, var(--sz-color-surface, white)); }
+.travel-progress p { overflow-wrap: anywhere; }
+.travel-progress progress { display: block; width: 100%; height: .65rem; margin: .8rem 0 .4rem; accent-color: var(--sz-color-primary, #2563eb); }
+.travel-progress-footer { display: flex; justify-content: space-between; gap: .5rem 1rem; flex-wrap: wrap; }
+.travel-progress-failed { border-color: var(--sz-color-danger, #b91c1c); }
+.travel-home-grid { grid-template-columns: minmax(280px, 2fr) repeat(2, minmax(180px, 1fr)); }
+.travel-settings { padding: .75rem 0; }
+.travel-settings summary { cursor: pointer; margin-bottom: .75rem; }
+.travel-company-choice label { align-items: center; }
+.travel-company-choice input[type=checkbox] { width: 18px; height: 18px; min-width: 18px; margin: 0; flex: none; }
+.travel-calendar td:first-child { min-width: 110px; width: 12%; }
+.travel-calendar td:first-child strong { font-size: 1.1rem; }
+.travel-calendar td:nth-child(2) { width: 22%; min-width: 180px; }
+.travel-calendar td:nth-child(3) { width: 38%; }
+.travel-calendar-leg + .travel-calendar-leg { margin-top: .35rem; }
+.travel-calendar-excluded { background: color-mix(in srgb, var(--sz-color-text-secondary, #64748b) 5%, transparent); }
+.travel-rejected { text-decoration: line-through; opacity: .6; }
+.travel-location-table input { min-width: 90px; }
+.travel-location-table td:nth-child(2) input { min-width: 250px; }
+.travel-day-line { padding: 1rem 0; border-bottom: 1px solid var(--sz-color-border, #e2e8f0); }
+#calendarDaySave { margin-top: 1rem; }
+@media (max-width: 800px) { .travel-home-grid { grid-template-columns: 1fr; } }
+.travel-hypothesis { display: block; color: var(--sz-color-text, #334155); border-left: 3px solid var(--sz-color-warning, #e8a940); padding-left: .5rem; font-weight: 600; margin: .25rem 0 .5rem; }
