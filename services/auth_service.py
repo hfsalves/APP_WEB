@@ -40,6 +40,7 @@ BASE_USER_COLUMNS = [
     "FOTO",
     "TEMPOS",
     "FORFAIT",
+    "PONTO",
     "VIEWMODE",
     "CLNO",
     "CLESTAB",

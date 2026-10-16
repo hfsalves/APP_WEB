@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}Pointage journalier{% endblock %}
+
+{% block content %}
+{% set record = ponto_payload.record %}
+{% set employee = ponto_payload.colaborador %}
+<main class="sz_page pt-page">
+  <header class="pt-header">
+    <div>
+      <p class="pt-eyebrow">Temps de travail</p>
+      <h1>Pointage journalier</h1>
+      <p>{{ employee.penome or 'Collaborateur' }}</p>
+    </div>
+    <label class="pt-date"><span>Date</span><input class="sz_input" type="date" id="ptDate" value="{{ ponto_payload.date }}" min="{{ ponto_payload.min_editable_date }}" max="{{ ponto_payload.today }}"></label>
+  </header>
+
+  {% if not ponto_payload.editable %}
+  <div class="pt-locked" role="status"><i class="fa-solid fa-lock"></i><span>{{ ponto_payload.lock_reason }}</span></div>
+  {% endif %}
+
+  <form id="ptForm" class="pt-form" novalidate>
+    <fieldset {% if not ponto_payload.editable %}disabled{% endif %}>
+      <section class="pt-section" aria-labelledby="pt-hours-title">
+        <div class="pt-section-head"><span class="pt-step">1</span><div><h2 id="pt-hours-title">Horaires de la journée</h2><p>Indiquez votre heure d’arrivée et votre heure de départ.</p></div></div>
+        <div class="pt-time-grid">
+          <label><span>Heure d’entrée</span><div class="pt-input-icon"><i class="fa-solid fa-right-to-bracket"></i><input class="sz_input" id="ptEntry" type="time" step="300" value="{{ record.entry_time }}" required></div></label>
+          <label><span>Heure de sortie</span><div class="pt-input-icon"><i class="fa-solid fa-right-from-bracket"></i><input class="sz_input" id="ptExit" type="time" step="300" value="{{ record.exit_time }}" required></div></label>
+        </div>
+      </section>
+
+      <section class="pt-section" aria-labelledby="pt-break-title">
+        <div class="pt-section-head"><span class="pt-step">2</span><div><h2 id="pt-break-title">Pause déjeuner</h2><p>Indiquez la durée totale de votre pause.</p></div></div>
+        <label class="pt-break-field"><span>Durée de la pause</span><select class="sz_select" id="ptLunch" required>
+          {% for minutes, label in [(0,'Aucune pause'),(15,'15 minutes'),(30,'30 minutes'),(45,'45 minutes'),(60,'1 heure'),(75,'1 h 15'),(90,'1 h 30'),(120,'2 heures')] %}
+          <option value="{{ minutes }}" {% if record.lunch_minutes == minutes %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select></label>
+        <div class="pt-calculation" aria-live="polite"><div><span>Temps de présence</span><strong id="ptPresence">--:--</strong></div><i class="fa-solid fa-minus"></i><div><span>Pause</span><strong id="ptPause">{{ record.lunch_duration }}</strong></div><i class="fa-solid fa-equals"></i><div class="is-total"><span>Temps travaillé</span><strong id="ptWorked">{{ record.worked_duration if record.entry_time else '--:--' }}</strong></div></div>
+      </section>
+
+      <section class="pt-section pt-observations" aria-labelledby="pt-observations-title">
+        <div class="pt-section-head"><span class="pt-step">3</span><div><h2 id="pt-observations-title">Observations</h2></div></div>
+        <textarea class="sz_textarea" id="ptObservations" maxlength="1000" rows="4" placeholder="Ajouter une observation…">{{ record.observations }}</textarea>
+        <div class="pt-counter"><span id="ptCount">{{ record.observations|length }}</span>/1000</div>
+      </section>
+    </fieldset>
+  </form>
+
+  <footer class="pt-footer"><p id="ptMessage" role="status"></p><button form="ptForm" type="submit" class="sz_button sz_button_primary pt-save" {% if not ponto_payload.editable %}disabled{% endif %}><i class="fa-solid fa-floppy-disk"></i> Enregistrer le pointage</button></footer>
+</main>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<style>
+.pt-page{height:100%;min-height:100%;overflow-y:auto;padding:calc(var(--sz-space-5) + env(safe-area-inset-top)) var(--sz-page-pad-x) calc(5.75rem + env(safe-area-inset-bottom));background:var(--sz-color-bg-main)}.pt-page>*{width:100%;max-width:680px;margin-inline:auto}.pt-header{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--sz-space-4);margin-bottom:var(--sz-space-5)}.pt-eyebrow{margin:0 0 var(--sz-space-1);color:var(--sz-color-primary);font-weight:var(--sz-font-weight-bold);font-size:var(--sz-font-size-xs);letter-spacing:.06em;text-transform:uppercase}.pt-header h1{font-size:var(--sz-font-size-2xl);line-height:var(--sz-line-tight)}.pt-header p:not(.pt-eyebrow){margin:var(--sz-space-1) 0 0;color:var(--sz-color-text-secondary);font-size:var(--sz-font-size-sm)}.pt-date{display:grid;gap:var(--sz-space-1);min-width:132px;color:var(--sz-color-text-muted);font-size:var(--sz-font-size-xs);font-weight:var(--sz-font-weight-bold);text-transform:uppercase}.pt-locked{display:flex;align-items:flex-start;gap:var(--sz-space-2);margin-bottom:var(--sz-space-4);padding:var(--sz-space-3);border:1px solid color-mix(in srgb,var(--sz-color-warning) 38%,var(--sz-color-border));border-radius:var(--sz-radius-sm);background:color-mix(in srgb,var(--sz-color-warning) 8%,var(--sz-color-surface));color:var(--sz-color-text-secondary);font-size:var(--sz-font-size-sm)}.pt-locked i{margin-top:.15rem;color:var(--sz-color-warning)}.pt-form fieldset{display:grid;gap:var(--sz-space-4);margin:0;padding:0;border:0}.pt-form fieldset:disabled{opacity:.72}.pt-section{padding:var(--sz-space-4);border:1px solid var(--sz-color-border);border-radius:var(--sz-radius-md);background:var(--sz-color-surface);box-shadow:var(--sz-shadow-1)}.pt-section-head{display:flex;gap:var(--sz-space-3);margin-bottom:var(--sz-space-4)}.pt-step{display:grid;place-items:center;flex:0 0 1.7rem;height:1.7rem;border-radius:50%;background:color-mix(in srgb,var(--sz-color-primary) 10%,var(--sz-color-surface));color:var(--sz-color-primary);font-size:var(--sz-font-size-xs);font-weight:var(--sz-font-weight-bold)}.pt-section h2{font-size:var(--sz-font-size-md)}.pt-section p{margin:var(--sz-space-1) 0 0;color:var(--sz-color-text-muted);font-size:var(--sz-font-size-sm);line-height:var(--sz-line-normal)}.pt-time-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:var(--sz-space-3)}.pt-time-grid label,.pt-break-field{display:grid;gap:var(--sz-space-2);color:var(--sz-color-text-secondary);font-size:var(--sz-font-size-sm);font-weight:var(--sz-font-weight-semibold)}.pt-input-icon{position:relative}.pt-input-icon i{position:absolute;z-index:1;left:var(--sz-space-3);top:50%;transform:translateY(-50%);color:var(--sz-color-primary)}.pt-input-icon .sz_input{width:100%;min-height:52px;padding-left:2.6rem;font-size:var(--sz-font-size-lg);font-variant-numeric:tabular-nums}.pt-break-field .sz_select{min-height:48px}.pt-calculation{display:grid;grid-template-columns:1fr auto 1fr auto 1.1fr;align-items:center;gap:var(--sz-space-2);margin-top:var(--sz-space-4);padding:var(--sz-space-3);border-radius:var(--sz-radius-sm);background:var(--sz-color-surface-alt)}.pt-calculation>div{display:grid;gap:var(--sz-space-1)}.pt-calculation span{color:var(--sz-color-text-muted);font-size:var(--sz-font-size-xs)}.pt-calculation strong{font-size:var(--sz-font-size-lg);font-variant-numeric:tabular-nums}.pt-calculation>i{color:var(--sz-color-text-muted);font-size:var(--sz-font-size-xs)}.pt-calculation .is-total strong{color:var(--sz-color-primary)}.pt-observations .sz_textarea{min-height:6rem}.pt-counter{text-align:right;margin-top:var(--sz-space-1);color:var(--sz-color-text-muted);font-size:var(--sz-font-size-xs)}.pt-footer{position:fixed;z-index:5;bottom:0;left:0;right:0;display:flex;align-items:center;gap:var(--sz-space-3);padding:var(--sz-space-3) max(var(--sz-page-pad-x),calc((100vw - 680px)/2));border-top:1px solid var(--sz-color-border);background:color-mix(in srgb,var(--sz-color-surface) 96%,transparent);backdrop-filter:blur(12px)}.pt-footer p{flex:1;margin:0;color:var(--sz-color-text-muted);font-size:var(--sz-font-size-xs)}.pt-footer p.is-error{color:var(--sz-color-danger)}.pt-footer p.is-ok{color:var(--sz-color-success)}.pt-save{white-space:nowrap}.pt-save:disabled{opacity:.6}@media(max-width:520px){.pt-header{display:grid}.pt-date{width:100%}.pt-time-grid{grid-template-columns:1fr}.pt-calculation{grid-template-columns:1fr auto 1fr}.pt-calculation>div:last-child{grid-column:1/-1;padding-top:var(--sz-space-2);border-top:1px solid var(--sz-color-border)}.pt-calculation>i.fa-equals{display:none}.pt-footer{align-items:stretch;flex-direction:column;padding-top:var(--sz-space-2)}.pt-footer p:empty{display:none}.pt-save{width:100%}}@media(min-width:681px){.pt-page{padding-top:var(--sz-space-6)}.pt-footer{padding-left:calc((100vw - 680px)/2);padding-right:calc((100vw - 680px)/2)}}
+</style>
+<script>
+(()=>{const form=document.querySelector('#ptForm'),dateInput=document.querySelector('#ptDate'),entry=document.querySelector('#ptEntry'),exit=document.querySelector('#ptExit'),lunch=document.querySelector('#ptLunch'),observations=document.querySelector('#ptObservations'),count=document.querySelector('#ptCount'),message=document.querySelector('#ptMessage'),button=document.querySelector('.pt-save'),presence=document.querySelector('#ptPresence'),pause=document.querySelector('#ptPause'),worked=document.querySelector('#ptWorked');const minutes=value=>{if(!value||!value.includes(':'))return null;const[h,m]=value.split(':').map(Number);return h*60+m;};const duration=value=>{const safe=Math.max(0,Number(value)||0),h=Math.floor(safe/60),m=safe%60;return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');};const calculate=()=>{const start=minutes(entry.value),end=minutes(exit.value),breakMinutes=Number(lunch.value)||0;pause.textContent=duration(breakMinutes);if(start===null||end===null||end<=start){presence.textContent='--:--';worked.textContent='--:--';return;}presence.textContent=duration(end-start);worked.textContent=duration(Math.max(0,end-start-breakMinutes));};[entry,exit,lunch].forEach(input=>input.addEventListener('input',calculate));observations.addEventListener('input',()=>count.textContent=observations.value.length);dateInput.addEventListener('change',()=>location.search='?data='+encodeURIComponent(dateInput.value));form.addEventListener('submit',async event=>{event.preventDefault();if(!entry.value||!exit.value){message.textContent='Renseignez les heures d’entrée et de sortie.';message.className='is-error';return;}button.disabled=true;message.textContent='Enregistrement…';message.className='';try{const response=await fetch('/api/ponto/registo',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({date:dateInput.value,entry_time:entry.value,exit_time:exit.value,lunch_minutes:Number(lunch.value),observations:observations.value})});const data=await response.json();if(!response.ok||!data.ok)throw new Error(data.error||'Impossible d’enregistrer le pointage.');message.textContent='Pointage enregistré.';message.className='is-ok';worked.textContent=data.record.worked_duration;}catch(error){message.textContent=error.message;message.className='is-error';}finally{button.disabled=false;}});calculate();})();
+</script>
+{% endblock %}

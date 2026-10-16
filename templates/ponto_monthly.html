@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}Résumé mensuel du pointage{% endblock %}
+
+{% block content %}
+<main class="sz_page pm-page">
+  <header class="pm-header">
+    <div><p class="pm-eyebrow">Temps de travail</p><h1>Résumé mensuel</h1><p>{{ ponto_payload.colaborador.penome or 'Collaborateur' }}</p></div>
+    <div class="pm-filters">
+      <label><span>Mois</span><select class="sz_select" id="pmMonth">{% set months = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'] %}{% for label in months %}<option value="{{ loop.index }}" {% if loop.index == ponto_payload.month %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+      <label><span>Année</span><select class="sz_select" id="pmYear">{% for value in range(ponto_payload.year - 5, ponto_payload.year + 2) %}<option value="{{ value }}" {% if value == ponto_payload.year %}selected{% endif %}>{{ value }}</option>{% endfor %}</select></label>
+    </div>
+  </header>
+
+  <section class="pm-totals" aria-label="Totaux mensuels">
+    <div><i class="fa-solid fa-calendar-check"></i><span>Jours pointés</span><strong>{{ ponto_payload.totals.recorded_days }}</strong></div>
+    <div><i class="fa-solid fa-clock"></i><span>Temps travaillé</span><strong>{{ ponto_payload.totals.worked_duration }}</strong></div>
+    <div><i class="fa-solid fa-mug-hot"></i><span>Pauses déjeuner</span><strong>{{ ponto_payload.totals.lunch_duration }}</strong></div>
+  </section>
+
+  <section class="pm-card sz_card" aria-labelledby="pm-title">
+    <div class="pm-card-head"><div><h2 id="pm-title">{{ ponto_payload.month_label }} {{ ponto_payload.year }}</h2><p>Détail quotidien des horaires enregistrés</p></div><a class="sz_button sz_button_ghost" href="/ponto/registo"><i class="fa-solid fa-plus"></i><span>Nouveau pointage</span></a></div>
+    <div class="pm-table-wrap">
+      <table class="pm-table">
+        <thead><tr><th>Jour</th><th>Entrée</th><th>Sortie</th><th>Pause déjeuner</th><th>Temps travaillé</th><th>Observations</th></tr></thead>
+        <tbody>
+        {% for row in ponto_payload.rows %}
+          <tr class="{% if row.is_weekend %}is-weekend{% endif %} {% if not row.entry_time %}is-empty{% endif %}">
+            <td data-label="Jour"><a href="/ponto/registo?data={{ row.date }}"><strong>{{ row.day_label }}</strong><small>{{ row.weekday }}</small></a></td>
+            <td data-label="Entrée">{{ row.entry_time or '—' }}</td>
+            <td data-label="Sortie">{{ row.exit_time or '—' }}</td>
+            <td data-label="Pause déjeuner">{{ row.lunch_duration or '—' }}</td>
+            <td data-label="Temps travaillé"><strong class="pm-worked">{{ row.worked_duration or '—' }}</strong></td>
+            <td data-label="Observations" class="pm-observation">{{ row.observations or '—' }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</main>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<style>
+.pm-page{height:100%;min-height:100%;overflow-y:auto;padding:calc(var(--sz-space-5) + env(safe-area-inset-top)) var(--sz-page-pad-x) calc(var(--sz-space-6) + env(safe-area-inset-bottom));background:var(--sz-color-bg-main)}.pm-page>*{width:100%;max-width:960px;margin-inline:auto}.pm-header{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--sz-space-4);margin-bottom:var(--sz-space-5)}.pm-eyebrow{margin:0 0 var(--sz-space-1);color:var(--sz-color-primary);font-size:var(--sz-font-size-xs);font-weight:var(--sz-font-weight-bold);letter-spacing:.06em;text-transform:uppercase}.pm-header h1{font-size:var(--sz-font-size-2xl);line-height:var(--sz-line-tight)}.pm-header p:not(.pm-eyebrow){margin:var(--sz-space-1) 0 0;color:var(--sz-color-text-secondary);font-size:var(--sz-font-size-sm)}.pm-filters{display:flex;gap:var(--sz-space-2)}.pm-filters label{display:grid;gap:var(--sz-space-1);min-width:112px;color:var(--sz-color-text-muted);font-size:var(--sz-font-size-xs);font-weight:var(--sz-font-weight-bold);text-transform:uppercase}.pm-totals{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--sz-space-3);margin-bottom:var(--sz-space-4)}.pm-totals>div{display:grid;grid-template-columns:auto 1fr;align-items:center;column-gap:var(--sz-space-3);padding:var(--sz-space-4);border:1px solid var(--sz-color-border);border-radius:var(--sz-radius-md);background:var(--sz-color-surface);box-shadow:var(--sz-shadow-1)}.pm-totals i{grid-row:1/3;display:grid;place-items:center;width:2.2rem;height:2.2rem;border-radius:50%;background:color-mix(in srgb,var(--sz-color-primary) 10%,var(--sz-color-surface));color:var(--sz-color-primary)}.pm-totals span{color:var(--sz-color-text-muted);font-size:var(--sz-font-size-xs);font-weight:var(--sz-font-weight-semibold)}.pm-totals strong{font-size:var(--sz-font-size-xl);font-variant-numeric:tabular-nums}.pm-card{padding:0;overflow:hidden}.pm-card-head{display:flex;align-items:center;justify-content:space-between;gap:var(--sz-space-3);padding:var(--sz-space-4);border-bottom:1px solid var(--sz-color-border);background:var(--sz-color-surface-alt)}.pm-card-head h2{font-size:var(--sz-font-size-lg)}.pm-card-head p{margin:var(--sz-space-1) 0 0;color:var(--sz-color-text-muted);font-size:var(--sz-font-size-xs)}.pm-table-wrap{overflow:auto}.pm-table{width:100%;border-collapse:collapse;font-size:var(--sz-font-size-sm)}.pm-table th,.pm-table td{padding:var(--sz-space-3);border-bottom:1px solid var(--sz-color-border);text-align:left;vertical-align:middle}.pm-table th{color:var(--sz-color-text-muted);font-size:var(--sz-font-size-xs);font-weight:var(--sz-font-weight-bold);background:var(--sz-color-surface)}.pm-table td{font-variant-numeric:tabular-nums}.pm-table td:first-child a{display:grid;gap:.1rem;color:var(--sz-color-primary);text-decoration:none}.pm-table td:first-child small{color:var(--sz-color-text-muted);font-size:var(--sz-font-size-xs)}.pm-table .is-weekend{background:color-mix(in srgb,var(--sz-color-bg-main) 65%,var(--sz-color-surface))}.pm-table .is-empty td:not(:first-child){color:var(--sz-color-text-muted)}.pm-worked{color:var(--sz-color-primary)}.pm-observation{max-width:18rem;white-space:pre-wrap}@media(max-width:680px){.pm-header{display:grid}.pm-filters{width:100%}.pm-filters label{flex:1;min-width:0}.pm-totals{grid-template-columns:1fr}.pm-card-head{align-items:flex-start}.pm-card-head .sz_button span{display:none}.pm-table thead{display:none}.pm-table,.pm-table tbody,.pm-table tr,.pm-table td{display:block;width:100%}.pm-table tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));padding:var(--sz-space-3);border-bottom:1px solid var(--sz-color-border)}.pm-table td{display:grid;grid-template-columns:1fr auto;gap:var(--sz-space-2);padding:var(--sz-space-2);border:0}.pm-table td::before{content:attr(data-label);color:var(--sz-color-text-muted);font-size:var(--sz-font-size-xs);font-weight:var(--sz-font-weight-semibold)}.pm-table td:first-child,.pm-table td:last-child{grid-column:1/-1}.pm-table td:first-child{display:block;padding-bottom:var(--sz-space-3);border-bottom:1px solid var(--sz-color-border)}.pm-table td:first-child::before{display:none}.pm-table td:first-child a{grid-template-columns:auto 1fr;align-items:baseline;gap:var(--sz-space-2)}.pm-table td:last-child{padding-top:var(--sz-space-3)}.pm-observation{max-width:none}.pm-table .is-empty{display:none}}@media(min-width:681px){.pm-page{padding-top:var(--sz-space-6)}}
+</style>
+<script>
+(()=>{const year=document.querySelector('#pmYear'),month=document.querySelector('#pmMonth');const navigate=()=>{location.search='?ano='+encodeURIComponent(year.value)+'&mes='+encodeURIComponent(month.value);};year.addEventListener('change',navigate);month.addEventListener('change',navigate);})();
+</script>
+{% endblock %}

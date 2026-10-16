@@ -2896,6 +2896,11 @@ def create_app():
                 elif table_key == 'FORFAIT_JOURS':
                     from services.forfait_jours_service import forfait_user_allowed
                     mostrar = forfait_user_allowed(current_user)
+                # O registo diário de ponto é mostrado apenas a utilizadores
+                # explicitamente ativados em US.PONTO ou administradores.
+                elif table_key == 'PONTO':
+                    from services.ponto_service import ponto_user_allowed
+                    mostrar = ponto_user_allowed(current_user)
                 # Todos os outros: sÃ³ se tem acesso
                 else:
                     mostrar = user_is_admin or perms.get(str(m.tabela or '').strip().upper(), {}).get('consultar', False)
@@ -26717,6 +26722,90 @@ def create_app():
         except Exception:
             app.logger.exception('Erro ao gerar PDF de forfait-jours.')
             return jsonify({'ok': False, 'error': 'Impossible de générer le PDF.'}), 500
+
+    @app.route('/ponto/registo')
+    @login_required
+    def ponto_daily_page():
+        from services.ponto_service import get_daily_record, ponto_user_allowed
+
+        if not ponto_user_allowed(current_user):
+            abort(403)
+        try:
+            payload = get_daily_record(current_user, request.args.get('data'))
+        except ValueError:
+            payload = get_daily_record(current_user, date.today())
+        return render_template(
+            'ponto_daily.html',
+            page_title='Pointage journalier',
+            ponto_payload=payload,
+        )
+
+    @app.route('/api/ponto/registo')
+    @login_required
+    def api_ponto_daily():
+        from services.ponto_service import get_daily_record, ponto_user_allowed
+
+        if not ponto_user_allowed(current_user):
+            return jsonify({'ok': False, 'error': 'Accès non autorisé.'}), 403
+        try:
+            return jsonify(get_daily_record(current_user, request.args.get('data')))
+        except ValueError as exc:
+            return jsonify({'ok': False, 'error': str(exc)}), 400
+
+    @app.route('/api/ponto/registo', methods=['POST'])
+    @login_required
+    def api_ponto_daily_save():
+        from services.ponto_service import ponto_user_allowed, save_daily_record
+
+        if not ponto_user_allowed(current_user):
+            return jsonify({'ok': False, 'error': 'Accès non autorisé.'}), 403
+        try:
+            return jsonify(save_daily_record(current_user, request.get_json(silent=True) or {}))
+        except ValueError as exc:
+            db.session.rollback()
+            return jsonify({'ok': False, 'error': str(exc)}), 400
+        except Exception:
+            db.session.rollback()
+            app.logger.exception('Erro ao gravar registo diário de ponto.')
+            return jsonify({'ok': False, 'error': 'Impossible d’enregistrer le pointage.'}), 500
+
+    @app.route('/ponto/resumo-mensal')
+    @login_required
+    def ponto_monthly_page():
+        from services.ponto_service import get_month_summary, ponto_user_allowed
+
+        if not ponto_user_allowed(current_user):
+            abort(403)
+        try:
+            payload = get_month_summary(
+                current_user,
+                request.args.get('ano'),
+                request.args.get('mes'),
+            )
+        except ValueError:
+            today = date.today()
+            payload = get_month_summary(current_user, today.year, today.month)
+        return render_template(
+            'ponto_monthly.html',
+            page_title='Résumé mensuel du pointage',
+            ponto_payload=payload,
+        )
+
+    @app.route('/api/ponto/resumo-mensal')
+    @login_required
+    def api_ponto_monthly():
+        from services.ponto_service import get_month_summary, ponto_user_allowed
+
+        if not ponto_user_allowed(current_user):
+            return jsonify({'ok': False, 'error': 'Accès non autorisé.'}), 403
+        try:
+            return jsonify(get_month_summary(
+                current_user,
+                request.args.get('ano'),
+                request.args.get('mes'),
+            ))
+        except ValueError as exc:
+            return jsonify({'ok': False, 'error': str(exc)}), 400
 
     @app.route('/api/colaborador/ferias')
     @login_required
