@@ -1329,6 +1329,37 @@
   flex-wrap: wrap;
 }
 
+.gr-budget-intercompany-panel {
+  width: min(720px, calc(100vw - 2rem));
+}
+
+.gr-budget-intercompany-body {
+  display: grid;
+  gap: 1rem;
+}
+
+.gr-budget-intercompany-body .sz_field {
+  display: grid;
+  gap: .45rem;
+}
+
+.gr-budget-intercompany-validation {
+  display: grid;
+  gap: .45rem;
+}
+
+.gr-budget-intercompany-check {
+  display: flex;
+  align-items: flex-start;
+  gap: .55rem;
+  padding: .65rem .75rem;
+  border: 1px solid var(--sz-border-color, rgba(148, 163, 184, .25));
+  border-radius: .6rem;
+}
+
+.gr-budget-intercompany-check.is-ok i { color: var(--sz-success, #34d399); }
+.gr-budget-intercompany-check.is-error i { color: var(--sz-danger, #fb7185); }
+
 .gr-budget-col-item {
   width: 2.5rem;
 }

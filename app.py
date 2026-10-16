@@ -102,6 +102,7 @@ from services.application_audit_service import (
     ensure_application_audit_schema,
     touch_session_log,
 )
+from services.transfer_email_service import build_transfer_confirmation_email
 from services.multiempresa_service import (
     MissingUserEntitiesError,
     MissingCurrentEntityError,
@@ -1274,7 +1275,9 @@ def create_app():
                 ISNULL(RS.BERCO,0) AS BERCO,
                 RS.ADULTOS,
                 RS.CRIANCAS,
+                RS.BEBES,
                 RS.NOITES,
+                ISNULL(RS.NOME,'') AS NOME,
                 ISNULL(RS.MOSTRA_INSTRUCOES_CHECKIN,0) AS MOSTRA_INSTRUCOES_CHECKIN,
                 ISNULL(RS.FTNOME,'') AS FTNOME,
                 ISNULL(RS.FTMORADA,'') AS FTMORADA,
@@ -4527,6 +4530,39 @@ def create_app():
         if departure_enabled and (not departure_date or not time_re.match(departure_time)):
             return jsonify({'error': 'Indica uma data e hora de partida válidas.'}), 400
 
+        portal_contact = {}
+        try:
+            if db.session.execute(text("SELECT OBJECT_ID('dbo.PB_BOOKING_REQUESTS', 'U')")).scalar() \
+                    and db.session.execute(text("SELECT OBJECT_ID('dbo.PB_STRIPE_TEST_PAYMENTS', 'U')")).scalar():
+                portal_contact = dict(db.session.execute(text("""
+                    SELECT TOP 1
+                        ISNULL(B.CLIENTE_NOME,'') AS CLIENTE_NOME,
+                        ISNULL(B.CLIENTE_EMAIL,'') AS CLIENTE_EMAIL,
+                        ISNULL(B.CLIENTE_TELEFONE,'') AS CLIENTE_TELEFONE
+                    FROM dbo.PB_BOOKING_REQUESTS B
+                    INNER JOIN dbo.PB_STRIPE_TEST_PAYMENTS P ON P.PBBKSTAMP=B.PBBKSTAMP
+                    WHERE P.RSSTAMP=:rsstamp
+                    ORDER BY COALESCE(P.DTALT,P.DTCRI) DESC
+                """), {'rsstamp': str(row.get('RSSTAMP') or '').strip()}).mappings().first() or {})
+        except Exception:
+            db.session.rollback()
+            current_app.logger.exception('Erro ao obter contacto do hóspede para o transfer')
+
+        guest_name = str(portal_contact.get('CLIENTE_NOME') or row.get('NOME') or '').strip()[:200]
+        guest_email = str(body.get('guest_email') or portal_contact.get('CLIENTE_EMAIL') or row.get('FTEMAIL') or '').strip()[:255]
+        guest_phone = str(body.get('guest_phone') or portal_contact.get('CLIENTE_TELEFONE') or '').strip()[:50]
+        people_count = sum(int(row.get(field) or 0) for field in ('ADULTOS', 'CRIANCAS', 'BEBES'))
+        address = ', '.join(part for part in (
+            str(row.get('MORADA') or '').strip(),
+            str(row.get('CODPOST') or '').strip(),
+            str(row.get('LOCAL') or '').strip(),
+        ) if part)[:300]
+        driver_phone = str(current_app.config.get('TRANSFER_DRIVER_PHONE')
+                           or os.environ.get('TRANSFER_DRIVER_PHONE')
+                           or '+351 929 009 157').strip()[:50]
+        driver_email = str(current_app.config.get('TRANSFER_DRIVER_EMAIL')
+                           or os.environ.get('TRANSFER_DRIVER_EMAIL') or '').strip()[:255]
+
         stamp = _new_stamp_25()
         values = {
             'stamp': stamp, 'rsstamp': str(row.get('RSSTAMP') or '').strip(),
@@ -4536,34 +4572,56 @@ def create_app():
             'flight': str(body.get('flight') or '').strip()[:20] if origin == 'airport' else '',
             'has_departure': 1 if departure_enabled else 0, 'departure_date': departure_date,
             'departure_time': departure_time or None,
+            'address': address, 'guest_name': guest_name, 'people_count': people_count,
+            'guest_phone': guest_phone, 'guest_email': guest_email,
+            'driver_phone': driver_phone, 'driver_email': driver_email,
         }
         db.session.execute(text("""
             INSERT INTO dbo.TRANSFERS
-            (TRANSFERSTAMP,RSSTAMP,RESERVA,ALOJAMENTO,ORIGEM,DATA_CHEGADA,HORA_CHEGADA,NUM_VOO,TEM_PARTIDA,DATA_PARTIDA,HORA_PARTIDA)
-            VALUES (:stamp,:rsstamp,:reserva,:alojamento,:origin,:arrival_date,:arrival_time,:flight,:has_departure,:departure_date,:departure_time)
+            (TRANSFERSTAMP,RSSTAMP,RESERVA,ALOJAMENTO,ORIGEM,DATA_CHEGADA,HORA_CHEGADA,NUM_VOO,TEM_PARTIDA,DATA_PARTIDA,HORA_PARTIDA,
+             MORADA,NOME_HOSPEDE,NUM_PESSOAS,CONTACTO_TELEF,EMAIL_HOSPEDE,MOTORISTA_CONTACTO,MOTORISTA_EMAIL)
+            VALUES (:stamp,:rsstamp,:reserva,:alojamento,:origin,:arrival_date,:arrival_time,:flight,:has_departure,:departure_date,:departure_time,
+                    :address,:guest_name,:people_count,:guest_phone,:guest_email,:driver_phone,:driver_email)
         """), values)
         db.session.commit()
 
-        origin_label = 'Aeroporto do Porto' if origin == 'airport' else 'Estação de Campanhã'
-        lines = [
-            'NOVO PEDIDO DE TRANSFER', f"Reserva: {values['reserva']}", f"Alojamento: {values['alojamento']}",
-            f"Chegada: {origin_label} — {arrival_date.strftime('%d/%m/%Y')} às {arrival_time}",
-        ]
-        if values['flight']:
-            lines.append(f"Voo: {values['flight']}")
-        if departure_enabled:
-            lines.append(f"Partida: {departure_date.strftime('%d/%m/%Y')} às {departure_time}")
-        lines += ['Valor: 30 EUR por viagem, pago ao motorista.', f"Transfer: {stamp}"]
+        origin_label_pt = 'Aeroporto do Porto' if origin == 'airport' else 'Estação de Campanhã'
+        origin_label_en = 'Porto Airport' if origin == 'airport' else 'Campanhã Station'
+        email_content = build_transfer_confirmation_email({
+            'reservation': values['reserva'],
+            'accommodation': values['alojamento'],
+            'address': address,
+            'guest_name': guest_name,
+            'people_count': people_count,
+            'guest_phone': guest_phone,
+            'guest_email': guest_email,
+            'arrival_point_pt': origin_label_pt,
+            'arrival_point_en': origin_label_en,
+            'arrival_date': arrival_date,
+            'arrival_time': arrival_time,
+            'flight': values['flight'],
+            'departure_date': departure_date if departure_enabled else None,
+            'departure_time': departure_time if departure_enabled else '',
+            'transfer_id': stamp,
+            'driver_phone': driver_phone,
+        })
         try:
             from services.email_service import list_profiles, queue_email, send_email_now
             smtp_profile = next((profile for profile in list_profiles(include_inactive=False)
                                  if str(profile.get('SMTP_HOST') or '').strip().lower() == 'mail.guestspa.pt'), None)
             if not smtp_profile:
                 raise RuntimeError('Falta configurar um perfil SMTP ativo para mail.guestspa.pt.')
+            recipients = ['hugo@guestspa.pt', 'pedro@guestspa.pt', 'helpdesk@guestspa.pt', 'iara@guestspa.pt']
+            if driver_email:
+                recipients.append(driver_email)
+            # O email do hóspede fica guardado no pedido, mas só será adicionado
+            # aos destinatários quando o envio ao cliente for expressamente ativado.
             email_id = queue_email(
                 profile_id=smtp_profile.get('ID'),
-                to=['hugo@guestspa.pt', 'pedro@guestspa.pt', 'helpdesk@guestspa.pt', 'iara@guestspa.pt'],
-                subject=f"Novo pedido de transfer — {values['reserva']}", body_text='\n'.join(lines),
+                to=recipients,
+                subject=email_content['subject'],
+                body_text=email_content['body_text'],
+                body_html=email_content['body_html'],
                 context='TRANSFER', context_id=stamp, created_by='guest-portal'
             )
             result = send_email_now(email_id)

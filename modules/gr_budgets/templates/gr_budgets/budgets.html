@@ -4,7 +4,7 @@
 
 {% block extra_head %}
   {{ super() }}
-  <link rel="stylesheet" href="{{ url_for('gr_budgets.static', filename='gr_budgets.css') }}?v={{ config.get('STATIC_VERSION', 1) }}-address-fields-14">
+  <link rel="stylesheet" href="{{ url_for('gr_budgets.static', filename='gr_budgets.css') }}?v={{ config.get('STATIC_VERSION', 1) }}-intercompany-copy-1">
 {% endblock %}
 
 {% block content %}
@@ -142,6 +142,10 @@
                   <button id="budgetDuplicate" type="button" class="dropdown-item gr-budget-action-item" title="{{ _('gr_budgets.title.duplicate_budget') }}" disabled>
                     <i class="fa-solid fa-copy" aria-hidden="true"></i>
                     <span>{{ _('gr_budgets.action.duplicate') }}</span>
+                  </button>
+                  <button id="budgetDuplicateCompany" type="button" class="dropdown-item gr-budget-action-item" hidden disabled>
+                    <i class="fa-solid fa-building-circle-arrow-right" aria-hidden="true"></i>
+                    <span>{{ _('gr_budgets.action.duplicate_company') }}</span>
                   </button>
                   <div class="dropdown-divider"></div>
                   <button id="budgetFinalPrice" type="button" class="dropdown-item gr-budget-action-item" disabled>
@@ -804,6 +808,53 @@
     </div>
   </div>
 
+  <div id="budgetIntercompanyCopy" class="sz_modal gr-budget-position-confirm" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="budgetIntercompanyCopyTitle">
+    <div class="sz_panel gr-budget-position-confirm-panel gr-budget-intercompany-panel">
+      <div class="sz_modal_header">
+        <div>
+          <span class="sz_caption">{{ _('gr_budgets.intercompany.caption') }}</span>
+          <h3 id="budgetIntercompanyCopyTitle" class="sz_modal_title">{{ _('gr_budgets.intercompany.title') }}</h3>
+        </div>
+        <button type="button" class="sz_button sz_button_ghost sz_button_icon" data-intercompany-close aria-label="{{ _('gr_budgets.action.cancel') }}">
+          <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+        </button>
+      </div>
+      <div class="sz_modal_body gr-budget-position-confirm-body gr-budget-intercompany-body">
+        <p id="budgetIntercompanySource" class="sz_help"></p>
+        <label class="sz_field">
+          <span class="sz_label">{{ _('gr_budgets.intercompany.destination') }}</span>
+          <select id="budgetIntercompanyDestination" class="sz_select"></select>
+        </label>
+        <label class="sz_field">
+          <span class="sz_label">{{ _('gr_budgets.intercompany.client') }}</span>
+          <input id="budgetIntercompanyClientSearch" class="sz_input" type="search" autocomplete="off" placeholder="{{ _('gr_budgets.intercompany.client_search') }}">
+          <select id="budgetIntercompanyClient" class="sz_select"></select>
+        </label>
+        <label class="sz_field">
+          <span class="sz_label">{{ _('gr_budgets.intercompany.salesperson') }}</span>
+          <select id="budgetIntercompanySalesperson" class="sz_select"></select>
+        </label>
+        <label id="budgetIntercompanyAgencyField" class="sz_field" hidden>
+          <span class="sz_label">{{ _('gr_budgets.intercompany.agency') }}</span>
+          <select id="budgetIntercompanyAgency" class="sz_select"></select>
+        </label>
+        <div id="budgetIntercompanyValidation" class="gr-budget-intercompany-validation"></div>
+        <p id="budgetIntercompanyError" class="sz_alert sz_alert_danger" hidden></p>
+      </div>
+      <div class="sz_modal_footer gr-budget-position-confirm-actions">
+        <button type="button" class="sz_button sz_button_ghost" data-intercompany-close>{{ _('gr_budgets.action.cancel') }}</button>
+        <button id="budgetIntercompanyValidate" type="button" class="sz_button sz_button_secondary">
+          <i class="fa-solid fa-shield-halved" aria-hidden="true"></i>
+          <span>{{ _('gr_budgets.intercompany.validate') }}</span>
+        </button>
+        <button id="budgetIntercompanyApply" type="button" class="sz_button sz_button_primary" disabled>
+          <i class="fa-solid fa-copy" aria-hidden="true"></i>
+          <span>{{ _('gr_budgets.intercompany.copy') }}</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
 </div>
 {% endblock %}
 
@@ -812,5 +863,5 @@
   <script>
     window.SZ_I18N = Object.assign({}, window.SZ_I18N || {}, {{ gr_budgets_i18n|tojson }});
   </script>
-  <script src="{{ url_for('gr_budgets.static', filename='gr_budgets.js') }}?v={{ config.get('STATIC_VERSION', 1) }}-address-fields-14" defer></script>
+  <script src="{{ url_for('gr_budgets.static', filename='gr_budgets.js') }}?v={{ config.get('STATIC_VERSION', 1) }}-intercompany-copy-1" defer></script>
 {% endblock %}

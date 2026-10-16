@@ -16,6 +16,7 @@ from modules.gr_budgets.service import (
     _budget_visibility_predicate,
     _component_family_payload,
     _component_payload,
+    duplicate_budget_between_companies,
     _execution_series,
     _header_payload,
     _intersol_budget_visibility_predicate,
@@ -596,6 +597,65 @@ class BudgetPayloadTests(unittest.TestCase):
         self.assertEqual(salesperson["number"], 6)
         self.assertEqual(salesperson["name"], "ELSON IGREJA")
         self.assertFalse(salesperson["inactive"])
+
+    def test_intercompany_copy_uses_new_stamps_and_clears_approval(self):
+        preview = {
+            "can_execute": True,
+            "source": {"feid": 1},
+            "destination": {"feid": 2, "phc_db": "HSOLS_PT", "currency": "EUR"},
+            "series": {"ndos": 15},
+            "selected_client": {"number": 20, "establishment": 0},
+            "selected_salesperson_number": 7,
+            "selected_agency": "",
+            "vat_mappings": [
+                {"source_rate": 20, "destination_table": 3, "destination_rate": 20}
+            ],
+        }
+        source = {
+            "header": {
+                "work_name": "Obra",
+                "locality": "Porto",
+                "address": "Rua 1",
+                "postal_code": "4000-001",
+                "place": "Porto",
+                "attention": "Pessoa",
+                "approved": True,
+            },
+            "lines": [{
+                "bistamp": "OLD-BI",
+                "budget_stamp": "OLD-BO",
+                "reference": "DTI",
+                "vat_table": 2,
+                "vat_rate": 20,
+                "approved": True,
+                "disapproved": True,
+                "technical_lines": [{
+                    "stamp": "OLD-OCI",
+                    "budget_stamp": "OLD-BO",
+                    "line_stamp": "OLD-BI",
+                    "reference": "BETON",
+                }],
+            }],
+        }
+        saved = {"created": True, "bostamp": "NEW-BO", "number": 5, "year": 2026}
+
+        with patch("modules.gr_budgets.service._intercompany_copy_preview", return_value=(preview, source)), \
+                patch("modules.gr_budgets.service.save_budget", return_value=saved) as save:
+            result = duplicate_budget_between_companies(
+                {"source_feid": 1, "destination_feid": 2}, "OLD-BO", SimpleNamespace()
+            )
+
+        write_payload = save.call_args.args[0]
+        self.assertEqual(write_payload["feid"], 2)
+        self.assertEqual(write_payload["bostamp"], "")
+        self.assertEqual(write_payload["ndos"], 15)
+        self.assertNotIn("approved", write_payload["header"])
+        self.assertEqual(write_payload["lines"][0]["bistamp"], "")
+        self.assertFalse(write_payload["lines"][0]["approved"])
+        self.assertFalse(write_payload["lines"][0]["disapproved"])
+        self.assertEqual(write_payload["lines"][0]["vat_table"], 3)
+        self.assertEqual(write_payload["lines"][0]["technical_lines"][0]["stamp"], "")
+        self.assertEqual(result["bostamp"], "NEW-BO")
 
 
 if __name__ == "__main__":

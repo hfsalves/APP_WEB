@@ -36,6 +36,7 @@
     markLost: document.getElementById('budgetMarkLost'),
     assignWork: document.getElementById('budgetAssignWork'),
     duplicateBudget: document.getElementById('budgetDuplicate'),
+    duplicateCompany: document.getElementById('budgetDuplicateCompany'),
     finalPriceBudget: document.getElementById('budgetFinalPrice'),
     discountBudget: document.getElementById('budgetDiscount'),
     prorataBudget: document.getElementById('budgetProrata'),
@@ -170,7 +171,19 @@
     vatApply: document.getElementById('budgetVatApply'),
     vatApplySelect: document.getElementById('budgetVatApplySelect'),
     vatApplyError: document.getElementById('budgetVatApplyError'),
-    vatApplyConfirm: document.getElementById('budgetVatApplyConfirm')
+    vatApplyConfirm: document.getElementById('budgetVatApplyConfirm'),
+    intercompanyCopy: document.getElementById('budgetIntercompanyCopy'),
+    intercompanySource: document.getElementById('budgetIntercompanySource'),
+    intercompanyDestination: document.getElementById('budgetIntercompanyDestination'),
+    intercompanyClientSearch: document.getElementById('budgetIntercompanyClientSearch'),
+    intercompanyClient: document.getElementById('budgetIntercompanyClient'),
+    intercompanySalesperson: document.getElementById('budgetIntercompanySalesperson'),
+    intercompanyAgencyField: document.getElementById('budgetIntercompanyAgencyField'),
+    intercompanyAgency: document.getElementById('budgetIntercompanyAgency'),
+    intercompanyValidation: document.getElementById('budgetIntercompanyValidation'),
+    intercompanyError: document.getElementById('budgetIntercompanyError'),
+    intercompanyValidate: document.getElementById('budgetIntercompanyValidate'),
+    intercompanyApply: document.getElementById('budgetIntercompanyApply')
   };
 
   const state = {
@@ -203,6 +216,9 @@
     assignWorkSearchTimer: 0,
     assignWorkRequestVersion: 0,
     pendingLineDelete: null,
+    canDuplicateBetweenCompanies: false,
+    intercompanyPreview: null,
+    intercompanyClientTimer: 0,
     draftSequence: 0,
     ociPriceLocked: true,
     ociTargetMargin: 0,
@@ -397,6 +413,7 @@
     try {
       const payload = await getJson('/empresas');
       state.companies = payload.rows || [];
+      state.canDuplicateBetweenCompanies = Boolean(payload.can_duplicate_between_companies);
       const stored = window.localStorage.getItem('gr-budgets-feid');
       const preferredDatabase = (root.dataset.preferredDatabase || '').toUpperCase();
       const selected = state.companies.find((row) => String(row.feid) === initialBudget.feid)
@@ -2850,6 +2867,8 @@
     elements.document.disabled = navigationLocked || !state.budgets.length;
     elements.printBudget.disabled = navigationLocked || !state.detail || !selectedBudgetStamp() || !elements.company.value;
     elements.duplicateBudget.disabled = busy || !state.detail || !selectedBudgetStamp() || !elements.company.value;
+    elements.duplicateCompany.hidden = !state.canDuplicateBetweenCompanies;
+    elements.duplicateCompany.disabled = navigationLocked || !state.canDuplicateBetweenCompanies || !state.detail || !selectedBudgetStamp() || !elements.company.value;
     elements.finalPriceBudget.disabled = busy || !state.detail || !selectedBudgetStamp() || !elements.company.value || !budgetCanBeEdited();
     elements.discountBudget.disabled = busy || !state.detail || !selectedBudgetStamp() || !elements.company.value || !budgetCanBeEdited();
     elements.prorataBudget.disabled = busy || !state.detail || !selectedBudgetStamp() || !elements.company.value || !budgetCanBeEdited();
@@ -2924,6 +2943,192 @@
     renderDetail(draft);
     showDetailView();
     elements.clientSearch.focus();
+  }
+
+  function intercompanySelectionPayload() {
+    const selectedClient = String(elements.intercompanyClient?.value || '').split(':');
+    return {
+      source_feid: Number(elements.company.value || 0),
+      destination_feid: Number(elements.intercompanyDestination?.value || 0),
+      client_number: Number(selectedClient[0] || 0),
+      establishment: Number(selectedClient[1] || 0),
+      salesperson_number: Number(elements.intercompanySalesperson?.value || 0),
+      agency: String(elements.intercompanyAgency?.value || '')
+    };
+  }
+
+  function intercompanyBlockerText(blocker) {
+    const code = String(blocker?.code || 'unknown');
+    if (code === 'currency_mismatch') {
+      return tr('gr_budgets.intercompany.block_currency', {
+        source: blocker.source || '—', destination: blocker.destination || '—'
+      });
+    }
+    if (code === 'references_missing' || code === 'units_missing') {
+      return tr(`gr_budgets.intercompany.block_${code}`, { values: (blocker.values || []).join(', ') });
+    }
+    if (code === 'vat_missing') {
+      return tr('gr_budgets.intercompany.block_vat_missing', { rate: blocker.rate || 0 });
+    }
+    return tr(`gr_budgets.intercompany.block_${code}`);
+  }
+
+  function setIntercompanyClients(rows, selected) {
+    const select = elements.intercompanyClient;
+    const previous = select.value;
+    select.replaceChildren();
+    const empty = document.createElement('option');
+    empty.value = '';
+    empty.textContent = tr('gr_budgets.intercompany.client_unselected');
+    select.appendChild(empty);
+    (rows || []).forEach((row) => {
+      const option = document.createElement('option');
+      option.value = `${row.number || 0}:${row.establishment || 0}`;
+      option.textContent = `${row.number || ''} · ${row.name || '—'}${row.vat_number ? ` · ${row.vat_number}` : ''}`;
+      select.appendChild(option);
+    });
+    const selectedValue = selected ? `${selected.number || 0}:${selected.establishment || 0}` : previous;
+    if (selectedValue && Array.from(select.options).some((option) => option.value === selectedValue)) {
+      select.value = selectedValue;
+    }
+  }
+
+  function setIntercompanySalespeople(rows, selectedNumber) {
+    const select = elements.intercompanySalesperson;
+    const previous = select.value;
+    select.replaceChildren();
+    const empty = document.createElement('option');
+    empty.value = '';
+    empty.textContent = tr('gr_budgets.label.no_salesperson');
+    select.appendChild(empty);
+    (rows || []).forEach((row) => {
+      const option = document.createElement('option');
+      option.value = String(row.number || '');
+      option.textContent = `${row.name || row.number}${row.inactive ? ` · ${tr('gr_budgets.client.inactive')}` : ''}`;
+      select.appendChild(option);
+    });
+    const wanted = String(selectedNumber || previous || '');
+    if (wanted && Array.from(select.options).some((option) => option.value === wanted)) select.value = wanted;
+  }
+
+  function setIntercompanyAgencies(rows, selectedAgency) {
+    const agencies = rows || [];
+    elements.intercompanyAgencyField.hidden = !agencies.length;
+    elements.intercompanyAgency.replaceChildren();
+    if (!agencies.length) return;
+    const empty = document.createElement('option');
+    empty.value = '';
+    empty.textContent = tr('gr_budgets.intercompany.agency_unselected');
+    elements.intercompanyAgency.appendChild(empty);
+    agencies.forEach((agency) => {
+      const option = document.createElement('option');
+      option.value = agency;
+      option.textContent = agency;
+      elements.intercompanyAgency.appendChild(option);
+    });
+    if (selectedAgency && agencies.includes(selectedAgency)) elements.intercompanyAgency.value = selectedAgency;
+  }
+
+  function renderIntercompanyPreview(preview) {
+    state.intercompanyPreview = preview;
+    setIntercompanyClients(preview.clients || [], preview.selected_client);
+    setIntercompanySalespeople(preview.salespeople || [], preview.selected_salesperson_number);
+    setIntercompanyAgencies(preview.agencies || [], preview.selected_agency);
+    const blockers = preview.blockers || [];
+    const checks = blockers.length
+      ? blockers.map((blocker) => `<div class="gr-budget-intercompany-check is-error"><i class="fa-solid fa-circle-xmark" aria-hidden="true"></i><span>${escapeHtml(intercompanyBlockerText(blocker))}</span></div>`).join('')
+      : `<div class="gr-budget-intercompany-check is-ok"><i class="fa-solid fa-circle-check" aria-hidden="true"></i><span>${escapeHtml(tr('gr_budgets.intercompany.validation_ok'))}</span></div>`;
+    elements.intercompanyValidation.innerHTML = checks;
+    elements.intercompanyApply.disabled = !preview.can_execute || state.loadingCount > 0;
+  }
+
+  async function validateIntercompanyCopy() {
+    if (!selectedBudgetStamp() || !elements.intercompanyDestination.value) return;
+    elements.intercompanyError.hidden = true;
+    elements.intercompanyApply.disabled = true;
+    showLoading(true);
+    try {
+      const preview = await postJson(
+        `/orcamento/${encodeURIComponent(selectedBudgetStamp())}/duplicacao-interempresa/validar`,
+        intercompanySelectionPayload()
+      );
+      renderIntercompanyPreview(preview);
+    } catch (error) {
+      elements.intercompanyError.textContent = error.message;
+      elements.intercompanyError.hidden = false;
+    } finally {
+      showLoading(false);
+      if (state.intercompanyPreview) elements.intercompanyApply.disabled = !state.intercompanyPreview.can_execute;
+    }
+  }
+
+  async function openIntercompanyCopy() {
+    if (!state.canDuplicateBetweenCompanies || isEditing() || !state.detail || !selectedBudgetStamp()) return;
+    const destinations = state.companies.filter((row) => String(row.feid) !== String(elements.company.value));
+    setOptions(elements.intercompanyDestination, destinations, 'feid', (row) => row.name || row.phc_db, destinations[0]?.feid);
+    elements.intercompanyClientSearch.value = '';
+    setIntercompanyClients([], null);
+    setIntercompanySalespeople([], 0);
+    setIntercompanyAgencies([], '');
+    elements.intercompanySource.textContent = tr('gr_budgets.intercompany.source_summary', {
+      company: state.detail.company?.name || state.detail.company?.phc_db || '—',
+      series: state.detail.header?.series || '—',
+      number: state.detail.header?.number || '—'
+    });
+    elements.intercompanyValidation.replaceChildren();
+    elements.intercompanyError.hidden = true;
+    state.intercompanyPreview = null;
+    elements.intercompanyCopy.classList.add('sz_is_open');
+    elements.intercompanyCopy.setAttribute('aria-hidden', 'false');
+    await validateIntercompanyCopy();
+  }
+
+  function closeIntercompanyCopy() {
+    window.clearTimeout(state.intercompanyClientTimer);
+    state.intercompanyPreview = null;
+    elements.intercompanyCopy.classList.remove('sz_is_open');
+    elements.intercompanyCopy.setAttribute('aria-hidden', 'true');
+    elements.duplicateCompany?.focus();
+  }
+
+  async function searchIntercompanyClients() {
+    const query = elements.intercompanyClientSearch.value.trim();
+    if (query.length < 2 || !elements.intercompanyDestination.value) return;
+    try {
+      const payload = await getJson('/clientes', {
+        feid: elements.intercompanyDestination.value,
+        q: query
+      });
+      setIntercompanyClients(payload.rows || [], null);
+    } catch (error) {
+      elements.intercompanyError.textContent = error.message;
+      elements.intercompanyError.hidden = false;
+    }
+  }
+
+  async function applyIntercompanyCopy() {
+    if (!state.intercompanyPreview?.can_execute || state.loadingCount) return;
+    const sourceStamp = selectedBudgetStamp();
+    const destinationFeid = String(elements.intercompanyDestination.value);
+    showLoading(true);
+    elements.intercompanyError.hidden = true;
+    try {
+      const saved = await postJson(
+        `/orcamento/${encodeURIComponent(sourceStamp)}/duplicacao-interempresa`,
+        intercompanySelectionPayload()
+      );
+      closeIntercompanyCopy();
+      elements.company.value = destinationFeid;
+      if (saved.year) elements.year.value = String(saved.year);
+      await loadSeries();
+      if (saved.year) elements.year.value = String(saved.year);
+      await loadBudgets(saved.bostamp, true);
+    } catch (error) {
+      elements.intercompanyError.textContent = error.message;
+      elements.intercompanyError.hidden = false;
+    } finally {
+      showLoading(false);
+    }
   }
 
   function startDuplicateBudget() {
@@ -3108,10 +3313,35 @@
   elements.markLost.addEventListener('click', openBudgetLoss);
   elements.printBudget.addEventListener('click', printBudget);
   elements.duplicateBudget.addEventListener('click', startDuplicateBudget);
+  elements.duplicateCompany?.addEventListener('click', openIntercompanyCopy);
   elements.finalPriceBudget.addEventListener('click', () => openCommercialAdjustment('final'));
   elements.discountBudget.addEventListener('click', () => openCommercialAdjustment('discount'));
   elements.prorataBudget.addEventListener('click', () => openCommercialAdjustment('prorata'));
   elements.applyVatBudget.addEventListener('click', openVatApply);
+  elements.intercompanyDestination?.addEventListener('change', () => {
+    elements.intercompanyClientSearch.value = '';
+    setIntercompanyClients([], null);
+    validateIntercompanyCopy();
+  });
+  elements.intercompanyValidate?.addEventListener('click', validateIntercompanyCopy);
+  elements.intercompanyClient?.addEventListener('change', validateIntercompanyCopy);
+  elements.intercompanySalesperson?.addEventListener('change', () => {
+    state.intercompanyPreview = null;
+    elements.intercompanyApply.disabled = true;
+  });
+  elements.intercompanyAgency?.addEventListener('change', () => {
+    state.intercompanyPreview = null;
+    elements.intercompanyApply.disabled = true;
+  });
+  elements.intercompanyClientSearch?.addEventListener('input', () => {
+    window.clearTimeout(state.intercompanyClientTimer);
+    state.intercompanyClientTimer = window.setTimeout(searchIntercompanyClients, 300);
+  });
+  elements.intercompanyApply?.addEventListener('click', applyIntercompanyCopy);
+  root.querySelectorAll('[data-intercompany-close]').forEach((button) => button.addEventListener('click', closeIntercompanyCopy));
+  elements.intercompanyCopy?.addEventListener('click', (event) => {
+    if (event.target === elements.intercompanyCopy) closeIntercompanyCopy();
+  });
   elements.newBudget.addEventListener('click', startNewBudget);
   elements.editBudget.addEventListener('click', startEditBudget);
   elements.cancelEdit.addEventListener('click', cancelEdit);

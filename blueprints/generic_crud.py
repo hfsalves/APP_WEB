@@ -130,6 +130,17 @@ def _sync_opc_external_planning_to_master(record_stamp: str, enabled: bool) -> N
     env = get_legacy_environment()
     with env.database.connect() as conn:
         cursor = conn.cursor()
+        source_row = cursor.execute(
+            """
+            SELECT TOP 1 CAST(ISNULL(U_PLANEXT, 0) AS int) AS U_PLANEXT
+              FROM dbo.OPC WITH (UPDLOCK, HOLDLOCK)
+             WHERE LTRIM(RTRIM(OPCSTAMP)) = ?
+            """,
+            (stamp,),
+        ).fetchone()
+        if not source_row:
+            raise ValueError('Obra não encontrada na fonte de planeamento.')
+
         cursor.execute(
             """
             UPDATE dbo.OPC
@@ -138,8 +149,16 @@ def _sync_opc_external_planning_to_master(record_stamp: str, enabled: bool) -> N
             """,
             (1 if enabled else 0, stamp),
         )
-        if cursor.rowcount != 1:
-            raise ValueError('Obra não encontrada na fonte de planeamento.')
+        saved_row = cursor.execute(
+            """
+            SELECT TOP 1 CAST(ISNULL(U_PLANEXT, 0) AS int) AS U_PLANEXT
+              FROM dbo.OPC
+             WHERE LTRIM(RTRIM(OPCSTAMP)) = ?
+            """,
+            (stamp,),
+        ).fetchone()
+        if not saved_row or bool(saved_row[0]) != bool(enabled):
+            raise RuntimeError('Não foi possível atualizar o planeamento externo da obra.')
         conn.commit()
 
 # --------------------------------------------------

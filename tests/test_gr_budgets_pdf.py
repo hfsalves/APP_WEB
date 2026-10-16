@@ -727,6 +727,47 @@ class BudgetPdfTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json()["bostamp"], "NEW-STAMP")
 
+    def test_intercompany_copy_is_exposed_only_with_server_capability(self):
+        root = Path(__file__).resolve().parents[1]
+        template = (root / "modules/gr_budgets/templates/gr_budgets/budgets.html").read_text(encoding="utf-8")
+        script = (root / "modules/gr_budgets/static/gr_budgets.js").read_text(encoding="utf-8")
+
+        self.assertIn('id="budgetDuplicateCompany"', template)
+        self.assertIn('id="budgetIntercompanyCopy"', template)
+        self.assertIn("payload.can_duplicate_between_companies", script)
+        self.assertIn("elements.duplicateCompany.hidden = !state.canDuplicateBetweenCompanies", script)
+        self.assertIn("/duplicacao-interempresa/validar`,", script)
+        self.assertIn("/duplicacao-interempresa`,", script)
+
+    def test_intercompany_copy_endpoint_rechecks_permission_and_audits_creation(self):
+        app = Flask(__name__)
+        user = SimpleNamespace(ADMIN=False, DEV=False, LOGIN="codex")
+        result = {
+            "bostamp": "DEST-STAMP",
+            "feid": 2,
+            "ndos": 15,
+            "number": 101,
+            "year": 2026,
+            "source_feid": 1,
+            "source_bostamp": "SOURCE-STAMP",
+        }
+        payload = {"source_feid": 1, "destination_feid": 2, "client_number": 10}
+        with app.test_request_context(
+            "/api/gr_orcamentos/orcamento/SOURCE-STAMP/duplicacao-interempresa",
+            method="POST",
+            json=payload,
+        ):
+            with patch.object(budget_routes, "current_user", user), \
+                    patch.object(budget_routes, "_can_duplicate_between_companies", return_value=True), \
+                    patch.object(budget_routes, "duplicate_budget_between_companies", return_value=result) as duplicate, \
+                    patch.object(budget_routes, "audit_table_write") as audit:
+                response = budget_routes.api_budget_intercompany_copy.__wrapped__("SOURCE-STAMP")
+
+        duplicate.assert_called_once_with(payload, "SOURCE-STAMP", user)
+        audit.assert_called_once()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["bostamp"], "DEST-STAMP")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -24,14 +24,17 @@ from .service import (
     list_budgets,
     render_budget_pdf_html,
     decorate_budget_browser_pdf,
+    duplicate_budget_between_companies,
     save_budget,
     search_budget_works,
     set_budget_approval,
     list_companies_for_user,
     mark_budget_as_lost,
+    preview_budget_intercompany_copy,
     search_budget_clients,
 )
 from services.ft_pdf_service import generate_ft_pdf_bytes, generate_ft_pdf_bytes_xhtml2pdf
+from services.gr360_audit_service import audit_table_write
 
 
 bp = Blueprint(
@@ -82,6 +85,8 @@ _BUDGET_ERROR_KEYS = {
     "Selecione uma obra existente.": "gr_budgets.error.work_required",
     "A obra selecionada não está disponível nesta empresa.": "gr_budgets.error.work_unavailable",
     "Não foi possível determinar o processo PHC da obra.": "gr_budgets.error.work_process_unavailable",
+    "Selecione uma empresa de destino diferente da empresa de origem.": "gr_budgets.error.copy_company_same",
+    "A duplicação não pode ser concluída enquanto existirem validações por resolver.": "gr_budgets.error.copy_validation_pending",
 }
 
 
@@ -148,6 +153,15 @@ def _has_write_acl(creating: bool) -> bool:
     return any(bool(getattr(row, field, False)) for row in rows)
 
 
+def _can_duplicate_between_companies() -> bool:
+    if not _has_write_acl(True):
+        return False
+    try:
+        return len(list_companies_for_user(current_user)) >= 2
+    except Exception:
+        return False
+
+
 def _forbidden(api: bool = True):
     message = translate("gr_budgets.error.forbidden_consult")
     return (jsonify({"error": message}), 403) if api else (message, 403)
@@ -192,7 +206,11 @@ def api_companies():
     if not _has_acl():
         return _forbidden()
     try:
-        return jsonify({"ok": True, "rows": list_companies_for_user(current_user)})
+        return jsonify({
+            "ok": True,
+            "rows": list_companies_for_user(current_user),
+            "can_duplicate_between_companies": _can_duplicate_between_companies(),
+        })
     except Exception as exc:
         return _handle_error(exc)
 
@@ -332,6 +350,72 @@ def api_save_budget():
     try:
         return jsonify({"ok": True, **save_budget(payload, current_user)})
     except Exception as exc:
+        return _handle_error(exc)
+
+
+@bp.route("/api/gr_orcamentos/orcamento/<bostamp>/duplicacao-interempresa/validar", methods=["POST"])
+@login_required
+def api_preview_budget_intercompany_copy(bostamp):
+    if not _can_duplicate_between_companies():
+        return jsonify({"error": translate("gr_budgets.error.forbidden_intercompany_copy")}), 403
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify({
+            "ok": True,
+            **preview_budget_intercompany_copy(payload, bostamp, current_user),
+        })
+    except Exception as exc:
+        return _handle_error(exc)
+
+
+@bp.route("/api/gr_orcamentos/orcamento/<bostamp>/duplicacao-interempresa", methods=["POST"])
+@login_required
+def api_budget_intercompany_copy(bostamp):
+    if not _can_duplicate_between_companies():
+        return jsonify({"error": translate("gr_budgets.error.forbidden_intercompany_copy")}), 403
+    payload = request.get_json(silent=True) or {}
+    try:
+        result = duplicate_budget_between_companies(payload, bostamp, current_user)
+        audit_table_write(
+            table_name="BO",
+            action="INSERT",
+            record_key={"BOSTAMP": result.get("bostamp"), "FEID": result.get("feid")},
+            after_data={
+                "BOSTAMP": result.get("bostamp"),
+                "FEID": result.get("feid"),
+                "NDOS": result.get("ndos"),
+                "OBRANO": result.get("number"),
+                "BOANO": result.get("year"),
+            },
+            metadata={
+                "source": "gr_budgets_intercompany_copy",
+                "source_feid": result.get("source_feid"),
+                "source_bostamp": result.get("source_bostamp"),
+            },
+            database_name="GR360_CORE",
+        )
+        return jsonify({"ok": True, **result})
+    except Exception as exc:
+        current_app.logger.exception(
+            "Falha ao duplicar orçamento entre empresas: bostamp=%s source_feid=%s destination_feid=%s utilizador=%s",
+            bostamp,
+            payload.get("source_feid"),
+            payload.get("destination_feid"),
+            getattr(current_user, "LOGIN", ""),
+        )
+        audit_table_write(
+            table_name="BO",
+            action="INSERT",
+            record_key={"SOURCE_BOSTAMP": bostamp},
+            status="failure",
+            error_message=str(exc),
+            metadata={
+                "source": "gr_budgets_intercompany_copy",
+                "source_feid": payload.get("source_feid"),
+                "destination_feid": payload.get("destination_feid"),
+            },
+            database_name="GR360_CORE",
+        )
         return _handle_error(exc)
 
 

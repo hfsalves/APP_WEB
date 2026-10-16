@@ -79,5 +79,18 @@ WHERE ISNULL(U.INATIVO, 0) = 0
         AND LTRIM(RTRIM(ISNULL(L.URL, ''))) = '/ponto/resumo-mensal'
   );
 
+/* Corrige também atalhos já existentes que tenham herdado o nome português do MENU. */
+UPDATE L
+   SET TEXTO = CASE LTRIM(RTRIM(ISNULL(L.URL, '')))
+       WHEN '/ponto/registo' THEN 'Pointage journalier'
+       WHEN '/ponto/resumo-mensal' THEN 'Résumé mensuel du pointage'
+   END
+FROM dbo.DBWL L
+INNER JOIN dbo.DBW W ON W.DBWSTAMP = L.DBWSTAMP
+INNER JOIN dbo.DBWU UW ON UW.DBWSTAMP = W.DBWSTAMP
+INNER JOIN dbo.US U ON U.USSTAMP = UW.USRSTAMP
+WHERE ISNULL(U.PONTO, 0) = 1
+  AND LTRIM(RTRIM(ISNULL(L.URL, ''))) IN ('/ponto/registo', '/ponto/resumo-mensal');
+
 COMMIT TRANSACTION;
 GO

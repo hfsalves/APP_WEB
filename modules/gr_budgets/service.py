@@ -814,8 +814,8 @@ def get_budget_detail(feid: Any, bostamp: str, user) -> dict[str, Any]:
             f"""
             SELECT
                 B.BOSTAMP, B.NMDOS, B.NDOS, B.OBRANO, B.BOANO, B.DATAOBRA,
-                B.NO, B.ESTAB, B.NOME, B.TRAB1, B.OBRANOME, B.LOCAL, B.MORADA,
-                B.CODPOST, B.VENDEDOR, B.VENDNM, B.SERIE, B.ZONA, B.NOPAT,
+                B.NO, B.ESTAB, B.NOME, B.NCONT, B.TRAB1, B.OBRANOME, B.LOCAL, B.MORADA,
+                B.CODPOST, B.VENDEDOR, B.VENDNM, B.SERIE, B.ZONA, B.NOPAT, B.MAQUINA,
                 B.MOEDA, B.ETOTALDEB, B.ECUSTO, B.APROVADO, B.FECHADA, B.OBS, B.FREF,
                 B.CCUSTO, B.COBRANCA, B.TECNICO, B.TECNNM,
                 B.USRDATA AS BO_USRDATA, B.USRHORA AS BO_USRHORA,
@@ -851,6 +851,9 @@ def get_budget_detail(feid: Any, bostamp: str, user) -> dict[str, Any]:
                 I.BOSTAMP, I.BISTAMP, I.LORDEM, I.LITEM, I.REF, I.DESIGN, I.DGERAL,
                 I.DESCONTO, I.DESC2, I.EDEBITO, I.ETTDEB, I.IVA, I.TABIVA,
                 I.QTT, I.EPCUSTO, I.ECUSTOIND, I.TEMOCI, I.UNIDADE,
+                {_optional_column(bi_columns, 'I', 'FAMILIA', 'FAMILIA', "''")},
+                {_optional_column(bi_columns, 'I', 'U_FORMULA', 'U_FORMULA', "''")},
+                {_optional_column(bi_columns, 'I', 'U_ITEMALT', 'U_ITEMALT', "''")},
                 {_optional_column(bi_columns, 'I', 'U_ESPESS', 'U_ESPESS', '0')},
                 {_optional_column(bi_columns, 'I', 'U_COEF', 'U_COEF', '0')},
                 {_optional_column(bi_columns, 'I', 'U_CONSUMO', 'U_CONSUMO', '0')},
@@ -978,11 +981,13 @@ def _header_payload(row: dict[str, Any], company: dict[str, Any]) -> dict[str, A
     return {
         **_budget_summary(row, company),
         "establishment": int(_number_value(row.get("ESTAB"))),
+        "client_vat_number": _text_value(row.get("NCONT")),
         "address": _text_value(row.get("MORADA")),
         "postal_code": _text_value(row.get("CODPOST")),
         "place": _text_value(row.get("LOCAL")),
         "salesperson_number": int(_number_value(row.get("VENDEDOR"))),
         "attention": _text_value(row.get("SERIE")),
+        "agency": _text_value(row.get("MAQUINA")),
         "zone": _text_value(row.get("ZONA")),
         "contact_number": int(_number_value(row.get("NOPAT"))),
         "margin_percentage": _percent(row.get("U_MARGEM")),
@@ -1031,6 +1036,9 @@ def _line_payload(row: dict[str, Any]) -> dict[str, Any]:
         "print_quantity": _qty(print_quantity),
         "surface": _qty(quantity),
         "unit": _text_value(row.get("UNIDADE")),
+        "family": _text_value(row.get("FAMILIA")),
+        "u_formula": _text_value(row.get("U_FORMULA")),
+        "u_itemalt": _text_value(row.get("U_ITEMALT")),
         "unit_cost": _qty(unit_cost),
         "indirect_cost": _qty(row.get("ECUSTOIND")),
         "cost_total": _qty(cost_total),
@@ -2746,6 +2754,323 @@ def _line_technical_rows(line: dict[str, Any]) -> list[dict[str, Any]]:
     return [row for row in (rows or []) if isinstance(row, dict)]
 
 
+_INTERCOMPANY_SPECIAL_REFERENCES = frozenset({"", "PP", "ZZ", "PVL", "MVL", "XZ"})
+
+
+def _intercompany_destination_clients(
+    cursor,
+    source_header: dict[str, Any],
+    selected_number: Any = 0,
+    selected_establishment: Any = 0,
+) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
+    """Resolve destination clients without ever trusting the source CL stamp/number."""
+    columns = _phc_columns(cursor, "CL")
+    tax_rates = {
+        int(_number_value(row.get("tabiva"))): _decimal(row.get("taxaiva"))
+        for row in _phc_tax_rates(cursor)
+        if int(_number_value(row.get("tabiva"))) > 0
+    }
+    number = int(_number_value(selected_number))
+    establishment = int(_number_value(selected_establishment))
+    params: tuple[Any, ...]
+    predicate: str
+    if number > 0:
+        predicate = "CL.NO = ? AND CL.ESTAB = ?"
+        params = (number, establishment)
+    else:
+        vat_number = _text_value(source_header.get("client_vat_number"))
+        client_name = _text_value(source_header.get("client_name"))
+        predicate = "CL.ESTAB = 0 AND ((? <> '' AND LTRIM(RTRIM(ISNULL(CL.NCONT, ''))) = ?) OR UPPER(LTRIM(RTRIM(ISNULL(CL.NOME, '')))) = UPPER(?))"
+        params = (vat_number, vat_number, client_name)
+    rows = _fetch_rows(
+        cursor,
+        f"""
+        SELECT TOP 30 CL.CLSTAMP, CL.NO, CL.ESTAB, CL.NOME, CL.NCONT,
+               CL.MORADA, CL.LOCAL, CL.CODPOST, CL.CONTACTO, CL.EMAIL,
+               CL.TELEFONE, CL.VENDEDOR, CL.VENDNM,
+               {_optional_column(columns, 'CL', 'TABIVA', 'VAT_TABLE', '0')}
+        FROM dbo.CL CL
+        WHERE ISNULL(CL.INACTIVO, 0) = 0 AND {predicate}
+        ORDER BY CASE WHEN CL.ESTAB = 0 THEN 0 ELSE 1 END, CL.NOME, CL.NO, CL.ESTAB
+        """,
+        params,
+    )
+    clients = [_client_payload(row, tax_rates) for row in rows]
+    selected = clients[0] if clients else None
+    return clients, selected
+
+
+def _intercompany_destination_salespeople(cursor) -> list[dict[str, Any]]:
+    columns = _phc_columns(cursor, "CM3")
+    if not columns:
+        return []
+    rows = _fetch_rows(
+        cursor,
+        f"""
+        SELECT CM3STAMP, CM, CMDESC,
+               {_optional_column(columns, 'C', 'NOME', 'NOME', "''")},
+               {_optional_column(columns, 'C', 'INACTIVO', 'INACTIVO', '0')}
+        FROM dbo.CM3 C
+        WHERE LTRIM(RTRIM(ISNULL(CMDESC, ''))) <> ''
+        ORDER BY ISNULL(INACTIVO, 0), CMDESC, CM
+        """,
+        (),
+    )
+    return [_salesperson_payload(row) for row in rows]
+
+
+def _intercompany_copy_preview(
+    payload: dict[str, Any],
+    bostamp: str,
+    user,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    source_feid = payload.get("source_feid")
+    destination_feid = payload.get("destination_feid")
+    source_company = _company_for_user(source_feid, user)
+    destination_company = _company_for_user(destination_feid, user)
+    if int(_number_value(source_company.get("feid"))) == int(_number_value(destination_company.get("feid"))):
+        raise BudgetsValidationError("Selecione uma empresa de destino diferente da empresa de origem.")
+
+    source = get_budget_detail(source_feid, bostamp, user)
+    source_header = source.get("header") or {}
+    blockers: list[dict[str, Any]] = []
+    warnings: list[dict[str, Any]] = []
+
+    with pyodbc.connect(
+        _phc_conn_str(destination_company["phc_db"], destination_company.get("phc_server", "")),
+        timeout=20,
+    ) as conn:
+        cursor = conn.cursor()
+        series = next((row for row in _series_rows(cursor) if _series_name_key(row.get("name")) == "devis"), None)
+        if not series:
+            blockers.append({"code": "series_missing"})
+
+        clients, selected_client = _intercompany_destination_clients(
+            cursor,
+            source_header,
+            payload.get("client_number"),
+            payload.get("establishment"),
+        )
+        if not selected_client:
+            blockers.append({"code": "client_missing"})
+
+        salespeople = _intercompany_destination_salespeople(cursor)
+        requested_salesperson = int(_number_value(payload.get("salesperson_number")))
+        selected_salesperson = next(
+            (row for row in salespeople if int(row.get("number") or 0) == requested_salesperson),
+            None,
+        ) if requested_salesperson else None
+        if requested_salesperson and not selected_salesperson:
+            blockers.append({"code": "salesperson_missing"})
+        if not selected_salesperson:
+            source_name = _series_name_key(source_header.get("salesperson"))
+            selected_salesperson = next(
+                (row for row in salespeople if not row.get("inactive") and _series_name_key(row.get("name")) == source_name),
+                None,
+            )
+        if not selected_salesperson and selected_client:
+            client_salesperson = int(_number_value(selected_client.get("salesperson_number")))
+            selected_salesperson = next(
+                (row for row in salespeople if not row.get("inactive") and int(row.get("number") or 0) == client_salesperson),
+                None,
+            )
+
+        agencies: list[str] = []
+        selected_agency = ""
+        if _text_value(destination_company.get("phc_db")).casefold() == "intersol":
+            agencies = sorted({agency for values in INTERSOL_AGENCY_BUDGET_SALESPERSONS.values() for agency in values})
+            requested_agency = _text_value(payload.get("agency"))
+            source_agency = _text_value(source_header.get("agency"))
+            selected_agency = requested_agency if requested_agency in agencies else (source_agency if source_agency in agencies else "")
+            if not selected_agency:
+                blockers.append({"code": "agency_missing"})
+
+        source_currency = _currency_code(source_header.get("currency"), source_company)
+        destination_currency = _currency_code(destination_company.get("currency"), destination_company)
+        if source_currency != destination_currency:
+            blockers.append({
+                "code": "currency_mismatch",
+                "source": source_currency,
+                "destination": destination_currency,
+            })
+
+        line_references = {
+            _text_value(line.get("reference")).upper()
+            for line in source.get("lines") or []
+            if _text_value(line.get("reference")).upper() not in _INTERCOMPANY_SPECIAL_REFERENCES
+        }
+        component_references = {
+            _text_value(row.get("reference")).upper()
+            for line in source.get("lines") or []
+            for row in _line_technical_rows(line)
+            if _text_value(row.get("reference")).upper() not in _INTERCOMPANY_SPECIAL_REFERENCES
+        }
+        required_references = sorted(line_references | component_references)
+        available_references: set[str] = set()
+        if required_references and _phc_columns(cursor, "ST"):
+            placeholders = ", ".join("?" for _ in required_references)
+            available_references = {
+                _text_value(row.get("REF")).upper()
+                for row in _fetch_rows(
+                    cursor,
+                    f"SELECT REF FROM dbo.ST WHERE UPPER(LTRIM(RTRIM(REF))) IN ({placeholders})",
+                    tuple(required_references),
+                )
+            }
+        missing_references = sorted(set(required_references) - available_references)
+        if missing_references:
+            blockers.append({"code": "references_missing", "values": missing_references})
+
+        configured_units: set[str] = set()
+        if _phc_columns(cursor, "DYTABLE"):
+            configured_units = {
+                _series_name_key(row.get("CAMPO"))
+                for row in _fetch_rows(
+                    cursor,
+                    """
+                    SELECT DISTINCT CAMPO FROM dbo.DYTABLE
+                    WHERE UPPER(LTRIM(RTRIM(ISNULL(ENTITYNAME, '')))) = 'ST_UNIDADE'
+                      AND LTRIM(RTRIM(ISNULL(CAMPO, ''))) <> ''
+                    """,
+                    (),
+                )
+            }
+        source_units = {
+            _text_value(value)
+            for line in source.get("lines") or []
+            for value in [line.get("unit"), *[row.get("unit") for row in _line_technical_rows(line)]]
+            if _text_value(value)
+        }
+        missing_units = sorted(unit for unit in source_units if configured_units and _series_name_key(unit) not in configured_units)
+        if missing_units:
+            blockers.append({"code": "units_missing", "values": missing_units})
+
+        target_tax_rates = _tax_rate_rows(cursor)
+        vat_mappings: list[dict[str, Any]] = []
+        seen_vat: set[tuple[int, str]] = set()
+        for line in source.get("lines") or []:
+            source_table = int(_number_value(line.get("vat_table")))
+            source_rate = _decimal(line.get("vat_rate")).quantize(Decimal("0.0001"))
+            key = (source_table, str(source_rate))
+            if key in seen_vat:
+                continue
+            seen_vat.add(key)
+            target_rate = next(
+                (row for row in target_tax_rates if _decimal(row.get("rate")).quantize(Decimal("0.0001")) == source_rate),
+                None,
+            )
+            if not target_rate:
+                blockers.append({"code": "vat_missing", "rate": _percent(source_rate)})
+                continue
+            vat_mappings.append({
+                "source_table": source_table,
+                "source_rate": _percent(source_rate),
+                "destination_table": int(target_rate.get("table") or 0),
+                "destination_rate": _percent(target_rate.get("rate")),
+            })
+
+    preview = {
+        "source": {
+            "feid": int(_number_value(source_company.get("feid"))),
+            "company": source_company.get("name") or source_company.get("phc_db"),
+            "number": source_header.get("number"),
+            "series": source_header.get("series"),
+            "client": source_header.get("client_name"),
+            "total": source.get("totals", {}).get("total", 0),
+            "currency": source_header.get("currency"),
+        },
+        "destination": destination_company,
+        "series": series,
+        "clients": clients,
+        "selected_client": selected_client,
+        "salespeople": salespeople,
+        "selected_salesperson_number": int((selected_salesperson or {}).get("number") or 0),
+        "agencies": agencies,
+        "selected_agency": selected_agency,
+        "missing_references": missing_references,
+        "missing_units": missing_units,
+        "vat_mappings": vat_mappings,
+        "blockers": blockers,
+        "warnings": warnings,
+        "can_execute": not blockers,
+    }
+    return preview, source
+
+
+def preview_budget_intercompany_copy(payload: dict[str, Any], bostamp: str, user) -> dict[str, Any]:
+    preview, _source = _intercompany_copy_preview(payload, bostamp, user)
+    return preview
+
+
+def duplicate_budget_between_companies(payload: dict[str, Any], bostamp: str, user) -> dict[str, Any]:
+    """Create a clean Devis in another accessible company through the normal writer."""
+    preview, source = _intercompany_copy_preview(payload, bostamp, user)
+    if not preview.get("can_execute"):
+        raise BudgetsValidationError("A duplicação não pode ser concluída enquanto existirem validações por resolver.")
+    client = preview.get("selected_client") or {}
+    series = preview.get("series") or {}
+    mapping_by_rate = {
+        str(_decimal(row.get("source_rate")).quantize(Decimal("0.0001"))): row
+        for row in preview.get("vat_mappings") or []
+    }
+    copied_lines: list[dict[str, Any]] = []
+    for source_line in source.get("lines") or []:
+        line = dict(source_line)
+        line["bistamp"] = ""
+        line["budget_stamp"] = ""
+        line["approved"] = False
+        line["disapproved"] = False
+        vat_mapping = mapping_by_rate.get(str(_decimal(line.get("vat_rate")).quantize(Decimal("0.0001"))))
+        if vat_mapping:
+            line["vat_table"] = vat_mapping.get("destination_table")
+            line["vat_rate"] = vat_mapping.get("destination_rate")
+        technical_rows = []
+        for source_row in _line_technical_rows(source_line):
+            row = dict(source_row)
+            row["stamp"] = ""
+            row["budget_stamp"] = ""
+            row["line_stamp"] = ""
+            technical_rows.append(row)
+        line["technical_lines"] = technical_rows
+        copied_lines.append(line)
+
+    source_header = source.get("header") or {}
+    destination_company = preview.get("destination") or {}
+    save_payload = {
+        "feid": destination_company.get("feid"),
+        "bostamp": "",
+        "ndos": series.get("ndos"),
+        "header": {
+            "client_number": client.get("number"),
+            "establishment": client.get("establishment", 0),
+            "work_name": source_header.get("work_name"),
+            "locality": source_header.get("locality"),
+            "address": source_header.get("address"),
+            "postal_code": source_header.get("postal_code"),
+            "place": source_header.get("place"),
+            "date": date.today().isoformat(),
+            "salesperson_number": preview.get("selected_salesperson_number", 0),
+            "attention": source_header.get("attention"),
+            "observations": source_header.get("observations"),
+            "reference": source_header.get("reference"),
+            "agency": preview.get("selected_agency", ""),
+            "currency": _currency_code(destination_company.get("currency"), destination_company),
+            "process": "",
+            "area": "",
+            "cost_center": "",
+        },
+        "lines": copied_lines,
+    }
+    saved = save_budget(save_payload, user)
+    return {
+        **saved,
+        "ndos": int(_number_value(series.get("ndos"))),
+        "feid": int(_number_value(destination_company.get("feid"))),
+        "source_feid": preview.get("source", {}).get("feid"),
+        "source_bostamp": _text_value(bostamp),
+    }
+
+
 def save_budget(payload: dict[str, Any], user) -> dict[str, Any]:
     """Create or update a PHC Devis and all of its dependent records atomically."""
     if not isinstance(payload, dict):
@@ -3032,6 +3357,12 @@ def save_budget(payload: dict[str, Any], user) -> dict[str, Any]:
                 "usrdata": audit_date,
                 "usrhora": audit_time,
             }
+            if "agency" in header:
+                bo_values["maquina"] = _limited(header.get("agency"), bo_lengths, "maquina")
+            if "observations" in header:
+                bo_values["obs"] = _limited(header.get("observations"), bo_lengths, "obs")
+            if "reference" in header:
+                bo_values["fref"] = _limited(header.get("reference"), bo_lengths, "fref")
             if creating:
                 bo_values.update(
                     {
@@ -3364,6 +3695,7 @@ __all__ = [
     "BudgetsError",
     "assign_budget_work",
     "convert_budget_to_execution",
+    "duplicate_budget_between_companies",
     "mark_budget_as_lost",
     "get_budget_detail",
     "get_budget_line_oci",
@@ -3372,6 +3704,7 @@ __all__ = [
     "get_budget_technical_options",
     "list_budgets",
     "list_companies_for_user",
+    "preview_budget_intercompany_copy",
     "save_budget",
     "search_budget_works",
     "set_budget_approval",
