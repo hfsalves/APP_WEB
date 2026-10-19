@@ -332,6 +332,10 @@
       </div>
       <div class="sz_contextbar_right">
         <div class="client-reservations-toolbar">
+          <a class="sz_button sz_button_primary" href="{{ url_for('client_calendar.calendar_page') }}">
+            <i class="fa-regular fa-calendar-days"></i>
+            <span>Calendário</span>
+          </a>
           <input id="clientReservationsFrom" class="sz_input" type="date" aria-label="Data inicial">
           <input id="clientReservationsTo" class="sz_input" type="date" aria-label="Data final">
           <select id="clientReservationsLodge" class="sz_select client-reservations-lodge" aria-label="Alojamento">

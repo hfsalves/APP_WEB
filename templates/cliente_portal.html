@@ -427,6 +427,10 @@
             </div>
 
             <div class="client-card-footer">
+              <a class="sz_button sz_button_primary" href="{{ url_for('client_calendar.calendar_page') }}">
+                <i class="fa-regular fa-calendar-days"></i>
+                <span>Calendário</span>
+              </a>
               <a class="sz_button sz_button_ghost" href="{{ url_for('cliente_reservas_page') }}">
                 <i class="fa-solid fa-list"></i>
                 <span>Ver mais</span>
@@ -476,6 +480,10 @@
               </div>
             </div>
             <div class="client-shortcuts">
+              <a class="sz_button sz_button_ghost client-shortcut-button" href="{{ url_for('client_calendar.calendar_page') }}">
+                <i class="fa-regular fa-calendar-days"></i>
+                <span>Calendário</span>
+              </a>
               <a class="sz_button sz_button_ghost client-shortcut-button" href="{{ url_for('cliente_documentos_page') }}">
                 <i class="fa-solid fa-file-lines"></i>
                 <span>Documentos</span>

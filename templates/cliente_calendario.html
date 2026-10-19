@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block title %}Calendário de Reservas{% endblock %}
+
+{% block extra_head %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/cliente_calendario.css') }}?v={{ static_version }}">
+{% endblock %}
+
+{% block content %}
+<div class="sz_page client-calendar-page" id="clientCalendar"
+     data-api-url="{{ url_for('client_calendar.calendar_data') }}"
+     data-initial-month="{{ initial_month }}">
+  <div class="sz_page_container">
+    <header class="sz_contextbar sz_page_contextbar client-calendar-contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_page_title">Calendário de reservas</div>
+        <div class="sz_page_subtitle">Reservas do alojamento, mês a mês.</div>
+      </div>
+      <form class="sz_contextbar_right client-calendar-controls" id="clientCalendarFilters">
+        <label class="sz_field client-calendar-lodging-field" id="clientCalendarLodgingField">
+          <span class="sz_label">Alojamento</span>
+          <select class="sz_select" id="clientCalendarLodging" name="alojamento"></select>
+        </label>
+        <label class="sz_field">
+          <span class="sz_label">Mês</span>
+          <input class="sz_input" id="clientCalendarStart" name="start" type="month" value="{{ initial_month }}">
+        </label>
+        <label class="sz_checkbox client-calendar-cancelled-filter">
+          <input id="clientCalendarCancelled" type="checkbox">
+          <span>Canceladas</span>
+        </label>
+        <div class="client-calendar-actions">
+          <button class="sz_button sz_button_ghost client-calendar-icon-button" id="clientCalendarPrevious" type="button" title="Mês anterior" aria-label="Mês anterior">
+            <i class="fa-solid fa-chevron-left"></i>
+          </button>
+          <button class="sz_button sz_button_ghost" id="clientCalendarToday" type="button">
+            <i class="fa-regular fa-calendar-check"></i><span>Hoje</span>
+          </button>
+          <button class="sz_button sz_button_ghost client-calendar-icon-button" id="clientCalendarNext" type="button" title="Mês seguinte" aria-label="Mês seguinte">
+            <i class="fa-solid fa-chevron-right"></i>
+          </button>
+          <button class="sz_button sz_button_primary" type="submit">
+            <i class="fa-solid fa-rotate"></i><span>Atualizar</span>
+          </button>
+        </div>
+        <div class="client-calendar-status" id="clientCalendarStatus" role="status"></div>
+      </form>
+    </header>
+
+    <section class="sz_page_body client-calendar-body">
+      <div class="client-calendar-legend" aria-label="Legenda">
+        <span><i class="client-calendar-swatch is-current"></i>Atual / futura</span>
+        <span><i class="client-calendar-swatch is-past"></i>Concluída</span>
+        <span><i class="client-calendar-swatch is-cancelled"></i>Cancelada</span>
+      </div>
+      <div class="sz_panel client-calendar-grid-panel">
+        <div class="client-calendar-grid" id="clientCalendarGrid"></div>
+        <div class="client-calendar-empty" id="clientCalendarEmpty" hidden>
+          <i class="fa-regular fa-calendar-xmark"></i>
+          <strong>Sem alojamentos associados</strong>
+          <span>Não existem alojamentos ativos disponíveis neste portal.</span>
+        </div>
+      </div>
+    </section>
+
+    <footer class="sz_actionbar sz_page_footer">
+      <div class="sz_actionbar_left"></div>
+      <div class="sz_actionbar_right">
+        <a class="sz_button sz_button_ghost" href="{{ url_for('cliente_reservas_page') }}">
+          <i class="fa-solid fa-list"></i><span>Ver lista</span>
+        </a>
+        <a class="sz_button sz_button_ghost" href="{{ url_for('cliente_portal_page') }}">
+          <i class="fa-solid fa-arrow-left"></i><span>Voltar</span>
+        </a>
+      </div>
+    </footer>
+  </div>
+</div>
+
+<div class="modal fade" id="clientCalendarDayModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content sz_panel client-calendar-modal">
+      <div class="modal-header sz_modal_header">
+        <div>
+          <h5 class="sz_modal_title" id="clientCalendarDayTitle">Detalhe do dia</h5>
+          <div class="sz_text_muted" id="clientCalendarDaySubtitle"></div>
+        </div>
+        <button class="sz_button sz_button_ghost" type="button" data-bs-dismiss="modal" aria-label="Fechar">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="modal-body sz_modal_body">
+        <div class="client-calendar-day-list" id="clientCalendarDayList"></div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script src="{{ url_for('static', filename='js/cliente_calendario.js') }}?v={{ static_version }}"></script>
+{% endblock %}

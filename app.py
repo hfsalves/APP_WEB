@@ -743,6 +743,9 @@ def create_app():
     with app.app_context():
         ensure_transfer_dashboard_menu()
 
+    from blueprints.client_reservations_calendar import bp as client_reservations_calendar_bp
+    app.register_blueprint(client_reservations_calendar_bp)
+
     from blueprints.predefined_messages import bp as predefined_messages_bp
     app.register_blueprint(predefined_messages_bp)
     from services.predefined_messages_service import ensure_predefined_messages_menu
