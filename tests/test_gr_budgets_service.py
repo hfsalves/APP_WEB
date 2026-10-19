@@ -163,6 +163,30 @@ class BudgetPayloadTests(unittest.TestCase):
         with patch("modules.gr_budgets.service._series_rows", return_value=series):
             self.assertEqual(_execution_series(object())["ndos"], 911)
 
+    def test_series_rows_accepts_hsols_de_ndos_122_without_oci(self):
+        german_series = {
+            "NDOS": 122,
+            "NMDOS": "Etude et Execution",
+            "QTTDEC": 3,
+            "PREDEC": 4,
+            "ORCAMENTO": 1,
+            "OCI": 0,
+            "ARMAZEM": 0,
+            "OCUPACAO": 4,
+            "TIPOSAFT": "--",
+            "IDSERIE": "BO",
+        }
+        with patch("modules.gr_budgets.service._fetch_rows", return_value=[german_series]) as fetch_rows:
+            rows = _series_rows(object(), {"phc_db": "HSOLS_DE"})
+
+        result = rows[0]
+
+        self.assertEqual(result["ndos"], 122)
+        self.assertEqual(result["name"], "Etude et Execution")
+        self.assertFalse(result["uses_oci"])
+        self.assertEqual(result["warehouse"], 1)
+        self.assertIn("NDOS, 0) = 122", fetch_rows.call_args.args[1])
+
     def test_lost_series_is_resolved_by_name_and_not_by_fixed_ndos(self):
         series = [
             {"ndos": 115, "name": "Devis"},

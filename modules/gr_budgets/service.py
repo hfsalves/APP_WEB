@@ -479,10 +479,13 @@ def _budget_visibility_predicate(
     )
 
 
-def _series_rows(cursor) -> list[dict[str, Any]]:
+def _series_rows(cursor, company: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    german_execution_filter = ""
+    if _series_name_key((company or {}).get("phc_db")).replace(" ", "") == "hsols_de":
+        german_execution_filter = "OR (ISNULL(NDOS, 0) = 122 AND ISNULL(ORCAMENTO, 0) = 1)"
     rows = _fetch_rows(
         cursor,
-        """
+        f"""
         SELECT DISTINCT
             ISNULL(NDOS, 0) AS NDOS,
             LTRIM(RTRIM(ISNULL(NMDOS, ''))) AS NMDOS,
@@ -497,24 +500,14 @@ def _series_rows(cursor) -> list[dict[str, Any]]:
         FROM dbo.TS
         WHERE UPPER(LTRIM(RTRIM(ISNULL(NMDOS, '')))) = 'DEVIS'
            OR (ISNULL(ORCAMENTO, 0) = 1 AND ISNULL(OCI, 0) = 1)
+           {german_execution_filter}
         ORDER BY NMDOS, NDOS
         """,
         (),
     )
     allowed_order = {name: index for index, name in enumerate(CLIENT_BUDGET_SERIES)}
     result = [
-        {
-            "ndos": int(_number_value(row.get("NDOS"))),
-            "name": _text_value(row.get("NMDOS")),
-            "quantity_decimals": int(_number_value(row.get("QTTDEC"))),
-            "price_decimals": int(_number_value(row.get("PREDEC"))),
-            "is_budget": _bool_value(row.get("ORCAMENTO")),
-            "uses_oci": _bool_value(row.get("OCI")),
-            "warehouse": int(_number_value(row.get("ARMAZEM"))) or 1,
-            "occupation": int(_number_value(row.get("OCUPACAO"))),
-            "saft_type": _text_value(row.get("TIPOSAFT")),
-            "series_id": _text_value(row.get("IDSERIE")),
-        }
+        _series_payload(row)
         for row in rows
         if (
             int(_number_value(row.get("NDOS"))) > 0
@@ -530,11 +523,26 @@ def _series_rows(cursor) -> list[dict[str, Any]]:
     )
 
 
+def _series_payload(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "ndos": int(_number_value(row.get("NDOS"))),
+        "name": _text_value(row.get("NMDOS")),
+        "quantity_decimals": int(_number_value(row.get("QTTDEC"))),
+        "price_decimals": int(_number_value(row.get("PREDEC"))),
+        "is_budget": _bool_value(row.get("ORCAMENTO")),
+        "uses_oci": _bool_value(row.get("OCI")),
+        "warehouse": int(_number_value(row.get("ARMAZEM"))) or 1,
+        "occupation": int(_number_value(row.get("OCUPACAO"))),
+        "saft_type": _text_value(row.get("TIPOSAFT")),
+        "series_id": _text_value(row.get("IDSERIE")),
+    }
+
+
 def get_budget_series(feid: Any, user) -> dict[str, Any]:
     company = _company_for_user(feid, user)
     with pyodbc.connect(_phc_conn_str(company["phc_db"], company.get("phc_server", "")), timeout=15) as conn:
         cursor = conn.cursor()
-        rows = _series_rows(cursor)
+        rows = _series_rows(cursor, company)
         tax_rates = _tax_rate_rows(cursor)
     return {
         "company": company,
@@ -708,7 +716,7 @@ def list_budgets(filters: dict[str, Any], user) -> dict[str, Any]:
 
     with pyodbc.connect(_phc_conn_str(company["phc_db"], company.get("phc_server", "")), timeout=20) as conn:
         cursor = conn.cursor()
-        series = _series_rows(cursor)
+        series = _series_rows(cursor, company)
         ndos = _parse_ndos(filters.get("ndos"), series)
         where = ["B.NDOS = ?", "B.BOANO = ?"]
         params: list[Any] = [ndos, year]
@@ -2282,8 +2290,8 @@ def set_budget_approval(feid: Any, bostamp: str, approved: bool, user) -> dict[s
     return {"bostamp": clean_stamp, "approved": target_approved, "credit": credit}
 
 
-def _execution_series(cursor) -> dict[str, Any]:
-    for series in _series_rows(cursor):
+def _execution_series(cursor, company: dict[str, Any] | None = None) -> dict[str, Any]:
+    for series in _series_rows(cursor, company):
         if _series_name_key(series.get("name")) == "etude et execution":
             return series
     raise BudgetsValidationError("A série Étude et Exécution não existe nesta empresa.")
@@ -2551,7 +2559,7 @@ def convert_budget_to_execution(feid: Any, bostamp: str, target: Any, existing_o
                 if not _budget_can_link_to_work(budget):
                     raise BudgetsConflictError("O orçamento está fechado, adjudicado ou anulado e não pode ser alterado.")
 
-                execution_series = _execution_series(cursor)
+                execution_series = _execution_series(cursor, company)
                 dataobra = budget.get("DATAOBRA")
                 year = int(_number_value(budget.get("BOANO")))
                 if not year and isinstance(dataobra, (date, datetime)):
@@ -2841,7 +2849,7 @@ def _intercompany_copy_preview(
         timeout=20,
     ) as conn:
         cursor = conn.cursor()
-        series = next((row for row in _series_rows(cursor) if _series_name_key(row.get("name")) == "devis"), None)
+        series = next((row for row in _series_rows(cursor, destination_company) if _series_name_key(row.get("name")) == "devis"), None)
         if not series:
             blockers.append({"code": "series_missing"})
 
@@ -3096,7 +3104,7 @@ def save_budget(payload: dict[str, Any], user) -> dict[str, Any]:
         conn.autocommit = False
         cursor = conn.cursor()
         try:
-            series = _series_rows(cursor)
+            series = _series_rows(cursor, company)
             ndos = _parse_ndos(payload.get("ndos") or header.get("ndos"), series)
             selected_series = next(row for row in series if int(row.get("ndos") or 0) == ndos)
             nmdos = _text_value(selected_series.get("name"))
