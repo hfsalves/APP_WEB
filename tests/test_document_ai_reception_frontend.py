@@ -103,6 +103,18 @@ class DocumentAiReceptionFrontendTests(unittest.TestCase):
         self.assertIn('/workflow/preflight', workflow)
         self.assertIn('/workflow/validate', workflow)
 
+    def test_unknown_phc_vat_rate_opens_zero_or_tax_table_choice(self):
+        root = Path(__file__).resolve().parents[1]
+        source = (root / 'static/js/document_ai_extract.js').read_text(encoding='utf-8')
+        template = (root / 'templates/document_ai_extract.html').read_text(encoding='utf-8')
+
+        self.assertIn('id="docAiVatRateModal"', template)
+        self.assertIn('Sim, usar IVA zero', template)
+        self.assertIn('Não, escolher taxa', template)
+        self.assertIn("error?.payload?.code !== 'unknown_phc_vat_rate'", source)
+        self.assertIn('state.documentData.vat_rate_overrides', source)
+        self.assertIn('requestVatRateChoice(error.payload)', source)
+
     def test_correspondence_number_is_refreshed_after_manual_header_correction(self):
         source = (Path(__file__).resolve().parents[1] / 'static/js/document_ai_extract.js').read_text(encoding='utf-8')
         refresh = source.split('async function refreshHeaderDependencies()', 1)[1].split('async function loadCorrespondenceReference()', 1)[0]

@@ -35,6 +35,29 @@ class TransferEmailServiceTests(unittest.TestCase):
         self.assertIn("Pedido de transfer confirmado", result["body_html"])
         self.assertIn("Transfer request confirmed", result["body_html"])
 
+    def test_builds_departure_route_without_arrival_label(self):
+        result = build_transfer_confirmation_email({
+            "reservation": "RETURN1",
+            "accommodation": "PARAÍSO H",
+            "movement_kind": "departure",
+            "route_label_pt": "Alojamento → Aeroporto do Porto",
+            "route_label_en": "Accommodation → Porto Airport",
+            "service_date": date(2027, 2, 8),
+            "service_time": "09:30",
+            "transfer_id": "TRANSFER-RETURN",
+            "driver_phone": "+351 929 009 157",
+        })
+
+        self.assertIn(
+            "Partida: Alojamento → Aeroporto do Porto — 08/02/2027 às 09:30",
+            result["body_text"],
+        )
+        self.assertIn(
+            "Departure: Accommodation → Porto Airport — 08/02/2027 at 09:30",
+            result["body_text"],
+        )
+        self.assertNotIn("Chegada:", result["body_text"])
+
 
 if __name__ == "__main__":
     unittest.main()

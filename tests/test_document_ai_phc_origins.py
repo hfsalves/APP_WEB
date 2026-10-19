@@ -31,6 +31,7 @@ from services.document_ai_service import (
     save_document_adjusted_lines,
     save_document_draft,
     DocumentDraftConflictError,
+    UnknownPhcVatRateError,
     _score_phc_origin_candidate,
     _match_document_lines_to_origin,
     _phc_contract_flow_stages,
@@ -54,6 +55,7 @@ from services.document_ai_service import (
     _phc_provisional_effective_datetime,
     _phc_tax_configuration,
     _phc_tax_code,
+    _phc_resolve_tax_selection,
     _doc_queryset_sql,
     _document_inbox_global_total,
     _normalize_document_inbox_view,
@@ -431,6 +433,40 @@ class DocumentAiPhcOriginTests(unittest.TestCase):
         self.assertEqual(_phc_tax_code(Decimal('20'), by_rate), 2)
         with self.assertRaisesRegex(ValueError, '17.00%'):
             _phc_tax_code(Decimal('17'), by_rate)
+
+    def test_unknown_tax_rate_requests_a_user_choice_with_phc_options(self):
+        by_code = {2: Decimal('20.00'), 5: Decimal('0.00')}
+        by_rate = {Decimal('20.00'): 2, Decimal('0.00'): 5}
+
+        with self.assertRaises(UnknownPhcVatRateError) as raised:
+            _phc_resolve_tax_selection(Decimal('17'), by_code, by_rate, {}, 'HSOLS_FR')
+
+        payload = raised.exception.payload()
+        self.assertEqual(payload['code'], 'unknown_phc_vat_rate')
+        self.assertEqual(payload['source_rate_key'], '17.00')
+        self.assertEqual(payload['suggested_zero']['tabiva'], 5)
+        self.assertEqual([item['tabiva'] for item in payload['vat_rates']], [2, 5])
+
+    def test_unknown_tax_rate_can_be_overridden_with_selected_phc_table(self):
+        by_code = {2: Decimal('20.00'), 5: Decimal('0.00')}
+        by_rate = {Decimal('20.00'): 2, Decimal('0.00'): 5}
+
+        self.assertEqual(
+            _phc_resolve_tax_selection(
+                Decimal('17'), by_code, by_rate,
+                {'17.00': {'tabiva': 5, 'tax_rate': 99}},
+                'HSOLS_FR',
+            ),
+            (5, Decimal('0.00'), True),
+        )
+        self.assertEqual(
+            _phc_resolve_tax_selection(
+                Decimal('17'), by_code, by_rate,
+                {'17.00': {'tabiva': 2, 'tax_rate': 0}},
+                'HSOLS_FR',
+            ),
+            (2, Decimal('20.00'), True),
+        )
 
     def test_credit_note_provisional_values_are_always_positive(self):
         for value in ('-2.50', Decimal('-120.45'), -20):

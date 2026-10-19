@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}Resumo de Transfers{% endblock %}
+
+{% block extra_head %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/transfer_dashboard.css') }}?v={{ static_version }}">
+{% endblock %}
+
+{% block content %}
+<div class="sz_page transfer-dashboard" id="transferDashboard"
+     data-api-url="{{ url_for('transfer_dashboard.dashboard_data') }}"
+     data-export-url="{{ url_for('transfer_dashboard.dashboard_export') }}">
+  <div class="sz_page_container">
+    <header class="sz_contextbar sz_page_contextbar transfer-contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_breadcrumbs">Operação · Transfers</div>
+        <div class="sz_page_title">Resumo de pedidos de transfer</div>
+        <div class="sz_page_subtitle">Chegadas, partidas e estado dos pedidos do portal do hóspede.</div>
+      </div>
+      <form class="sz_contextbar_right transfer-filters" id="transferFilters">
+        <label class="transfer-filter-field">
+          <span>Período</span>
+          <select class="sz_select" name="period" id="transferPeriod">
+            <option value="today" {% if initial_period == 'today' %}selected{% endif %}>Hoje</option>
+            <option value="next7" {% if initial_period == 'next7' %}selected{% endif %}>Hoje + 7 dias</option>
+            <option value="custom" {% if initial_period == 'custom' %}selected{% endif %}>Personalizado</option>
+            <option value="all" {% if initial_period == 'all' %}selected{% endif %}>Todos</option>
+          </select>
+        </label>
+        <label class="transfer-filter-field transfer-custom-date" data-custom-date>
+          <span>De</span>
+          <input class="sz_input" type="date" name="start" value="{{ initial_start }}">
+        </label>
+        <label class="transfer-filter-field transfer-custom-date" data-custom-date>
+          <span>Até</span>
+          <input class="sz_input" type="date" name="end" value="{{ initial_end }}">
+        </label>
+        <label class="transfer-filter-field">
+          <span>Movimento</span>
+          <select class="sz_select" name="movement">
+            <option value="">Chegadas e partidas</option>
+            <option value="arrival">Chegadas</option>
+            <option value="departure">Partidas</option>
+          </select>
+        </label>
+        <label class="transfer-filter-field">
+          <span>Alojamento</span>
+          <select class="sz_select" name="accommodation" id="transferAccommodation">
+            <option value="">Todos</option>
+          </select>
+        </label>
+        <label class="transfer-filter-field">
+          <span>Percurso</span>
+          <select class="sz_select" name="origin" id="transferOrigin">
+            <option value="">Todos</option>
+          </select>
+        </label>
+        <label class="transfer-filter-field">
+          <span>Estado</span>
+          <select class="sz_select" name="status" id="transferStatus">
+            <option value="">Todos</option>
+          </select>
+        </label>
+        <label class="transfer-filter-field transfer-search-field">
+          <span>Reserva / hóspede</span>
+          <input class="sz_input" type="search" name="reservation" placeholder="Ex.: HMW4H2TD8D">
+        </label>
+        <button class="sz_button sz_button_primary" type="submit" title="Aplicar filtros">
+          <i class="fa-solid fa-magnifying-glass"></i><span>Aplicar</span>
+        </button>
+        <button class="sz_button sz_button_ghost" type="button" id="transferExport" title="Exportar resultado para Excel">
+          <i class="fa-solid fa-file-excel"></i><span>Excel</span>
+        </button>
+      </form>
+    </header>
+
+    <main class="sz_page_body transfer-body">
+      <div class="transfer-status" id="transferStatusMessage" role="status">A carregar pedidos…</div>
+
+      <section class="transfer-kpis" aria-label="Resumo do período">
+        <article class="sz_panel transfer-kpi transfer-kpi-total"><span><i class="fa-solid fa-route"></i></span><div><small>Total no período</small><strong data-kpi="total">—</strong></div></article>
+        <article class="sz_panel transfer-kpi transfer-kpi-pending"><span><i class="fa-regular fa-clock"></i></span><div><small>Pendentes</small><strong data-kpi="pending">—</strong></div></article>
+        <article class="sz_panel transfer-kpi transfer-kpi-sent"><span><i class="fa-regular fa-circle-check"></i></span><div><small>Enviados</small><strong data-kpi="sent">—</strong></div></article>
+        <article class="sz_panel transfer-kpi transfer-kpi-cancelled"><span><i class="fa-regular fa-circle-xmark"></i></span><div><small>Cancelados</small><strong data-kpi="cancelled">—</strong></div></article>
+        <article class="sz_panel transfer-kpi"><span><i class="fa-solid fa-plane-arrival"></i></span><div><small>Chegadas hoje</small><strong data-kpi="arrivals_today">—</strong></div></article>
+        <article class="sz_panel transfer-kpi"><span><i class="fa-solid fa-plane-departure"></i></span><div><small>Partidas hoje</small><strong data-kpi="departures_today">—</strong></div></article>
+      </section>
+
+      <section class="sz_panel transfer-list-panel">
+        <header class="transfer-list-header">
+          <div>
+            <h2>Pedidos</h2>
+            <p id="transferListSummary">A carregar…</p>
+          </div>
+          <div class="transfer-list-legend">
+            <span><i class="transfer-dot is-pending"></i>Pendente</span>
+            <span><i class="transfer-dot is-incomplete"></i>Dados incompletos</span>
+            <span><i class="fa-solid fa-layer-group"></i>Múltiplos pedidos</span>
+          </div>
+        </header>
+        <div class="transfer-table-wrap">
+          <table class="sz_table sz_table_compact transfer-table">
+            <thead>
+              <tr>
+                <th>Reserva</th><th>Alojamento</th><th>Percurso</th><th>Hóspede</th><th>Pessoas</th>
+                <th>Chegada</th><th>Voo</th><th>Partida</th><th>Valor</th><th>Estado</th><th>Criado / alterado</th>
+              </tr>
+            </thead>
+            <tbody id="transferRows"><tr><td colspan="11">A carregar pedidos…</td></tr></tbody>
+          </table>
+        </div>
+        <div class="transfer-empty" id="transferEmpty" hidden>
+          <i class="fa-solid fa-route"></i>
+          <strong>Sem pedidos neste filtro</strong>
+          <span>Altera o período ou remove algum dos filtros.</span>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="{{ url_for('static', filename='js/transfer_dashboard.js') }}?v={{ static_version }}"></script>
+{% endblock %}
+

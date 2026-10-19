@@ -67,6 +67,40 @@ DOC_AI_INBOX_DOC_TYPES = [
     if item['value'] not in {'provisional_invoice', 'proforma_invoice', 'other', 'debit_note'}
 ]
 
+
+class UnknownPhcVatRateError(ValueError):
+    """Request an explicit VAT-table choice instead of aborting PHC import."""
+
+    requires_user_input = True
+
+    def __init__(self, rate: Decimal, database: str, rates: list[dict[str, Any]]) -> None:
+        self.rate = Decimal(str(rate)).quantize(Decimal('0.01'))
+        self.database = str(database or '').strip()
+        self.rates = rates
+        super().__init__(
+            f'A taxa de IVA {self.rate}% não está configurada na base PHC {self.database or "selecionada"}.'
+        )
+
+    def payload(self) -> dict[str, Any]:
+        zero_table = next(
+            (
+                item for item in self.rates
+                if int(item.get('tabiva') or 0) == 5
+                and Decimal(str(item.get('tax_rate') or 0)) == 0
+            ),
+            None,
+        )
+        return {
+            'error': str(self),
+            'code': 'unknown_phc_vat_rate',
+            'unknown_vat_rate': float(self.rate),
+            'source_rate_key': f'{self.rate:.2f}',
+            'phc_database': self.database,
+            'suggested_zero': zero_table,
+            'vat_rates': self.rates,
+        }
+
+
 DOC_AI_DOC_TYPE_ALIASES = {
     'contrat': 'contract',
     'contract': 'contract',
@@ -2804,6 +2838,39 @@ def _phc_tax_code(rate: Decimal, by_rate: dict[Decimal, int]) -> int:
     raise ValueError(f'A taxa de IVA {normalized}% não está configurada na base PHC selecionada.')
 
 
+def _phc_tax_options(by_code: dict[int, Decimal]) -> list[dict[str, Any]]:
+    return [
+        {
+            'tabiva': code,
+            'tax_rate': float(rate),
+            'label': f'Tabela {code} · {rate}%',
+        }
+        for code, rate in sorted(by_code.items())
+    ]
+
+
+def _phc_resolve_tax_selection(
+    requested_rate: Decimal,
+    by_code: dict[int, Decimal],
+    by_rate: dict[Decimal, int],
+    overrides: dict[str, Any] | None,
+    database_name: str,
+) -> tuple[int, Decimal, bool]:
+    normalized = Decimal(str(requested_rate)).quantize(Decimal('0.01'))
+    if normalized in by_rate:
+        return by_rate[normalized], normalized, False
+
+    choices = dict(overrides or {})
+    choice = choices.get(f'{normalized:.2f}')
+    if choice is None:
+        choice = choices.get(str(float(normalized)))
+    code = _safe_int(choice.get('tabiva'), 0) if isinstance(choice, dict) else _safe_int(choice, 0)
+    if code in by_code:
+        return code, by_code[code], True
+
+    raise UnknownPhcVatRateError(normalized, database_name, _phc_tax_options(by_code))
+
+
 def _phc_base_currency_per_euro(cursor) -> Decimal:
     """Obtém o fator moeda-base/EUR usado pela própria base PHC.
 
@@ -3362,11 +3429,14 @@ def submit_provisional_invoice_to_phc(
         article = _ensure_phc_provisional_article(cursor, requested_by, received_at)
         tax_by_code, tax_by_rate = _phc_tax_configuration(cursor)
         ged_targets = _provisional_invoice_ged_paths(document, source, supplier, reference, effective_at, doc_config['file_prefix'])
-        created_paths = _write_confirmed_ged_targets(ged_targets, file_bytes)
 
         normalized_lines = []
         fn_unit_width = _phc_text_column_limit(cursor, 'FN', 'UNIDADE', 4)
         tax_groups: dict[int, dict[str, Decimal]] = {}
+        vat_rate_overrides = document.get('vat_rate_overrides')
+        if not isinstance(vat_rate_overrides, dict):
+            vat_rate_overrides = {}
+        vat_was_overridden = False
         is_credit_note = bool(doc_config['is_credit_note'])
         for index, line in enumerate(_effective_portal_lines(lines), start=1):
             qty = _phc_provisional_value(line.get('qty'), credit_note=is_credit_note)
@@ -3377,8 +3447,15 @@ def submit_provisional_invoice_to_phc(
             net = _phc_provisional_value(line.get('net_amount'), credit_note=is_credit_note)
             if net == 0 and unit_price != 0:
                 net = (qty * unit_price * (Decimal('1.00') - discount / Decimal('100.00'))).quantize(Decimal('0.01'))
-            rate = _phc_provisional_value(line.get('tax_rate'), credit_note=is_credit_note)
-            code = _phc_tax_code(rate, tax_by_rate)
+            requested_rate = _phc_provisional_value(line.get('tax_rate'), credit_note=is_credit_note)
+            code, rate, rate_was_overridden = _phc_resolve_tax_selection(
+                requested_rate,
+                tax_by_code,
+                tax_by_rate,
+                vat_rate_overrides,
+                database_name,
+            )
+            vat_was_overridden = vat_was_overridden or rate_was_overridden
             tax_amount = (net * rate / Decimal('100.00')).quantize(Decimal('0.01'))
             group = tax_groups.setdefault(code, {'rate': rate, 'base': Decimal('0.00'), 'tax': Decimal('0.00')})
             group['base'] += net
@@ -3398,14 +3475,18 @@ def submit_provisional_invoice_to_phc(
         calculated_net = sum((item['net'] for item in normalized_lines), Decimal('0.00'))
         calculated_tax = sum((item['tax'] for item in tax_groups.values()), Decimal('0.00'))
         totals = dict(document.get('totals') or {})
-        net_total = _phc_provisional_value(totals.get('net_total'), credit_note=is_credit_note) or calculated_net
-        tax_total = (
+        net_total = calculated_net if vat_was_overridden else (
+            _phc_provisional_value(totals.get('net_total'), credit_note=is_credit_note) or calculated_net
+        )
+        tax_total = calculated_tax if vat_was_overridden else (
             _phc_provisional_value(totals.get('tax_total'), credit_note=is_credit_note)
             if totals.get('tax_total') not in (None, '') else calculated_tax
         )
-        gross_total = _phc_provisional_value(
-            totals.get('gross_total'), credit_note=is_credit_note,
-        ) or (net_total + tax_total)
+        gross_total = (net_total + tax_total) if vat_was_overridden else (
+            _phc_provisional_value(totals.get('gross_total'), credit_note=is_credit_note)
+            or (net_total + tax_total)
+        )
+        created_paths = _write_confirmed_ged_targets(ged_targets, file_bytes)
         physical_lines = _expand_phc_invoice_lines(normalized_lines)
         project = dict(document.get('origin_project') or {})
         ccusto = str(project.get('ccusto') or supplier.get('ccusto') or '').strip()[:20]

@@ -623,6 +623,35 @@
   </div>
 </div>
 
+<div id="docAiVatRateModal" class="sz_modal docai-vat-rate-modal" aria-hidden="true">
+  <div class="sz_panel docai-vat-rate-panel" role="dialog" aria-modal="true" aria-labelledby="docAiVatRateTitle">
+    <div class="sz_modal_header">
+      <div>
+        <h3 id="docAiVatRateTitle" class="sz_h4 sz_modal_title">Taxa de IVA não configurada</h3>
+        <p id="docAiVatRateContext" class="sz_text_muted"></p>
+      </div>
+      <button id="docAiVatRateCloseTop" type="button" class="sz_button sz_button_ghost sz_modal_close" aria-label="Fechar">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+    <div class="sz_modal_body docai-modal-body">
+      <div id="docAiVatRateQuestion" class="docai-vat-rate-question">
+        <strong>Queres lançar esta taxa como IVA 0, usando a tabela 5?</strong>
+        <span>Se escolheres não, podes selecionar outra tabela de IVA configurada nesta empresa.</span>
+      </div>
+      <div id="docAiVatRateChoices" class="docai-vat-rate-choices" hidden></div>
+      <p id="docAiVatRateError" class="docai-vat-rate-error" hidden>Seleciona uma tabela de IVA.</p>
+    </div>
+    <div class="sz_modal_footer docai-vat-rate-footer">
+      <button id="docAiVatRateCancel" type="button" class="sz_button sz_button_ghost">Cancelar</button>
+      <button id="docAiVatRateChoose" type="button" class="sz_button sz_button_secondary">Não, escolher taxa</button>
+      <button id="docAiVatRateZero" type="button" class="sz_button sz_button_primary">Sim, usar IVA zero</button>
+      <button id="docAiVatRateBack" type="button" class="sz_button sz_button_ghost" hidden>Voltar</button>
+      <button id="docAiVatRateApply" type="button" class="sz_button sz_button_primary" hidden>Aplicar taxa</button>
+    </div>
+  </div>
+</div>
+
 <div id="docAiConflictModal" class="sz_modal docai-conflict-modal" aria-hidden="true">
   <div class="sz_panel docai-conflict-panel" role="dialog" aria-modal="true" aria-labelledby="docAiConflictTitle">
     <div class="sz_modal_header">

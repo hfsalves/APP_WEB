@@ -1297,7 +1297,7 @@
             <div class="guest-modal-header">
               <div>
                 <div class="fw-bold" data-i18n="transfer_modal_title">Pedido de transfer</div>
-                <div class="small text-muted" data-i18n="transfer_modal_hint">Indica-nos os teus dados de chegada para prepararmos o transfer.</div>
+                <div class="small text-muted" data-i18n="transfer_modal_hint">Escolhe o percurso e indica-nos a data e hora do transfer.</div>
               </div>
               <button id="transferCloseBtn" type="button" class="btn btn-sm btn-outline-secondary">X</button>
             </div>
@@ -1308,44 +1308,25 @@
               </div>
               <div class="form-grid mt-3">
                 <div class="full">
-                  <label class="form-label small mb-1" for="transferOrigin" data-i18n="transfer_origin_label">Chegada</label>
+                  <label class="form-label small mb-1" for="transferOrigin" data-i18n="transfer_origin_label">Percurso</label>
                   <select id="transferOrigin" class="form-select form-select-sm">
                     <option value="airport" data-i18n="transfer_origin_airport">Aeroporto do Porto → alojamento</option>
                     <option value="campanha" data-i18n="transfer_origin_campanha">Estação de Campanhã → alojamento</option>
+                    <option value="to_airport" data-i18n="transfer_destination_airport">Alojamento → Aeroporto do Porto</option>
+                    <option value="to_campanha" data-i18n="transfer_destination_campanha">Alojamento → Estação de Campanhã</option>
                   </select>
                 </div>
                 <div>
-                  <label class="form-label small mb-1" for="transferArrivalDate" data-i18n="transfer_arrival_date">Data de chegada</label>
+                  <label class="form-label small mb-1" for="transferArrivalDate" data-i18n="transfer_service_date">Data do transfer</label>
                   <input id="transferArrivalDate" type="date" class="form-control form-control-sm" value="{{ page_data.get('checkin_date_input', '') }}" required>
                 </div>
                 <div>
-                  <label class="form-label small mb-1" for="transferArrivalTime" data-i18n="transfer_arrival_time">Hora de chegada</label>
+                  <label class="form-label small mb-1" for="transferArrivalTime" data-i18n="transfer_service_time">Hora do transfer</label>
                   <input id="transferArrivalTime" type="time" class="form-control form-control-sm" required>
                 </div>
                 <div id="transferFlightWrap" class="full">
                   <label class="form-label small mb-1" for="transferFlight" data-i18n="transfer_flight_label">Número do voo <span class="text-muted">(opcional)</span></label>
                   <input id="transferFlight" type="text" class="form-control form-control-sm" maxlength="20" autocomplete="off" placeholder="Ex.: TP1923">
-                </div>
-                <div class="full">
-                  <label class="plan-checkbox-row">
-                    <input id="transferDepartureEnabled" type="checkbox">
-                    <span>
-                      <strong data-i18n="transfer_departure_toggle">Adicionar transfer de partida</strong>
-                      <span class="d-block small text-muted" data-i18n="transfer_departure_hint">O transfer será do alojamento para o aeroporto ou estação.</span>
-                    </span>
-                  </label>
-                </div>
-                <div id="transferDepartureFields" class="full d-none">
-                  <div class="form-grid">
-                    <div>
-                      <label class="form-label small mb-1" for="transferDepartureDate" data-i18n="transfer_departure_date">Data de partida</label>
-                      <input id="transferDepartureDate" type="date" class="form-control form-control-sm" value="{{ page_data.get('checkout_date_input', '') }}">
-                    </div>
-                    <div>
-                      <label class="form-label small mb-1" for="transferDepartureTime" data-i18n="transfer_departure_time">Hora pretendida</label>
-                      <input id="transferDepartureTime" type="time" class="form-control form-control-sm">
-                    </div>
-                  </div>
                 </div>
               </div>
               <div id="transferFormMsg" class="small text-danger mt-3 d-none" role="alert"></div>
@@ -1740,6 +1721,8 @@
   <script>
     (function () {
       const PUBLIC_RESERVA = {{ (page_data.get('public_code', '') if page_data is defined else '')|tojson }};
+      const TRANSFER_CHECKIN_DATE = {{ (page_data.get('checkin_date_input', '') if page_data is defined else '')|tojson }};
+      const TRANSFER_CHECKOUT_DATE = {{ (page_data.get('checkout_date_input', '') if page_data is defined else '')|tojson }};
       const RES_CRIANCAS = Number({{ (page_data.get('criancas', 0) if page_data is defined else 0)|tojson }} || 0);
       const INITIAL_STAY_PLAN = {
         horain: {{ (page_data.get('checkin_hora', '') if page_data is defined else '')|tojson }},
@@ -1910,11 +1893,15 @@
           transfer_card_hint: 'Aeroporto ou Campanhã, à chegada e também na partida.',
           transfer_card_price: '30 € por viagem · pago ao motorista',
           transfer_modal_title: 'Pedido de transfer',
-          transfer_modal_hint: 'Indica-nos os teus dados de chegada para prepararmos o transfer.',
+          transfer_modal_hint: 'Escolhe o percurso e indica-nos a data e hora do transfer.',
           transfer_price_note: '30 € por viagem, pagos diretamente ao motorista.',
-          transfer_origin_label: 'Chegada',
+          transfer_origin_label: 'Percurso',
           transfer_origin_airport: 'Aeroporto do Porto → alojamento',
           transfer_origin_campanha: 'Estação de Campanhã → alojamento',
+          transfer_destination_airport: 'Alojamento → Aeroporto do Porto',
+          transfer_destination_campanha: 'Alojamento → Estação de Campanhã',
+          transfer_service_date: 'Data do transfer',
+          transfer_service_time: 'Hora do transfer',
           transfer_arrival_date: 'Data de chegada',
           transfer_arrival_time: 'Hora de chegada',
           transfer_flight_label: 'Número do voo (opcional)',
@@ -1923,7 +1910,7 @@
           transfer_departure_date: 'Data de partida',
           transfer_departure_time: 'Hora pretendida',
           transfer_send: 'Enviar pedido',
-          transfer_required_error: 'Indica a hora de chegada.',
+          transfer_required_error: 'Indica a hora do transfer.',
           transfer_departure_required_error: 'Indica a hora de partida.',
           card_rules: 'Regras Essenciais',
           rules_badge: 'Importante',
@@ -2113,11 +2100,15 @@
           transfer_card_hint: 'Airport or Campanhã, on arrival and departure.',
           transfer_card_price: '€30 per trip · paid to the driver',
           transfer_modal_title: 'Transfer request',
-          transfer_modal_hint: 'Share your arrival details so we can arrange your transfer.',
+          transfer_modal_hint: 'Choose the route and enter the transfer date and time.',
           transfer_price_note: '€30 per trip, paid directly to the driver.',
-          transfer_origin_label: 'Arrival point',
+          transfer_origin_label: 'Route',
           transfer_origin_airport: 'Porto Airport → accommodation',
           transfer_origin_campanha: 'Campanhã Station → accommodation',
+          transfer_destination_airport: 'Accommodation → Porto Airport',
+          transfer_destination_campanha: 'Accommodation → Campanhã Station',
+          transfer_service_date: 'Transfer date',
+          transfer_service_time: 'Transfer time',
           transfer_arrival_date: 'Arrival date',
           transfer_arrival_time: 'Arrival time',
           transfer_flight_label: 'Flight number (optional)',
@@ -2126,7 +2117,7 @@
           transfer_departure_date: 'Departure date',
           transfer_departure_time: 'Requested time',
           transfer_send: 'Send request',
-          transfer_required_error: 'Please enter your arrival time.',
+          transfer_required_error: 'Please enter the transfer time.',
           transfer_departure_required_error: 'Please enter your departure time.',
           card_rules: 'Essential Rules',
           rules_badge: 'Important',
@@ -2316,11 +2307,15 @@
           transfer_card_hint: 'Aéroport ou Campanhã, à l’arrivée et au départ.',
           transfer_card_price: '30 € par trajet · à régler au chauffeur',
           transfer_modal_title: 'Demande de transfert',
-          transfer_modal_hint: 'Indiquez vos informations d’arrivée pour préparer votre transfert.',
+          transfer_modal_hint: 'Choisissez le trajet et indiquez la date et l’heure du transfert.',
           transfer_price_note: '30 € par trajet, à régler directement au chauffeur.',
-          transfer_origin_label: 'Arrivée',
+          transfer_origin_label: 'Trajet',
           transfer_origin_airport: 'Aéroport de Porto → logement',
           transfer_origin_campanha: 'Gare de Campanhã → logement',
+          transfer_destination_airport: 'Logement → Aéroport de Porto',
+          transfer_destination_campanha: 'Logement → Gare de Campanhã',
+          transfer_service_date: 'Date du transfert',
+          transfer_service_time: 'Heure du transfert',
           transfer_arrival_date: 'Date d’arrivée',
           transfer_arrival_time: 'Heure d’arrivée',
           transfer_flight_label: 'Numéro de vol (facultatif)',
@@ -2329,7 +2324,7 @@
           transfer_departure_date: 'Date de départ',
           transfer_departure_time: 'Heure souhaitée',
           transfer_send: 'Envoyer la demande',
-          transfer_required_error: 'Indiquez votre heure d’arrivée.',
+          transfer_required_error: 'Indiquez l’heure du transfert.',
           transfer_departure_required_error: 'Indiquez votre heure de départ.',
           card_rules: 'R\u00e8gles essentielles',
           rules_badge: 'Important',
@@ -2519,11 +2514,15 @@
           transfer_card_hint: 'Aeropuerto o Campanhã, a la llegada y también a la salida.',
           transfer_card_price: '30 € por trayecto · pago al conductor',
           transfer_modal_title: 'Solicitud de traslado',
-          transfer_modal_hint: 'Indícanos tus datos de llegada para organizar el traslado.',
+          transfer_modal_hint: 'Elige el trayecto e indica la fecha y la hora del traslado.',
           transfer_price_note: '30 € por trayecto, pagados directamente al conductor.',
-          transfer_origin_label: 'Llegada',
+          transfer_origin_label: 'Trayecto',
           transfer_origin_airport: 'Aeropuerto de Oporto → alojamiento',
           transfer_origin_campanha: 'Estación de Campanhã → alojamiento',
+          transfer_destination_airport: 'Alojamiento → Aeropuerto de Oporto',
+          transfer_destination_campanha: 'Alojamiento → Estación de Campanhã',
+          transfer_service_date: 'Fecha del traslado',
+          transfer_service_time: 'Hora del traslado',
           transfer_arrival_date: 'Fecha de llegada',
           transfer_arrival_time: 'Hora de llegada',
           transfer_flight_label: 'Número de vuelo (opcional)',
@@ -2532,7 +2531,7 @@
           transfer_departure_date: 'Fecha de salida',
           transfer_departure_time: 'Hora deseada',
           transfer_send: 'Enviar solicitud',
-          transfer_required_error: 'Indica la hora de llegada.',
+          transfer_required_error: 'Indica la hora del traslado.',
           transfer_departure_required_error: 'Indica la hora de salida.',
           card_rules: 'Reglas esenciales',
           rules_badge: 'Importante',
@@ -2809,10 +2808,6 @@
         arrivalTime: document.getElementById('transferArrivalTime'),
         flightWrap: document.getElementById('transferFlightWrap'),
         flight: document.getElementById('transferFlight'),
-        departureEnabled: document.getElementById('transferDepartureEnabled'),
-        departureFields: document.getElementById('transferDepartureFields'),
-        departureDate: document.getElementById('transferDepartureDate'),
-        departureTime: document.getElementById('transferDepartureTime'),
         message: document.getElementById('transferFormMsg'),
         send: document.getElementById('transferSendBtn')
       };
@@ -3437,11 +3432,13 @@
       }
 
       function updateTransferForm() {
-        const isAirport = (transferEls.origin?.value || 'airport') === 'airport';
+        const route = transferEls.origin?.value || 'airport';
+        const isAirport = route === 'airport' || route === 'to_airport';
+        const isDeparture = route === 'to_airport' || route === 'to_campanha';
         transferEls.flightWrap?.classList.toggle('d-none', !isAirport);
-        const hasDeparture = !!transferEls.departureEnabled?.checked;
-        transferEls.departureFields?.classList.toggle('d-none', !hasDeparture);
-        if (transferEls.departureTime) transferEls.departureTime.required = hasDeparture;
+        if (transferEls.arrivalDate) {
+          transferEls.arrivalDate.value = isDeparture ? TRANSFER_CHECKOUT_DATE : TRANSFER_CHECKIN_DATE;
+        }
         if (transferEls.message) transferEls.message.classList.add('d-none');
       }
 
@@ -3471,19 +3468,13 @@
           transferEls.arrivalTime?.focus();
           return false;
         }
-        const hasDeparture = !!transferEls.departureEnabled?.checked;
-        const departureTime = String(transferEls.departureTime?.value || '').trim();
-        if (hasDeparture && !departureTime) {
-          showTransferMessage(tGuest('transfer_departure_required_error'));
-          transferEls.departureTime?.focus();
-          return false;
-        }
         try {
           transferEls.send.disabled = true;
           const res = await fetch(`/api/r/${encodeURIComponent(PUBLIC_RESERVA)}/transfers`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({
-            origin: transferEls.origin?.value || 'airport', arrival_date: transferEls.arrivalDate?.value || '', arrival_time: arrivalTime,
-            flight: transferEls.flight?.value || '', departure_enabled: hasDeparture,
-            departure_date: transferEls.departureDate?.value || '', departure_time: departureTime
+            route: transferEls.origin?.value || 'airport',
+            service_date: transferEls.arrivalDate?.value || '',
+            service_time: arrivalTime,
+            flight: transferEls.flight?.value || ''
           })});
           const data = await res.json().catch(() => ({}));
           if (!res.ok || data.error) throw new Error(data.error || 'Erro ao enviar o pedido.');
@@ -3914,7 +3905,6 @@
       transferEls.cancel?.addEventListener('click', closeTransferModal);
       transferEls.backdrop?.addEventListener('click', closeTransferModal);
       transferEls.origin?.addEventListener('change', updateTransferForm);
-      transferEls.departureEnabled?.addEventListener('change', updateTransferForm);
       transferEls.send?.addEventListener('click', (event) => { event.preventDefault(); submitTransferRequest(); });
       billingEls.openBtn?.addEventListener('click', openBillingModal);
       billingEls.close?.addEventListener('click', closeBillingModal);

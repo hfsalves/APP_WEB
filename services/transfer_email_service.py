@@ -31,18 +31,19 @@ def build_transfer_confirmation_email(data: dict) -> dict[str, str]:
     people_count = _clean(data.get("people_count"))
     guest_phone = _clean(data.get("guest_phone"))
     guest_email = _clean(data.get("guest_email"))
-    arrival_point_pt = _clean(data.get("arrival_point_pt"))
-    arrival_point_en = _clean(data.get("arrival_point_en"))
-    arrival_date = _date_pt(data.get("arrival_date"))
-    arrival_time = _clean(data.get("arrival_time"))
+    movement_kind = _clean(data.get("movement_kind")).lower() or "arrival"
+    route_label_pt = _clean(data.get("route_label_pt") or data.get("arrival_point_pt"))
+    route_label_en = _clean(data.get("route_label_en") or data.get("arrival_point_en"))
+    service_date = _date_pt(data.get("service_date") or data.get("arrival_date"))
+    service_time = _clean(data.get("service_time") or data.get("arrival_time"))
     flight = _clean(data.get("flight")) or "—"
     transfer_id = _clean(data.get("transfer_id"))
     driver_phone = _clean(data.get("driver_phone"))
     departure_date = _date_pt(data.get("departure_date"))
     departure_time = _clean(data.get("departure_time"))
 
-    arrival_pt = f"{arrival_point_pt} — {arrival_date} às {arrival_time}".strip()
-    arrival_en = f"{arrival_point_en} — {arrival_date} at {arrival_time}".strip()
+    movement_pt = f"{route_label_pt} — {service_date} às {service_time}".strip()
+    movement_en = f"{route_label_en} — {service_date} at {service_time}".strip()
     departure_pt = f"{departure_date} às {departure_time}" if departure_date and departure_time else ""
     departure_en = f"{departure_date} at {departure_time}" if departure_date and departure_time else ""
 
@@ -54,7 +55,7 @@ def build_transfer_confirmation_email(data: dict) -> dict[str, str]:
         ("N.º de pessoas", people_count),
         ("Contacto telef.", guest_phone),
         ("Email", guest_email),
-        ("Chegada", arrival_pt),
+        ("Partida" if movement_kind == "departure" else "Chegada", movement_pt),
         ("Voo", flight),
     ]
     en_rows = [
@@ -65,7 +66,7 @@ def build_transfer_confirmation_email(data: dict) -> dict[str, str]:
         ("Number of guests", people_count),
         ("Phone", guest_phone),
         ("Email", guest_email),
-        ("Arrival", arrival_en),
+        ("Departure" if movement_kind == "departure" else "Arrival", movement_en),
         ("Flight", flight),
     ]
     if departure_pt:

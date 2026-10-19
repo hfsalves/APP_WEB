@@ -4995,6 +4995,78 @@
   white-space: nowrap;
 }
 
+.docai-vat-rate-panel {
+  width: min(34rem, calc(100vw - 2rem));
+}
+
+.docai-vat-rate-question {
+  display: grid;
+  gap: var(--sz-space-2);
+  padding: var(--sz-space-4);
+  border: 1px solid var(--sz-color-border);
+  border-radius: var(--sz-radius-md);
+  background: var(--sz-color-surface-alt);
+}
+
+.docai-vat-rate-question span {
+  color: var(--sz-color-text-secondary);
+  font-size: 0.82rem;
+}
+
+.docai-vat-rate-choices {
+  display: grid;
+  gap: var(--sz-space-2);
+  max-height: 22rem;
+  overflow: auto;
+}
+
+.docai-vat-rate-modal [hidden] {
+  display: none !important;
+}
+
+.docai-vat-rate-option {
+  display: flex;
+  align-items: center;
+  gap: var(--sz-space-3);
+  padding: var(--sz-space-3);
+  border: 1px solid var(--sz-color-border);
+  border-radius: var(--sz-radius-md);
+  background: var(--sz-color-surface-alt);
+  cursor: pointer;
+}
+
+.docai-vat-rate-option:has(input:checked) {
+  border-color: var(--sz-color-primary);
+  background: color-mix(in srgb, var(--sz-color-primary) 9%, var(--sz-color-surface));
+}
+
+.docai-vat-rate-option input {
+  accent-color: var(--sz-color-primary);
+}
+
+.docai-vat-rate-option span {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sz-space-4);
+  width: 100%;
+}
+
+.docai-vat-rate-option small {
+  color: var(--sz-color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.docai-vat-rate-error {
+  margin: var(--sz-space-2) 0 0;
+  color: var(--sz-color-danger);
+  font-size: 0.8rem;
+}
+
+.docai-vat-rate-footer {
+  flex-wrap: wrap;
+}
+
 @media (max-width: 700px) {
   .docai-extract-result-panel .docai-panel-head {
     align-items: stretch;

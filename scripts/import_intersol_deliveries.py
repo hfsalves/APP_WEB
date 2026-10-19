@@ -199,13 +199,13 @@ def allocate(excel: list[dict[str, Any]], source: list[dict[str, Any]]) -> list[
                       and (abs(money(line.get("EDEBITO"))) == abs(money(row["price"])) if is_credit
                            else money(line.get("EDEBITO")) == money(row["price"]))]
         # Suppliers occasionally export a calculated unit price with more
-        # decimals than the BC.  If article and price differ by at most one
+        # decimals than the BC.  If article and price differ by at most two
         # cent, the current BC line is still the intended origin; retain the
         # supplier's invoiced unit price on the imported document.
         if not candidates and not is_credit:
             candidates = [line for line in by_bc[row["bc"]]
                           if line["remaining"] > ZERO and clean(line["REF"]) == row["ref"]
-                          and abs(decimal(line.get("EDEBITO")) - row["price"]) <= Decimal("0.01")]
+                          and abs(decimal(line.get("EDEBITO")) - row["price"]) <= Decimal("0.02")]
         # Some supplier exports label the fuel surcharge as a transport line,
         # while the approved BC holds it under its dedicated surcharge code.
         # Match only that unambiguous semantic/price pair, retaining the BC
@@ -238,7 +238,8 @@ def allocate(excel: list[dict[str, Any]], source: list[dict[str, Any]]) -> list[
             result.append({"excel": row, "source": line, "qty": part})
         if remaining > ZERO:
             raise ImportValidationError(
-                f"Sem saldo BC {row['bc']} para BL {row['delivery']}, artigo {row['ref']}, quantidade {remaining}."
+                f"Sem saldo BC {row['bc']} para BL {row['delivery']}, artigo {row['ref']}, "
+                f"preço {row['price']}, quantidade {remaining}."
             )
     return result
 

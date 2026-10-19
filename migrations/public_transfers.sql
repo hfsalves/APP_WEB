@@ -60,7 +60,7 @@ WHERE MENUSTAMP = @menustamp;
 DECLARE @fields TABLE (NMCAMPO varchar(25), DESCRICAO varchar(60), TIPO varchar(18), ORDEM int, TAM int, LISTA bit, FILTRO bit, RONLY bit, OBRIGATORIO bit);
 INSERT INTO @fields VALUES
  ('RESERVA','Reserva','TEXT',10,15,1,1,1,1), ('ALOJAMENTO','Alojamento','TEXT',20,20,1,1,1,0),
- ('ORIGEM','Origem','TEXT',30,15,1,1,0,1), ('DATA_CHEGADA','Data chegada','DATE',40,10,1,1,0,1),
+ ('ORIGEM','Percurso','TEXT',30,15,1,1,0,1), ('DATA_CHEGADA','Data do transfer','DATE',40,10,1,1,0,1),
  ('HORA_CHEGADA','Hora chegada','TEXT',50,8,1,0,0,1), ('NUM_VOO','N.º voo','TEXT',60,10,1,0,0,0),
  ('TEM_PARTIDA','Tem partida','BIT',70,8,1,1,0,0), ('DATA_PARTIDA','Data partida','DATE',80,10,1,1,0,0),
  ('HORA_PARTIDA','Hora partida','TEXT',90,8,1,0,0,0), ('VALOR','Valor','DECIMAL',100,8,1,0,1,1),

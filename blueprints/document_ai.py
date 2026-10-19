@@ -79,6 +79,7 @@ from services.document_ai_service import (
     validate_document_purchase_order,
     validate_document_work_situation,
     DocumentDraftConflictError,
+    UnknownPhcVatRateError,
 )
 from services.document_ai_inbox_access_service import (
     INBOX_VIEW_DEFINITIONS,
@@ -1139,6 +1140,8 @@ def api_document_ai_provisional_invoice_submit():
             hashlib.sha256(file_bytes).hexdigest(),
         )
         return jsonify(result), 201
+    except UnknownPhcVatRateError as exc:
+        return jsonify(exc.payload()), 422
     except (ValueError, FileExistsError) as exc:
         mark_document_validation_error(document_id, str(exc), _current_login())
         return jsonify({'error': str(exc)}), 400
@@ -1662,6 +1665,8 @@ def api_document_ai_document_workflow_validate(docinstamp: str):
         return jsonify({'error': str(exc)}), 409
     except PermissionError as exc:
         return jsonify({'error': str(exc)}), 403
+    except UnknownPhcVatRateError as exc:
+        return jsonify(exc.payload()), 422
     except ValueError as exc:
         return jsonify({'error': str(exc)}), 400
     except RuntimeError as exc:

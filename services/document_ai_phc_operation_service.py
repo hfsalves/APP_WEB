@@ -114,11 +114,12 @@ def run_document_phc_operation(
         raw_result = dict(execute() or {})
     except Exception as exc:
         failed_at = _utc_now()
+        requires_user_input = bool(getattr(exc, 'requires_user_input', False))
         meta = _load_meta(getattr(document, 'processing_meta_json', '{}'))
         operations = dict(meta.get('phc_operations') or {})
         failed = {
             **dict(operations.get(clean_type) or pending),
-            'status': 'failed_recoverable',
+            'status': 'awaiting_user_input' if requires_user_input else 'failed_recoverable',
             'failed_at_utc': failed_at.isoformat(),
             'error': str(exc)[:1000],
         }
@@ -126,8 +127,11 @@ def run_document_phc_operation(
         meta['phc_operations'] = operations
         meta[legacy_meta_key] = failed
         document.processing_meta_json = _dump_meta(meta)
-        document.processing_stage = 'integration_failed_recoverable'
-        document.last_processing_error = str(exc)[:4000]
+        document.processing_stage = (
+            'integration_awaiting_user_input' if requires_user_input
+            else 'integration_failed_recoverable'
+        )
+        document.last_processing_error = '' if requires_user_input else str(exc)[:4000]
         document.dtalt = failed_at.replace(tzinfo=None)
         db.session.commit()
         raise

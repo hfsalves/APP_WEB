@@ -737,6 +737,12 @@ def create_app():
     with app.app_context():
         ensure_booking_portal_analytics_menu()
 
+    from blueprints.transfer_dashboard import bp as transfer_dashboard_bp
+    app.register_blueprint(transfer_dashboard_bp)
+    from services.transfer_dashboard_menu import ensure_transfer_dashboard_menu
+    with app.app_context():
+        ensure_transfer_dashboard_menu()
+
     from blueprints.predefined_messages import bp as predefined_messages_bp
     app.register_blueprint(predefined_messages_bp)
     from services.predefined_messages_service import ensure_predefined_messages_menu
@@ -4516,17 +4522,27 @@ def create_app():
             return jsonify({'error': 'A tabela de transfers ainda não está instalada.'}), 503
 
         body = request.get_json(silent=True) or {}
-        origin = str(body.get('origin') or '').strip().lower()
-        if origin not in {'airport', 'campanha'}:
-            return jsonify({'error': 'Origem de chegada inválida.'}), 400
-        arrival_date = _parse_public_date(body.get('arrival_date'))
-        departure_enabled = bool(body.get('departure_enabled'))
-        departure_date = _parse_public_date(body.get('departure_date')) if departure_enabled else None
+        route = str(body.get('route') or body.get('origin') or '').strip().lower()
+        route_labels = {
+            'airport': ('Aeroporto do Porto → Alojamento', 'Porto Airport → Accommodation'),
+            'campanha': ('Estação de Campanhã → Alojamento', 'Campanhã Station → Accommodation'),
+            'to_airport': ('Alojamento → Aeroporto do Porto', 'Accommodation → Porto Airport'),
+            'to_campanha': ('Alojamento → Estação de Campanhã', 'Accommodation → Campanhã Station'),
+        }
+        if route not in route_labels:
+            return jsonify({'error': 'Percurso de transfer inválido.'}), 400
+        is_departure_route = route in {'to_airport', 'to_campanha'}
+        service_date = _parse_public_date(body.get('service_date') or body.get('arrival_date'))
         time_re = re.compile(r'^([01]\d|2[0-3]):[0-5]\d$')
-        arrival_time = str(body.get('arrival_time') or '').strip()
+        service_time = str(body.get('service_time') or body.get('arrival_time') or '').strip()
+        if not service_date or not time_re.match(service_time):
+            return jsonify({'error': 'Indica uma data e hora de transfer válidas.'}), 400
+
+        # Compatibilidade com o formulário antigo, que permitia adicionar uma
+        # partida ao mesmo pedido de chegada.
+        departure_enabled = bool(body.get('departure_enabled')) and not is_departure_route
+        departure_date = _parse_public_date(body.get('departure_date')) if departure_enabled else None
         departure_time = str(body.get('departure_time') or '').strip() if departure_enabled else ''
-        if not arrival_date or not time_re.match(arrival_time):
-            return jsonify({'error': 'Indica uma data e hora de chegada válidas.'}), 400
         if departure_enabled and (not departure_date or not time_re.match(departure_time)):
             return jsonify({'error': 'Indica uma data e hora de partida válidas.'}), 400
 
@@ -4567,11 +4583,14 @@ def create_app():
         values = {
             'stamp': stamp, 'rsstamp': str(row.get('RSSTAMP') or '').strip(),
             'reserva': str(row.get('RESERVA') or public_code).strip(),
-            'alojamento': str(row.get('ALOJAMENTO') or '').strip(), 'origin': origin,
-            'arrival_date': arrival_date, 'arrival_time': arrival_time,
-            'flight': str(body.get('flight') or '').strip()[:20] if origin == 'airport' else '',
-            'has_departure': 1 if departure_enabled else 0, 'departure_date': departure_date,
-            'departure_time': departure_time or None,
+            'alojamento': str(row.get('ALOJAMENTO') or '').strip(), 'origin': route,
+            # DATA_CHEGADA/HORA_CHEGADA continuam a guardar a data/hora principal
+            # por compatibilidade com os registos já existentes.
+            'arrival_date': service_date, 'arrival_time': service_time,
+            'flight': str(body.get('flight') or '').strip()[:20] if route in {'airport', 'to_airport'} else '',
+            'has_departure': 1 if (is_departure_route or departure_enabled) else 0,
+            'departure_date': service_date if is_departure_route else departure_date,
+            'departure_time': service_time if is_departure_route else (departure_time or None),
             'address': address, 'guest_name': guest_name, 'people_count': people_count,
             'guest_phone': guest_phone, 'guest_email': guest_email,
             'driver_phone': driver_phone, 'driver_email': driver_email,
@@ -4585,8 +4604,7 @@ def create_app():
         """), values)
         db.session.commit()
 
-        origin_label_pt = 'Aeroporto do Porto' if origin == 'airport' else 'Estação de Campanhã'
-        origin_label_en = 'Porto Airport' if origin == 'airport' else 'Campanhã Station'
+        route_label_pt, route_label_en = route_labels[route]
         email_content = build_transfer_confirmation_email({
             'reservation': values['reserva'],
             'accommodation': values['alojamento'],
@@ -4595,10 +4613,11 @@ def create_app():
             'people_count': people_count,
             'guest_phone': guest_phone,
             'guest_email': guest_email,
-            'arrival_point_pt': origin_label_pt,
-            'arrival_point_en': origin_label_en,
-            'arrival_date': arrival_date,
-            'arrival_time': arrival_time,
+            'movement_kind': 'departure' if is_departure_route else 'arrival',
+            'route_label_pt': route_label_pt,
+            'route_label_en': route_label_en,
+            'service_date': service_date,
+            'service_time': service_time,
             'flight': values['flight'],
             'departure_date': departure_date if departure_enabled else None,
             'departure_time': departure_time if departure_enabled else '',

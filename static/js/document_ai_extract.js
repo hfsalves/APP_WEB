@@ -202,6 +202,17 @@ document.addEventListener('DOMContentLoaded', () => {
     duplicateCloseTop: document.getElementById('docAiDuplicateCloseTop'),
     duplicateCancel: document.getElementById('docAiDuplicateCancel'),
     duplicateConfirm: document.getElementById('docAiDuplicateConfirm'),
+    vatRateModal: document.getElementById('docAiVatRateModal'),
+    vatRateContext: document.getElementById('docAiVatRateContext'),
+    vatRateQuestion: document.getElementById('docAiVatRateQuestion'),
+    vatRateChoices: document.getElementById('docAiVatRateChoices'),
+    vatRateError: document.getElementById('docAiVatRateError'),
+    vatRateCloseTop: document.getElementById('docAiVatRateCloseTop'),
+    vatRateCancel: document.getElementById('docAiVatRateCancel'),
+    vatRateChoose: document.getElementById('docAiVatRateChoose'),
+    vatRateZero: document.getElementById('docAiVatRateZero'),
+    vatRateBack: document.getElementById('docAiVatRateBack'),
+    vatRateApply: document.getElementById('docAiVatRateApply'),
     conflictModal: document.getElementById('docAiConflictModal'),
     conflictReload: document.getElementById('docAiConflictReload'),
     conflictKeep: document.getElementById('docAiConflictKeep'),
@@ -283,6 +294,8 @@ document.addEventListener('DOMContentLoaded', () => {
     workflow: {},
     duplicateMatches: [],
     duplicateModalShownFor: '',
+    vatRatePrompt: null,
+    vatRateResolver: null,
     headerPreflight: null,
     deletingDocument: false,
     draftVersion: '',
@@ -2033,6 +2046,82 @@ document.addEventListener('DOMContentLoaded', () => {
     `).join('');
     els.duplicateModal.classList.add('sz_is_open');
     els.duplicateModal.setAttribute('aria-hidden', 'false');
+  }
+
+  function vatRateLabel(value) {
+    return new Intl.NumberFormat('pt-PT', { maximumFractionDigits: 2 }).format(Number(value || 0));
+  }
+
+  function showVatRateChoices() {
+    if (!state.vatRatePrompt || !els.vatRateChoices) return;
+    const rates = Array.isArray(state.vatRatePrompt.vat_rates) ? state.vatRatePrompt.vat_rates : [];
+    els.vatRateQuestion.hidden = true;
+    els.vatRateChoices.hidden = false;
+    els.vatRateChoose.hidden = true;
+    els.vatRateZero.hidden = true;
+    els.vatRateBack.hidden = false;
+    els.vatRateApply.hidden = false;
+    els.vatRateError.hidden = true;
+    els.vatRateChoices.innerHTML = rates.map((rate) => `
+      <label class="docai-vat-rate-option">
+        <input type="radio" name="docAiVatRateChoice" value="${escapeHtml(rate.tabiva)}">
+        <span><strong>Tabela ${escapeHtml(rate.tabiva)}</strong><small>${escapeHtml(vatRateLabel(rate.tax_rate))}%</small></span>
+      </label>
+    `).join('') || '<span class="sz_text_muted">Esta empresa não tem taxas de IVA disponíveis.</span>';
+    els.vatRateChoices.querySelector('input')?.focus();
+  }
+
+  function showVatRateQuestion() {
+    const hasZeroTable = Boolean(state.vatRatePrompt?.suggested_zero);
+    els.vatRateQuestion.hidden = false;
+    els.vatRateChoices.hidden = true;
+    els.vatRateChoose.hidden = false;
+    els.vatRateZero.hidden = !hasZeroTable;
+    els.vatRateBack.hidden = true;
+    els.vatRateApply.hidden = true;
+    els.vatRateError.hidden = true;
+    if (!hasZeroTable) showVatRateChoices();
+  }
+
+  function closeVatRateModal(selection = null) {
+    els.vatRateModal?.classList.remove('sz_is_open');
+    els.vatRateModal?.setAttribute('aria-hidden', 'true');
+    const resolve = state.vatRateResolver;
+    state.vatRateResolver = null;
+    state.vatRatePrompt = null;
+    if (resolve) resolve(selection);
+  }
+
+  function requestVatRateChoice(payload) {
+    if (!els.vatRateModal) return Promise.resolve(null);
+    if (state.vatRateResolver) closeVatRateModal(null);
+    state.vatRatePrompt = payload || {};
+    const sourceRate = vatRateLabel(payload?.unknown_vat_rate);
+    const database = String(payload?.phc_database || '').trim();
+    els.vatRateContext.textContent = `A taxa ${sourceRate}% não existe em ${database || 'esta empresa'}.`;
+    showVatRateQuestion();
+    els.vatRateModal.classList.add('sz_is_open');
+    els.vatRateModal.setAttribute('aria-hidden', 'false');
+    return new Promise((resolve) => {
+      state.vatRateResolver = resolve;
+      window.setTimeout(() => (els.vatRateZero.hidden ? els.vatRateChoices.querySelector('input') : els.vatRateZero)?.focus(), 0);
+    });
+  }
+
+  async function applyUnknownVatChoice(error) {
+    if (error?.payload?.code !== 'unknown_phc_vat_rate' || !state.documentData) return false;
+    const selection = await requestVatRateChoice(error.payload);
+    if (!selection) return false;
+    const key = String(error.payload.source_rate_key || Number(error.payload.unknown_vat_rate || 0).toFixed(2));
+    state.documentData.vat_rate_overrides = {
+      ...(state.documentData.vat_rate_overrides || {}),
+      [key]: {
+        tabiva: Number(selection.tabiva),
+        tax_rate: Number(selection.tax_rate),
+      },
+    };
+    await scheduleAnalysisSave({ immediate: true });
+    return true;
   }
 
   async function saveDuplicateDecision(decision, duplicateDocumentId) {
@@ -5583,6 +5672,15 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       return { payload, isProvisionalInvoice };
     } catch (error) {
+      if (error.payload?.code === 'unknown_phc_vat_rate') {
+        const retry = await applyUnknownVatChoice(error);
+        if (retry) {
+          window.setTimeout(() => submitDocumentToPhc({ navigate, announceSuccess }), 0);
+          return null;
+        }
+        setStatus('Escolha da taxa de IVA cancelada. O documento não foi lançado.', true);
+        return null;
+      }
       setStatus(error.message || 'Não foi possível submeter a correspondência.', true);
       showMessage(error.message || 'Não foi possível submeter a correspondência.', 'error');
       return null;
@@ -5772,6 +5870,13 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (error) {
       if (error.status === 409 || error.payload?.code === 'document_version_conflict') {
         openDraftConflict();
+      } else if (error.payload?.code === 'unknown_phc_vat_rate') {
+        const retry = await applyUnknownVatChoice(error);
+        if (retry) {
+          window.setTimeout(() => validateWorkflowStage({ confirmDuplicate }), 0);
+          return;
+        }
+        setStatus('Escolha da taxa de IVA cancelada. O documento não foi lançado.', true);
       } else {
         setStatus(error.message || 'Não foi possível validar a etapa.', true);
       }
@@ -5865,6 +5970,28 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   els.duplicateCloseTop?.addEventListener('click', closeDuplicateModal);
   els.duplicateCancel?.addEventListener('click', closeDuplicateModal);
+  els.vatRateCloseTop?.addEventListener('click', () => closeVatRateModal(null));
+  els.vatRateCancel?.addEventListener('click', () => closeVatRateModal(null));
+  els.vatRateModal?.addEventListener('click', (event) => {
+    if (event.target === els.vatRateModal) closeVatRateModal(null);
+  });
+  els.vatRateChoose?.addEventListener('click', showVatRateChoices);
+  els.vatRateBack?.addEventListener('click', showVatRateQuestion);
+  els.vatRateZero?.addEventListener('click', () => {
+    const choice = state.vatRatePrompt?.suggested_zero;
+    if (choice) closeVatRateModal(choice);
+  });
+  els.vatRateApply?.addEventListener('click', () => {
+    const selected = els.vatRateChoices?.querySelector('input[name="docAiVatRateChoice"]:checked');
+    const choice = (state.vatRatePrompt?.vat_rates || []).find(
+      (rate) => String(rate.tabiva) === String(selected?.value || ''),
+    );
+    if (!choice) {
+      els.vatRateError.hidden = false;
+      return;
+    }
+    closeVatRateModal(choice);
+  });
   els.duplicateConfirm?.addEventListener('click', async () => {
     const duplicateDocumentId = state.duplicateMatches[0]?.document_id;
     try {

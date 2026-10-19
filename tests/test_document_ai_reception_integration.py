@@ -2,6 +2,7 @@ import json
 import os
 import tempfile
 import unittest
+from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -10,6 +11,7 @@ from services.document_ai_service import (
     _integrate_reception_document,
     _reception_integration_incomplete_message,
     submit_provisional_invoice_to_phc,
+    UnknownPhcVatRateError,
 )
 
 
@@ -203,6 +205,35 @@ class DocumentAiReceptionIntegrationTests(unittest.TestCase):
             self.assertEqual(integration['status'], 'failed_recoverable')
             self.assertEqual(document.processing_stage, 'integration_failed_recoverable')
             self.assertGreaterEqual(commit.call_count, 2)
+        finally:
+            os.unlink(path)
+
+    def test_unknown_vat_rate_is_persisted_as_waiting_for_user_choice(self):
+        with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as handle:
+            handle.write(b'%PDF-test')
+            path = handle.name
+        document = self._document(path)
+        choice = UnknownPhcVatRateError(
+            Decimal('17'),
+            'HSOLS_FR',
+            [{'tabiva': 5, 'tax_rate': 0.0, 'label': 'Tabela 5 · 0%'}],
+        )
+        try:
+            with patch('services.document_ai_service._document_absolute_path', return_value=path), patch(
+                'services.document_ai_service.submit_provisional_invoice_to_phc',
+                side_effect=choice,
+            ), patch('services.document_ai_service.db.session.commit'):
+                with self.assertRaises(UnknownPhcVatRateError):
+                    _integrate_reception_document(
+                        document,
+                        {'document_type': 'invoice', 'customer': {'feid': 1}},
+                        'tester',
+                        {'provisional_invoice': True},
+                    )
+            integration = json.loads(document.processing_meta_json)['phc_integration']
+            self.assertEqual(integration['status'], 'awaiting_user_input')
+            self.assertEqual(document.processing_stage, 'integration_awaiting_user_input')
+            self.assertEqual(document.last_processing_error, '')
         finally:
             os.unlink(path)
 
