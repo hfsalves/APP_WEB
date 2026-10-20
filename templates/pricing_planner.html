@@ -764,6 +764,7 @@
   const LAST_ALOJAMENTO_KEY = 'pricing:lastAlojamento';
   let plannerBusyCount = 0;
   let plannerLoading = false;
+  let currentAlojamentoConfig = null;
   let syncPollInFlight = false;
   let syncPollTimer = null;
 
@@ -854,6 +855,7 @@
       `Min ${fmtMoney(config.preco_min)}`,
       `Base ${fmtMoney(config.preco_base)}`,
       `Max ${fmtMoney(config.preco_max)}`,
+      `Mínimo rígido ${config.preco_min_rigido ? 'Sim' : 'Não'}`,
       `Perfil ${config.perfil_nome || config.perfil_id || '-'}`,
       `Regime ${config.regime || '-'}`,
       `Sync ${config.sync ? 'Sim' : 'Não'}`,
@@ -1331,7 +1333,8 @@
       ];
       if (item.motivo) chips.push(chip('Motivo', item.motivo));
       if (item.criado_por) chips.push(chip('Criado por', item.criado_por));
-      if (fromFlags?.clamped_by_regime) chips.push(chip('Clamp regime', 'Aplicado'));
+      if (item.origem) chips.push(chip('Origem', item.origem));
+      if (fromFlags?.clamped_by_policy || fromFlags?.clamped_by_regime) chips.push(chip('Mínimo rígido', 'Aplicado'));
 
       const actions = `<button type="button" class="sz_pricing_inline_btn js-delete-override" data-ovr-id="${item.ovr_id}">Remover</button>`;
       return infoCard(`Override #${item.ovr_id}`, chips, actions);
@@ -1465,6 +1468,7 @@
       ]);
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || 'Erro ao ler planner');
+      currentAlojamentoConfig = config;
       dayMap = new Map((payload.days || []).map((item) => {
         const normalized = normalizePlannerDay(item);
         return [normalized.date, normalized];
@@ -1498,6 +1502,7 @@
       daySummaryEl.innerHTML = `
         <div class="sz_pricing_day_summary_main">${escapeHtml(payload.alojamento)} · ${escapeHtml(payload.date)}</div>
         <div class="sz_pricing_day_summary_value">${escapeHtml(fmtMoney(payload.preco_calc))} calculado · ${escapeHtml(fmtMoney(payload.preco_final))} final</div>
+        <div class="sz_pricing_day_summary_meta">Preço mínimo: ${escapeHtml(fmtMoney(currentAlojamentoConfig?.preco_min))} · Rígido: ${currentAlojamentoConfig?.preco_min_rigido ? 'Sim' : 'Não'}</div>
         <div class="sz_pricing_day_summary_meta" data-sync-state>Airbnb: ${escapeHtml(airbnbText)} · Booking: ${escapeHtml(bookingText)}</div>
         <div class="sz_pricing_day_summary_meta">Atualizado em ${escapeHtml(payload.updated_at || '-')}</div>
       `;
@@ -1572,12 +1577,15 @@
           data_ini: document.getElementById('overrideDataIni').value,
           data_fim: document.getElementById('overrideDataFim').value,
           motivo: document.getElementById('overrideMotivo').value,
+          origem: 'PLANNER',
           permitir_abaixo_min: document.getElementById('overrideAbaixoMin').checked,
         }),
       });
       const payload = await readJsonResponse(response);
       if (!response.ok) throw new Error(payload.error || 'Erro ao criar override');
-      overrideStatusEl.textContent = `Override gravado. ${payload.recalc.changed_rows} linhas recalculadas.`;
+      overrideStatusEl.textContent = payload.warning
+        ? `${payload.warning} ${payload.recalc.changed_rows} linhas recalculadas.`
+        : `Override gravado. ${payload.recalc.changed_rows} linhas recalculadas.`;
       await loadPlanner();
       if (selectedDay) await openDay(selectedDay);
     } catch (error) {

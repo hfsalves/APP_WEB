@@ -187,6 +187,78 @@ def _as_bool(value):
     return str(value).strip().lower() in {"1", "true", "t", "yes", "y", "on"}
 
 
+def _load_minimum_price_policy(session, alojamento):
+    """Return the AL policy and configured minimum used by the price engine."""
+    row = session.execute(
+        text(
+            """
+            SELECT TOP 1
+                ISNULL(AL.PRECOMINRIGIDO, 0) AS PRECOMINRIGIDO,
+                ISNULL(PA.PRECO_MIN, 0) AS PRECO_MIN
+            FROM dbo.PR_ALOJAMENTO AS PA
+            INNER JOIN dbo.AL AS AL
+              ON LTRIM(RTRIM(ISNULL(AL.NOME, ''))) COLLATE SQL_Latin1_General_CP1_CI_AI
+               = LTRIM(RTRIM(ISNULL(PA.AL_NOME, ''))) COLLATE SQL_Latin1_General_CP1_CI_AI
+            WHERE LTRIM(RTRIM(ISNULL(PA.AL_NOME, ''))) = :alojamento
+            """
+        ),
+        {"alojamento": _normalize_alojamento(alojamento)},
+    ).mappings().first()
+    if not row:
+        raise ValueError("Alojamento não encontrado na configuração de preços.")
+    return {
+        "rigid": bool(row.get("PRECOMINRIGIDO")),
+        "base": _round_price(row.get("PRECO_MIN")),
+    }
+
+
+def _effective_minimum_prices(session, minimum_base, start_date, end_date):
+    month_rows = session.execute(
+        text("SELECT MES, INDICE FROM dbo.PR_SAZONAL_MES")
+    ).mappings().all()
+    month_factors = {
+        int(row["MES"]): _safe_decimal(row.get("INDICE"), "100") / Decimal("100")
+        for row in month_rows
+    }
+    return {
+        day_value: _round_price(minimum_base * month_factors.get(day_value.month, Decimal("1")))
+        for day_value in _daterange(start_date, end_date)
+    }
+
+
+def _find_minimum_price_violation(session, alojamento, override_type, value, start_date, end_date):
+    """Find the first day where an override would undercut a rigid effective minimum."""
+    policy = _load_minimum_price_policy(session, alojamento)
+    if not policy["rigid"]:
+        return None
+    minimums = _effective_minimum_prices(session, policy["base"], start_date, end_date)
+    calculated = {}
+    if override_type == "DESCONTO_PCT":
+        rows = session.execute(
+            text(
+                """
+                SELECT [DATA], PRECO_CALC
+                FROM dbo.PR_CALC_DAY
+                WHERE AL_NOME = :alojamento
+                  AND [DATA] BETWEEN :start_date AND :end_date
+                """
+            ),
+            {"alojamento": alojamento, "start_date": start_date, "end_date": end_date},
+        ).mappings().all()
+        calculated = {row["DATA"]: _safe_decimal(row.get("PRECO_CALC"), "0") for row in rows}
+
+    for day_value, minimum in minimums.items():
+        if override_type == "PRECO_FIXO":
+            proposed = _round_price(value)
+        else:
+            if day_value not in calculated:
+                raise ValueError(f"Não foi possível validar o preço calculado de {day_value:%d/%m/%Y}.")
+            proposed = _round_price(calculated[day_value] * (Decimal("1") - (value / Decimal("100"))))
+        if proposed < minimum:
+            return {"date": day_value, "minimum": minimum, "proposed": proposed}
+    return None
+
+
 def _normalize_mmdd(value, field_name):
     raw = str(value or "").strip()
     if len(raw) != 4 or not raw.isdigit():
@@ -354,6 +426,14 @@ def ensure_pricing_schema(session):
     al_name_sql_type = _get_al_nome_sql_type(session)
 
     ddl_statements = [
+        """
+        IF COL_LENGTH('dbo.AL', 'PRECOMINRIGIDO') IS NULL
+        BEGIN
+            ALTER TABLE dbo.AL
+            ADD PRECOMINRIGIDO BIT NOT NULL
+                CONSTRAINT DF_AL_PRECOMINRIGIDO DEFAULT (0) WITH VALUES;
+        END
+        """,
         """
         IF NOT EXISTS (
             SELECT 1
@@ -551,6 +631,7 @@ def ensure_pricing_schema(session):
                 DATA_FIM DATE NOT NULL,
                 VALOR DECIMAL(10,2) NOT NULL,
                 PERMITIR_ABAIXO_MIN BIT NOT NULL CONSTRAINT DF_PR_OVERRIDE_PERMITIR_ABAIXO_MIN DEFAULT (0),
+                ORIGEM VARCHAR(30) NOT NULL CONSTRAINT DF_PR_OVERRIDE_ORIGEM DEFAULT ('LEGADO'),
                 MOTIVO NVARCHAR(250) NULL,
                 ATIVO BIT NOT NULL CONSTRAINT DF_PR_OVERRIDE_ATIVO DEFAULT (1),
                 CRIADO_EM DATETIME2(0) NOT NULL CONSTRAINT DF_PR_OVERRIDE_CRIADO_EM DEFAULT (SYSUTCDATETIME()),
@@ -559,6 +640,20 @@ def ensure_pricing_schema(session):
                 CONSTRAINT CK_PR_OVERRIDE_TIPO CHECK (TIPO IN ('PRECO_FIXO', 'DESCONTO_PCT')),
                 CONSTRAINT CK_PR_OVERRIDE_INTERVALO CHECK (DATA_FIM >= DATA_INI)
             );
+        END
+        """,
+        """
+        IF COL_LENGTH('dbo.PR_OVERRIDE', 'ORIGEM') IS NULL
+        BEGIN
+            ALTER TABLE dbo.PR_OVERRIDE
+            ADD ORIGEM VARCHAR(30) NOT NULL
+                CONSTRAINT DF_PR_OVERRIDE_ORIGEM DEFAULT ('LEGADO') WITH VALUES;
+
+            EXEC(N'
+                UPDATE dbo.PR_OVERRIDE
+                SET ORIGEM = ''ATENCAO_IMEDIATA''
+                WHERE UPPER(LTRIM(RTRIM(ISNULL(MOTIVO, '''')))) = N''ATENÇÃO IMEDIATA'';
+            ');
         END
         """,
         f"""
@@ -701,9 +796,13 @@ def _load_pricing_inputs(session, start_date, end_date, alojamento=None):
             pa.PRECO_MIN,
             pa.PRECO_BASE,
             pa.PRECO_MAX,
+            ISNULL(al.PRECOMINRIGIDO, 0) AS PRECOMINRIGIDO,
             ISNULL(pa.LAST_MIN_DISC, 0) AS LAST_MIN_DISC,
             ISNULL(pa.LAST_MIN_DAYS, 0) AS LAST_MIN_DAYS
         FROM dbo.PR_ALOJAMENTO pa
+        INNER JOIN dbo.AL al
+          ON LTRIM(RTRIM(ISNULL(al.NOME, ''))) COLLATE SQL_Latin1_General_CP1_CI_AI
+           = LTRIM(RTRIM(ISNULL(pa.AL_NOME, ''))) COLLATE SQL_Latin1_General_CP1_CI_AI
         WHERE ISNULL(pa.ATIVO, 0) = 1
     """
     params = {}
@@ -897,6 +996,7 @@ def _load_pricing_inputs(session, start_date, end_date, alojamento=None):
             DATA_FIM,
             VALOR,
             ISNULL(PERMITIR_ABAIXO_MIN, 0) AS PERMITIR_ABAIXO_MIN,
+            UPPER(LTRIM(RTRIM(ISNULL(ORIGEM, 'LEGADO')))) AS ORIGEM,
             ISNULL(MOTIVO, '') AS MOTIVO,
             CRIADO_EM
         FROM dbo.PR_OVERRIDE
@@ -1111,6 +1211,7 @@ def recalculate_prices(days=DEFAULT_HORIZON_DAYS, alojamento=None, from_date=Non
         price_min_base = _round_price(aloj.get("PRECO_MIN"))
         price_base = _round_price(aloj.get("PRECO_BASE"))
         price_max = _round_price(aloj.get("PRECO_MAX"))
+        minimum_price_rigid = bool(aloj.get("PRECOMINRIGIDO"))
         last_min_disc = _safe_decimal(aloj.get("LAST_MIN_DISC"), "0")
         last_min_days = max(int(aloj.get("LAST_MIN_DAYS") or 0), 0)
         reserved = inputs["reserved_days"].get(aloj_cache_key, set())
@@ -1224,18 +1325,26 @@ def recalculate_prices(days=DEFAULT_HORIZON_DAYS, alojamento=None, from_date=Non
                 elif override_type == "DESCONTO_PCT":
                     preco_final = _round_price(preco_calc * (Decimal("1") - (override_value / Decimal("100"))))
 
-                clamped_by_regime = False
-                if regime == "GESTAO" and not bool(override_row.get("PERMITIR_ABAIXO_MIN")) and preco_final < price_min:
+                override_origin = str(override_row.get("ORIGEM") or "LEGADO").strip().upper()
+                allow_below_minimum = (
+                    bool(override_row.get("PERMITIR_ABAIXO_MIN"))
+                    and override_origin == "PLANNER"
+                )
+                clamped_by_policy = False
+                if minimum_price_rigid and not allow_below_minimum and preco_final < price_min:
                     preco_final = price_min
-                    clamped_by_regime = True
+                    clamped_by_policy = True
 
                 override_info = {
                     "ovr_id": int(override_row.get("OVR_ID")),
                     "tipo": override_type,
                     "valor": _to_float(override_value),
                     "motivo": override_row.get("MOTIVO") or "",
-                    "permitir_abaixo_min": bool(override_row.get("PERMITIR_ABAIXO_MIN")),
-                    "clamped_by_regime": clamped_by_regime,
+                    "origem": override_origin,
+                    "preco_min_rigido": minimum_price_rigid,
+                    "permitir_abaixo_min": allow_below_minimum,
+                    "clamped_by_policy": clamped_by_policy,
+                    "clamped_by_regime": clamped_by_policy,
                 }
 
             flags = _build_flags(
@@ -1517,7 +1626,8 @@ def _load_alojamento_config(alojamento):
                 ISNULL(pa.SYNC_BOOKING, 0) AS SYNC_BOOKING,
                 ISNULL(pa.ATIVO, 0) AS ATIVO,
                 ISNULL(pp.NOME, '') AS PERFIL_NOME,
-                ISNULL(al.TIPOLOGIA, '') AS TIPOLOGIA
+                ISNULL(al.TIPOLOGIA, '') AS TIPOLOGIA,
+                ISNULL(al.PRECOMINRIGIDO, 0) AS PRECOMINRIGIDO
             FROM dbo.PR_ALOJAMENTO pa
             LEFT JOIN dbo.PR_PERFIL pp ON pp.PERFIL_ID = pa.PERFIL_ID
             LEFT JOIN dbo.AL al ON al.NOME = pa.AL_NOME
@@ -1546,6 +1656,7 @@ def _load_alojamento_config(alojamento):
         "regime": row.get("REGIME") or "GESTAO",
         "tipologia": row.get("TIPOLOGIA") or "",
         "preco_min": _to_float(row.get("PRECO_MIN")),
+        "preco_min_rigido": bool(row.get("PRECOMINRIGIDO")),
         "preco_base": _to_float(row.get("PRECO_BASE")),
         "preco_max": _to_float(row.get("PRECO_MAX")),
         "fator_booking": _to_float(row.get("FATOR_BOOKING")),
@@ -3807,6 +3918,8 @@ def pricing_api_attention_now():
                 UPPER(LTRIM(RTRIM(COALESCE(NULLIF(pa.REGIME, ''), NULLIF(AL.TIPO, ''), 'GESTAO')))) AS REGIME,
                 LTRIM(RTRIM(ISNULL(AL.TIPO, ''))) AS TIPO,
                 LTRIM(RTRIM(ISNULL(AL.TIPOLOGIA, ''))) AS TIPOLOGIA,
+                ISNULL(AL.PRECOMINRIGIDO, 0) AS PRECOMINRIGIDO,
+                ISNULL(pa.PRECO_MIN, 0) AS PRECO_MIN,
                 CASE WHEN ISNULL(AL.NOITES, 0) > 0 THEN ISNULL(AL.NOITES, 0) ELSE 1 END AS MIN_NOITES
             FROM dbo.PR_ALOJAMENTO AS pa
             LEFT JOIN dbo.AL AS AL
@@ -3994,6 +4107,8 @@ def pricing_api_attention_now():
             "regime": aloj_row.get("REGIME") or "",
             "tipo": aloj_row.get("TIPO") or "",
             "tipologia": aloj_row.get("TIPOLOGIA") or "",
+            "preco_min_rigido": bool(aloj_row.get("PRECOMINRIGIDO")),
+            "preco_min": _to_float(aloj_row.get("PRECO_MIN")),
             "min_noites": min_noites,
             "vacant_count": vacant_count,
             "vacant_total": _to_float(vacant_total),
@@ -4236,7 +4351,7 @@ def pricing_api_day():
             """
             SELECT
                 OVR_ID, TIPO, DATA_INI, DATA_FIM, VALOR, PERMITIR_ABAIXO_MIN,
-                MOTIVO, ATIVO, CRIADO_EM, CRIADO_POR
+                ORIGEM, MOTIVO, ATIVO, CRIADO_EM, CRIADO_POR
             FROM dbo.PR_OVERRIDE
             WHERE AL_NOME = :alojamento
               AND ISNULL(ATIVO, 0) = 1
@@ -4288,7 +4403,11 @@ def pricing_api_day():
                     "data_ini": item.get("DATA_INI").isoformat() if item.get("DATA_INI") else "",
                     "data_fim": item.get("DATA_FIM").isoformat() if item.get("DATA_FIM") else "",
                     "valor": _to_float(item.get("VALOR")),
-                    "permitir_abaixo_min": bool(item.get("PERMITIR_ABAIXO_MIN")),
+                    "permitir_abaixo_min": (
+                        bool(item.get("PERMITIR_ABAIXO_MIN"))
+                        and str(item.get("ORIGEM") or "").strip().upper() == "PLANNER"
+                    ),
+                    "origem": item.get("ORIGEM") or "LEGADO",
                     "motivo": item.get("MOTIVO") or "",
                     "ativo": bool(item.get("ATIVO")),
                     "criado_em": item.get("CRIADO_EM").isoformat() if item.get("CRIADO_EM") else "",
@@ -4313,7 +4432,8 @@ def pricing_api_override():
         data_fim = _parse_date(payload.get("data_fim"), "data_fim")
         valor = _safe_decimal(payload.get("valor"), "0")
         motivo = str(payload.get("motivo") or "").strip()
-        permitir_abaixo_min = _as_bool(payload.get("permitir_abaixo_min"))
+        override_origin = str(payload.get("origem") or "OUTRO").strip().upper()[:30]
+        requested_below_minimum = _as_bool(payload.get("permitir_abaixo_min"))
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 
@@ -4326,16 +4446,44 @@ def pricing_api_override():
     if tipo == "DESCONTO_PCT" and (valor < 0 or valor > 100):
         return jsonify({"error": "DESCONTO_PCT tem de estar entre 0 e 100."}), 400
 
+    allow_below_minimum = override_origin == "PLANNER" and requested_below_minimum
+    if tipo == "DESCONTO_PCT":
+        recalculate_prices(alojamento=alojamento, from_date=data_ini, to_date=data_fim)
+    try:
+        minimum_violation = _find_minimum_price_violation(
+            db.session, alojamento, tipo, valor, data_ini, data_fim
+        )
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    if minimum_violation and not allow_below_minimum:
+        minimum_label = _to_float(minimum_violation["minimum"])
+        proposed_label = _to_float(minimum_violation["proposed"])
+        if override_origin == "PLANNER":
+            guidance = "Marque ‘Permitir abaixo do mínimo’ para criar uma exceção no Planner."
+        else:
+            guidance = "Neste ecrã não é permitido ultrapassar o mínimo rígido."
+        return jsonify({
+            "error": (
+                f"Preço mínimo rígido: em {minimum_violation['date']:%d/%m/%Y} "
+                f"o mínimo é {minimum_label} € e o preço indicado resultaria em {proposed_label} €. "
+                f"{guidance}"
+            ),
+            "code": "MINIMUM_PRICE_RIGID",
+            "minimum_price": minimum_label,
+            "proposed_price": proposed_label,
+            "date": minimum_violation["date"].isoformat(),
+        }), 409
+
     db.session.execute(
         text(
             """
             INSERT INTO dbo.PR_OVERRIDE (
                 AL_NOME, TIPO, DATA_INI, DATA_FIM, VALOR, PERMITIR_ABAIXO_MIN,
-                MOTIVO, ATIVO, CRIADO_EM, CRIADO_POR
+                ORIGEM, MOTIVO, ATIVO, CRIADO_EM, CRIADO_POR
             )
             VALUES (
                 :alojamento, :tipo, :data_ini, :data_fim, :valor, :permitir_abaixo_min,
-                :motivo, 1, SYSUTCDATETIME(), :criado_por
+                :origem, :motivo, 1, SYSUTCDATETIME(), :criado_por
             )
             """
         ),
@@ -4345,7 +4493,8 @@ def pricing_api_override():
             "data_ini": data_ini,
             "data_fim": data_fim,
             "valor": valor,
-            "permitir_abaixo_min": 1 if permitir_abaixo_min else 0,
+            "permitir_abaixo_min": 1 if allow_below_minimum else 0,
+            "origem": override_origin,
             "motivo": motivo,
             "criado_por": getattr(current_user, "LOGIN", "") or "",
         },
@@ -4353,7 +4502,10 @@ def pricing_api_override():
     db.session.commit()
 
     result = recalculate_prices(alojamento=alojamento, from_date=data_ini, to_date=data_fim)
-    return jsonify({"ok": True, "recalc": result})
+    warning = ""
+    if minimum_violation and allow_below_minimum:
+        warning = "Exceção gravada no Planner abaixo do preço mínimo rígido."
+    return jsonify({"ok": True, "recalc": result, "warning": warning})
 
 
 @pricing_bp.route("/api/override/<int:ovr_id>", methods=["DELETE"])

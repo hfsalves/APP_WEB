@@ -103,3 +103,23 @@ WARNING: This is a development server. Do not use it in a production deployment.
 Press CTRL+C to quit
 127.0.0.1 - - [20/Oct/2026 11:00:09] "GET /login HTTP/1.1" 200 -
 127.0.0.1 - - [20/Oct/2026 11:00:21] "GET /r/HM4YP5J8DA HTTP/1.1" 200 -
+127.0.0.1 - - [20/Oct/2026 11:12:38] "GET /r/HM4YP5J8DA HTTP/1.1" 200 -
+127.0.0.1 - - [20/Oct/2026 11:22:53] "GET /login HTTP/1.1" 200 -
+ * Serving Flask app 'app'
+ * Debug mode: off
+Address already in use
+Port 8001 is in use by another program. Either identify and stop that program, or start the server with a different port.
+ * Serving Flask app 'app'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on http://127.0.0.1:8001
+Press CTRL+C to quit
+127.0.0.1 - - [20/Oct/2026 11:23:08] "GET /login HTTP/1.1" 200 -
+127.0.0.1 - - [20/Oct/2026 11:23:46] "GET /pricing/planner HTTP/1.1" 302 -
+127.0.0.1 - - [20/Oct/2026 11:23:46] "GET /pricing/atencao-imediata HTTP/1.1" 302 -
+ * Serving Flask app 'app'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on http://127.0.0.1:8001
+Press CTRL+C to quit
+127.0.0.1 - - [20/Oct/2026 11:27:35] "GET /login HTTP/1.1" 200 -

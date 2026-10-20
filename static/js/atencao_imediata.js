@@ -19,7 +19,6 @@
     dateIni: document.getElementById('attentionPriceDateIni'),
     dateFim: document.getElementById('attentionPriceDateFim'),
     motivo: document.getElementById('attentionPriceMotivo'),
-    belowMin: document.getElementById('attentionPriceBelowMin'),
     status: document.getElementById('attentionPriceStatus')
   };
 
@@ -356,12 +355,14 @@
       state.modal = window.bootstrap.Modal.getOrCreateInstance(els.modal);
     }
     els.title.textContent = `Alterar preço · ${row.alojamento}`;
-    els.summary.textContent = `${row.alojamento} · ${day.date} · mínimo ${row.min_noites || 1} noite(s)`;
+    const minimumPolicy = row.preco_min_rigido
+      ? ` · preço mínimo base rígido ${money(row.preco_min)} €`
+      : ' · preço mínimo flexível';
+    els.summary.textContent = `${row.alojamento} · ${day.date} · mínimo ${row.min_noites || 1} noite(s)${minimumPolicy}`;
     els.value.value = Number(day.price || 0).toFixed(2);
     els.dateIni.value = day.date;
     els.dateFim.value = day.date;
     els.motivo.value = 'Atenção Imediata';
-    els.belowMin.checked = false;
     setStatus('');
     state.modal?.show();
   }
@@ -376,7 +377,8 @@
       data_ini: els.dateIni.value,
       data_fim: els.dateFim.value,
       motivo: els.motivo.value || 'Atenção Imediata',
-      permitir_abaixo_min: els.belowMin.checked
+      origem: 'ATENCAO_IMEDIATA',
+      permitir_abaixo_min: false
     };
     setStatus('A gravar...');
     try {
