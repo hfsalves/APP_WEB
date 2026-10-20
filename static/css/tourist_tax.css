@@ -1,0 +1,317 @@
+.tourist-tax-page .sz_page_container {
+  gap: var(--sz-space-3);
+}
+
+.tourist-tax-contextbar {
+  align-items: flex-end;
+}
+
+.tourist-tax-contextbar .sz_contextbar_left {
+  flex: 1 1 22rem;
+}
+
+.tourist-tax-filters {
+  flex: 1 1 auto;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: var(--sz-space-2);
+}
+
+.tourist-tax-filter {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 8rem;
+  margin: 0;
+}
+
+.tourist-tax-filter span {
+  color: var(--sz-color-text-muted);
+  font-size: var(--sz-font-size-xs);
+  font-weight: var(--sz-font-weight-bold);
+  text-transform: uppercase;
+}
+
+.tourist-tax-filter input {
+  width: 7rem;
+}
+
+.tourist-tax-body {
+  display: grid;
+  gap: var(--sz-space-3);
+  min-height: 0;
+  overflow: auto;
+  padding-bottom: var(--sz-space-3);
+}
+
+.tourist-tax-status {
+  min-height: 1.25rem;
+  color: var(--sz-color-text-muted);
+  font-size: var(--sz-font-size-sm);
+}
+
+.tourist-tax-error {
+  padding: 0.75rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--sz-color-danger) 55%, var(--sz-color-border));
+  border-radius: var(--sz-radius-md);
+  background: color-mix(in srgb, var(--sz-color-danger) 10%, var(--sz-color-surface));
+  color: var(--sz-color-danger);
+}
+
+.tourist-tax-error[hidden] {
+  display: none;
+}
+
+.tourist-tax-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--sz-space-3);
+}
+
+.tourist-tax-kpi {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  min-height: 5rem;
+  padding: 0.8rem 1rem;
+}
+
+.tourist-tax-kpi > span {
+  display: grid;
+  width: 2.4rem;
+  height: 2.4rem;
+  place-items: center;
+  border-radius: var(--sz-radius-md);
+  background: color-mix(in srgb, var(--sz-color-primary) 12%, var(--sz-color-surface-alt));
+  color: var(--sz-color-primary);
+}
+
+.tourist-tax-kpi div {
+  display: grid;
+  gap: 0.12rem;
+}
+
+.tourist-tax-kpi small {
+  color: var(--sz-color-text-muted);
+}
+
+.tourist-tax-kpi strong {
+  font-size: 1.35rem;
+}
+
+.tourist-tax-kpi-highlight > span {
+  background: color-mix(in srgb, var(--sz-color-warning) 14%, var(--sz-color-surface-alt));
+  color: var(--sz-color-warning);
+}
+
+.tourist-tax-panel {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.tourist-tax-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--sz-color-border);
+}
+
+.tourist-tax-panel-header h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.tourist-tax-panel-header p {
+  margin: 0.2rem 0 0;
+  color: var(--sz-color-text-muted);
+  font-size: var(--sz-font-size-sm);
+}
+
+.tourist-tax-badge,
+.tourist-tax-cadence {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid color-mix(in srgb, var(--sz-color-primary) 50%, var(--sz-color-border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--sz-color-primary) 10%, transparent);
+  color: var(--sz-color-primary);
+  font-size: var(--sz-font-size-xs);
+  font-weight: var(--sz-font-weight-bold);
+}
+
+.tourist-tax-table-wrap {
+  overflow: auto;
+}
+
+.tourist-tax-table {
+  width: 100%;
+  min-width: 52rem;
+}
+
+.tourist-tax-table th,
+.tourist-tax-table td {
+  white-space: nowrap;
+}
+
+.tourist-tax-table th:not(:first-child),
+.tourist-tax-table td:not(:first-child) {
+  text-align: right;
+}
+
+.tourist-tax-table td:nth-child(2) {
+  text-align: left;
+}
+
+.tourist-tax-strong,
+.tourist-tax-reservation {
+  font-weight: var(--sz-font-weight-bold);
+}
+
+.tourist-tax-reservation {
+  color: var(--sz-color-primary);
+}
+
+.tourist-tax-empty {
+  padding: 1.5rem !important;
+  color: var(--sz-color-text-muted);
+  text-align: center !important;
+}
+
+.tourist-tax-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(17rem, 1fr);
+  gap: var(--sz-space-3);
+}
+
+.tourist-tax-config-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sz-space-2);
+  padding: 1rem;
+}
+
+.tourist-tax-config-grid > div {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.75rem;
+  border: 1px solid var(--sz-color-border);
+  border-radius: var(--sz-radius-md);
+  background: var(--sz-color-surface-alt);
+}
+
+.tourist-tax-config-grid span {
+  color: var(--sz-color-text-muted);
+  font-size: var(--sz-font-size-xs);
+}
+
+.tourist-tax-config-grid strong {
+  font-size: 1.2rem;
+}
+
+.tourist-tax-config-link {
+  margin: 0 1rem 1rem;
+}
+
+.tourist-tax-detail-wrap {
+  max-height: 34rem;
+}
+
+.tourist-tax-detail-table {
+  min-width: 78rem;
+}
+
+.tourist-tax-detail-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--sz-color-surface-alt);
+}
+
+.tourist-tax-warnings {
+  overflow: hidden;
+}
+
+.tourist-tax-warnings summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1rem;
+  cursor: pointer;
+}
+
+.tourist-tax-warnings summary strong {
+  min-width: 1.7rem;
+  padding: 0.12rem 0.4rem;
+  border-radius: 999px;
+  background: var(--sz-color-surface-alt);
+  text-align: center;
+}
+
+.tourist-tax-warnings.has-warnings summary {
+  color: var(--sz-color-warning);
+}
+
+.tourist-tax-warnings ul {
+  max-height: 18rem;
+  margin: 0;
+  padding: 0.75rem 2.25rem 1rem;
+  overflow: auto;
+  border-top: 1px solid var(--sz-color-border);
+  color: var(--sz-color-text-muted);
+  font-size: var(--sz-font-size-sm);
+}
+
+.tourist-tax-page.is-loading .tourist-tax-body {
+  opacity: 0.72;
+}
+
+@media (max-width: 900px) {
+  .tourist-tax-contextbar,
+  .tourist-tax-filters {
+    align-items: stretch;
+  }
+
+  .tourist-tax-filters {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .tourist-tax-filter,
+  .tourist-tax-filter input {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .tourist-tax-kpis,
+  .tourist-tax-columns {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .tourist-tax-filters,
+  .tourist-tax-kpis,
+  .tourist-tax-columns {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .tourist-tax-filters .sz_button span {
+    display: none;
+  }
+
+  .tourist-tax-kpi {
+    min-height: 4rem;
+    padding: 0.6rem;
+  }
+
+  .tourist-tax-kpi > span {
+    display: none;
+  }
+
+  .tourist-tax-panel-header {
+    align-items: flex-start;
+  }
+}

@@ -1,0 +1,80 @@
+.employee-insurance-page .sz_page_container { gap: var(--sz-space-3); }
+.employee-insurance-contextbar { align-items: flex-end; }
+.employee-insurance-contextbar .sz_contextbar_left { flex: 1 1 24rem; }
+.employee-insurance-actions { align-items: flex-end; gap: var(--sz-space-2); }
+.employee-insurance-scope { display: grid; gap: .25rem; min-width: 10rem; margin: 0; }
+.employee-insurance-scope > span,
+.employee-insurance-filters label > span { color: var(--sz-color-text-muted); font-size: var(--sz-font-size-xs); font-weight: var(--sz-font-weight-bold); text-transform: uppercase; }
+.employee-insurance-body { display: grid; gap: var(--sz-space-3); min-height: 0; overflow: auto; padding-bottom: var(--sz-space-3); }
+.employee-insurance-filter-panel { padding: .8rem 1rem; }
+.employee-insurance-filters { display: grid; grid-template-columns: minmax(15rem, 2fr) minmax(10rem, 1fr) minmax(15rem, 1.5fr) auto auto; align-items: end; gap: var(--sz-space-2); }
+.employee-insurance-filters label { display: grid; gap: .25rem; margin: 0; min-width: 0; }
+.employee-insurance-status { min-height: 1.25rem; color: var(--sz-color-text-muted); font-size: var(--sz-font-size-sm); }
+.employee-insurance-error { padding: .75rem 1rem; border: 1px solid color-mix(in srgb, var(--sz-color-danger) 55%, var(--sz-color-border)); border-radius: var(--sz-radius-md); background: color-mix(in srgb, var(--sz-color-danger) 10%, var(--sz-color-surface)); color: var(--sz-color-danger); }
+.employee-insurance-error[hidden] { display: none; }
+.employee-insurance-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--sz-space-3); }
+.employee-insurance-kpi { display: flex; align-items: center; gap: .8rem; min-height: 4.8rem; padding: .8rem 1rem; }
+.employee-insurance-kpi > i { display: grid; width: 2.4rem; height: 2.4rem; place-items: center; border-radius: var(--sz-radius-md); background: color-mix(in srgb, var(--sz-color-primary) 12%, var(--sz-color-surface-alt)); color: var(--sz-color-primary); }
+.employee-insurance-kpi > div { display: grid; gap: .1rem; }
+.employee-insurance-kpi small { color: var(--sz-color-text-muted); }
+.employee-insurance-kpi strong { font-size: 1.35rem; }
+.employee-insurance-kpi-new > i { background: color-mix(in srgb, #16a34a 14%, var(--sz-color-surface-alt)); color: #16a34a; }
+.employee-insurance-kpi-left > i { background: color-mix(in srgb, var(--sz-color-danger) 14%, var(--sz-color-surface-alt)); color: var(--sz-color-danger); }
+.employee-insurance-panel { min-width: 0; overflow: hidden; }
+.employee-insurance-panel-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .85rem 1rem; border-bottom: 1px solid var(--sz-color-border); }
+.employee-insurance-panel-header h2 { margin: 0; font-size: 1rem; }
+.employee-insurance-panel-header p { margin: .2rem 0 0; color: var(--sz-color-text-muted); font-size: var(--sz-font-size-sm); }
+.employee-insurance-legend { display: flex; align-items: center; gap: .4rem; color: var(--sz-color-text-muted); font-size: var(--sz-font-size-xs); }
+.employee-insurance-legend span { width: .8rem; height: .8rem; border-radius: .2rem; background: color-mix(in srgb, #22c55e 24%, var(--sz-color-surface)); border: 1px solid color-mix(in srgb, #16a34a 55%, var(--sz-color-border)); }
+.employee-insurance-table-wrap { overflow: auto; }
+.employee-insurance-table { width: 100%; min-width: 88rem; }
+.employee-insurance-table th,
+.employee-insurance-table td { white-space: nowrap; }
+.employee-insurance-table th button { display: inline-flex; align-items: center; gap: .35rem; width: 100%; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.employee-insurance-table th:nth-child(6) button,
+.employee-insurance-table th:nth-child(7) button { justify-content: flex-end; }
+.employee-insurance-table td:nth-child(6),
+.employee-insurance-table td:nth-child(7) { text-align: right; font-variant-numeric: tabular-nums; }
+.employee-insurance-table td:first-child { font-weight: var(--sz-font-weight-bold); }
+.employee-insurance-table tr.is-new td { background: color-mix(in srgb, #22c55e 14%, var(--sz-color-surface)); }
+.employee-insurance-departures { border-color: color-mix(in srgb, var(--sz-color-danger) 40%, var(--sz-color-border)); }
+.employee-insurance-departures tbody tr td { background: color-mix(in srgb, var(--sz-color-danger) 10%, var(--sz-color-surface)); }
+.employee-insurance-empty { padding: 1.4rem !important; color: var(--sz-color-text-muted); text-align: center !important; }
+.employee-insurance-warning { display: inline-flex; margin-left: .4rem; color: var(--sz-color-warning); cursor: help; }
+.employee-insurance-profession { display: grid; gap: .12rem; white-space: normal; min-width: 19rem; }
+.employee-insurance-profession small { color: var(--sz-color-text-muted); }
+.employee-insurance-footer { display: flex; justify-content: space-between; gap: 1rem; padding: .75rem 1rem; color: var(--sz-color-text-muted); font-size: var(--sz-font-size-xs); }
+.employee-insurance-footer > div { display: flex; align-items: flex-start; gap: .45rem; }
+.employee-profession-dialog { width: min(58rem, calc(100vw - 2rem)); max-height: min(78vh, 48rem); padding: 0; border: 1px solid var(--sz-color-border); border-radius: var(--sz-radius-lg); background: var(--sz-color-surface); color: var(--sz-color-text); box-shadow: var(--sz-shadow-lg); }
+.employee-profession-dialog::backdrop { background: rgb(2 10 23 / 65%); }
+.employee-profession-dialog-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; padding: 1rem; border-bottom: 1px solid var(--sz-color-border); }
+.employee-profession-dialog-header h2 { margin: 0; font-size: 1.1rem; }
+.employee-profession-dialog-header p { margin: .25rem 0 0; color: var(--sz-color-text-muted); font-size: var(--sz-font-size-sm); }
+.employee-profession-list { display: grid; gap: .65rem; max-height: 62vh; padding: 1rem; overflow: auto; }
+.employee-profession-row { display: grid; grid-template-columns: 6rem minmax(12rem, 1fr) auto; align-items: end; gap: .65rem; padding: .75rem; border: 1px solid var(--sz-color-border); border-radius: var(--sz-radius-md); }
+.employee-profession-row label { display: grid; gap: .25rem; margin: 0; }
+.employee-profession-row label span { color: var(--sz-color-text-muted); font-size: var(--sz-font-size-xs); }
+.employee-profession-code { align-self: center; font-weight: var(--sz-font-weight-bold); }
+
+@media (max-width: 980px) {
+  .employee-insurance-contextbar,
+  .employee-insurance-actions { align-items: stretch; }
+  .employee-insurance-actions { display: grid; grid-template-columns: 1fr 1fr 1fr; width: 100%; }
+  .employee-insurance-filters { grid-template-columns: 1fr 1fr; }
+  .employee-insurance-filters label:first-child { grid-column: 1 / -1; }
+  .employee-insurance-kpis { grid-template-columns: 1fr 1fr; }
+  .employee-insurance-footer { flex-direction: column; }
+}
+
+@media (max-width: 560px) {
+  .employee-insurance-actions { grid-template-columns: auto 1fr auto; }
+  .employee-insurance-actions .sz_button span { display: none; }
+  .employee-insurance-filters { grid-template-columns: 1fr; }
+  .employee-insurance-filters label:first-child { grid-column: auto; }
+  .employee-insurance-kpi { min-height: 4rem; padding: .6rem; }
+  .employee-insurance-kpi > i { display: none; }
+  .employee-insurance-panel-header { align-items: flex-start; }
+  .employee-insurance-legend { max-width: 9rem; }
+  .employee-profession-row { grid-template-columns: 1fr auto; }
+  .employee-profession-row label { grid-column: 1 / -1; }
+}

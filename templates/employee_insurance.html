@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block extra_head %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/employee_insurance.css') }}?v={{ static_version }}">
+{% endblock %}
+
+{% block content %}
+<div class="sz_page employee-insurance-page" id="employeeInsuranceApp"
+     data-api-url="{{ url_for('employee_insurance.api_report') }}"
+     data-export-url="{{ url_for('employee_insurance.export') }}"
+     data-professions-url="{{ url_for('employee_insurance.professions') }}">
+  <div class="sz_page_container">
+    <header class="sz_contextbar sz_page_contextbar employee-insurance-contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_breadcrumbs">Recursos Humanos · Seguradora</div>
+        <h1 class="sz_page_title">Mapa de funcionários</h1>
+        <div class="sz_page_subtitle">Funcionários atuais da GuestSpaTur, diretamente da ficha de pessoal.</div>
+      </div>
+      <div class="sz_contextbar_right employee-insurance-actions">
+        {% if can_edit_professions %}
+          <button class="sz_button sz_button_ghost" id="employeeProfessionButton" type="button">
+            <i class="fa-solid fa-briefcase"></i><span>Profissões</span>
+          </button>
+        {% endif %}
+        <label class="employee-insurance-scope">
+          <span>Exportar</span>
+          <select class="sz_select" id="employeeExportScope">
+            <option value="todos">Todos os atuais</option>
+            <option value="visivel">Filtro visível</option>
+          </select>
+        </label>
+        <button class="sz_button sz_button_primary" id="employeeExportButton" type="button">
+          <i class="fa-solid fa-file-excel"></i><span>Emitir Excel</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="sz_page_body employee-insurance-body">
+      <section class="sz_panel employee-insurance-filter-panel">
+        <form id="employeeInsuranceFilters" class="employee-insurance-filters">
+          <label><span>Pesquisa</span><input class="sz_input" id="employeeSearch" type="search" maxlength="100" placeholder="Nome, NIF, NISS ou profissão"></label>
+          <label><span>Nacionalidade</span><select class="sz_select" id="employeeNationality"><option value="">Todas</option></select></label>
+          <label><span>Profissão</span><select class="sz_select" id="employeeProfession"><option value="">Todas</option></select></label>
+          <button class="sz_button sz_button_primary" type="submit"><i class="fa-solid fa-magnifying-glass"></i><span>Aplicar</span></button>
+          <button class="sz_button sz_button_ghost" id="employeeClearFilters" type="button"><i class="fa-solid fa-xmark"></i><span>Limpar</span></button>
+        </form>
+      </section>
+
+      <div class="employee-insurance-status" id="employeeInsuranceStatus" role="status">A carregar funcionários…</div>
+      <div class="employee-insurance-error" id="employeeInsuranceError" hidden></div>
+
+      <section class="employee-insurance-kpis" aria-label="Resumo do mapa">
+        <article class="sz_panel employee-insurance-kpi"><i class="fa-solid fa-users"></i><div><small>Funcionários atuais</small><strong data-kpi="atuais">—</strong></div></article>
+        <article class="sz_panel employee-insurance-kpi employee-insurance-kpi-new"><i class="fa-solid fa-user-plus"></i><div><small>Novos</small><strong data-kpi="novos">—</strong></div></article>
+        <article class="sz_panel employee-insurance-kpi employee-insurance-kpi-left"><i class="fa-solid fa-user-minus"></i><div><small>Saídas</small><strong data-kpi="saidas">—</strong></div></article>
+        <article class="sz_panel employee-insurance-kpi"><i class="fa-solid fa-triangle-exclamation"></i><div><small>Dados incompletos</small><strong data-kpi="incompletos">—</strong></div></article>
+      </section>
+
+      <section class="sz_panel employee-insurance-panel">
+        <header class="employee-insurance-panel-header">
+          <div><h2>Funcionários atuais</h2><p id="employeeCurrentSummary">—</p></div>
+          <div class="employee-insurance-legend"><span class="is-new"></span> Novo desde a última emissão</div>
+        </header>
+        <div class="employee-insurance-table-wrap">
+          <table class="sz_table sz_table_compact employee-insurance-table">
+            <thead><tr>
+              <th><button type="button" data-sort="nome">Nome <i class="fa-solid fa-sort"></i></button></th>
+              <th><button type="button" data-sort="nacionalidade">Nacionalidade <i class="fa-solid fa-sort"></i></button></th>
+              <th><button type="button" data-sort="nif">NIF <i class="fa-solid fa-sort"></i></button></th>
+              <th><button type="button" data-sort="niss">NISS <i class="fa-solid fa-sort"></i></button></th>
+              <th><button type="button" data-sort="nascimento">Nascimento <i class="fa-solid fa-sort"></i></button></th>
+              <th><button type="button" data-sort="salario_base">Salário base <i class="fa-solid fa-sort"></i></button></th>
+              <th><button type="button" data-sort="subsidio_refeicao">Subsídio refeição <i class="fa-solid fa-sort"></i></button></th>
+              <th><button type="button" data-sort="profissao">Profissão CPP/IEFP <i class="fa-solid fa-sort"></i></button></th>
+            </tr></thead>
+            <tbody id="employeeCurrentRows"><tr><td colspan="8">A carregar…</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="sz_panel employee-insurance-panel employee-insurance-departures" id="employeeDeparturesPanel">
+        <header class="employee-insurance-panel-header"><div><h2>Saídas desde a última emissão</h2><p id="employeeDepartureSummary">—</p></div></header>
+        <div class="employee-insurance-table-wrap">
+          <table class="sz_table sz_table_compact employee-insurance-table">
+            <thead><tr><th>Nome</th><th>Nacionalidade</th><th>NIF</th><th>NISS</th><th>Nascimento</th><th>Salário base</th><th>Subsídio refeição</th><th>Profissão CPP/IEFP</th></tr></thead>
+            <tbody id="employeeDepartureRows"><tr><td colspan="8">Sem saídas.</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+
+      <footer class="sz_panel employee-insurance-footer">
+        <div><i class="fa-solid fa-clock-rotate-left"></i><span id="employeeLastIssue">Ainda não existe uma emissão anterior.</span></div>
+        <div><i class="fa-solid fa-circle-info"></i><span>O subsídio mensal corresponde a 22 dias pelo valor diário da ficha PE. A PE nunca é alterada por este ecrã.</span></div>
+      </footer>
+    </main>
+  </div>
+
+  {% if can_edit_professions %}
+  <dialog class="employee-profession-dialog" id="employeeProfessionDialog">
+    <form method="dialog" class="employee-profession-dialog-header">
+      <div><h2>Correspondência profissional</h2><p>A descrição personalizada substitui a descrição da PE no mapa.</p></div>
+      <button class="sz_button sz_button_ghost" value="cancel" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
+    </form>
+    <div class="employee-profession-list" id="employeeProfessionList"></div>
+  </dialog>
+  {% endif %}
+</div>
+<script src="{{ url_for('static', filename='js/employee_insurance.js') }}?v={{ static_version }}"></script>
+{% endblock %}

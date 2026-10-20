@@ -1,13 +1,111 @@
 {% extends "base.html" %}
 {% block title %}{{ page_title }}{% endblock %}
+
+{% block extra_head %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/tourist_tax.css') }}?v={{ static_version }}">
+{% endblock %}
+
 {% block content %}
-<div class="container-fluid py-3" id="touristTaxApp">
-  <div class="d-flex flex-wrap gap-2 align-items-end mb-3"><div><h1 class="sz_page_title mb-0">Taxas turísticas</h1><div class="text-muted">Mapa de dormidas por período · GuestSpaTur</div></div>
-    <div class="ms-auto d-flex flex-wrap gap-2"><label>Tipo<select id="taxType" class="form-select"><option value="mensal">Mensal</option><option value="trimestral">Trimestral</option></select></label><label>Ano<input id="taxYear" class="form-control" type="number" min="2000" max="2100" value="{{ year }}"></label><label id="taxPeriodLabel">Mês<select id="taxPeriod" class="form-select">{% for i in range(1,13) %}<option value="{{ i }}" {% if i == month %}selected{% endif %}>{{ i }}</option>{% endfor %}</select></label><button id="taxLoad" class="btn btn-primary">Consultar</button><button id="taxExport" class="btn btn-outline-primary">Exportar Excel</button></div>
+<div class="sz_page tourist-tax-page" id="touristTaxApp"
+     data-api-url="{{ url_for('tourist_tax.tourist_tax_api') }}"
+     data-export-url="{{ url_for('tourist_tax.tourist_tax_export') }}">
+  <div class="sz_page_container">
+    <header class="sz_contextbar sz_page_contextbar tourist-tax-contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_breadcrumbs">Operação · Taxas turísticas</div>
+        <h1 class="sz_page_title">Mapa de taxas turísticas</h1>
+        <div class="sz_page_subtitle">Dormidas por período, alojamento e origem da reserva.</div>
+      </div>
+      <form class="sz_contextbar_right tourist-tax-filters" id="touristTaxFilters">
+        <label class="tourist-tax-filter">
+          <span>Entrega</span>
+          <select id="taxType" class="sz_select" name="tipo">
+            <option value="mensal">Mensal</option>
+            <option value="trimestral">Trimestral</option>
+          </select>
+        </label>
+        <label class="tourist-tax-filter">
+          <span>Ano</span>
+          <input id="taxYear" class="sz_input" name="ano" type="number" min="2000" max="2100" value="{{ year }}">
+        </label>
+        <label class="tourist-tax-filter">
+          <span id="taxPeriodCaption">Mês</span>
+          <select id="taxPeriod" class="sz_select" name="periodo" data-initial-month="{{ month }}"></select>
+        </label>
+        <button id="taxLoad" class="sz_button sz_button_primary" type="submit">
+          <i class="fa-solid fa-magnifying-glass"></i><span>Consultar</span>
+        </button>
+        <button id="taxExport" class="sz_button sz_button_ghost" type="button">
+          <i class="fa-solid fa-file-excel"></i><span>Excel</span>
+        </button>
+      </form>
+    </header>
+
+    <main class="sz_page_body tourist-tax-body">
+      <div id="taxStatus" class="tourist-tax-status" role="status">A carregar mapa…</div>
+      <div id="taxError" class="tourist-tax-error" hidden></div>
+
+      <section class="tourist-tax-kpis" aria-label="Totais do período">
+        <article class="sz_panel tourist-tax-kpi"><span><i class="fa-solid fa-building"></i></span><div><small>Alojamentos</small><strong data-kpi="alojamentos">—</strong></div></article>
+        <article class="sz_panel tourist-tax-kpi"><span><i class="fa-solid fa-calendar-check"></i></span><div><small>Reservas</small><strong data-kpi="reservas">—</strong></div></article>
+        <article class="sz_panel tourist-tax-kpi"><span><i class="fa-solid fa-bed"></i></span><div><small>Dormidas</small><strong data-kpi="dormidas_totais">—</strong></div></article>
+        <article class="sz_panel tourist-tax-kpi tourist-tax-kpi-highlight"><span><i class="fa-solid fa-arrow-trend-up"></i></span><div><small>Acima do limite</small><strong data-kpi="dormidas_acima_limite">—</strong></div></article>
+      </section>
+
+      <section class="sz_panel tourist-tax-panel">
+        <header class="tourist-tax-panel-header">
+          <div><h2>Resumo por alojamento</h2><p id="taxPeriodSummary">—</p></div>
+          <span class="tourist-tax-badge" id="taxDeliveryBadge">—</span>
+        </header>
+        <div class="tourist-tax-table-wrap">
+          <table class="sz_table sz_table_compact tourist-tax-table">
+            <thead><tr><th>Alojamento</th><th>Entrega</th><th>Reservas</th><th>Dormidas</th><th>Acima limite</th><th>Adultos</th><th>Crianças</th><th>Noites período</th></tr></thead>
+            <tbody id="taxAccommodationRows"><tr><td colspan="8">A carregar…</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="tourist-tax-columns">
+        <article class="sz_panel tourist-tax-panel">
+          <header class="tourist-tax-panel-header"><div><h2>Resumo por origem</h2><p>Airbnb e Booking, derivados do número da reserva.</p></div></header>
+          <div class="tourist-tax-table-wrap">
+            <table class="sz_table sz_table_compact tourist-tax-table">
+              <thead><tr><th>Origem</th><th>Reservas</th><th>Dormidas</th><th>Acima limite</th><th>Adultos</th><th>Crianças</th><th>Noites período</th></tr></thead>
+              <tbody id="taxOriginRows"><tr><td colspan="7">A carregar…</td></tr></tbody>
+            </table>
+          </div>
+        </article>
+        <article class="sz_panel tourist-tax-panel tourist-tax-config-panel">
+          <header class="tourist-tax-panel-header"><div><h2>Configuração</h2><p>A periodicidade é definida na ficha de cada AL.</p></div></header>
+          <div class="tourist-tax-config-grid">
+            <div><span>Entrega mensal</span><strong id="taxMonthlyConfigured">—</strong></div>
+            <div><span>Entrega trimestral</span><strong id="taxQuarterlyConfigured">—</strong></div>
+          </div>
+          {% if current_user.ADMIN %}
+            <a class="sz_button sz_button_ghost tourist-tax-config-link" href="/generic/view/AL">
+              <i class="fa-solid fa-building"></i><span>Abrir alojamentos</span>
+            </a>
+          {% endif %}
+        </article>
+      </section>
+
+      <section class="sz_panel tourist-tax-panel">
+        <header class="tourist-tax-panel-header"><div><h2>Detalhe por reserva</h2><p id="taxDetailSummary">—</p></div></header>
+        <div class="tourist-tax-table-wrap tourist-tax-detail-wrap">
+          <table class="sz_table sz_table_compact tourist-tax-table tourist-tax-detail-table">
+            <thead><tr><th>N.º reserva</th><th>Origem</th><th>Alojamento</th><th>Check-in</th><th>Check-out</th><th>Noites período</th><th>Adultos</th><th>Crianças</th><th>Hóspedes</th><th>Dormidas</th><th>Acima limite</th><th>Limite noites</th></tr></thead>
+            <tbody id="taxDetailRows"><tr><td colspan="12">A carregar…</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+
+      <details class="sz_panel tourist-tax-warnings" id="taxWarningsPanel">
+        <summary><span><i class="fa-solid fa-triangle-exclamation"></i> Avisos de validação</span><strong id="taxWarningCount">0</strong></summary>
+        <ul id="taxWarnings"><li>Sem avisos.</li></ul>
+      </details>
+    </main>
   </div>
-  <div id="taxError" class="alert alert-warning d-none"></div><div id="taxSummary" class="row g-3"></div>
-  <h2 class="h5 mt-4">Detalhe por reserva</h2><div class="table-responsive"><table class="table table-sm table-striped" id="taxDetail"><thead><tr><th>N.º reserva</th><th>Origem</th><th>Alojamento</th><th>Check-in</th><th>Check-out</th><th>Noites no período</th><th>Adultos</th><th>Crianças</th><th>Hóspedes total</th><th>Dormidas totais</th><th>Dormidas acima limite</th><th>Limite</th></tr></thead><tbody></tbody></table></div>
-  <h2 class="h5 mt-4">Avisos</h2><ul id="taxWarnings" class="small text-muted"></ul>
 </div>
 <script src="{{ url_for('static', filename='js/tourist_tax.js') }}?v={{ static_version }}"></script>
 {% endblock %}

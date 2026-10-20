@@ -179,6 +179,15 @@ def _round_price(value):
     return Decimal(str(value or 0)).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
 
 
+def _configured_minimum_price(value):
+    """Return the absolute minimum configured for the accommodation.
+
+    Monthly seasonality affects the calculated selling price, but never the
+    accommodation's minimum-price floor.
+    """
+    return _round_price(value)
+
+
 def _as_bool(value):
     if isinstance(value, bool):
         return value
@@ -213,21 +222,16 @@ def _load_minimum_price_policy(session, alojamento):
 
 
 def _effective_minimum_prices(session, minimum_base, start_date, end_date):
-    month_rows = session.execute(
-        text("SELECT MES, INDICE FROM dbo.PR_SAZONAL_MES")
-    ).mappings().all()
-    month_factors = {
-        int(row["MES"]): _safe_decimal(row.get("INDICE"), "100") / Decimal("100")
-        for row in month_rows
-    }
+    del session  # Kept in the signature for callers; the minimum is not seasonal.
+    configured_minimum = _configured_minimum_price(minimum_base)
     return {
-        day_value: _round_price(minimum_base * month_factors.get(day_value.month, Decimal("1")))
+        day_value: configured_minimum
         for day_value in _daterange(start_date, end_date)
     }
 
 
 def _find_minimum_price_violation(session, alojamento, override_type, value, start_date, end_date):
-    """Find the first day where an override would undercut a rigid effective minimum."""
+    """Find the first day where an override undercuts the rigid configured minimum."""
     policy = _load_minimum_price_policy(session, alojamento)
     if not policy["rigid"]:
         return None
@@ -1157,6 +1161,22 @@ def _build_flags(payload):
     return json.dumps(payload, ensure_ascii=False, default=str, separators=(",", ":"))
 
 
+def _flags_use_configured_minimum(raw_flags, configured_minimum):
+    """Check whether stored calculation details already use the absolute floor."""
+    try:
+        flags = json.loads(raw_flags or "{}")
+        month = flags.get("month") or {}
+        clamp = flags.get("clamp") or {}
+        if month.get("min_affected_by_factor") is not False:
+            return False
+        return (
+            _configured_minimum_price(month.get("min_effective")) == configured_minimum
+            and _configured_minimum_price(clamp.get("min")) == configured_minimum
+        )
+    except (AttributeError, TypeError, ValueError):
+        return False
+
+
 def recalculate_prices(days=DEFAULT_HORIZON_DAYS, alojamento=None, from_date=None, to_date=None):
     alojamento = _normalize_alojamento(alojamento)
     start_date = _parse_date(from_date, "from") or date.today()
@@ -1225,7 +1245,9 @@ def recalculate_prices(days=DEFAULT_HORIZON_DAYS, alojamento=None, from_date=Non
 
             month_index = inputs["seasonality"].get(day_value.month, Decimal("100"))
             month_factor = month_index / Decimal("100")
-            price_min = _round_price(price_min_base * month_factor)
+            # The configured accommodation minimum is absolute. Seasonality
+            # applies to the calculated price, never to this floor.
+            price_min = _configured_minimum_price(price_min_base)
             dow_factor = inputs["dow_factors"].get((profile_id, day_value.isoweekday()), Decimal("1"))
             event_factor, event_info = _resolve_event_factor(day_value, inputs["events"], inputs["event_years"])
 
@@ -1368,6 +1390,7 @@ def recalculate_prices(days=DEFAULT_HORIZON_DAYS, alojamento=None, from_date=Non
                         "fator": _to_float(month_factor),
                         "min_base": _to_float(price_min_base),
                         "min_effective": _to_float(price_min),
+                        "min_affected_by_factor": False,
                         "result": _to_float(_quantize_money(price_after_month)),
                     },
                     "dow": {
@@ -1445,7 +1468,10 @@ def recalculate_prices(days=DEFAULT_HORIZON_DAYS, alojamento=None, from_date=Non
             if existing_row:
                 diff_calc = abs(preco_calc - existing_row["preco_calc"])
                 diff_final = abs(preco_final - existing_row["preco_final"])
-                if diff_calc < threshold and diff_final < threshold:
+                minimum_details_current = _flags_use_configured_minimum(
+                    existing_row.get("flags"), price_min
+                )
+                if diff_calc < threshold and diff_final < threshold and minimum_details_current:
                     skipped_threshold += 1
                     previous_calc = existing_row["preco_calc"]
                     continue
