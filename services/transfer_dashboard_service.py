@@ -33,6 +33,14 @@ STATUS_LABELS = {
     "CANCELADA": "Cancelado",
     "EMAIL_ERRO": "Erro no email",
 }
+NOTIFICATION_STATUS_LABELS = {
+    "NAO_ENVIADO": "Notificação não enviada",
+    "PENDENTE": "Notificação pendente",
+    "ENVIADO": "Notificação enviada",
+    "PARCIAL": "Notificação parcial",
+    "ERRO": "Erro na notificação",
+    "CANCELADO": "Notificação cancelada",
+}
 
 
 class TransferDashboardError(ValueError):
@@ -153,6 +161,7 @@ def _serialize(raw: Mapping[str, Any]) -> dict[str, Any]:
     arrival_at = _combine_movement(arrival_date, raw.get("HORA_CHEGADA")) if has_arrival else None
     departure_at = _combine_movement(departure_date, raw.get("HORA_PARTIDA")) if has_departure else None
     status = _normal(raw.get("ESTADO")) or "PENDENTE"
+    notification_status = _normal(raw.get("EMAIL_ESTADO")) or "NAO_ENVIADO"
     guest_name = _clean(raw.get("NOME_HOSPEDE") or raw.get("RS_NOME"))
     people = _as_int(raw.get("NUM_PESSOAS"))
     if people <= 0:
@@ -188,6 +197,11 @@ def _serialize(raw: Mapping[str, Any]) -> dict[str, Any]:
         "value": _as_money(raw.get("VALOR")),
         "status": status,
         "status_label": STATUS_LABELS.get(status, status.title()),
+        "notification_status": notification_status,
+        "notification_status_label": NOTIFICATION_STATUS_LABELS.get(
+            notification_status, notification_status.title()
+        ),
+        "notification_error": _clean(raw.get("EMAIL_ERRO")),
         "created_at": created.isoformat(timespec="seconds") if created else None,
         "updated_at": updated.isoformat(timespec="seconds") if updated else None,
         "incomplete": bool(incomplete),
@@ -260,7 +274,7 @@ def _fetch_rows(engine, feid: int) -> list[dict[str, Any]]:
             T.TRANSFERSTAMP, T.RSSTAMP, T.RESERVA, T.ALOJAMENTO, T.ORIGEM,
             T.DATA_CHEGADA, T.HORA_CHEGADA, T.NUM_VOO, T.TEM_PARTIDA,
             T.DATA_PARTIDA, T.HORA_PARTIDA, T.VALOR, T.ESTADO, T.DTCRI, T.DTALT,
-            T.NOME_HOSPEDE, T.NUM_PESSOAS,
+            T.NOME_HOSPEDE, T.NUM_PESSOAS, T.EMAIL_ESTADO, T.EMAIL_ERRO,
             R.RESERVA AS RS_RESERVA, R.ALOJAMENTO AS RS_ALOJAMENTO, R.NOME AS RS_NOME,
             R.ADULTOS AS RS_ADULTOS, R.CRIANCAS AS RS_CRIANCAS, R.BEBES AS RS_BEBES
         FROM {prefix}TRANSFERS AS T
@@ -345,6 +359,7 @@ def build_transfer_workbook(payload: Mapping[str, Any], *, exported_at: datetime
     headers = [
         "Reserva", "Alojamento", "Percurso", "Hóspede", "N.º pessoas",
         "Chegada", "Voo", "Tem partida", "Partida", "Valor", "Estado",
+        "Estado da notificação", "Erro da notificação",
         "Criado em", "Última alteração", "Transfer", "Pedidos da reserva",
     ]
     sheet.append(["Resumo de pedidos de transfer"])
@@ -369,6 +384,8 @@ def build_transfer_workbook(payload: Mapping[str, Any], *, exported_at: datetime
             _date_time_label(row.get("departure_date"), row.get("departure_time")),
             float(row.get("value") or 0),
             row.get("status_label") or "",
+            row.get("notification_status_label") or "",
+            row.get("notification_error") or "",
             row.get("created_at") or "",
             row.get("updated_at") or "",
             row.get("transfer_stamp") or "",
@@ -386,7 +403,7 @@ def build_transfer_workbook(payload: Mapping[str, Any], *, exported_at: datetime
         cell.alignment = Alignment(horizontal="center")
     for row_cells in sheet.iter_rows(min_row=header_row + 1):
         row_cells[9].number_format = '#,##0.00 "€"'
-    widths = [16, 24, 34, 26, 12, 20, 12, 13, 20, 13, 16, 21, 21, 28, 18]
+    widths = [16, 24, 34, 26, 12, 20, 12, 13, 20, 13, 16, 22, 42, 21, 21, 28, 18]
     for index, width in enumerate(widths, start=1):
         sheet.column_dimensions[get_column_letter(index)].width = width
     sheet.freeze_panes = f"A{header_row + 1}"

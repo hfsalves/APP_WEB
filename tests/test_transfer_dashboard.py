@@ -34,7 +34,8 @@ def transfer_engine():
                 TRANSFERSTAMP TEXT PRIMARY KEY, RSSTAMP TEXT, RESERVA TEXT, ALOJAMENTO TEXT,
                 ORIGEM TEXT, DATA_CHEGADA DATE, HORA_CHEGADA TEXT, NUM_VOO TEXT,
                 TEM_PARTIDA INTEGER, DATA_PARTIDA DATE, HORA_PARTIDA TEXT, VALOR NUMERIC,
-                ESTADO TEXT, DTCRI DATETIME, DTALT DATETIME, NOME_HOSPEDE TEXT, NUM_PESSOAS INTEGER
+                ESTADO TEXT, DTCRI DATETIME, DTALT DATETIME, NOME_HOSPEDE TEXT, NUM_PESSOAS INTEGER,
+                EMAIL_ESTADO TEXT, EMAIL_ERRO TEXT
             )
         """)
         connection.exec_driver_sql("""
@@ -45,10 +46,10 @@ def transfer_engine():
         """)
         connection.exec_driver_sql("""
             INSERT INTO TRANSFERS VALUES
-            ('tr-1','rs-1','HMW4H2TD8D','PARAÍSO H','airport','2026-10-19','10:30','FR100',0,NULL,NULL,30,'PENDENTE','2026-10-18 10:00:00',NULL,'Ana',2),
-            ('tr-2','rs-2','HMZAR4SSEB','Urban Flat','airport','2026-10-21','22:35','TP200',1,'2026-10-25','08:00',60,'ENVIADO','2026-10-18 11:00:00','2026-10-18 11:05:00','Bruno',3),
-            ('tr-3','rs-2','HMZAR4SSEB','Urban Flat','to_airport','2026-10-25','08:00','',1,'2026-10-25','08:00',30,'CANCELADO','2026-10-18 12:00:00',NULL,'Bruno',3),
-            ('tr-other','rs-other','OUTSIDE','Outro','airport','2026-10-19','12:00','',0,NULL,NULL,30,'PENDENTE','2026-10-18 13:00:00',NULL,'Fora',1)
+            ('tr-1','rs-1','HMW4H2TD8D','PARAÍSO H','airport','2026-10-19','10:30','FR100',0,NULL,NULL,30,'PENDENTE','2026-10-18 10:00:00',NULL,'Ana',2,'ERRO','Timeout SMTP'),
+            ('tr-2','rs-2','HMZAR4SSEB','Urban Flat','airport','2026-10-21','22:35','TP200',1,'2026-10-25','08:00',60,'ENVIADO','2026-10-18 11:00:00','2026-10-18 11:05:00','Bruno',3,'ENVIADO',NULL),
+            ('tr-3','rs-2','HMZAR4SSEB','Urban Flat','to_airport','2026-10-25','08:00','',1,'2026-10-25','08:00',30,'CANCELADO','2026-10-18 12:00:00',NULL,'Bruno',3,'CANCELADO',NULL),
+            ('tr-other','rs-other','OUTSIDE','Outro','airport','2026-10-19','12:00','',0,NULL,NULL,30,'PENDENTE','2026-10-18 13:00:00',NULL,'Fora',1,'PENDENTE',NULL)
         """)
     return engine
 
@@ -88,6 +89,9 @@ def test_dashboard_limits_feid_keeps_duplicates_and_counts_filtered_rows(transfe
     departure = next(row for row in urban if row["transfer_stamp"] == "tr-3")
     assert departure["arrival_date"] is None
     assert departure["departure_date"] == "2026-10-25"
+    pending = next(row for row in payload["rows"] if row["transfer_stamp"] == "tr-1")
+    assert pending["notification_status"] == "ERRO"
+    assert pending["notification_error"] == "Timeout SMTP"
 
 
 def test_combined_filters_update_rows_and_kpis(transfer_engine):

@@ -113,7 +113,7 @@
 
     .client-billing-detail-table {
       width: 100%;
-      min-width: 74rem;
+      min-width: 80rem;
       border-collapse: collapse;
       color: var(--sz-color-text);
       font-size: var(--sz-font-size-sm);
@@ -314,6 +314,7 @@
               <thead>
                 <tr>
                   <th>Reserva</th>
+                  <th>Nº FT</th>
                   <th>Alojamento</th>
                   <th>Nome</th>
                   <th>Check-in</th>
@@ -339,6 +340,7 @@
                         <div class="client-billing-detail-status">Cancelada</div>
                       {% endif %}
                     </td>
+                    <td><span class="client-billing-detail-code">{{ row.numero_ft or '—' }}</span></td>
                     <td>{{ row.alojamento }}</td>
                     <td>{{ row.hospede }}</td>
                     <td>{{ row.datain }}</td>
@@ -358,7 +360,7 @@
               </tbody>
               <tfoot>
                 <tr>
-                  <td colspan="6">Totais</td>
+                  <td colspan="7">Totais</td>
                   <td class="client-billing-detail-money">{{ detail.totals.total_com_iva_label }}</td>
                   <td class="client-billing-detail-money">{{ detail.totals.comissao_plataforma_label }}</td>
                   <td class="client-billing-detail-money">{{ detail.totals.valor_liquido_label }}</td>

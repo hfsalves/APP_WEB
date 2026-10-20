@@ -1324,6 +1324,14 @@
                   <label class="form-label small mb-1" for="transferArrivalTime" data-i18n="transfer_service_time">Hora do transfer</label>
                   <input id="transferArrivalTime" type="time" class="form-control form-control-sm" required>
                 </div>
+                <div>
+                  <label class="form-label small mb-1" for="transferGuestEmail" data-i18n="transfer_guest_email">Email</label>
+                  <input id="transferGuestEmail" type="email" class="form-control form-control-sm" maxlength="255" autocomplete="email" required>
+                </div>
+                <div>
+                  <label class="form-label small mb-1" for="transferGuestPhone" data-i18n="transfer_guest_phone">Telemóvel</label>
+                  <input id="transferGuestPhone" type="tel" class="form-control form-control-sm" maxlength="50" autocomplete="tel" required>
+                </div>
                 <div id="transferFlightWrap" class="full">
                   <label class="form-label small mb-1" for="transferFlight" data-i18n="transfer_flight_label">Número do voo <span class="text-muted">(opcional)</span></label>
                   <input id="transferFlight" type="text" class="form-control form-control-sm" maxlength="20" autocomplete="off" placeholder="Ex.: TP1923">
@@ -1334,9 +1342,9 @@
                 <div class="guest-actions-nav">
                   <button id="transferCancelBtn" type="button" class="btn btn-sm btn-outline-secondary" data-i18n="btn_cancel">Cancelar</button>
                 </div>
-                <a id="transferSendBtn" class="btn btn-sm btn-primary" target="_blank" rel="noopener">
+                <button id="transferSendBtn" type="button" class="btn btn-sm btn-primary">
                   <i class="fa-solid fa-paper-plane me-1"></i><span data-i18n="transfer_send">Enviar pedido</span>
-                </a>
+                </button>
               </div>
             </section>
           </div>
@@ -1398,6 +1406,20 @@
                   <div class="full">
                     <label class="form-label small mb-1" data-i18n="guest_residence_country">Pa&iacute;s de resid&ecirc;ncia*</label>
                     <select id="g_pais_residencia" class="form-select form-select-sm" required></select>
+                  </div>
+                </div>
+
+                <div id="guestPrimaryContactFields">
+                  <div class="guest-section-title" data-i18n="guest_section_contact">Contactos do h&oacute;spede principal (opcional)</div>
+                  <div class="form-grid">
+                    <div>
+                      <label class="form-label small mb-1" for="g_email" data-i18n="guest_email_optional">Email (opcional)</label>
+                      <input id="g_email" type="email" class="form-control form-control-sm" maxlength="255" autocomplete="email">
+                    </div>
+                    <div>
+                      <label class="form-label small mb-1" for="g_telefone" data-i18n="guest_phone_optional">Telem&oacute;vel (opcional)</label>
+                      <input id="g_telefone" type="tel" class="form-control form-control-sm" maxlength="50" autocomplete="tel">
+                    </div>
                   </div>
                 </div>
 
@@ -1839,6 +1861,10 @@
           guest_section_identity: 'Identifica\u00e7\u00e3o',
           guest_section_document: 'Documento',
           guest_default_name: 'H\u00f3spede',
+          guest_primary_label: 'H\u00f3spede principal',
+          guest_section_contact: 'Contactos do h\u00f3spede principal (opcional)',
+          guest_email_optional: 'Email (opcional)',
+          guest_phone_optional: 'Telem\u00f3vel (opcional)',
           guest_progress_pattern: '{completed}/{total} completos',
           guest_of_total_pattern: 'H\u00f3spede {index} de {total}',
           guest_field_name: 'Nome',
@@ -1911,6 +1937,11 @@
           transfer_departure_time: 'Hora pretendida',
           transfer_send: 'Enviar pedido',
           transfer_required_error: 'Indica a hora do transfer.',
+          transfer_guest_email: 'Email',
+          transfer_guest_phone: 'Telem\u00f3vel',
+          transfer_guest_data_required: 'Preenche primeiro os dados do h\u00f3spede principal antes de pedir o transfer.',
+          transfer_contact_required_error: 'Indica o email e o telem\u00f3vel para confirmar o transfer.',
+          transfer_email_invalid_error: 'Indica um endere\u00e7o de email v\u00e1lido.',
           transfer_departure_required_error: 'Indica a hora de partida.',
           card_rules: 'Regras Essenciais',
           rules_badge: 'Importante',
@@ -2046,6 +2077,10 @@
           guest_section_identity: 'Identity',
           guest_section_document: 'Document',
           guest_default_name: 'Guest',
+          guest_primary_label: 'Main guest',
+          guest_section_contact: 'Main guest contacts (optional)',
+          guest_email_optional: 'Email (optional)',
+          guest_phone_optional: 'Mobile phone (optional)',
           guest_progress_pattern: '{completed}/{total} complete',
           guest_of_total_pattern: 'Guest {index} of {total}',
           guest_field_name: 'First name',
@@ -2118,6 +2153,11 @@
           transfer_departure_time: 'Requested time',
           transfer_send: 'Send request',
           transfer_required_error: 'Please enter the transfer time.',
+          transfer_guest_email: 'Email',
+          transfer_guest_phone: 'Mobile phone',
+          transfer_guest_data_required: 'Please complete the main guest details before requesting a transfer.',
+          transfer_contact_required_error: 'Enter an email address and mobile phone number to confirm the transfer.',
+          transfer_email_invalid_error: 'Enter a valid email address.',
           transfer_departure_required_error: 'Please enter your departure time.',
           card_rules: 'Essential Rules',
           rules_badge: 'Important',
@@ -2253,6 +2293,10 @@
           guest_section_identity: 'Identit\u00e9',
           guest_section_document: 'Document',
           guest_default_name: 'Voyageur',
+          guest_primary_label: 'Voyageur principal',
+          guest_section_contact: 'Coordonnées du voyageur principal (facultatif)',
+          guest_email_optional: 'E-mail (facultatif)',
+          guest_phone_optional: 'Téléphone portable (facultatif)',
           guest_progress_pattern: '{completed}/{total} complets',
           guest_of_total_pattern: 'Voyageur {index} sur {total}',
           guest_field_name: 'Pr\u00e9nom',
@@ -2325,6 +2369,11 @@
           transfer_departure_time: 'Heure souhaitée',
           transfer_send: 'Envoyer la demande',
           transfer_required_error: 'Indiquez l’heure du transfert.',
+          transfer_guest_email: 'E-mail',
+          transfer_guest_phone: 'Téléphone portable',
+          transfer_guest_data_required: 'Complétez d’abord les informations du voyageur principal avant de demander un transfert.',
+          transfer_contact_required_error: 'Indiquez un e-mail et un numéro de portable pour confirmer le transfert.',
+          transfer_email_invalid_error: 'Indiquez une adresse e-mail valide.',
           transfer_departure_required_error: 'Indiquez votre heure de départ.',
           card_rules: 'R\u00e8gles essentielles',
           rules_badge: 'Important',
@@ -2460,6 +2509,10 @@
           guest_section_identity: 'Identidad',
           guest_section_document: 'Documento',
           guest_default_name: 'Hu\u00e9sped',
+          guest_primary_label: 'Huésped principal',
+          guest_section_contact: 'Contactos del huésped principal (opcional)',
+          guest_email_optional: 'Email (opcional)',
+          guest_phone_optional: 'Móvil (opcional)',
           guest_progress_pattern: '{completed}/{total} completos',
           guest_of_total_pattern: 'Hu\u00e9sped {index} de {total}',
           guest_field_name: 'Nombre',
@@ -2532,6 +2585,11 @@
           transfer_departure_time: 'Hora deseada',
           transfer_send: 'Enviar solicitud',
           transfer_required_error: 'Indica la hora del traslado.',
+          transfer_guest_email: 'Email',
+          transfer_guest_phone: 'Móvil',
+          transfer_guest_data_required: 'Completa primero los datos del huésped principal antes de solicitar el traslado.',
+          transfer_contact_required_error: 'Indica el email y el móvil para confirmar el traslado.',
+          transfer_email_invalid_error: 'Indica una dirección de email válida.',
           transfer_departure_required_error: 'Indica la hora de salida.',
           card_rules: 'Reglas esenciales',
           rules_badge: 'Importante',
@@ -2755,6 +2813,9 @@
         numDoc: document.getElementById('g_num_doc'),
         paisEmissor: document.getElementById('g_pais_emissor_doc'),
         paisResidencia: document.getElementById('g_pais_residencia'),
+        primaryContactFields: document.getElementById('guestPrimaryContactFields'),
+        email: document.getElementById('g_email'),
+        telefone: document.getElementById('g_telefone'),
         next: document.getElementById('guestNextBtn'),
         save: document.getElementById('guestSaveBtn')
       };
@@ -2808,6 +2869,8 @@
         arrivalTime: document.getElementById('transferArrivalTime'),
         flightWrap: document.getElementById('transferFlightWrap'),
         flight: document.getElementById('transferFlight'),
+        guestEmail: document.getElementById('transferGuestEmail'),
+        guestPhone: document.getElementById('transferGuestPhone'),
         message: document.getElementById('transferFormMsg'),
         send: document.getElementById('transferSendBtn')
       };
@@ -2884,7 +2947,8 @@
         total: 1,
         index: 1,
         guests: [],
-        complete: false
+        complete: false,
+        loaded: false
       };
       const checkinInstructionsState = {
         dateAvailable: Boolean(INITIAL_CHECKIN_INSTRUCTIONS.dateAvailable),
@@ -2914,6 +2978,10 @@
         guest_section_identity: 'Identificacao',
         guest_section_document: 'Documento',
         guest_default_name: 'Hospede',
+        guest_primary_label: 'Hospede principal',
+        guest_section_contact: 'Contactos do hospede principal (opcional)',
+        guest_email_optional: 'Email (opcional)',
+        guest_phone_optional: 'Telemovel (opcional)',
         guest_progress_pattern: '{completed}/{total} completos',
         guest_of_total_pattern: 'Hospede {index} de {total}',
         guest_field_name: 'Nome',
@@ -2924,6 +2992,9 @@
         guest_field_doc_num: 'N. do documento',
         guest_field_doc_country: 'Pais emissor do documento',
         guest_field_residence_country: 'Pais de residencia',
+        transfer_guest_data_required: 'Preenche primeiro os dados do hospede principal antes de pedir o transfer.',
+        transfer_contact_required_error: 'Indica o email e o telemovel para confirmar o transfer.',
+        transfer_email_invalid_error: 'Indica um endereco de email valido.',
         card_checkin_instructions: 'Instrucoes de check-in',
         checkin_instructions_status_locked: 'Bloqueado',
         checkin_instructions_status_pending: 'Aguardar',
@@ -3203,7 +3274,8 @@
         const nome = String(guest?.nome || '').trim();
         const apelido = String(guest?.apelido || '').trim();
         const full = `${nome} ${apelido}`.trim();
-        return full || `${tGuest('guest_default_name')} ${index}`;
+        const base = full || `${tGuest('guest_default_name')} ${index}`;
+        return index === 1 ? `${base} · ${tGuest('guest_primary_label')}` : base;
       }
 
       function buildOverallProgressText() {
@@ -3315,7 +3387,9 @@
           pais_emissor_doc: getCountryStoredValue(guestEls.paisEmissor),
           pais_emissor_doc_iso2: getCountryCodeValue(guestEls.paisEmissor),
           pais_residencia: getCountryStoredValue(guestEls.paisResidencia),
-          pais_residencia_iso2: getCountryCodeValue(guestEls.paisResidencia)
+          pais_residencia_iso2: getCountryCodeValue(guestEls.paisResidencia),
+          email: mandatoryState.index === 1 ? String(guestEls.email?.value || '').trim() : '',
+          telefone: mandatoryState.index === 1 ? String(guestEls.telefone?.value || '').trim() : ''
         };
       }
 
@@ -3330,6 +3404,9 @@
         guestEls.numDoc.value = guest.num_doc || '';
         setCountrySelectValue(guestEls.paisEmissor, guest.pais_emissor_doc || '');
         setCountrySelectValue(guestEls.paisResidencia, guest.pais_residencia || '');
+        if (guestEls.email) guestEls.email.value = mandatoryState.index === 1 ? (guest.email || '') : '';
+        if (guestEls.telefone) guestEls.telefone.value = mandatoryState.index === 1 ? (guest.telefone || '') : '';
+        guestEls.primaryContactFields?.classList.toggle('d-none', mandatoryState.index !== 1);
       }
 
       function renderGuestUi() {
@@ -3442,8 +3519,28 @@
         if (transferEls.message) transferEls.message.classList.add('d-none');
       }
 
-      function openTransferModal() {
+      let transferRequestInFlight = false;
+      let transferRequestKey = '';
+
+      function newTransferRequestKey() {
+        if (window.crypto?.randomUUID) return window.crypto.randomUUID().replaceAll('-', '');
+        return `${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}_${Math.random().toString(36).slice(2)}`;
+      }
+
+      async function openTransferModal() {
         if (!transferEls.modal) return;
+        if (!mandatoryState.loaded) await loadGuestData();
+        const primaryGuest = mandatoryState.guests[0] || {};
+        if (!guestIsComplete(primaryGuest)) {
+          alert(tGuest('transfer_guest_data_required'));
+          mandatoryState.index = 1;
+          openGuestModal();
+          showGuestForm(1);
+          return;
+        }
+        if (transferEls.guestEmail) transferEls.guestEmail.value = String(primaryGuest.email || '').trim();
+        if (transferEls.guestPhone) transferEls.guestPhone.value = String(primaryGuest.telefone || '').trim();
+        transferRequestKey = newTransferRequestKey();
         updateTransferForm();
         transferEls.modal.classList.add('open');
         transferEls.modal.setAttribute('aria-hidden', 'false');
@@ -3462,26 +3559,51 @@
       }
 
       async function submitTransferRequest() {
+        if (transferRequestInFlight) return false;
         const arrivalTime = String(transferEls.arrivalTime?.value || '').trim();
+        const guestEmail = String(transferEls.guestEmail?.value || '').trim();
+        const guestPhone = String(transferEls.guestPhone?.value || '').trim();
         if (!arrivalTime) {
           showTransferMessage(tGuest('transfer_required_error'));
           transferEls.arrivalTime?.focus();
           return false;
         }
+        if (!guestEmail || !guestPhone) {
+          showTransferMessage(tGuest('transfer_contact_required_error'));
+          (!guestEmail ? transferEls.guestEmail : transferEls.guestPhone)?.focus();
+          return false;
+        }
+        if (transferEls.guestEmail && !transferEls.guestEmail.checkValidity()) {
+          showTransferMessage(tGuest('transfer_email_invalid_error'));
+          transferEls.guestEmail.focus();
+          return false;
+        }
         try {
+          transferRequestInFlight = true;
           transferEls.send.disabled = true;
+          transferEls.send.setAttribute('aria-busy', 'true');
+          if (!transferRequestKey) transferRequestKey = newTransferRequestKey();
           const res = await fetch(`/api/r/${encodeURIComponent(PUBLIC_RESERVA)}/transfers`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({
             route: transferEls.origin?.value || 'airport',
             service_date: transferEls.arrivalDate?.value || '',
             service_time: arrivalTime,
-            flight: transferEls.flight?.value || ''
+            flight: transferEls.flight?.value || '',
+            guest_email: guestEmail,
+            guest_phone: guestPhone,
+            request_key: transferRequestKey
           })});
           const data = await res.json().catch(() => ({}));
           if (!res.ok || data.error) throw new Error(data.error || 'Erro ao enviar o pedido.');
           closeTransferModal();
+          transferRequestKey = '';
+          if (data.warning) alert(data.warning);
           return true;
         } catch (error) { showTransferMessage(error.message || 'Erro ao enviar o pedido.'); return false; }
-        finally { transferEls.send.disabled = false; }
+        finally {
+          transferRequestInFlight = false;
+          transferEls.send.disabled = false;
+          transferEls.send.removeAttribute('aria-busy');
+        }
       }
 
       function stayPlanTimeToMinutes(value) {
@@ -3685,11 +3807,14 @@
           if (!res.ok || data.error) return;
           mandatoryState.total = Math.max(1, Number(data.total_guests || 1));
           mandatoryState.guests = Array.isArray(data.guests) ? data.guests : [];
+          mandatoryState.loaded = true;
           while (mandatoryState.guests.length < mandatoryState.total) mandatoryState.guests.push({});
           if (mandatoryState.index > mandatoryState.total) mandatoryState.index = mandatoryState.total;
           renderGuestUi();
           await loadCheckinInstructions();
-        } catch (_) {}
+        } catch (_) {
+          mandatoryState.loaded = false;
+        }
       }
 
       async function saveCurrentGuest() {
@@ -3867,7 +3992,9 @@
         guestEls.tipoDoc,
         guestEls.numDoc,
         guestEls.paisEmissor,
-        guestEls.paisResidencia
+        guestEls.paisResidencia,
+        guestEls.email,
+        guestEls.telefone
       ].forEach((el) => {
         if (!el) return;
         el.addEventListener('input', () => {

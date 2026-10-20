@@ -34,6 +34,8 @@ class TransferEmailServiceTests(unittest.TestCase):
         self.assertIn("EUR 30 per trip", result["body_text"])
         self.assertIn("Pedido de transfer confirmado", result["body_html"])
         self.assertIn("Transfer request confirmed", result["body_html"])
+        self.assertIn("PortoBreak", result["body_html"])
+        self.assertNotIn("GuestSpaTur", result["body_html"])
 
     def test_builds_departure_route_without_arrival_label(self):
         result = build_transfer_confirmation_email({

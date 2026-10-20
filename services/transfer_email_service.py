@@ -107,7 +107,7 @@ def build_transfer_confirmation_email(data: dict) -> dict[str, str]:
   <body style="margin:0;background:#f1f5f9;font-family:Arial,Helvetica,sans-serif;color:#0f172a;">
     <div style="max-width:720px;margin:0 auto;padding:28px 14px;">
       <div style="background:#063f72;color:#fff;padding:22px 26px;border-radius:14px 14px 0 0;">
-        <div style="font-size:13px;letter-spacing:.08em;text-transform:uppercase;opacity:.78;">GuestSpaTur</div>
+        <div style="font-size:13px;letter-spacing:.08em;text-transform:uppercase;opacity:.78;">PortoBreak</div>
         <h1 style="font-size:23px;line-height:1.25;margin:7px 0 0;">Pedido de transfer confirmado</h1>
         <div style="font-size:15px;margin-top:5px;opacity:.86;">Transfer request confirmed</div>
       </div>

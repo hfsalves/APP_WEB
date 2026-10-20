@@ -63,3 +63,43 @@ Press CTRL+C to quit
 127.0.0.1 - - [19/Oct/2026 12:17:44] "GET /api/cliente/calendario?start=2026-12&months=1&alojamento=BONFIM+1F HTTP/1.1" 200 -
 127.0.0.1 - - [19/Oct/2026 12:17:45] "GET /api/cliente/calendario?start=2026-11&months=1&alojamento=BONFIM+1F HTTP/1.1" 200 -
 127.0.0.1 - - [19/Oct/2026 12:17:45] "GET /api/cliente/calendario?start=2026-10&months=1&alojamento=BONFIM+1F HTTP/1.1" 200 -
+ * Serving Flask app 'app'
+ * Debug mode: off
+Address already in use
+Port 8001 is in use by another program. Either identify and stop that program, or start the server with a different port.
+ * Serving Flask app 'app'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on http://127.0.0.1:8001
+Press CTRL+C to quit
+127.0.0.1 - - [19/Oct/2026 14:43:47] "GET /login HTTP/1.1" 200 -
+127.0.0.1 - - [19/Oct/2026 14:44:59] "GET /logout HTTP/1.1" 302 -
+127.0.0.1 - - [19/Oct/2026 14:44:59] "GET /login HTTP/1.1" 200 -
+127.0.0.1 - - [19/Oct/2026 14:44:59] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [19/Oct/2026 14:44:59] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [19/Oct/2026 14:44:59] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [19/Oct/2026 14:44:59] "GET /static/js/push.js?v=1792417424 HTTP/1.1" 200 -
+127.0.0.1 - - [19/Oct/2026 14:44:59] "GET /static/images/icon-512.png HTTP/1.1" 304 -
+127.0.0.1 - - [19/Oct/2026 14:45:01] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [19/Oct/2026 14:45:06] "POST /login HTTP/1.1" 302 -
+127.0.0.1 - - [19/Oct/2026 14:45:07] "GET / HTTP/1.1" 302 -
+127.0.0.1 - - [19/Oct/2026 14:45:08] "GET /dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [19/Oct/2026 14:45:08] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [19/Oct/2026 14:45:08] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [19/Oct/2026 14:45:08] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [19/Oct/2026 14:45:08] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [19/Oct/2026 14:45:08] "GET /static/js/dashboard.js?v=1792417424 HTTP/1.1" 200 -
+127.0.0.1 - - [19/Oct/2026 14:45:08] "GET /static/js/push.js?v=1792417424 HTTP/1.1" 304 -
+127.0.0.1 - - [19/Oct/2026 14:45:08] "GET /api/dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [19/Oct/2026 14:45:08] "POST /api/widgets/SALDOS_TESOURARIA/run HTTP/1.1" 200 -
+127.0.0.1 - - [19/Oct/2026 14:45:08] "POST /api/widgets/FAT_MES_EDIFICIO/run HTTP/1.1" 200 -
+127.0.0.1 - - [19/Oct/2026 14:45:09] "POST /api/widgets/FATURACAO_ANUAL_CHART/run HTTP/1.1" 200 -
+127.0.0.1 - - [19/Oct/2026 14:45:09] "POST /api/widgets/FATURACAO_ANUAL/run HTTP/1.1" 200 -
+127.0.0.1 - - [19/Oct/2026 14:45:10] "GET /service-worker.js HTTP/1.1" 304 -
+ * Serving Flask app 'app'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on http://127.0.0.1:8001
+Press CTRL+C to quit
+127.0.0.1 - - [20/Oct/2026 11:00:09] "GET /login HTTP/1.1" 200 -
+127.0.0.1 - - [20/Oct/2026 11:00:21] "GET /r/HM4YP5J8DA HTTP/1.1" 200 -

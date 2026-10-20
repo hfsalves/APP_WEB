@@ -520,15 +520,27 @@ async function applyFilters(widgetName) {
   bootstrap.Modal.getInstance(document.getElementById(modalId))?.hide();
 }
 
+let grManagementWidgetQueue = Promise.resolve();
+
 async function runWidget(widgetName, filters) {
-  const resp = await fetch(`/api/widgets/${encodeURIComponent(widgetName)}/run`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ filters: filters || {} })
-  });
-  const js = await parseJsonResponse(resp, `Erro ao executar widget ${widgetName}`);
-  if (!resp.ok || js.error) throw new Error(js.error || 'Falha ao executar widget');
-  return js;
+  const execute = async () => {
+    const resp = await fetch(`/api/widgets/${encodeURIComponent(widgetName)}/run`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filters: filters || {} })
+    });
+    const js = await parseJsonResponse(resp, `Erro ao executar widget ${widgetName}`);
+    if (!resp.ok || js.error) throw new Error(js.error || 'Falha ao executar widget');
+    return js;
+  };
+
+  if (String(widgetName || '').startsWith('MAPA_GESTAO_GR_')) {
+    const queued = grManagementWidgetQueue.then(execute, execute);
+    grManagementWidgetQueue = queued.catch(() => undefined);
+    return queued;
+  }
+
+  return execute();
 }
 
 function renderDataIntoWidget(state, data) {

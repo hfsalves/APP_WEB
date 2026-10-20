@@ -103,6 +103,14 @@ from services.application_audit_service import (
     touch_session_log,
 )
 from services.transfer_email_service import build_transfer_confirmation_email
+from services.guest_transfer_service import (
+    clean_guest_email,
+    clean_guest_phone,
+    clean_transfer_request_key,
+    primary_guest_complete,
+    transfer_request_hash,
+    valid_guest_email,
+)
 from services.multiempresa_service import (
     MissingUserEntitiesError,
     MissingCurrentEntityError,
@@ -767,6 +775,9 @@ def create_app():
     from blueprints.email_service import bp as email_service_bp
     app.register_blueprint(email_service_bp)
 
+    from modules.credential_vault import bp as credential_vault_bp
+    app.register_blueprint(credential_vault_bp)
+
     from blueprints.booking_portal import bp as booking_portal_bp
     app.register_blueprint(booking_portal_bp)
 
@@ -812,6 +823,21 @@ def create_app():
 
         result = refresh_fx_rates()
         click.echo(f"ECB {result['date']}: {result['rates']}")
+
+    @app.cli.command('credential-vault-rotate-key')
+    @click.option('--key-file', default='', help='Ficheiro JSON de chaves. Por defeito usa instance/credential_vault.keys.json.')
+    def credential_vault_rotate_key_command(key_file):
+        """Cria uma versão de chave e recifra todas as credenciais."""
+        from services.credential_vault_service import ensure_schema, rotate_key_file
+
+        resolved_file = key_file or str(Path(app.instance_path) / 'credential_vault.keys.json')
+        ensure_schema(db.session)
+        db.session.commit()
+        result = rotate_key_file(db.session, resolved_file)
+        click.echo(
+            f"Cofre recifrado: versão {result['previous_version']} -> "
+            f"{result['current_version']}; {result['records']} registo(s)."
+        )
 
     @app.route('/service-worker.js')
     def service_worker():
@@ -1580,6 +1606,7 @@ def create_app():
                     ISNULL(APELIDO,'') AS APELIDO,
                     DTNASC,
                     ISNULL(NACIONALIDADE,'') AS NACIONALIDADE,
+                    ISNULL(PAIS_RESIDENCIA,'') AS PAIS_RESIDENCIA,
                     ISNULL(TIPO_DOC,'') AS TIPO_DOC,
                     ISNULL(NUM_DOC,'') AS NUM_DOC,
                     ISNULL(PAIS_EMISSOR_DOC,'') AS PAIS_EMISSOR_DOC
@@ -1593,17 +1620,18 @@ def create_app():
         if len(guest_rows) < total_guests:
             return False
         for guest in guest_rows[:total_guests]:
-            nome_completo = str(guest.get('NOME_COMPLETO') or '').strip()
-            nome = str(guest.get('NOME') or '').strip()
-            apelido = str(guest.get('APELIDO') or '').strip()
             dtn = _public_date_value(guest.get('DTNASC'))
-            if not (nome_completo or (nome and apelido)):
+            if not primary_guest_complete({
+                'nome': guest.get('NOME'),
+                'apelido': guest.get('APELIDO'),
+                'dtnasc': dtn.isoformat() if dtn else '',
+                'nacionalidade': guest.get('NACIONALIDADE'),
+                'pais_residencia': guest.get('PAIS_RESIDENCIA'),
+                'tipo_doc': guest.get('TIPO_DOC'),
+                'num_doc': guest.get('NUM_DOC'),
+                'pais_emissor_doc': guest.get('PAIS_EMISSOR_DOC'),
+            }):
                 return False
-            if not dtn or dtn.isoformat() in ('1900-01-01', '0001-01-01'):
-                return False
-            for field in ('NACIONALIDADE', 'TIPO_DOC', 'NUM_DOC', 'PAIS_EMISSOR_DOC'):
-                if not str(guest.get(field) or '').strip():
-                    return False
         return True
 
     def _parse_public_date(value):
@@ -2913,6 +2941,21 @@ def create_app():
                 elif table_key == 'PONTO':
                     from services.ponto_service import ponto_user_allowed
                     mostrar = ponto_user_allowed(current_user)
+                # Os administradores têm acesso direto ao cofre. Para os restantes
+                # utilizadores continua a ser necessária uma permissão explícita.
+                elif table_key == 'CREDENCIAL_VAULT':
+                    if user_is_admin:
+                        mostrar = True
+                    else:
+                        try:
+                            from services.credential_vault_service import user_permissions as vault_user_permissions
+                            mostrar = vault_user_permissions(
+                                db.session,
+                                getattr(current_user, 'LOGIN', ''),
+                            ).get('consultar', False)
+                        except Exception:
+                            db.session.rollback()
+                            mostrar = False
                 # Todos os outros: sÃ³ se tem acesso
                 else:
                     mostrar = user_is_admin or perms.get(str(m.tabela or '').strip().upper(), {}).get('consultar', False)
@@ -3349,6 +3392,12 @@ def create_app():
                     ALTER TABLE dbo.RSGUESTS ADD PAIS_EMISSOR_DOC_ICAO varchar(3) NULL;
                 IF COL_LENGTH('dbo.RSGUESTS', 'TIPO_DOC_SIBA') IS NULL
                     ALTER TABLE dbo.RSGUESTS ADD TIPO_DOC_SIBA varchar(1) NULL;
+                IF COL_LENGTH('dbo.RSGUESTS', 'TELEFONE') IS NULL
+                    ALTER TABLE dbo.RSGUESTS ADD TELEFONE varchar(50) NOT NULL
+                        CONSTRAINT DF_RSGUESTS_TELEFONE DEFAULT ('') WITH VALUES;
+                IF COL_LENGTH('dbo.RSGUESTS', 'EMAIL') IS NULL
+                    ALTER TABLE dbo.RSGUESTS ADD EMAIL varchar(255) NOT NULL
+                        CONSTRAINT DF_RSGUESTS_EMAIL DEFAULT ('') WITH VALUES;
             """))
             rows = db.session.execute(text("""
                 SELECT RSGUESTSTAMP, NACIONALIDADE, PAIS_RESIDENCIA, PAIS_EMISSOR_DOC, TIPO_DOC,
@@ -4255,14 +4304,16 @@ def create_app():
               ISNULL(HORAOUT,'') AS HORAOUT,
               ISNULL(TRANSPORTE,'') AS TRANSPORTE,
               ISNULL(VOO,'') AS VOO,
-              ISNULL(BERCO,0) AS BERCO
+              ISNULL(BERCO,0) AS BERCO,
+              ISNULL(TELEFONE,'') AS TELEFONE,
+              ISNULL(EMAIL,'') AS EMAIL
             FROM dbo.RSGUESTS
             WHERE RSSTAMP=:r AND ISNULL(ATIVO,1)=1
             ORDER BY ISNULL(DTCRI,'19000101'), RSGUESTSTAMP
         """), {'r': rsstamp}).mappings().all()
 
         guests = []
-        for gr in g_rows[:total_guests]:
+        for guest_index, gr in enumerate(g_rows[:total_guests], start=1):
             dtn = gr.get('DTNASC')
             dtn_str = ''
             if isinstance(dtn, datetime):
@@ -4289,6 +4340,9 @@ def create_app():
                 'transporte': (gr.get('TRANSPORTE') or '').strip(),
                 'voo': (gr.get('VOO') or '').strip(),
                 'berco': bool(gr.get('BERCO') or 0),
+                'telefone': (gr.get('TELEFONE') or '').strip(),
+                'email': (gr.get('EMAIL') or '').strip(),
+                'is_primary': guest_index == 1,
             })
         while len(guests) < total_guests:
             guests.append({
@@ -4311,25 +4365,13 @@ def create_app():
                 'transporte': '',
                 'voo': '',
                 'berco': False,
+                'telefone': '',
+                'email': '',
+                'is_primary': len(guests) == 0,
             })
 
         def _is_complete(g):
-            if not str(g.get('nome_completo') or '').strip():
-                return False
-            dtn = str(g.get('dtnasc') or '').strip()
-            if not dtn or dtn in ('1900-01-01', '0001-01-01'):
-                return False
-            if not str(g.get('nacionalidade') or '').strip():
-                return False
-            if not str(g.get('pais_residencia') or '').strip():
-                return False
-            if not str(g.get('tipo_doc') or '').strip():
-                return False
-            if not str(g.get('num_doc') or '').strip():
-                return False
-            if not str(g.get('pais_emissor_doc') or '').strip():
-                return False
-            return True
+            return primary_guest_complete(g)
 
         return jsonify({
             'ok': True,
@@ -4386,6 +4428,10 @@ def create_app():
         pais_residencia = str(guest.get('pais_residencia') or '').strip()[:60]
         tipo_doc = str(guest.get('tipo_doc') or '').strip()[:30]
         pais_emissor_doc = str(guest.get('pais_emissor_doc') or '').strip()[:60]
+        guest_email = clean_guest_email(guest.get('email')) if index == 1 else ''
+        guest_phone = clean_guest_phone(guest.get('telefone')) if index == 1 else ''
+        if guest_email and not valid_guest_email(guest_email):
+            return jsonify({'error': 'Indica um endereço de email válido.'}), 400
         vals = {
             'nome_completo': nome_completo,
             'nome': nome,
@@ -4405,6 +4451,8 @@ def create_app():
             'transporte': str(guest.get('transporte') or '').strip()[:30],
             'voo': str(guest.get('voo') or '').strip()[:20],
             'berco': 1 if bool(guest.get('berco')) else 0,
+            'telefone': guest_phone,
+            'email': guest_email,
         }
 
         if target:
@@ -4429,6 +4477,8 @@ def create_app():
                   TRANSPORTE=:transporte,
                   VOO=:voo,
                   BERCO=:berco,
+                  TELEFONE=:telefone,
+                  EMAIL=:email,
                   DTALT=GETDATE()
                 WHERE RSGUESTSTAMP=:s
             """), {**vals, 's': target})
@@ -4437,11 +4487,13 @@ def create_app():
                 INSERT INTO dbo.RSGUESTS
                 (RSGUESTSTAMP, RSSTAMP, NOME_COMPLETO, NOME, APELIDO, DTNASC, NACIONALIDADE, PAIS_RESIDENCIA,
                  TIPO_DOC, NUM_DOC, PAIS_EMISSOR_DOC, NACIONALIDADE_ICAO, PAIS_RESIDENCIA_ICAO,
-                 PAIS_EMISSOR_DOC_ICAO, TIPO_DOC_SIBA, ATIVO, DTCRI, DTALT, HORAIN, HORAOUT, TRANSPORTE, VOO, BERCO)
+                 PAIS_EMISSOR_DOC_ICAO, TIPO_DOC_SIBA, ATIVO, DTCRI, DTALT, HORAIN, HORAOUT, TRANSPORTE, VOO, BERCO,
+                 TELEFONE, EMAIL)
                 VALUES
                 (:s, :r, :nome_completo, :nome, :apelido, :dtnasc, :nacionalidade, :pais_residencia,
                  :tipo_doc, :num_doc, :pais_emissor_doc, :nacionalidade_icao, :pais_residencia_icao,
-                 :pais_emissor_doc_icao, :tipo_doc_siba, 1, GETDATE(), NULL, :horain, :horaout, :transporte, :voo, :berco)
+                 :pais_emissor_doc_icao, :tipo_doc_siba, 1, GETDATE(), NULL, :horain, :horaout, :transporte, :voo, :berco,
+                 :telefone, :email)
             """), {**vals, 's': _new_stamp_25(), 'r': rsstamp})
         db.session.commit()
         return public_reserva_guests_get(reserva_code)
@@ -4549,27 +4601,51 @@ def create_app():
         if departure_enabled and (not departure_date or not time_re.match(departure_time)):
             return jsonify({'error': 'Indica uma data e hora de partida válidas.'}), 400
 
-        portal_contact = {}
-        try:
-            if db.session.execute(text("SELECT OBJECT_ID('dbo.PB_BOOKING_REQUESTS', 'U')")).scalar() \
-                    and db.session.execute(text("SELECT OBJECT_ID('dbo.PB_STRIPE_TEST_PAYMENTS', 'U')")).scalar():
-                portal_contact = dict(db.session.execute(text("""
-                    SELECT TOP 1
-                        ISNULL(B.CLIENTE_NOME,'') AS CLIENTE_NOME,
-                        ISNULL(B.CLIENTE_EMAIL,'') AS CLIENTE_EMAIL,
-                        ISNULL(B.CLIENTE_TELEFONE,'') AS CLIENTE_TELEFONE
-                    FROM dbo.PB_BOOKING_REQUESTS B
-                    INNER JOIN dbo.PB_STRIPE_TEST_PAYMENTS P ON P.PBBKSTAMP=B.PBBKSTAMP
-                    WHERE P.RSSTAMP=:rsstamp
-                    ORDER BY COALESCE(P.DTALT,P.DTCRI) DESC
-                """), {'rsstamp': str(row.get('RSSTAMP') or '').strip()}).mappings().first() or {})
-        except Exception:
-            db.session.rollback()
-            current_app.logger.exception('Erro ao obter contacto do hóspede para o transfer')
+        _ensure_rsguests_siba_columns()
+        primary_row = dict(db.session.execute(text("""
+            SELECT TOP 1
+                ISNULL(NOME_COMPLETO,'') AS NOME_COMPLETO,
+                ISNULL(NOME,'') AS NOME,
+                ISNULL(APELIDO,'') AS APELIDO,
+                DTNASC,
+                ISNULL(NACIONALIDADE,'') AS NACIONALIDADE,
+                ISNULL(PAIS_RESIDENCIA,'') AS PAIS_RESIDENCIA,
+                ISNULL(TIPO_DOC,'') AS TIPO_DOC,
+                ISNULL(NUM_DOC,'') AS NUM_DOC,
+                ISNULL(PAIS_EMISSOR_DOC,'') AS PAIS_EMISSOR_DOC,
+                ISNULL(TELEFONE,'') AS TELEFONE,
+                ISNULL(EMAIL,'') AS EMAIL
+            FROM dbo.RSGUESTS
+            WHERE RSSTAMP=:rsstamp AND ISNULL(ATIVO,1)=1
+            ORDER BY ISNULL(DTCRI,'19000101'), RSGUESTSTAMP
+        """), {'rsstamp': str(row.get('RSSTAMP') or '').strip()}).mappings().first() or {})
+        primary_birth_date = _public_date_value(primary_row.get('DTNASC'))
+        primary_guest = {
+            'nome': primary_row.get('NOME'),
+            'apelido': primary_row.get('APELIDO'),
+            'dtnasc': primary_birth_date.isoformat() if primary_birth_date else '',
+            'nacionalidade': primary_row.get('NACIONALIDADE'),
+            'pais_residencia': primary_row.get('PAIS_RESIDENCIA'),
+            'tipo_doc': primary_row.get('TIPO_DOC'),
+            'num_doc': primary_row.get('NUM_DOC'),
+            'pais_emissor_doc': primary_row.get('PAIS_EMISSOR_DOC'),
+        }
+        if not primary_guest_complete(primary_guest):
+            return jsonify({
+                'error': 'Preenche primeiro os dados do hóspede principal antes de pedir o transfer.',
+                'code': 'PRIMARY_GUEST_REQUIRED',
+            }), 409
 
-        guest_name = str(portal_contact.get('CLIENTE_NOME') or row.get('NOME') or '').strip()[:200]
-        guest_email = str(body.get('guest_email') or portal_contact.get('CLIENTE_EMAIL') or row.get('FTEMAIL') or '').strip()[:255]
-        guest_phone = str(body.get('guest_phone') or portal_contact.get('CLIENTE_TELEFONE') or '').strip()[:50]
+        primary_name = str(primary_row.get('NOME_COMPLETO') or '').strip()
+        if not primary_name:
+            primary_name = f"{primary_row.get('NOME') or ''} {primary_row.get('APELIDO') or ''}".strip()
+        guest_name = str(primary_name or row.get('NOME') or '').strip()[:200]
+        guest_email = clean_guest_email(body.get('guest_email') or primary_row.get('EMAIL'))
+        guest_phone = clean_guest_phone(body.get('guest_phone') or primary_row.get('TELEFONE'))
+        if not guest_email or not guest_phone:
+            return jsonify({'error': 'Indica o email e o telemóvel para confirmar o transfer.'}), 400
+        if not valid_guest_email(guest_email):
+            return jsonify({'error': 'Indica um endereço de email válido.'}), 400
         people_count = sum(int(row.get(field) or 0) for field in ('ADULTOS', 'CRIANCAS', 'BEBES'))
         address = ', '.join(part for part in (
             str(row.get('MORADA') or '').strip(),
@@ -4581,6 +4657,48 @@ def create_app():
                            or '+351 929 009 157').strip()[:50]
         driver_email = str(current_app.config.get('TRANSFER_DRIVER_EMAIL')
                            or os.environ.get('TRANSFER_DRIVER_EMAIL') or '').strip()[:255]
+
+        request_key = clean_transfer_request_key(body.get('request_key'))
+        request_hash = transfer_request_hash(
+            rsstamp=row.get('RSSTAMP'),
+            route=route,
+            service_date=service_date,
+            service_time=service_time,
+            flight=body.get('flight') if route in {'airport', 'to_airport'} else '',
+        )
+        # Serializa pedidos iguais na própria base de dados. Isto protege contra
+        # cliques simultâneos, separadores duplicados e clientes antigos sem
+        # suporte explícito para chaves idempotentes.
+        lock_result = db.session.execute(text("""
+            DECLARE @result int;
+            EXEC @result = sp_getapplock
+                @Resource=:resource,
+                @LockMode='Exclusive',
+                @LockOwner='Transaction',
+                @LockTimeout=10000;
+            SELECT @result;
+        """), {'resource': f'TRANSFER:{request_hash}'}).scalar()
+        if int(lock_result if lock_result is not None else -999) < 0:
+            db.session.rollback()
+            return jsonify({'error': 'O pedido já está a ser processado. Aguarda alguns segundos.'}), 409
+
+        existing = db.session.execute(text("""
+            SELECT TOP 1 TRANSFERSTAMP, ESTADO, EMAIL_ESTADO
+            FROM dbo.TRANSFERS WITH (UPDLOCK, HOLDLOCK)
+            WHERE (REQUEST_HASH=:request_hash OR (:request_key<>'' AND REQUEST_KEY=:request_key))
+              AND UPPER(ISNULL(ESTADO,'')) <> 'CANCELADO'
+            ORDER BY DTCRI, TRANSFERSTAMP
+        """), {'request_hash': request_hash, 'request_key': request_key}).mappings().first()
+        if existing:
+            db.session.commit()
+            return jsonify({
+                'ok': True,
+                'duplicate': True,
+                'transfer_stamp': str(existing.get('TRANSFERSTAMP') or '').strip(),
+                'status': str(existing.get('ESTADO') or 'PENDENTE').strip(),
+                'notification_status': str(existing.get('EMAIL_ESTADO') or 'NAO_ENVIADO').strip(),
+                'message': 'Este pedido de transfer já estava registado.',
+            })
 
         stamp = _new_stamp_25()
         values = {
@@ -4597,13 +4715,16 @@ def create_app():
             'address': address, 'guest_name': guest_name, 'people_count': people_count,
             'guest_phone': guest_phone, 'guest_email': guest_email,
             'driver_phone': driver_phone, 'driver_email': driver_email,
+            'request_key': request_key or None, 'request_hash': request_hash,
         }
         db.session.execute(text("""
             INSERT INTO dbo.TRANSFERS
             (TRANSFERSTAMP,RSSTAMP,RESERVA,ALOJAMENTO,ORIGEM,DATA_CHEGADA,HORA_CHEGADA,NUM_VOO,TEM_PARTIDA,DATA_PARTIDA,HORA_PARTIDA,
-             MORADA,NOME_HOSPEDE,NUM_PESSOAS,CONTACTO_TELEF,EMAIL_HOSPEDE,MOTORISTA_CONTACTO,MOTORISTA_EMAIL)
+             MORADA,NOME_HOSPEDE,NUM_PESSOAS,CONTACTO_TELEF,EMAIL_HOSPEDE,MOTORISTA_CONTACTO,MOTORISTA_EMAIL,
+             REQUEST_KEY,REQUEST_HASH,ESTADO,EMAIL_ESTADO)
             VALUES (:stamp,:rsstamp,:reserva,:alojamento,:origin,:arrival_date,:arrival_time,:flight,:has_departure,:departure_date,:departure_time,
-                    :address,:guest_name,:people_count,:guest_phone,:guest_email,:driver_phone,:driver_email)
+                    :address,:guest_name,:people_count,:guest_phone,:guest_email,:driver_phone,:driver_email,
+                    :request_key,:request_hash,'PENDENTE','NAO_ENVIADO')
         """), values)
         db.session.commit()
 
@@ -4627,6 +4748,8 @@ def create_app():
             'transfer_id': stamp,
             'driver_phone': driver_phone,
         })
+        email_id = None
+        notification_error = ''
         try:
             from services.email_service import list_profiles, queue_email, send_email_now
             smtp_profile = next((profile for profile in list_profiles(include_inactive=False)
@@ -4636,28 +4759,77 @@ def create_app():
             recipients = ['hugo@guestspa.pt', 'pedro@guestspa.pt', 'helpdesk@guestspa.pt', 'iara@guestspa.pt']
             if driver_email:
                 recipients.append(driver_email)
-            # O email do hóspede fica guardado no pedido, mas só será adicionado
-            # aos destinatários quando o envio ao cliente for expressamente ativado.
+            recipients.append(guest_email)
+            clean_recipients = []
+            seen_recipients = set()
+            for recipient in recipients:
+                clean_recipient = str(recipient or '').strip()
+                recipient_key = clean_recipient.casefold()
+                if clean_recipient and recipient_key not in seen_recipients:
+                    clean_recipients.append(clean_recipient)
+                    seen_recipients.add(recipient_key)
+            recipients = clean_recipients
             email_id = queue_email(
                 profile_id=smtp_profile.get('ID'),
                 to=recipients,
                 subject=email_content['subject'],
                 body_text=email_content['body_text'],
                 body_html=email_content['body_html'],
-                context='TRANSFER', context_id=stamp, created_by='guest-portal'
+                context='TRANSFER', context_id=stamp, created_by='guest-portal',
+                from_name='PortoBreak'
             )
+            db.session.execute(text("""
+                UPDATE dbo.TRANSFERS
+                SET EMAIL_ID=:email_id, EMAIL_ESTADO='PENDENTE', EMAIL_ERRO=NULL, DTALT=GETDATE()
+                WHERE TRANSFERSTAMP=:stamp
+            """), {'email_id': email_id, 'stamp': stamp})
+            db.session.commit()
             result = send_email_now(email_id)
-            db.session.execute(text("UPDATE dbo.TRANSFERS SET EMAIL_ID=:email_id, ESTADO=:state, DTALT=GETDATE() WHERE TRANSFERSTAMP=:stamp"),
-                               {'email_id': email_id, 'state': 'ENVIADO' if result.get('ok') else 'EMAIL_ERRO', 'stamp': stamp})
+            notification_error = str(result.get('error') or '').strip()[:1000]
+            fully_notified = bool(result.get('ok')) and bool(driver_email)
+            notification_state = 'ENVIADO' if fully_notified else ('PARCIAL' if result.get('ok') else 'ERRO')
+            transfer_state = 'ENVIADO' if fully_notified else 'PENDENTE'
+            if result.get('ok') and not driver_email:
+                notification_error = 'Email do motorista não configurado; equipa e hóspede notificados.'
+            db.session.execute(text("""
+                UPDATE dbo.TRANSFERS
+                SET ESTADO=:transfer_state, EMAIL_ESTADO=:notification_state,
+                    EMAIL_ERRO=:notification_error, DTALT=GETDATE()
+                WHERE TRANSFERSTAMP=:stamp
+            """), {
+                'transfer_state': transfer_state,
+                'notification_state': notification_state,
+                'notification_error': notification_error or None,
+                'stamp': stamp,
+            })
             db.session.commit()
-            if not result.get('ok'):
-                return jsonify({'error': 'O pedido foi gravado, mas não foi possível enviar o email.'}), 502
-        except Exception:
+            warning = notification_error if not fully_notified else ''
+            return jsonify({
+                'ok': True,
+                'transfer_stamp': stamp,
+                'status': transfer_state,
+                'notification_status': notification_state,
+                'notification_ok': fully_notified,
+                'warning': warning,
+            }), 201
+        except Exception as exc:
             current_app.logger.exception('Erro ao enviar email do transfer %s', stamp)
-            db.session.execute(text("UPDATE dbo.TRANSFERS SET ESTADO='EMAIL_ERRO', DTALT=GETDATE() WHERE TRANSFERSTAMP=:stamp"), {'stamp': stamp})
+            notification_error = str(exc or 'Erro ao preparar a notificação.').strip()[:1000]
+            db.session.execute(text("""
+                UPDATE dbo.TRANSFERS
+                SET ESTADO='PENDENTE', EMAIL_ID=COALESCE(:email_id,EMAIL_ID),
+                    EMAIL_ESTADO='ERRO', EMAIL_ERRO=:error, DTALT=GETDATE()
+                WHERE TRANSFERSTAMP=:stamp
+            """), {'email_id': email_id, 'error': notification_error, 'stamp': stamp})
             db.session.commit()
-            return jsonify({'error': 'O pedido foi gravado, mas não foi possível enviar o email.'}), 502
-        return jsonify({'ok': True, 'transfer_stamp': stamp})
+            return jsonify({
+                'ok': True,
+                'transfer_stamp': stamp,
+                'status': 'PENDENTE',
+                'notification_status': 'ERRO',
+                'notification_ok': False,
+                'warning': 'O pedido ficou registado, mas a confirmação por email está pendente.',
+            }), 201
 
     @app.route('/api/r/<reserva_code>/billing', methods=['POST'])
     def public_reserva_billing_save(reserva_code):
@@ -16932,11 +17104,13 @@ def create_app():
                 INSERT INTO dbo.RSGUESTS
                 (RSGUESTSTAMP, RSSTAMP, NOME_COMPLETO, NOME, APELIDO, DTNASC, NACIONALIDADE, PAIS_RESIDENCIA,
                  TIPO_DOC, NUM_DOC, PAIS_EMISSOR_DOC, NACIONALIDADE_ICAO, PAIS_RESIDENCIA_ICAO,
-                 PAIS_EMISSOR_DOC_ICAO, TIPO_DOC_SIBA, ATIVO, DTCRI, DTALT, HORAIN, HORAOUT, TRANSPORTE, VOO, BERCO)
+                 PAIS_EMISSOR_DOC_ICAO, TIPO_DOC_SIBA, ATIVO, DTCRI, DTALT, HORAIN, HORAOUT, TRANSPORTE, VOO, BERCO,
+                 TELEFONE, EMAIL)
                 VALUES
                 (:RSGUESTSTAMP, :RSSTAMP, :NOME_COMPLETO, :NOME, :APELIDO, :DTNASC, :NACIONALIDADE, :PAIS_RESIDENCIA,
                  :TIPO_DOC, :NUM_DOC, :PAIS_EMISSOR_DOC, :NACIONALIDADE_ICAO, :PAIS_RESIDENCIA_ICAO,
-                 :PAIS_EMISSOR_DOC_ICAO, :TIPO_DOC_SIBA, :ATIVO, :DTCRI, :DTALT, :HORAIN, :HORAOUT, :TRANSPORTE, :VOO, :BERCO)
+                 :PAIS_EMISSOR_DOC_ICAO, :TIPO_DOC_SIBA, :ATIVO, :DTCRI, :DTALT, :HORAIN, :HORAOUT, :TRANSPORTE, :VOO, :BERCO,
+                 :TELEFONE, :EMAIL)
             """), {
                 'RSGUESTSTAMP': str(guest.get('RSGUESTSTAMP') or '').strip() or _new_stamp_25(),
                 'RSSTAMP': rsstamp,
@@ -16961,6 +17135,8 @@ def create_app():
                 'TRANSPORTE': str(guest.get('TRANSPORTE') or '').strip()[:30],
                 'VOO': str(guest.get('VOO') or '').strip()[:20],
                 'BERCO': 1 if _to_int(guest.get('BERCO'), 0) == 1 else 0,
+                'TELEFONE': clean_guest_phone(guest.get('TELEFONE') or guest.get('telefone')),
+                'EMAIL': clean_guest_email(guest.get('EMAIL') or guest.get('email')),
             })
 
         db.session.commit()
@@ -25654,6 +25830,7 @@ def create_app():
 
         headers = [
             'Reserva',
+            'Nº FT',
             'Estado',
             'Alojamento',
             'Nome',
@@ -25674,6 +25851,7 @@ def create_app():
         for row in detail.get('reservas') or []:
             values = [
                 row.get('reserva') or '',
+                row.get('numero_ft') or '',
                 'Cancelada' if row.get('is_cancelada') else '',
                 row.get('alojamento') or '',
                 row.get('hospede') or '',
@@ -25696,6 +25874,7 @@ def create_app():
         totals = detail.get('totals') or {}
         total_row = [
             'Totais',
+            '',
             '',
             '',
             '',
@@ -25733,14 +25912,14 @@ def create_app():
             cell.font = Font(bold=True)
             cell.fill = total_fill
 
-        money_columns = range(8, len(headers) + 1)
+        money_columns = range(9, len(headers) + 1)
         for row_cells in ws.iter_rows(min_row=header_row + 1, max_row=total_row_idx):
             for idx in money_columns:
                 row_cells[idx - 1].number_format = '#,##0.00 €'
                 row_cells[idx - 1].alignment = Alignment(horizontal='right')
-            row_cells[6].alignment = Alignment(horizontal='right')
+            row_cells[7].alignment = Alignment(horizontal='right')
 
-        widths = [16, 12, 24, 28, 13, 13, 10, 16, 20, 16, 16, 18, 18, 16]
+        widths = [16, 18, 12, 24, 28, 13, 13, 10, 16, 20, 16, 16, 18, 18, 16]
         for idx, width in enumerate(widths[:len(headers)], start=1):
             ws.column_dimensions[get_column_letter(idx)].width = width
         ws.freeze_panes = f"A{header_row + 1}"
@@ -25938,10 +26117,47 @@ def create_app():
                 ISNULL(RS.PCANCEL, 0) AS PCANCEL,
                 ISNULL(AL.COMISSAO, 0) AS AL_COMISSAO,
                 ISNULL(AL.FTLIMPEZA, 0) AS FTLIMPEZA,
-                ISNULL(AL.CALCSIVA, 0) AS CALCSIVA
+                ISNULL(AL.CALCSIVA, 0) AS CALCSIVA,
+                ISNULL(FAT.NMDOC, '') AS FT_NMDOC,
+                ISNULL(FAT.TIPOSAFT, '') AS FT_TIPOSAFT,
+                ISNULL(FAT.SERIE, '') AS FT_SERIE,
+                ISNULL(FAT.FNO, 0) AS FT_FNO
             FROM dbo.RS AS RS
             INNER JOIN dbo.AL AS AL
               ON LTRIM(RTRIM(ISNULL(AL.NOME, ''))) = LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, '')))
+            OUTER APPLY (
+                SELECT TOP 1
+                    FT.FTSTAMP,
+                    FT.NMDOC,
+                    FT.SERIE,
+                    FT.FNO,
+                    UPPER(LTRIM(RTRIM(ISNULL(FTS.TIPOSAFT, '')))) AS TIPOSAFT
+                FROM dbo.FT AS FT
+                LEFT JOIN dbo.FTS AS FTS
+                  ON FTS.FESTAMP = FT.FESTAMP
+                 AND FTS.NDOC = FT.NDOC
+                 AND LTRIM(RTRIM(ISNULL(FTS.SERIE, ''))) = LTRIM(RTRIM(ISNULL(FT.SERIE, '')))
+                 AND ISNULL(FTS.ANO, 0) = ISNULL(FT.FTANO, 0)
+                WHERE ISNULL(FT.ANULADA, 0) = 0
+                  AND ISNULL(FT.ESTADO, 0) = 1
+                  AND (
+                    (
+                      LTRIM(RTRIM(ISNULL(RS.FTSTAMP, ''))) <> ''
+                      AND FT.FTSTAMP = RS.FTSTAMP
+                    )
+                    OR (
+                      LTRIM(RTRIM(ISNULL(RS.RESERVA, ''))) <> ''
+                      AND LTRIM(RTRIM(ISNULL(FT.RESERVA, ''))) = LTRIM(RTRIM(ISNULL(RS.RESERVA, '')))
+                    )
+                  )
+                ORDER BY
+                  CASE
+                    WHEN LTRIM(RTRIM(ISNULL(RS.FTSTAMP, ''))) <> '' AND FT.FTSTAMP = RS.FTSTAMP THEN 0
+                    ELSE 1
+                  END,
+                  FT.FDATA DESC,
+                  ISNULL(FT.FNO, 0) DESC
+            ) AS FAT
             WHERE {' AND '.join(where)}
             ORDER BY {data_ref_expr}, LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, ''))), LTRIM(RTRIM(ISNULL(RS.RESERVA, '')))
         """), params).mappings().all()
@@ -25962,9 +26178,19 @@ def create_app():
             calc = _cliente_faturacao_calc(row)
             show_acerto = False
             pessoas = int(row.get('ADULTOS') or 0) + int(row.get('CRIANCAS') or 0) + int(row.get('BEBES') or 0)
+            ft_fno = _to_int(row.get('FT_FNO'), 0)
+            numero_ft = ''
+            if ft_fno > 0:
+                numero_ft = ft_invoice_no({
+                    'TIPOSAFT': row.get('FT_TIPOSAFT'),
+                    'NMDOC': row.get('FT_NMDOC'),
+                    'SERIE': row.get('FT_SERIE'),
+                    'FNO': ft_fno,
+                })
             item = {
                 'rsstamp': str(row.get('RSSTAMP') or '').strip(),
                 'reserva': str(row.get('RESERVA') or '').strip(),
+                'numero_ft': numero_ft,
                 'alojamento': str(row.get('ALOJAMENTO') or '').strip(),
                 'hospede': str(row.get('HOSPEDE') or '').strip(),
                 'datain': _cliente_date_label(row.get('DATAIN')),
@@ -30324,21 +30550,13 @@ def create_app():
                     FULL OUTER JOIN Custos C ON C.ORIGEM = P.ORIGEM
                     ORDER BY COALESCE(P.ORIGEM, C.ORIGEM)
                 """
-                with pyodbc.connect(_hsols_master_conn_str(), timeout=20) as conn:
-                    cursor = conn.cursor()
-                    cursor.execute(sql, *(cost_params + revenue_params))
-                    result_columns = [col[0] for col in cursor.description or []]
-                    rows = []
-                    for row in cursor.fetchall():
-                        item = {}
-                        for col, val in zip(result_columns, row):
-                            if isinstance(val, Decimal):
-                                item[col] = float(val)
-                            elif isinstance(val, (date, datetime)):
-                                item[col] = val.strftime('%Y-%m-%d')
-                            else:
-                                item[col] = val
-                        rows.append(item)
+                from services.gr_management_widget_service import execute_read_query
+
+                rows = execute_read_query(
+                    _hsols_master_conn_str(),
+                    sql,
+                    cost_params + revenue_params,
+                )
                 return jsonify({'columns': columns, 'rows': rows})
             except Exception as e:
                 current_app.logger.exception('Erro ao executar widget GR Management Map Summary')
@@ -30444,21 +30662,13 @@ def create_app():
                     WHERE {result_filter_sql}
                     ORDER BY {order_sql}
                 """
-                with pyodbc.connect(_hsols_master_conn_str(), timeout=20) as conn:
-                    cursor = conn.cursor()
-                    cursor.execute(sql, *(cost_params + revenue_params))
-                    result_columns = [col[0] for col in cursor.description or []]
-                    rows = []
-                    for row in cursor.fetchall():
-                        item = {}
-                        for col, val in zip(result_columns, row):
-                            if isinstance(val, Decimal):
-                                item[col] = float(val)
-                            elif isinstance(val, (date, datetime)):
-                                item[col] = val.strftime('%Y-%m-%d')
-                            else:
-                                item[col] = val
-                        rows.append(item)
+                from services.gr_management_widget_service import execute_read_query
+
+                rows = execute_read_query(
+                    _hsols_master_conn_str(),
+                    sql,
+                    cost_params + revenue_params,
+                )
                 return jsonify({'columns': columns, 'rows': rows})
             except Exception as e:
                 current_app.logger.exception('Erro ao executar widget GR Management Project Top')

@@ -131,6 +131,14 @@
     current = cell('Estado', 'transfer-status-cell');
     const stateClass = `is-${String(item.status || 'unknown').toLowerCase().replace('_', '-')}`;
     current.appendChild(badge(item.status_label, stateClass));
+    if (item.notification_status && item.notification_status !== 'ENVIADO') {
+      const notificationClass = `is-${String(item.notification_status).toLowerCase().replaceAll('_', '-')}`;
+      current.appendChild(badge(
+        item.notification_status_label,
+        notificationClass,
+        item.notification_error || item.notification_status_label,
+      ));
+    }
     if (item.incomplete) current.appendChild(badge('Incompleto', 'is-warning', `Falta: ${(item.incomplete_fields || []).join(', ')}`));
     row.appendChild(current);
 
