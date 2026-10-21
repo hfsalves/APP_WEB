@@ -1328,7 +1328,7 @@ const renderRows = (data, slots) => {
     const isOccupied = Number(row.planner_status || 0) === 3;
     const isEmpty = Number(row.planner_status || 0) === 4;
 
-    if (isLocal && !showLocals) {
+    if (isLocal && !showLocals && !hasCleaning) {
       return;
     }
 

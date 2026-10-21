@@ -1,0 +1,46 @@
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on http://127.0.0.1:8001
+Press CTRL+C to quit
+127.0.0.1 - - [21/Oct/2026 11:19:07] "GET / HTTP/1.1" 302 -
+127.0.0.1 - - [21/Oct/2026 11:19:07] "GET /login?next=/ HTTP/1.1" 200 -
+127.0.0.1 - - [21/Oct/2026 11:19:13] "GET / HTTP/1.1" 302 -
+127.0.0.1 - - [21/Oct/2026 11:19:14] "GET /dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [21/Oct/2026 11:19:14] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [21/Oct/2026 11:19:14] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [21/Oct/2026 11:19:14] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [21/Oct/2026 11:19:14] "GET /static/js/dashboard.js?v=1792577944 HTTP/1.1" 200 -
+127.0.0.1 - - [21/Oct/2026 11:19:14] "GET /static/js/push.js?v=1792577944 HTTP/1.1" 200 -
+127.0.0.1 - - [21/Oct/2026 11:19:14] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [21/Oct/2026 11:19:14] "GET /api/dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [21/Oct/2026 11:19:15] "POST /api/widgets/SALDOS_TESOURARIA/run HTTP/1.1" 200 -
+127.0.0.1 - - [21/Oct/2026 11:19:15] "POST /api/widgets/FAT_MES_EDIFICIO/run HTTP/1.1" 200 -
+127.0.0.1 - - [21/Oct/2026 11:19:15] "POST /api/widgets/FATURACAO_ANUAL_CHART/run HTTP/1.1" 200 -
+127.0.0.1 - - [21/Oct/2026 11:19:15] "POST /api/widgets/FATURACAO_ANUAL/run HTTP/1.1" 200 -
+127.0.0.1 - - [21/Oct/2026 11:19:16] "GET /service-worker.js HTTP/1.1" 200 -
+127.0.0.1 - - [21/Oct/2026 11:53:20] "GET /planeamento_limpezas HTTP/1.1" 302 -
+127.0.0.1 - - [21/Oct/2026 11:53:21] "GET /generic/planeamento_limpezas/ HTTP/1.1" 200 -
+127.0.0.1 - - [21/Oct/2026 11:53:21] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [21/Oct/2026 11:53:21] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [21/Oct/2026 11:53:21] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [21/Oct/2026 11:53:21] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [21/Oct/2026 11:53:21] "GET /static/js/push.js?v=1792577944 HTTP/1.1" 304 -
+127.0.0.1 - - [21/Oct/2026 11:53:21] "GET /static/js/planeamento_limpezas.js HTTP/1.1" 200 -
+127.0.0.1 - - [21/Oct/2026 11:53:22] "GET /generic/api/planner2_teams?date=2026-10-21 HTTP/1.1" 200 -
+127.0.0.1 - - [21/Oct/2026 11:53:22] "GET /generic/api/cleaning_plan?date=2026-10-21 HTTP/1.1" 200 -
+127.0.0.1 - - [21/Oct/2026 11:53:22] "POST /generic/api/osm_distances HTTP/1.1" 200 -
+127.0.0.1 - - [21/Oct/2026 11:53:23] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [21/Oct/2026 11:58:25] "GET /generic/planeamento_limpezas/ HTTP/1.1" 200 -
+127.0.0.1 - - [21/Oct/2026 11:58:25] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [21/Oct/2026 11:58:25] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [21/Oct/2026 11:58:25] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [21/Oct/2026 11:58:25] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [21/Oct/2026 11:58:25] "GET /static/js/push.js?v=1792577944 HTTP/1.1" 304 -
+127.0.0.1 - - [21/Oct/2026 11:58:25] "GET /static/js/planeamento_limpezas.js HTTP/1.1" 200 -
+127.0.0.1 - - [21/Oct/2026 11:58:25] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [21/Oct/2026 11:58:25] "GET /generic/api/planner2_teams?date=2026-10-21 HTTP/1.1" 200 -
+127.0.0.1 - - [21/Oct/2026 11:58:25] "GET /generic/api/cleaning_plan?date=2026-10-21 HTTP/1.1" 200 -
+127.0.0.1 - - [21/Oct/2026 11:58:26] "POST /generic/api/osm_distances HTTP/1.1" 200 -
+127.0.0.1 - - [21/Oct/2026 11:58:26] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [21/Oct/2026 11:59:42] "GET /generic/api/planner2_teams?date=2026-10-21 HTTP/1.1" 200 -
+127.0.0.1 - - [21/Oct/2026 11:59:42] "GET /generic/api/cleaning_plan?date=2026-10-21 HTTP/1.1" 200 -
+127.0.0.1 - - [21/Oct/2026 11:59:42] "POST /generic/api/osm_distances HTTP/1.1" 200 -
