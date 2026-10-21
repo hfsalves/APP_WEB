@@ -1,4 +1,4 @@
-"""Read-only operational dashboard for GuestSpaTur transfer requests."""
+"""Operational dashboard data for GuestSpaTur transfer requests."""
 
 from __future__ import annotations
 
@@ -186,10 +186,17 @@ def _serialize(raw: Mapping[str, Any]) -> dict[str, Any]:
         "origin_label": ROUTE_LABELS.get(origin, origin or "Sem percurso"),
         "guest_name": guest_name,
         "people": people,
+        "service_date": arrival_date.isoformat() if arrival_date else None,
+        "service_time": _clean(raw.get("HORA_CHEGADA")),
         "arrival_date": arrival_date.isoformat() if has_arrival and arrival_date else None,
         "arrival_time": _clean(raw.get("HORA_CHEGADA")) if has_arrival else "",
         "arrival_at": arrival_at.isoformat(timespec="minutes") if arrival_at else None,
         "flight": _clean(raw.get("NUM_VOO")),
+        "address": _clean(raw.get("MORADA")),
+        "guest_phone": _clean(raw.get("CONTACTO_TELEF")),
+        "guest_email": _clean(raw.get("EMAIL_HOSPEDE")),
+        "driver_phone": _clean(raw.get("MOTORISTA_CONTACTO")),
+        "driver_email": _clean(raw.get("MOTORISTA_EMAIL")),
         "has_departure": has_departure,
         "departure_date": departure_date.isoformat() if departure_date else None,
         "departure_time": _clean(raw.get("HORA_PARTIDA")) if has_departure else "",
@@ -274,7 +281,8 @@ def _fetch_rows(engine, feid: int) -> list[dict[str, Any]]:
             T.TRANSFERSTAMP, T.RSSTAMP, T.RESERVA, T.ALOJAMENTO, T.ORIGEM,
             T.DATA_CHEGADA, T.HORA_CHEGADA, T.NUM_VOO, T.TEM_PARTIDA,
             T.DATA_PARTIDA, T.HORA_PARTIDA, T.VALOR, T.ESTADO, T.DTCRI, T.DTALT,
-            T.NOME_HOSPEDE, T.NUM_PESSOAS, T.EMAIL_ESTADO, T.EMAIL_ERRO,
+            T.MORADA, T.NOME_HOSPEDE, T.NUM_PESSOAS, T.CONTACTO_TELEF, T.EMAIL_HOSPEDE,
+            T.MOTORISTA_CONTACTO, T.MOTORISTA_EMAIL, T.EMAIL_ESTADO, T.EMAIL_ERRO,
             R.RESERVA AS RS_RESERVA, R.ALOJAMENTO AS RS_ALOJAMENTO, R.NOME AS RS_NOME,
             R.ADULTOS AS RS_ADULTOS, R.CRIANCAS AS RS_CRIANCAS, R.BEBES AS RS_BEBES
         FROM {prefix}TRANSFERS AS T

@@ -9,7 +9,10 @@
 {% block content %}
 <div class="sz_page transfer-dashboard" id="transferDashboard"
      data-api-url="{{ url_for('transfer_dashboard.dashboard_data') }}"
-     data-export-url="{{ url_for('transfer_dashboard.dashboard_export') }}">
+     data-export-url="{{ url_for('transfer_dashboard.dashboard_export') }}"
+     data-manage-url="/api/dashboard/transfers"
+     data-can-edit="{{ '1' if can_edit_transfer else '0' }}"
+     data-can-delete="{{ '1' if can_delete_transfer else '0' }}">
   <div class="sz_page_container">
     <header class="sz_contextbar sz_page_contextbar transfer-contextbar">
       <div class="sz_contextbar_left">
@@ -103,10 +106,10 @@
             <thead>
               <tr>
                 <th>Reserva</th><th>Alojamento</th><th>Percurso</th><th>Hóspede</th><th>Pessoas</th>
-                <th>Chegada</th><th>Voo</th><th>Partida</th><th>Valor</th><th>Estado</th><th>Criado / alterado</th>
+                <th>Chegada</th><th>Voo</th><th>Partida</th><th>Valor</th><th>Estado</th><th>Criado / alterado</th><th>Ações</th>
               </tr>
             </thead>
-            <tbody id="transferRows"><tr><td colspan="11">A carregar pedidos…</td></tr></tbody>
+            <tbody id="transferRows"><tr><td colspan="12">A carregar pedidos…</td></tr></tbody>
           </table>
         </div>
         <div class="transfer-empty" id="transferEmpty" hidden>
@@ -116,6 +119,109 @@
         </div>
       </section>
     </main>
+  </div>
+</div>
+
+<div class="modal fade transfer-edit-modal" id="transferEditModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content transfer-modal-content">
+      <form id="transferEditForm">
+        <div class="modal-header sz_modal_header transfer-modal-header">
+          <div>
+            <div class="sz_breadcrumbs">Operação · Transfer</div>
+            <h5 class="modal-title sz_modal_title" id="transferEditTitle">Pedido de transfer</h5>
+            <div class="transfer-modal-subtitle" id="transferEditSubtitle"></div>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+        </div>
+        <div class="modal-body sz_modal_body transfer-modal-body">
+          <div class="transfer-edit-grid">
+            <label class="transfer-edit-field transfer-field-wide">
+              <span>Percurso</span>
+              <select class="sz_select" name="origin" required>
+                <option value="airport">Aeroporto do Porto → alojamento</option>
+                <option value="campanha">Campanhã → alojamento</option>
+                <option value="to_airport">Alojamento → Aeroporto do Porto</option>
+                <option value="to_campanha">Alojamento → Campanhã</option>
+              </select>
+            </label>
+            <label class="transfer-edit-field">
+              <span>Data</span>
+              <input class="sz_input" type="date" name="service_date" required>
+            </label>
+            <label class="transfer-edit-field">
+              <span>Hora</span>
+              <input class="sz_input" type="time" name="service_time" required>
+            </label>
+            <label class="transfer-edit-field" data-flight-field>
+              <span>Voo</span>
+              <input class="sz_input" type="text" name="flight" maxlength="20">
+            </label>
+            <label class="transfer-edit-field">
+              <span>Valor</span>
+              <input class="sz_input" type="number" name="value" min="0" step="0.01" required>
+            </label>
+            <label class="transfer-edit-field transfer-field-wide">
+              <span>Nome do hóspede</span>
+              <input class="sz_input" type="text" name="guest_name" maxlength="200" required>
+            </label>
+            <label class="transfer-edit-field">
+              <span>N.º de pessoas</span>
+              <input class="sz_input" type="number" name="people" min="1" step="1" required>
+            </label>
+            <label class="transfer-edit-field">
+              <span>Telemóvel do hóspede</span>
+              <input class="sz_input" type="tel" name="guest_phone" maxlength="50">
+            </label>
+            <label class="transfer-edit-field transfer-field-wide">
+              <span>Email do hóspede</span>
+              <input class="sz_input" type="email" name="guest_email" maxlength="255">
+            </label>
+            <label class="transfer-edit-field transfer-field-wide">
+              <span>Morada</span>
+              <input class="sz_input" type="text" name="address" maxlength="300">
+            </label>
+            <label class="transfer-edit-field transfer-field-wide">
+              <span>Contacto do motorista</span>
+              <input class="sz_input" type="tel" name="driver_phone" maxlength="50">
+            </label>
+            <label class="transfer-edit-field transfer-field-wide">
+              <span>Email do motorista</span>
+              <input class="sz_input" type="email" name="driver_email" maxlength="255">
+            </label>
+            <label class="transfer-return-toggle transfer-field-full" data-return-toggle>
+              <input type="checkbox" name="has_departure" value="1">
+              <span>Este pedido inclui também o regresso</span>
+            </label>
+            <div class="transfer-return-fields transfer-field-full" data-return-fields hidden>
+              <label class="transfer-edit-field">
+                <span>Data de regresso</span>
+                <input class="sz_input" type="date" name="departure_date">
+              </label>
+              <label class="transfer-edit-field">
+                <span>Hora de regresso</span>
+                <input class="sz_input" type="time" name="departure_time">
+              </label>
+            </div>
+          </div>
+          <div class="transfer-modal-status" id="transferEditStatus" role="status"></div>
+        </div>
+        <div class="modal-footer sz_modal_footer transfer-modal-footer">
+          {% if can_delete_transfer %}
+          <button class="sz_button transfer-delete-button" type="button" id="transferDeleteButton">
+            <i class="fa-regular fa-trash-can"></i><span>Eliminar</span>
+          </button>
+          {% endif %}
+          <span class="transfer-modal-spacer"></span>
+          <button class="sz_button sz_button_ghost" type="button" data-bs-dismiss="modal">Cancelar</button>
+          {% if can_edit_transfer %}
+          <button class="sz_button sz_button_primary" type="submit" id="transferSaveButton">
+            <i class="fa-regular fa-floppy-disk"></i><span>Guardar alterações</span>
+          </button>
+          {% endif %}
+        </div>
+      </form>
+    </div>
   </div>
 </div>
 <script src="{{ url_for('static', filename='js/transfer_dashboard.js') }}?v={{ static_version }}"></script>

@@ -63,6 +63,8 @@
 .transfer-route-cell { min-width: 13rem; }
 .transfer-dates-cell { min-width: 10.5rem; }
 .transfer-dates-cell small { color: var(--transfer-muted); }
+.transfer-actions-cell { min-width: 6.5rem; text-align: right; }
+.transfer-row-action { min-height: 2rem; padding: .35rem .6rem; white-space: nowrap; }
 .transfer-badge { display: inline-flex; align-items: center; min-height: 1.35rem; width: max-content; max-width: 100%; padding: .14rem .45rem; border: 1px solid var(--transfer-border); border-radius: 999px; color: #c8d7e8; background: rgb(57 85 113 / .28); font-size: .67rem; font-weight: 650; line-height: 1.05; }
 .transfer-badge.is-pendente { color: #ffd98f; border-color: rgb(222 158 43 / .65); background: rgb(222 158 43 / .13); }
 .transfer-badge.is-enviado { color: #83e3bb; border-color: rgb(41 179 126 / .65); background: rgb(41 179 126 / .13); }
@@ -73,6 +75,29 @@
 .transfer-empty[hidden] { display: none; }
 .transfer-empty i { font-size: 2rem; color: #6387aa; }
 .transfer-empty strong { color: var(--sz-text, #e8f1fb); }
+
+.transfer-modal-content {
+  color: var(--sz-text, #e8f1fb);
+  background: var(--sz-panel, #13263a);
+  border: 1px solid var(--transfer-border);
+  border-radius: .9rem;
+}
+.transfer-modal-header, .transfer-modal-footer { border-color: var(--transfer-border); }
+.transfer-modal-subtitle { margin-top: .2rem; color: var(--transfer-muted); font-size: .78rem; }
+.transfer-edit-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .85rem; }
+.transfer-edit-field { display: grid; align-content: start; gap: .3rem; min-width: 0; margin: 0; }
+.transfer-edit-field > span { color: var(--transfer-muted); font-size: .7rem; font-weight: 650; letter-spacing: .035em; text-transform: uppercase; }
+.transfer-edit-field .sz_input, .transfer-edit-field .sz_select { width: 100%; min-width: 0; }
+.transfer-field-wide { grid-column: span 2; }
+.transfer-field-full { grid-column: 1 / -1; }
+.transfer-return-toggle { display: flex; align-items: center; gap: .55rem; min-height: 2.5rem; color: var(--sz-text, #e8f1fb); }
+.transfer-return-toggle[hidden], .transfer-return-fields[hidden], .transfer-edit-field[hidden] { display: none; }
+.transfer-return-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .85rem; padding: .8rem; border: 1px solid var(--transfer-border); border-radius: .65rem; }
+.transfer-modal-status { min-height: 1.3rem; margin-top: .8rem; color: #82dcb8; font-size: .8rem; }
+.transfer-modal-status.is-error { color: #ffadb4; }
+.transfer-modal-spacer { flex: 1; }
+.transfer-delete-button { color: #ffadb4; border-color: rgb(201 63 76 / .65); background: rgb(201 63 76 / .12); }
+.transfer-delete-button:hover { color: #fff; background: rgb(201 63 76 / .8); }
 
 @media (max-width: 1500px) {
   .transfer-filters { grid-template-columns: repeat(auto-fit, minmax(7.25rem, 1fr)); }
@@ -97,12 +122,19 @@
   .transfer-table tbody tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem .8rem; padding: .85rem; border: 1px solid var(--transfer-border); border-radius: .75rem; background: rgb(18 39 61 / .5); }
   .transfer-table td, .transfer-reservation-cell, .transfer-status-cell, .transfer-dates-cell { display: grid; min-width: 0; justify-items: start; gap: .2rem; padding: 0; border: 0; text-align: left !important; }
   .transfer-table td::before { content: attr(data-label); color: var(--transfer-muted); font-size: .62rem; font-weight: 650; letter-spacing: .035em; text-transform: uppercase; }
-  .transfer-table td:nth-child(1), .transfer-table td:nth-child(2), .transfer-table td:nth-child(3), .transfer-table td:nth-child(10), .transfer-table td:nth-child(11) { grid-column: 1 / -1; }
+  .transfer-table td:nth-child(1), .transfer-table td:nth-child(2), .transfer-table td:nth-child(3), .transfer-table td:nth-child(10), .transfer-table td:nth-child(11), .transfer-table td:nth-child(12) { grid-column: 1 / -1; }
   .transfer-route-cell { min-width: 0; }
+  .transfer-actions-cell { min-width: 0; text-align: left; }
+  .transfer-edit-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 430px) {
   .transfer-filters { grid-template-columns: 1fr; }
   .transfer-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .transfer-kpi small { font-size: .64rem; }
+  .transfer-edit-grid, .transfer-return-fields { grid-template-columns: 1fr; }
+  .transfer-field-wide { grid-column: span 1; }
+  .transfer-modal-footer { flex-wrap: wrap; }
+  .transfer-modal-spacer { display: none; }
+  .transfer-modal-footer .sz_button { flex: 1 1 auto; justify-content: center; }
 }

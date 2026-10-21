@@ -1,0 +1,16 @@
+{
+  "created": {
+    "bl": 56,
+    "pf": 1,
+    "lines": 112
+  },
+  "verified": {
+    "bl": 249,
+    "pf": 3,
+    "bl_closed": 249,
+    "pf_open": 3,
+    "qtt2_nonzero": 0,
+    "duplicate_lordem": 0
+  },
+  "backup": "/Users/hugoalves/Projects/APP_WEB/backups/phc_complete_20261020_165448_HSOLS_FR"
+}

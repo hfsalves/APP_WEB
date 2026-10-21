@@ -1,0 +1,16 @@
+{
+  "created": {
+    "bl": 355,
+    "pf": 19,
+    "lines": 1374
+  },
+  "verified": {
+    "bl": 355,
+    "pf": 19,
+    "bl_closed": 355,
+    "pf_open": 19,
+    "qtt2_nonzero": 0,
+    "duplicate_lordem": 0
+  },
+  "backup": "/Users/hugoalves/Projects/APP_WEB/backups/phc_complete_20261020_165157_INTERSOL"
+}

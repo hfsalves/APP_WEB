@@ -23,7 +23,6 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from app import app
 from modules.gr_subcontractor_measurements.service import _new_stamp, _phc_columns, _phc_value
 from services.phc_user_import_service import _phc_conn_str
 
@@ -357,7 +356,7 @@ def create_line(cursor, *, item: dict[str, Any], stamp: str, ndos: int, name: st
     return line_stamp
 
 
-def execute(cursor, allocations: list[dict[str, Any]], headers: dict[int, dict[str, Any]], names: dict[int, str], initials: str) -> dict[str, int]:
+def execute(cursor, allocations: list[dict[str, Any]], headers: dict[int, dict[str, Any]], names: dict[int, str], initials: str, *, progress=None) -> dict[str, int]:
     by_delivery: dict[str, list[dict[str, Any]]] = defaultdict(list)
     by_invoice: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for item in allocations:
@@ -389,10 +388,12 @@ def execute(cursor, allocations: list[dict[str, Any]], headers: dict[int, dict[s
                 last_origin = current_origin
             position += 1
             line = create_line(cursor, item=item, stamp=stamp, ndos=BL_NDOS, name=names[BL_NDOS], number=number, when=when, origin_header=origin,
-                               parent=clean(item["source"]["BISTAMP"]), parent_header=clean(origin["BOSTAMP"]), next_ndos=0, next_name="", next_number_value=0, lordem=position * 1000, initials=initials)
+                               parent=clean(item["source"]["BISTAMP"]), parent_header=current_origin, next_ndos=0, next_name="", next_number_value=0, lordem=position * 1000, initials=initials)
             # INTERSOL's dossier trigger updates the BC quantity satisfied when
             # a child BL line is inserted.  Do not add it again here.
             bl_lines[id(item)] = line
+        if progress is not None:
+            progress("BL", len(bl_headers), len(by_delivery))
     for invoice, items in sorted(by_invoice.items(), key=lambda pair: (pair[1][0]["excel"]["invoice_date"], pair[0])):
         row, origin = items[0]["excel"], headers[items[0]["source"]["bc"]]
         when = row["invoice_date"]; number = next_number(cursor, PF_NDOS, when.year); stamp = _new_stamp()
@@ -412,9 +413,10 @@ def execute(cursor, allocations: list[dict[str, Any]], headers: dict[int, dict[s
                 if bl_stamp != last_bl:
                     position += 1
                     create_origin_line(cursor, stamp=stamp, ndos=PF_NDOS, name=names[PF_NDOS], number=number,
-                                       when=when, design=f"{names[BL_NDOS]} nº {bl_number}",
+                                       when=when, design=f"{names[BL_NDOS]} nº {bl_number} {item['excel']['delivery_date']:%d/%m/%Y}",
                                        parent_header=bl_stamp, lordem=position * 1000, initials=initials)
                     last_bl = bl_stamp
+                    last_bc = ""
             current_bc = clean(source_header["BOSTAMP"])
             if current_bc != last_bc:
                 position += 1
@@ -431,6 +433,8 @@ def execute(cursor, allocations: list[dict[str, Any]], headers: dict[int, dict[s
                 line = create_line(cursor, item=item, stamp=stamp, ndos=PF_NDOS, name=names[PF_NDOS], number=number, when=when, origin_header=origin,
                                    parent=bl_lines[id(item)], parent_header=bl_stamp, next_ndos=55, next_name="V/Facture", next_number_value=0, lordem=position * 1000, initials=initials)
                 cursor.execute("UPDATE dbo.BI SET QTT2=0,FECHADA=0,NDOC=?,NMDOC=?,FNO=?,USRINIS=?,USRDATA=?,USRHORA=? WHERE BISTAMP=?", (PF_NDOS, names[PF_NDOS], number, initials, datetime.now(), datetime.now().strftime('%H:%M:%S'), bl_lines[id(item)]))
+        if progress is not None:
+            progress("PF", len(created_headers) - len(bl_headers), len(by_invoice))
     # Imports remain open.  QTT2 is deliberately zero on every imported
     # material line and separator line; source BC state is not forced here.
     placeholders = ",".join("?" for _ in created_headers)
@@ -440,6 +444,8 @@ def execute(cursor, allocations: list[dict[str, Any]], headers: dict[int, dict[s
 
 
 def main() -> int:
+    from app import app
+
     global DB
     parser = argparse.ArgumentParser()
     parser.add_argument("--xlsx", type=Path, required=True)

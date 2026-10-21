@@ -12,12 +12,77 @@
   const statusMessage = document.getElementById('transferStatusMessage');
   const summary = document.getElementById('transferListSummary');
   const exportButton = document.getElementById('transferExport');
+  const editModalElement = document.getElementById('transferEditModal');
+  const editForm = document.getElementById('transferEditForm');
+  const editTitle = document.getElementById('transferEditTitle');
+  const editSubtitle = document.getElementById('transferEditSubtitle');
+  const editStatus = document.getElementById('transferEditStatus');
+  const saveButton = document.getElementById('transferSaveButton');
+  const deleteButton = document.getElementById('transferDeleteButton');
+  const canEdit = root.dataset.canEdit === '1';
+  const canDelete = root.dataset.canDelete === '1';
   const optionInputs = {
     accommodations: document.getElementById('transferAccommodation'),
     origins: document.getElementById('transferOrigin'),
     statuses: document.getElementById('transferStatus'),
   };
   let activeRequest = null;
+  let selectedItem = null;
+  let editModal = null;
+
+  function editField(name) {
+    return editForm?.elements.namedItem(name) || null;
+  }
+
+  function setEditStatus(message, isError) {
+    if (!editStatus) return;
+    editStatus.textContent = message || '';
+    editStatus.classList.toggle('is-error', Boolean(isError));
+  }
+
+  function updateRouteFields() {
+    const route = String(editField('origin')?.value || '');
+    const isAirport = route === 'airport' || route === 'to_airport';
+    const isDepartureRoute = route === 'to_airport' || route === 'to_campanha';
+    const returnToggle = editModalElement?.querySelector('[data-return-toggle]');
+    const returnFields = editModalElement?.querySelector('[data-return-fields]');
+    const flightField = editModalElement?.querySelector('[data-flight-field]');
+    const hasDeparture = Boolean(editField('has_departure')?.checked);
+    if (flightField) flightField.hidden = !isAirport;
+    if (returnToggle) returnToggle.hidden = isDepartureRoute;
+    if (returnFields) returnFields.hidden = isDepartureRoute || !hasDeparture;
+  }
+
+  function openEditor(item) {
+    selectedItem = item;
+    if (!editForm || !editModalElement || !window.bootstrap) return;
+    editTitle.textContent = item.reservation || 'Pedido de transfer';
+    editSubtitle.textContent = [item.accommodation, item.transfer_stamp].filter(Boolean).join(' · ');
+    editField('origin').value = item.origin || 'airport';
+    editField('service_date').value = item.service_date || item.arrival_date || item.departure_date || '';
+    editField('service_time').value = item.service_time || item.arrival_time || item.departure_time || '';
+    editField('flight').value = item.flight || '';
+    editField('value').value = Number(item.value || 0).toFixed(2);
+    editField('guest_name').value = item.guest_name || '';
+    editField('people').value = Number(item.people || 1);
+    editField('guest_phone').value = item.guest_phone || '';
+    editField('guest_email').value = item.guest_email || '';
+    editField('address').value = item.address || '';
+    editField('driver_phone').value = item.driver_phone || '';
+    editField('driver_email').value = item.driver_email || '';
+    const departureRoute = String(item.origin || '').startsWith('to_');
+    editField('has_departure').checked = Boolean(item.has_departure && !departureRoute);
+    editField('departure_date').value = departureRoute ? '' : (item.departure_date || '');
+    editField('departure_time').value = departureRoute ? '' : (item.departure_time || '');
+    Array.from(editForm.elements).forEach((control) => {
+      if (control.matches('button')) return;
+      control.disabled = !canEdit;
+    });
+    setEditStatus(item.notification_error || '', Boolean(item.notification_error));
+    updateRouteFields();
+    editModal = window.bootstrap.Modal.getOrCreateInstance(editModalElement);
+    editModal.show();
+  }
 
   function showCustomDates() {
     const visible = periodInput.value === 'custom';
@@ -147,7 +212,21 @@
     const updated = document.createElement('small'); updated.textContent = `Alterado: ${formatTimestamp(item.updated_at)}`;
     current.append(created, updated); row.appendChild(current);
 
-    const open = () => { if (row.dataset.url) window.location.assign(row.dataset.url); };
+    current = cell('Ações', 'transfer-actions-cell');
+    const editButton = document.createElement('button');
+    editButton.type = 'button';
+    editButton.className = 'sz_button sz_button_ghost transfer-row-action';
+    editButton.title = canEdit ? 'Editar pedido de transfer' : 'Ver pedido de transfer';
+    const editIcon = document.createElement('i');
+    editIcon.className = canEdit ? 'fa-regular fa-pen-to-square' : 'fa-regular fa-eye';
+    const editLabel = document.createElement('span');
+    editLabel.textContent = canEdit ? 'Editar' : 'Ver';
+    editButton.append(editIcon, editLabel);
+    editButton.addEventListener('click', () => openEditor(item));
+    current.appendChild(editButton);
+    row.appendChild(current);
+
+    const open = () => openEditor(item);
     row.addEventListener('click', (event) => { if (!event.target.closest('a, button')) open(); });
     row.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); } });
     return row;
@@ -194,6 +273,62 @@
 
   form.addEventListener('submit', (event) => { event.preventDefault(); load(); });
   periodInput.addEventListener('change', showCustomDates);
+  editField('origin')?.addEventListener('change', updateRouteFields);
+  editField('has_departure')?.addEventListener('change', updateRouteFields);
+  editForm?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (!selectedItem || !canEdit) return;
+    const values = Object.fromEntries(new FormData(editForm).entries());
+    values.has_departure = Boolean(editField('has_departure')?.checked);
+    saveButton.disabled = true;
+    if (deleteButton) deleteButton.disabled = true;
+    setEditStatus('A guardar alterações…', false);
+    try {
+      const response = await fetch(`${root.dataset.manageUrl}/${encodeURIComponent(selectedItem.transfer_stamp)}`, {
+        method: 'PUT',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify(values),
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) throw new Error(payload.error || 'Não foi possível guardar o pedido.');
+      setEditStatus(payload.message || 'Pedido atualizado.', false);
+      editModal?.hide();
+      await load();
+    } catch (error) {
+      setEditStatus(error.message || 'Não foi possível guardar o pedido.', true);
+    } finally {
+      saveButton.disabled = false;
+      if (deleteButton) deleteButton.disabled = false;
+    }
+  });
+  deleteButton?.addEventListener('click', async () => {
+    if (!selectedItem || !canDelete) return;
+    const confirmed = window.confirm(
+      `Eliminar definitivamente o pedido de transfer ${selectedItem.transfer_stamp}?\n\nO registo ficará arquivado para recuperação. Um email já enviado não pode ser anulado.`,
+    );
+    if (!confirmed) return;
+    deleteButton.disabled = true;
+    if (saveButton) saveButton.disabled = true;
+    setEditStatus('A eliminar o pedido…', false);
+    try {
+      const response = await fetch(`${root.dataset.manageUrl}/${encodeURIComponent(selectedItem.transfer_stamp)}`, {
+        method: 'DELETE',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ reason: 'Eliminado manualmente no dashboard.' }),
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) throw new Error(payload.error || 'Não foi possível eliminar o pedido.');
+      editModal?.hide();
+      await load();
+    } catch (error) {
+      setEditStatus(error.message || 'Não foi possível eliminar o pedido.', true);
+    } finally {
+      deleteButton.disabled = false;
+      if (saveButton) saveButton.disabled = false;
+    }
+  });
   exportButton.addEventListener('click', () => {
     const query = queryString();
     window.location.assign(`${root.dataset.exportUrl}${query ? `?${query}` : ''}`);

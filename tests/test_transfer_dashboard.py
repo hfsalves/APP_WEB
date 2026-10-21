@@ -35,6 +35,8 @@ def transfer_engine():
                 ORIGEM TEXT, DATA_CHEGADA DATE, HORA_CHEGADA TEXT, NUM_VOO TEXT,
                 TEM_PARTIDA INTEGER, DATA_PARTIDA DATE, HORA_PARTIDA TEXT, VALOR NUMERIC,
                 ESTADO TEXT, DTCRI DATETIME, DTALT DATETIME, NOME_HOSPEDE TEXT, NUM_PESSOAS INTEGER,
+                MORADA TEXT, CONTACTO_TELEF TEXT, EMAIL_HOSPEDE TEXT,
+                MOTORISTA_CONTACTO TEXT, MOTORISTA_EMAIL TEXT,
                 EMAIL_ESTADO TEXT, EMAIL_ERRO TEXT
             )
         """)
@@ -45,7 +47,12 @@ def transfer_engine():
             ('rs-other','OUTSIDE','Outro','Fora',1,0,0,3)
         """)
         connection.exec_driver_sql("""
-            INSERT INTO TRANSFERS VALUES
+            INSERT INTO TRANSFERS (
+                TRANSFERSTAMP, RSSTAMP, RESERVA, ALOJAMENTO, ORIGEM,
+                DATA_CHEGADA, HORA_CHEGADA, NUM_VOO, TEM_PARTIDA,
+                DATA_PARTIDA, HORA_PARTIDA, VALOR, ESTADO, DTCRI, DTALT,
+                NOME_HOSPEDE, NUM_PESSOAS, EMAIL_ESTADO, EMAIL_ERRO
+            ) VALUES
             ('tr-1','rs-1','HMW4H2TD8D','PARAÍSO H','airport','2026-10-19','10:30','FR100',0,NULL,NULL,30,'PENDENTE','2026-10-18 10:00:00',NULL,'Ana',2,'ERRO','Timeout SMTP'),
             ('tr-2','rs-2','HMZAR4SSEB','Urban Flat','airport','2026-10-21','22:35','TP200',1,'2026-10-25','08:00',60,'ENVIADO','2026-10-18 11:00:00','2026-10-18 11:05:00','Bruno',3,'ENVIADO',NULL),
             ('tr-3','rs-2','HMZAR4SSEB','Urban Flat','to_airport','2026-10-25','08:00','',1,'2026-10-25','08:00',30,'CANCELADO','2026-10-18 12:00:00',NULL,'Bruno',3,'CANCELADO',NULL),
@@ -172,4 +179,8 @@ def test_frontend_uses_safe_text_and_mobile_card_layout():
     assert "grid-template-columns: repeat(auto-fit, minmax(7.6rem, 1fr));" in stylesheet
     assert ".transfer-contextbar { align-items: stretch; flex-direction: column;" in stylesheet
     assert 'data-export-url' in template
+    assert 'id="transferEditModal"' in template
+    assert 'id="transferDeleteButton"' in template
+    assert "method: 'PUT'" in javascript
+    assert "method: 'DELETE'" in javascript
     assert 'data-kpi="departures_today"' in template
