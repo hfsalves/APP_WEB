@@ -11,6 +11,7 @@
     <script src="{{ url_for('static', filename='main.js') }}" defer></script>
     <script src="{{ url_for('static', filename='filter-state.js') }}" defer></script>
     <script src="{{ url_for('static', filename='team-management.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='team-create.js') }}" defer></script>
     <script src="{{ url_for('static', filename='team-absences.js') }}" defer></script>
     <script src="{{ url_for('static', filename='team-roles.js') }}" defer></script>
     <script src="{{ url_for('static', filename='team-regularizations.js') }}" defer></script>
@@ -60,6 +61,7 @@
                 </div>
                 <div class="filter-actions">
                     <button type="submit" class="filters-submit" disabled>{{ t.teams_filter_apply }}</button>
+                    <button type="button" class="table-export-button" data-team-create-open {% if not planning_options %}disabled{% endif %}>{{ t.teams_create_button }}</button>
                     <button type="button" class="table-export-button" data-team-absences-open>{{ t.get('teams_absences_button', 'Ausências') }}</button>
                     <button type="button" class="table-export-button" data-team-regularizations-open>{{ t.get('teams_regularizations_button', 'Regularizações de paie') }}</button>
                     <button type="button" class="table-export-button" data-team-roles-open>{{ t.get('teams_roles_button', 'Roles INTERSOL') }}</button>
@@ -266,6 +268,52 @@
         <div class="modal-actions team-modal-actions">
             <button type="button" class="modal-button modal-cancel" data-team-action-cancel>{{ t.teams_modal_cancel }}</button>
             <button type="button" class="modal-button modal-ok" data-team-action-confirm data-loading-text="{{ t.teams_modal_submit_loading }}">{{ t.teams_modal_submit }}</button>
+        </div>
+    </div>
+</div>
+
+<div id="team-create-modal" class="modal-overlay" hidden aria-hidden="true"
+     data-error-map='{{ {
+       "missing_code": t.teams_create_code_required,
+       "missing_description": t.teams_create_description_required,
+       "missing_planning": t.teams_create_planning_required,
+       "invalid_planning": t.teams_create_planning_required,
+       "code_too_long": t.teams_create_code_too_long,
+       "description_too_long": t.teams_create_description_too_long,
+       "team_code_exists": t.teams_create_duplicate,
+       "team_access_denied": t.teams_create_forbidden
+     }|tojson }}'
+     data-error-generic="{{ t.teams_create_error }}"
+     data-saving-label="{{ t.teams_create_saving }}">
+    <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="team-create-title">
+        <header class="modal-header">
+            <h2 id="team-create-title">{{ t.teams_create_button }}</h2>
+        </header>
+        <div class="modal-body">
+            <form id="team-create-form" class="team-create-form" data-team-create-form>
+                <div class="team-form-row">
+                    <label for="team-create-code">{{ t.teams_create_code }}</label>
+                    <input type="text" id="team-create-code" name="code" maxlength="20" required autocomplete="off">
+                </div>
+                <div class="team-form-row">
+                    <label for="team-create-description">{{ t.teams_create_description }}</label>
+                    <input type="text" id="team-create-description" name="description" maxlength="70" required>
+                </div>
+                <div class="team-form-row">
+                    <label for="team-create-planning">{{ t.teams_create_planning }}</label>
+                    <select id="team-create-planning" name="planning" required>
+                        <option value="">{{ t.teams_create_planning_placeholder }}</option>
+                        {% for planning in planning_options %}
+                            <option value="{{ planning }}">{{ planning }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <p class="team-modal-feedback" data-team-create-feedback role="alert"></p>
+            </form>
+        </div>
+        <div class="modal-actions team-modal-actions">
+            <button type="button" class="modal-button modal-cancel" data-team-create-close>{{ t.teams_modal_cancel }}</button>
+            <button type="submit" form="team-create-form" class="modal-button modal-ok" data-team-create-save>{{ t.teams_create_submit }}</button>
         </div>
     </div>
 </div>

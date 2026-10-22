@@ -242,7 +242,7 @@
 
   function budgetCanBeEdited() {
     const header = state.detail && state.detail.header;
-    return Boolean(header && !header.closed && !header.awarded && !header.cancelled);
+    return Boolean(header && state.detail.can_edit !== false && !header.closed && !header.awarded && !header.cancelled);
   }
 
   function selectedBudgetStamp() {
@@ -655,6 +655,8 @@
     const header = payload.header || {};
     const totals = payload.totals || {};
     const lines = payload.lines || [];
+    const canViewCosts = payload.can_view_costs !== false;
+    root.classList.toggle('is-budget-redacted', !canViewCosts);
     lines.sort(compareBudgetLines);
     closeClientLookup();
     elements.empty.hidden = true;
@@ -681,9 +683,9 @@
     setInputValue(elements.attentionInput, header.attention);
     renderSalespeople(header.salesperson_number, header.salesperson);
     text('budgetTotal', money(totals.total, header.currency));
-    text('budgetCost', money(totals.cost, header.currency));
-    text('budgetMargin', `${percentFormatter.format(Number(totals.margin_percentage || 0))}%`);
-    text('budgetProfit', money(totals.profit, header.currency));
+    text('budgetCost', canViewCosts ? money(totals.cost, header.currency) : '—');
+    text('budgetMargin', canViewCosts ? `${percentFormatter.format(Number(totals.margin_percentage || 0))}%` : '—');
+    text('budgetProfit', canViewCosts ? money(totals.profit, header.currency) : '—');
     document.getElementById('budgetMargin').closest('.gr-budget-total')
       .classList.toggle('is-threshold-alert', Number(totals.margin_percentage || 0) < 10);
     document.getElementById('budgetProfit').closest('.gr-budget-total')
@@ -2866,17 +2868,17 @@
     elements.refresh.disabled = navigationLocked || !elements.series.value;
     elements.document.disabled = navigationLocked || !state.budgets.length;
     elements.printBudget.disabled = navigationLocked || !state.detail || !selectedBudgetStamp() || !elements.company.value;
-    elements.duplicateBudget.disabled = busy || !state.detail || !selectedBudgetStamp() || !elements.company.value;
+    elements.duplicateBudget.disabled = busy || !state.detail || state.detail.can_edit === false || !selectedBudgetStamp() || !elements.company.value;
     elements.duplicateCompany.hidden = !state.canDuplicateBetweenCompanies;
-    elements.duplicateCompany.disabled = navigationLocked || !state.canDuplicateBetweenCompanies || !state.detail || !selectedBudgetStamp() || !elements.company.value;
+    elements.duplicateCompany.disabled = navigationLocked || !state.canDuplicateBetweenCompanies || !state.detail || state.detail.can_edit === false || !selectedBudgetStamp() || !elements.company.value;
     elements.finalPriceBudget.disabled = busy || !state.detail || !selectedBudgetStamp() || !elements.company.value || !budgetCanBeEdited();
     elements.discountBudget.disabled = busy || !state.detail || !selectedBudgetStamp() || !elements.company.value || !budgetCanBeEdited();
     elements.prorataBudget.disabled = busy || !state.detail || !selectedBudgetStamp() || !elements.company.value || !budgetCanBeEdited();
     elements.applyVatBudget.disabled = busy || !state.detail || !selectedBudgetStamp() || !elements.company.value || !budgetCanBeEdited() || !availableVatRates().length;
-    elements.approvalBudget.disabled = navigationLocked || !state.detail || !selectedBudgetStamp() || !elements.company.value || !budgetApprovalAvailable();
-    elements.convertExecution.disabled = navigationLocked || !state.detail || !selectedBudgetStamp() || !elements.company.value || !budgetConversionAvailable();
-    elements.markLost.disabled = navigationLocked || !state.detail || !selectedBudgetStamp() || !elements.company.value || !budgetLossAvailable();
-    elements.assignWork.disabled = navigationLocked || !state.detail || !selectedBudgetStamp() || !elements.company.value || state.detail.header.closed || state.detail.header.cancelled;
+    elements.approvalBudget.disabled = navigationLocked || !state.detail || state.detail.can_edit === false || !selectedBudgetStamp() || !elements.company.value || !budgetApprovalAvailable();
+    elements.convertExecution.disabled = navigationLocked || !state.detail || state.detail.can_edit === false || !selectedBudgetStamp() || !elements.company.value || !budgetConversionAvailable();
+    elements.markLost.disabled = navigationLocked || !state.detail || state.detail.can_edit === false || !selectedBudgetStamp() || !elements.company.value || !budgetLossAvailable();
+    elements.assignWork.disabled = navigationLocked || !state.detail || state.detail.can_edit === false || !selectedBudgetStamp() || !elements.company.value || state.detail.header.closed || state.detail.header.cancelled;
     elements.actionsMenu.hidden = editing;
     elements.actionsToggle.disabled = busy || !state.detail || !selectedBudgetStamp() || !elements.company.value;
     elements.newBudget.hidden = editing;

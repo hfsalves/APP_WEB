@@ -135,9 +135,27 @@
       locations.set(point.key,row);$('builderLocations').append(tr);
     }
   }
-  function allDays(){if(!context)return[];const {year,month}=context.payroll,n=new Date(Date.UTC(year,month,0)).getUTCDate();return Array.from({length:n},(_,i)=>`${year}-${String(month).padStart(2,'0')}-${String(i+1).padStart(2,'0')}`);}
+  const dateLabel=value=>value.split('-').reverse().join('/');
+  function shownPeriod(){
+    const payroll=doc()?.payroll||context.payroll;
+    if(payroll.map_period)return payroll.map_period;
+    // Old immutable versions retain their original calendar-month boundaries.
+    const {year,month}=payroll,iso=d=>d.toISOString().slice(0,10);
+    return {start:iso(new Date(Date.UTC(year,month-1,1))),end:iso(new Date(Date.UTC(year,month,0)))};
+  }
+  function allDays(){
+    if(!context)return[];
+    const period=shownPeriod(),end=new Date(`${period.end}T00:00:00Z`),days=[];
+    for(let day=new Date(`${period.start}T00:00:00Z`);day<=end;day.setUTCDate(day.getUTCDate()+1))days.push(day.toISOString().slice(0,10));
+    return days;
+  }
   function render(){
     const document=doc(),employee=context?.payroll.employee;
+    const period=shownPeriod(),next=context.payroll.map_period;
+    $('builderMapPeriod').textContent=`Calendário: ${dateLabel(period.start)} a ${dateLabel(period.end)} · PHC: ${context.payroll.year}-${String(context.payroll.month).padStart(2,'0')}`;
+    $('builderNewPeriod').textContent=next?`Nova reconstrução: ${dateLabel(next.start)} a ${dateLabel(next.end)}.`:'';
+    $('builderPeriodChanged').hidden=!next||(period.start===next.start&&period.end===next.end);
+    $('builderPeriodChanged').textContent=next?`Esta versão conserva o período anterior. Reconstrua para criar uma nova versão de ${dateLabel(next.start)} a ${dateLabel(next.end)}.`:'';
     const plan=document?document.planning:context?.planning;
     $('builderPlanningSummary').textContent=plan?`${plan.days_with_assignments} dias com associação de equipa · ${plan.works.length} obras da equipa · ${plan.extra_works?.length||0} obras de outras equipas para visitas hipotéticas · ${Object.keys(plan.blocked_dates).length} dias com impedimentos. Datas sem registos ficam sem sugestão.`:'Versão anterior baseada apenas nos autos. Uma nova reconstrução consulta o planeamento.';
     $('builderSourceNotice').textContent=plan?'Obras e datas apoiadas no planeamento e no histórico das equipas. A presença individual, as deslocações e as ajudas de custo continuam sujeitas a confirmação.':'Proposta histórica baseada nos autos; as datas e a associação do trabalhador às obras foram inferidas.';
@@ -150,7 +168,7 @@
     $('builderWarningsDetails').open=outcome?.status==='BLOCKED';
     $('builderLocationsDetails').open=outcome?.status==='BLOCKED'&&outcome.unresolved_locations>0;
     $('builderTotals').replaceChildren();if(employee)for(const key of Object.keys(labels)){const m=document?.reconciliation[key],tr=node('tr');[labels[key],fmt(m?m.phc:employee.phc[key].quantity),fmt(m?.map),fmt(m?.difference),m?.percent==null?'—':`${fmt(m.percent)}%`,eur(m?.amount)].forEach(v=>cell(tr,v));$('builderTotals').append(tr);}
-    $('builderVersionTitle').textContent=draft?'Pré-visualização — não guardada':saved?`Calendário · versão ${saved.current.version} · ${saved.current.state.replaceAll('_',' ')}`:'Dias do mês';
+    $('builderVersionTitle').textContent=draft?'Pré-visualização — não guardada':saved?`Calendário · versão ${saved.current.version} · ${saved.current.state.replaceAll('_',' ')}`:'Dias do período';
     $('builderVersionMeta').textContent=saved&&!draft?`${saved.current.actor} · ${new Date(saved.current.created_at).toLocaleString('pt-PT')} · ${saved.current.reason}`:'';
     $('builderHistorical').hidden=!historical()||!!draft;$('builderHistoryLabel').hidden=!saved;
     $('builderHistory').replaceChildren(...history.map(v=>{const o=node('option',`v${v.version} · ${v.state} · ${v.actor}`);o.value=v.version;return o;}));if(saved)$('builderHistory').value=saved.current.version;
@@ -160,7 +178,7 @@
       const assignments=(plan?.records||[]).filter(item=>item.date===day);
       const tr=node('tr'),date=new Date(`${day}T12:00:00Z`),weekend=[0,6].includes(date.getUTCDay()),excluded=blocked.has(day)||(plan?!!plan.blocked_dates[day]:weekend&&!settings.include_weekends);
       if(excluded)tr.className='travel-calendar-excluded';
-      const dateCell=cell(tr);dateCell.append(node('strong',day.slice(-2)),node('small',new Intl.DateTimeFormat('pt-PT',{weekday:'long',timeZone:'UTC'}).format(date)));
+      const dateCell=cell(tr);dateCell.append(node('strong',`${day.slice(-2)}/${day.slice(5,7)}`),node('small',new Intl.DateTimeFormat('pt-PT',{weekday:'long',timeZone:'UTC'}).format(date)));
       const plannedCell=cell(tr);
       if(assignments.length)for(const item of assignments){const work=plan.works.find(w=>w.key===item.work_key);plannedCell.append(node('div',`${item.team} · ${work?.planning_work||work?.work||'Obra'}`,'travel-calendar-leg'));}
       else plannedCell.append(node('span',plan?.blocked_dates[day]||(plan?'Sem associação registada':'Sem planeamento nesta versão'),'travel-muted'));

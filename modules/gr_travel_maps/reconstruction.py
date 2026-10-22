@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 from models import db
 from . import engine, service, store, distances, itinerary, progress, planning
-from .config import TravelMapsError, period_bounds
+from .config import TravelMapsError, period_bounds, map_period, map_bounds, document_period
 
 
 def database():
@@ -39,7 +39,7 @@ def payroll_snapshot(feid, year, month, employee_key, user):
     employee = next((row for row in panel['rows'] if row['key'] == employee_key), None)
     if employee is None:
         raise store.NotFound('O trabalhador não tem recibo neste período e empresa.')
-    return {key: panel[key] for key in ('company', 'year', 'month', 'read_at', 'mapping', 'period_basis')} | {
+    return {key: panel[key] for key in ('company', 'year', 'month', 'read_at', 'mapping', 'period_basis', 'map_period')} | {
         'employee': employee, 'warnings': panel['warnings'],
         'employee_profile': service.employee_profile(feid, employee, user)}
 
@@ -138,8 +138,10 @@ def list_month(feid, year, month, user):
                        'employee_number': version['document']['payroll']['employee']['number'],
                        'version': version['version'], 'state': version['state'],
                        'snapshot_phc': version['document']['payroll']['employee']['phc'],
+                       'map_period': document_period(version['document']['payroll']),
                        'reconciliation': version['document']['reconciliation']})
-    return {'rows': result, 'company': service.public_company(company), 'year': start.year, 'month': start.month}
+    return {'rows': result, 'company': service.public_company(company), 'year': start.year, 'month': start.month,
+            'map_period': map_period(start.year, start.month)}
 
 
 def detail(map_id, user, version=None):
@@ -169,6 +171,8 @@ def generate_steps(payload, user, *, persist=True):
     db_engine = database() if persist else None
     yield progress.event('payroll', 'A ler os valores PHC e a ficha do trabalhador…')
     payroll = payroll_snapshot(payload.get('feid'), payload.get('year'), payload.get('month'), payload.get('employee_key'), user)
+    # The server defines every new map's cycle; client period overrides are ignored.
+    payroll = {**payroll, 'map_period': map_period(payroll['year'], payroll['month'])}
     previous = store.find(db_engine, store.scope(payroll)) if persist else None
     if previous:
         authorize(previous, user)
@@ -218,7 +222,11 @@ def ensure_sources_current(document, user):
     if payroll_fingerprint(current) != payroll_fingerprint(original):
         raise store.Conflict('O PHC mudou desde esta proposta. Gere uma nova versão antes de validar.')
     if document.get('planning') is not None:
-        actual_plan = planning.snapshot(current, document['measurements'], user)
+        # Historical sources must be re-read with their original calendar bounds.
+        operational = {k: v for k, v in current.items() if k != 'map_period'}
+        if 'map_period' in original:
+            operational['map_period'] = deepcopy(original['map_period'])
+        actual_plan = planning.snapshot(operational, document['measurements'], user)
         if actual_plan['fingerprint'] != document['planning']['fingerprint']:
             raise store.Conflict('As equipas, datas, obras ou ausências do planeamento mudaram. Reconstrua antes de validar.')
     for entry in document['entries']:
@@ -232,7 +240,7 @@ def ensure_sources_current(document, user):
                     raise store.Conflict('A morada ou matrícula PHC usada na proposta mudou. Gere uma nova versão antes de validar.')
     used = {key for entry in document['entries'] if entry['included'] for key in entry.get('work_keys', [entry['work_key']])}
     relevant = [work for work in engine.candidates(document['measurements'], document.get('planning')) if work['key'] in used]
-    batches = [service.monthly_measurements(batch['company']['feid'], original['year'], original['month'], user)
+    batches = [service.monthly_measurements(batch['company']['feid'], original['year'], original['month'], user, map_bounds(original))
                for batch in document['measurements']]
     records = {(batch['company']['phc_db'], record['bostamp']): record for batch in batches for record in batch['rows']}
     for work in relevant:

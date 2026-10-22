@@ -85,6 +85,9 @@
       cell(tr, employee.proposal ? fmt(employee.proposal.reconciliation.ac_estrangeiro.map) : '—', 'travel-number');
       const status = cell(tr); status.append(node('span', employee.currentPhcMissing ? 'PHC por confirmar' : employee.phcChanged ? 'PHC alterado' : employee.proposal ? employee.proposal.state.replaceAll('_',' ') : employee.proposalsUnavailable ? 'Estado indisponível' : 'Sem mapa', 'travel-badge'));
       if (employee.warnings.length) status.append(node('small', 'Conferência necessária', 'travel-warning'));
+      const oldPeriod=employee.proposal?.map_period;
+      if(oldPeriod&&payroll.map_period&&(oldPeriod.start!==payroll.map_period.start||oldPeriod.end!==payroll.map_period.end))
+        status.append(node('small',`Período anterior: ${date(oldPeriod.start)} a ${date(oldPeriod.end)}. Reconstruir para 22–21.`,'travel-warning'));
       const button = node('button', 'Ver detalhe', 'sz_button sz_button_secondary travel-detail-button'); button.type = 'button';
       button.setAttribute('aria-label', `Ver detalhe de ${employee.name}`);
       button.addEventListener('click', () => openDetail(employee)); cell(tr).append(button);
@@ -101,6 +104,8 @@
     const params = periodParams($('travelCompany').value); params.set('employee_key',employee.key);
     link.href = `/mapas-deslocacoes/reconstrucao?${params}`; body.append(link);
     body.append(node('p', 'As datas dos recibos abaixo pertencem ao processamento salarial. Consulte a reconstrução para rever propostas, diferenças e versões.', 'travel-notice'));
+    const mapPeriod=employee.proposal?.map_period||payroll.map_period;
+    if(mapPeriod)body.append(node('p',`Período ${employee.proposal?'da versão guardada':'do mapa'}: ${date(mapPeriod.start)} a ${date(mapPeriod.end)}.`, 'travel-muted'));
     employee.warnings.forEach(warning => body.append(node('p', warning, 'travel-warning')));
     const totals = table(['Tipo', 'PHC', 'Valor PHC', 'Mapa', 'Diferença', 'Reconciliação']);
     categories.forEach(category => {
@@ -143,6 +148,7 @@
       const data = await fetchJson(`mensal?${periodParams($('travelCompany').value)}`, controller.signal);
       if (controller.signal.aborted) return;
       payroll = data; employees = data.rows;
+      if(data.map_period)$('travelMapPeriod').textContent=`Mapa: ${date(data.map_period.start)} a ${date(data.map_period.end)} · Recibos PHC: ${data.year}-${String(data.month).padStart(2,'0')}`;
       $('metricEmployees').textContent = fmt(data.employee_count); $('metricReceipts').textContent = `${data.receipt_count} recibos · ${data.line_count} linhas`;
       [['km', 'Km'], ['ac_nacional', 'National'], ['ac_estrangeiro', 'Foreign']].forEach(([key, suffix]) => {
         $(`metric${suffix}`).textContent = fmt(data.totals[key].quantity); $(`metric${suffix}Amount`).textContent = money(data.totals[key].amount);
@@ -190,7 +196,7 @@
         cell(tr, item.has_positive_measurement ? 'Positiva · obra candidata' : 'Sem medição positiva');
         $('travelAutos').append(tr);
       });
-      if (!data.rows.length) empty('travelAutos', 5, data.source_state === 'UNCONFIGURED' ? 'Não foram identificadas séries de autos de cliente nesta empresa.' : 'Não existem autos não anulados com data neste mês.');
+      if (!data.rows.length) empty('travelAutos', 5, data.source_state === 'UNCONFIGURED' ? 'Não foram identificadas séries de autos de cliente nesta empresa.' : 'Não existem autos não anulados com data neste período.');
       $('travelAutoCount').textContent = `${data.rows.length} autos · ${data.work_count} obras candidatas · ${data.company.name}`;
       messages('travelAutosMessages', []);
     } catch (error) {
@@ -199,6 +205,8 @@
     }
   }
   function refresh() {
+    const [year,month]=$('travelPeriod').value.split('-').map(Number);
+    $('travelMapPeriod').textContent=year>=2000&&year<=2100&&month>=1&&month<=12?`Mapa: ${date(new Date(Date.UTC(year,month-2,22)).toISOString())} a ${date(new Date(Date.UTC(year,month-1,21)).toISOString())} · Recibos PHC: ${$('travelPeriod').value}`:'';
     if (!$('travelFilters').reportValidity() || !$('travelCompany').value) {
       controllers.payroll?.abort(); controllers.autos?.abort(); employees = []; payroll = null;
       clearMetrics(); $('travelDetail').close(); $('travelCriteria').hidden = true;

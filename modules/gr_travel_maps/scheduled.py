@@ -31,8 +31,8 @@ def hypothetical(path, dates, planning):
 
 def allowed(document):
     from . import engine
-    from .config import period_bounds
-    start, end = period_bounds(document['payroll']['year'], document['payroll']['month'])
+    from .config import map_bounds
+    start, end = map_bounds(document['payroll'])
     excluded = set(document['inputs']['blocked_dates'])
     if document.get('planning') is not None:
         excluded.update(document['planning']['blocked_dates'])

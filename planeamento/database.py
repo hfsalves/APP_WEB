@@ -1369,6 +1369,60 @@ class Database:
         except Exception as exc:
             raise RuntimeError(str(exc)) from exc
 
+    def fetch_team_planning_groups(self) -> list[str]:
+        """Return the configured planning groups, including groups without active teams."""
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT DISTINCT UPPER(LTRIM(RTRIM(u_planning))) AS planning "
+                    "FROM dbo.FREF WHERE NULLIF(LTRIM(RTRIM(u_planning)), '') IS NOT NULL "
+                    "ORDER BY planning"
+                )
+                return [str(row[0]).strip() for row in cursor.fetchall()]
+        except Exception as exc:
+            raise RuntimeError(str(exc)) from exc
+
+    def create_team(self, code: str, description: str, planning: str, user_code: str) -> dict[str, str]:
+        """Create an active planning team in the connected HSOLS_MASTER FREF."""
+        stamp = uuid.uuid4().hex.upper()[:25]
+        try:
+            with self.connect() as conn:
+                try:
+                    cursor = conn.cursor()
+                    cursor.execute(
+                        "SELECT fref FROM dbo.FREF WITH (UPDLOCK, HOLDLOCK) WHERE fref = ?",
+                        (code,),
+                    )
+                    if cursor.fetchone() is not None:
+                        raise ValueError("team_code_exists")
+                    cursor.execute(
+                        "INSERT INTO dbo.FREF "
+                        "(frefstamp, fref, nmfref, u_planning, u_plano, inactivo, "
+                        "ousrinis, ousrdata, ousrhora, usrinis, usrdata, usrhora) "
+                        "VALUES (?, ?, ?, ?, 1, 0, ?, GETDATE(), CONVERT(varchar(8), GETDATE(), 108), "
+                        "?, GETDATE(), CONVERT(varchar(8), GETDATE(), 108))",
+                        (stamp, code, description, planning, user_code[:30], user_code[:30]),
+                    )
+                    cursor.execute(
+                        "SELECT fref, nmfref, u_planning, frefstamp FROM dbo.FREF WHERE frefstamp = ?",
+                        (stamp,),
+                    )
+                    row = cursor.fetchone()
+                    if row is None or tuple(str(value).strip() for value in row[:3]) != (code, description, planning):
+                        raise RuntimeError("team_creation_not_confirmed")
+                    result = dict(zip(("code", "description", "planning", "stamp"),
+                                      (str(value).strip() for value in row)))
+                    conn.commit()
+                    return result
+                except Exception:
+                    conn.rollback()
+                    raise
+        except ValueError:
+            raise
+        except Exception as exc:
+            raise RuntimeError(str(exc)) from exc
+
     def fetch_team_members_for_date(self, target_date: date) -> list[Dict[str, object]]:
         """Return active team members for a given date."""
         query = (

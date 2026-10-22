@@ -717,6 +717,24 @@ def _can_access_team_management(user: dict[str, object] | None) -> bool:
     return bool(user and (user.get("u_teams") or user.get("u_admin")))
 
 
+def _can_manage_team(user: dict[str, object], team: dict[str, object]) -> bool:
+    """Limit team management to the user's planning markets and subcontractors."""
+    if _coerce_flag(user.get("u_admin")):
+        return True
+    raw_group = _coerce_text(team.get("u_planning")).upper()
+    if raw_group == "SOUS-TRAITANTS":
+        return True
+    # Resolve the full origin first so the three Intersol regions stay distinct.
+    market_field = MARKET_ACCESS_FIELDS.get(get_market(raw_group).code)
+    if market_field:
+        return _coerce_flag(user.get(market_field))
+    group_key, _ = _normalise_planning_group(raw_group)
+    return any(
+        _coerce_flag(user.get(field)) and group_key in MARKET_PLANNING_GROUPS.get(code, set())
+        for code, field in MARKET_ACCESS_FIELDS.items()
+    )
+
+
 def _serialize_absence_row(row: dict[str, object], reference_date: date) -> dict[str, object]:
     start_date = _coerce_date(row.get("dataini"))
     end_date = _coerce_date(row.get("datafim"))
@@ -2019,19 +2037,24 @@ def team_management():
 
     try:
         team_rows = database.fetch_all_teams()
+        planning_groups = database.fetch_team_planning_groups()
         member_rows = database.fetch_team_members_for_date(reference_date)
         unassigned_rows = database.fetch_unassigned_employees(reference_date)
         db_error = None
     except RuntimeError as exc:
         team_rows = []
+        planning_groups = []
         member_rows = []
         unassigned_rows = []
         db_error = str(exc)
 
+    team_rows = [row for row in team_rows if _can_manage_team(user, row)]
+    planning_options = [group for group in planning_groups if _can_manage_team(user, {"u_planning": group})]
+    visible_team_codes = {_normalize_code(row.get("fref")) for row in team_rows}
     members_by_team: dict[str, list[dict[str, object]]] = {}
     for row in member_rows:
         team_code = _normalize_code(row.get("fref"))
-        if not team_code:
+        if not team_code or team_code not in visible_team_codes:
             continue
         member_name = _coerce_text(row.get("nome"))
         if not member_name:
@@ -2126,7 +2149,48 @@ def team_management():
                            unassigned_employees=unassigned_employees,
                            team_groups=team_groups,
                            team_options=team_options,
+                           planning_options=planning_options,
                            db_error=db_error)
+
+
+@app.route("/api/teams", methods=["POST"])
+def create_team():
+    user = session.get("user")
+    if not user:
+        return jsonify({"error": "authentication_required"}), 401
+    if not _can_access_team_management(user):
+        return jsonify({"error": "team_access_denied"}), 403
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify({"error": "invalid_payload"}), 400
+    values = {}
+    for field in ("code", "description", "planning"):
+        value = payload.get(field)
+        if not isinstance(value, str) or not value.strip():
+            return jsonify({"error": f"missing_{field}"}), 400
+        values[field] = value.strip()
+    if len(values["code"]) > 20:
+        return jsonify({"error": "code_too_long"}), 400
+    if len(values["description"]) > 70:
+        return jsonify({"error": "description_too_long"}), 400
+    values["planning"] = values["planning"].upper()
+    try:
+        planning_groups = database.fetch_team_planning_groups()
+        if values["planning"] not in planning_groups:
+            return jsonify({"error": "invalid_planning"}), 400
+        if not _can_manage_team(user, {"u_planning": values["planning"]}):
+            return jsonify({"error": "team_access_denied"}), 403
+        created = database.create_team(
+            values["code"], values["description"], values["planning"], _coerce_text(user.get("usercode"))
+        )
+    except ValueError as exc:
+        if str(exc) == "team_code_exists":
+            return jsonify({"error": "team_code_exists"}), 409
+        raise
+    except RuntimeError:
+        app.logger.exception("Failed to create planning team")
+        return jsonify({"error": "database_error"}), 500
+    return jsonify({"team": created}), 201
 
 
 @app.route("/api/team-absences")
@@ -3559,8 +3623,11 @@ def update_maintenance():
 
 @app.route("/api/team-memberships", methods=["POST"])
 def manage_team_memberships():
-    if not session.get("user"):
+    user = session.get("user")
+    if not user:
         return jsonify({"error": "authentication_required"}), 401
+    if not _can_access_team_management(user):
+        return jsonify({"error": "team_access_denied"}), 403
 
     payload = request.get_json(silent=True)
     if not isinstance(payload, dict):
@@ -3650,10 +3717,20 @@ def manage_team_memberships():
     operations: list[dict[str, object]] = []
 
     def _fetch_team_or_error(team_code: str):
+        team_row = database.fetch_team_by_code(team_code)
+        if team_row and not _can_manage_team(user, team_row):
+            raise PermissionError("team_access_denied")
+        return team_row
+
+    if current_record is not None and not _coerce_flag(user.get("u_admin")):
         try:
-            return database.fetch_team_by_code(team_code)
+            source_team = _fetch_team_or_error(current_record["team_code"])
+        except PermissionError:
+            return jsonify({"error": "team_access_denied"}), 403
         except RuntimeError as exc:
-            raise RuntimeError(str(exc))
+            return jsonify({"error": "database_error", "details": str(exc)}), 500
+        if not source_team:
+            return jsonify({"error": "team_access_denied"}), 403
 
     if effective_action == "assign":
         # For new assignments we require employee details to exist in v_pe
@@ -3663,6 +3740,8 @@ def manage_team_memberships():
             return jsonify({"error": "missing_target_team"}), 400
         try:
             team_row = _fetch_team_or_error(target_team_code)
+        except PermissionError:
+            return jsonify({"error": "team_access_denied"}), 403
         except RuntimeError as exc:
             return jsonify({"error": "database_error", "details": str(exc)}), 500
         if not team_row:
@@ -3719,6 +3798,8 @@ def manage_team_memberships():
                 return jsonify({"error": "missing_target_team"}), 400
         try:
             team_row = _fetch_team_or_error(target_team_code)
+        except PermissionError:
+            return jsonify({"error": "team_access_denied"}), 403
         except RuntimeError as exc:
             return jsonify({"error": "database_error", "details": str(exc)}), 500
         if not team_row:

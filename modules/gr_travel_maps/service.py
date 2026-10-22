@@ -6,7 +6,7 @@ from flask import g, has_request_context
 
 from modules.gr_subcontractor_measurements.service import list_companies_for_user
 from . import sources
-from .config import CATEGORIES, SourceUnavailable, TravelMapsError, payroll_rule, period_bounds
+from .config import CATEGORIES, SourceUnavailable, TravelMapsError, payroll_rule, period_bounds, map_period, map_bounds
 
 
 def clean(value):
@@ -146,7 +146,7 @@ def monthly_panel(feid, year, month, user):
         **result, "company": public_company(company), "year": start.year, "month": start.month,
         "read_at": datetime.now(timezone.utc).isoformat(), "currency": "EUR" if rule else None,
         "mapping": rule, "source_state": "AVAILABLE" if rule else "UNCONFIGURED",
-        "period_basis": "PR.DATA",
+        "period_basis": "PR.DATA", "map_period": map_period(start.year, start.month),
         "warnings": [
             "Período pela data do recibo. São incluídos todos os recibos e mantidos os sinais das regularizações.",
             "Os estados dos recibos são apresentados para conferência; esta consulta não certifica o fecho salarial.",
@@ -190,8 +190,8 @@ def employee_profile(feid, employee, user):
     return result
 
 
-def monthly_measurements(feid, year, month, user):
-    start, end = period_bounds(year, month)
+def monthly_measurements(feid, year, month, user, bounds=None):
+    start, end = bounds or map_bounds({'year': year, 'month': month, 'map_period': map_period(year, month)})
     company = company_for_user(feid, user)
     records, series = sources.measurement_rows(company, start, end)
     works, result = set(), []

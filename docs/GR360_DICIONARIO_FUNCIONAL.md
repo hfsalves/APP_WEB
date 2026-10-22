@@ -39,7 +39,7 @@ Este documento descreve a implementação efetiva do Grupo, e não o modelo teó
 | Artigos | Catálogo de artigos, referências e famílias | PHC | `ST`, `STOBS`, `FREF` quando aplicável | Nem todos os mappings de artigos/referências estão ativos; confirmar sempre a base e a origem. |
 | Centros de custo | Estrutura analítica de custos | PHC | `CCT` e campos de centro de custo nos dossiers/linhas | O centro de custo é uma dimensão de análise e pode ser obrigatório por circuito. |
 | Obras | Consulta da obra, dados de planeamento e manutenção | PHC, publicado/controlado na app | `OPC`, extensões e informação de planeamento | `PROCESSO` é a chave funcional da obra. `U_PLAN` indica elegibilidade para planeamento. |
-| Equipas e encarregados | Equipas operacionais e responsáveis | PHC / StationZero | `FREF`, `CT` | A associação deve ser lida no contexto da obra, período e planeamento. |
+| Equipas e encarregados | Equipas operacionais e responsáveis | PHC / StationZero | `FREF`, `CT` | Na gestão de equipas, `U_ADMIN` permite consultar todas. Os restantes utilizadores só consultam e alteram equipas dos mercados autorizados no planeamento, incluindo os acessos separados Intersol, e o grupo `SOUS-TRAITANTS`. A regra abrange os cartões, as opções de transferência e a API de atribuição. |
 | Planeamento | Planeamento diário, macro, equipas e produção | StationZero com origem PHC | `OPC`, `HSOLS_MASTER.v_bi_ee`, linhas de Estudo e Execução e dados de planeamento | Sem linhas na fonte central, consulta a série 122 na origem da obra: `INTERSOL` (`IS`) ou `HSOLS_FR` (`FR`). As posições têm de ser numéricas e sem pontos; a descrição usa `DGERAL` ou, em falta, `DESIGN`. A consulta preserva `BISTAMP`, quantidades e permissões. |
 | Folha mensal Intersol | Consolidação mensal para salários/produção Intersol | StationZero e dados operacionais | Dados de planeamento e colaboradores | É uma camada de apuramento; confirmar período, equipa e regras salariais antes de exportar ou fechar. |
 | Orçamentos | Lista, detalhe, linhas, estrutura de custos e ciclo comercial | PHC | `BO` (cabeçalho), `BO2` (extensão), `BI` (linhas), `OCI` (estrutura de custos) | O dossier é identificado por `BOSTAMP`; as linhas por `BISTAMP`. Séries relevantes: Devis, Étude et Exécution e Devis Perdu. |
@@ -61,6 +61,8 @@ Este documento descreve a implementação efetiva do Grupo, e não o modelo teó
 | Anexos | Consulta de documentos associados a registos | PHC / StationZero | `ANEXOS` e tabela de destino | Verificar sempre se o ficheiro existe e se o caminho/anexo é acessível. Anexar um registo não garante que o ficheiro esteja disponível. |
 | CRM | Pipeline, entidades e importação comercial | StationZero e importação PHC | Objetos CRM e `CL` quando aplicável | Distinguir dados de prospeção de cliente PHC efetivo. |
 | Mapa de gestão | Controlo de gestão e análise transversal | StationZero e fontes PHC | Varia por indicador | Cada indicador deve ser lido com origem, período, entidade e regra de cálculo visíveis. |
+
+Na gestão de equipas, **Adicionar equipa** cria um registo em `HSOLS_MASTER.dbo.FREF` com `FREF` (código, até 20 caracteres), `NMFREF` (descrição, até 70) e `U_PLANNING` (grupo configurado e autorizado ao utilizador). O registo recebe um `FREFSTAMP` novo, `U_PLANO=1`, `INACTIVO=0` e os campos de auditoria de criação/alteração. O código é único. Depois de gravar, a equipa aparece no ecrã e nas opções de atribuição de colaboradores; esta operação não cria colaboradores nem altera atribuições existentes.
 
 ## 4. Dossiers internos PHC: convenções relevantes
 

@@ -13,6 +13,7 @@
         <div class="sz_breadcrumbs">RECURSOS HUMANOS / MAPAS</div>
         <h1 class="sz_page_title">Mapas de deslocações</h1>
         <p class="travel-muted">Quilómetros e ajudas de custo · consulta mensal do PHC</p>
+        <p class="travel-muted" id="travelMapPeriod">Do dia 22 do mês anterior ao dia 21 do mês selecionado.</p>
       </div>
       <form id="travelFilters" class="travel-filters">
         <div class="sz_field">
@@ -20,7 +21,7 @@
           <select class="sz_select" id="travelCompany" required disabled><option>A carregar empresas…</option></select>
         </div>
         <div class="sz_field">
-          <label class="sz_label" for="travelPeriod">Mês</label>
+          <label class="sz_label" for="travelPeriod">Mês do mapa / recibo</label>
           <input class="sz_input" id="travelPeriod" type="month" min="2000-01" max="2100-12"
                  value="{{ '%04d-%02d'|format(initial_year, initial_month) }}" required>
         </div>
@@ -29,7 +30,7 @@
     </header>
 
     <section class="sz_page_body travel-body">
-      <div class="travel-notice">Os totais vêm do PHC. As propostas usam apenas autos de medição e conservam a origem inferida. A reconciliação numérica não comprova deslocações.</div>
+      <div class="travel-notice">Os totais vêm do PHC. As propostas cruzam o planeamento das equipas com os autos de medição do período e conservam a origem inferida. A reconciliação numérica não comprova deslocações.</div>
       <p id="travelCompaniesError" class="travel-error" role="alert" hidden></p>
       <div class="travel-metrics" aria-label="Totais do período">
         <article class="sz_panel"><span>Trabalhadores com recibo</span><strong id="metricEmployees">—</strong><small id="metricReceipts">—</small></article>
@@ -56,7 +57,7 @@
 
       <section class="sz_panel travel-panel" aria-labelledby="travelAutosTitle">
         <div class="travel-toolbar">
-          <div><h2 id="travelAutosTitle">Autos de medição do mês</h2><p class="travel-muted">Obras candidatas, sem atribuição a trabalhadores.</p></div>
+          <div><h2 id="travelAutosTitle">Autos de medição do período · 22 a 21</h2><p class="travel-muted">Obras candidatas, sem atribuição a trabalhadores.</p></div>
           <div class="sz_field"><label class="sz_label" for="travelWorksCompany">Empresa dos autos</label><select class="sz_select" id="travelWorksCompany" disabled><option>A carregar empresas…</option></select></div>
         </div>
         <p class="travel-notice">A data do auto pode diferir do período efetivo de produção. A existência de um auto não comprova uma deslocação ou presença individual.</p>
@@ -79,5 +80,5 @@
 {% endblock %}
 {% block scripts %}
 {{ super() }}
-<script src="{{ url_for('gr_travel_maps.static', filename='monthly.js') }}?v={{ static_version|default(1) }}-2" defer></script>
+<script src="{{ url_for('gr_travel_maps.static', filename='monthly.js') }}?v={{ static_version|default(1) }}-3" defer></script>
 {% endblock %}

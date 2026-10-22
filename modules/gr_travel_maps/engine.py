@@ -7,9 +7,9 @@ from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 import hashlib
 import json
 
-from .config import CATEGORIES, TravelMapsError, period_bounds
+from .config import CATEGORIES, TravelMapsError, map_bounds
 
-ENGINE_VERSION = 'autos-v2'
+ENGINE_VERSION = 'autos-v3'
 MAX_STATES = 6000
 MAX_WORKS = 40
 D = Decimal
@@ -86,7 +86,7 @@ def normalize_inputs(raw, available, start, end, max_works=MAX_WORKS):
         except (ValueError, TypeError):
             raise TravelMapsError('Data excluída inválida.') from None
         if not start <= day < end:
-            raise TravelMapsError('Os dias excluídos têm de pertencer ao mês do mapa.')
+            raise TravelMapsError(f'Os dias excluídos têm de pertencer ao período do mapa: {start.isoformat()} a {(end-timedelta(days=1)).isoformat()}.')
         result['blocked_dates'].append(day.isoformat())
     result['blocked_dates'] = sorted(set(result['blocked_dates']))
     selections = raw.get('works', [])
@@ -238,7 +238,7 @@ def make_entry(category, day, quantity, work, selection, inputs, employee):
 
 
 def build(payroll, measurements, raw_inputs, *, max_works=MAX_WORKS, available=None):
-    start, end = period_bounds(payroll['year'], payroll['month'])
+    start, end = map_bounds(payroll)
     employee = payroll['employee']
     if not employee['identity_resolved']:
         raise TravelMapsError('Resolva a identidade PHC do trabalhador antes de guardar propostas.')
@@ -337,14 +337,14 @@ def check_entries(document, validating=False):
     if document.get('mode') == 'AUTOMATIC':
         from .itinerary import check_entries as check_itinerary
         return check_itinerary(document, validating)
-    start, end = period_bounds(document['payroll']['year'], document['payroll']['month'])
+    start, end = map_bounds(document['payroll'])
     days = set(calendar_days(start, end, document['inputs']['blocked_dates'], document['inputs'].get('include_weekends', False)))
     occupancy = {}
     for entry in document['entries']:
         if not entry['included']:
             continue
         if entry['date'] not in days:
-            raise TravelMapsError('Uma linha está fora dos dias permitidos do mês.')
+            raise TravelMapsError('Uma linha está fora dos dias permitidos do período do mapa.')
         same_day = occupancy.setdefault(entry['date'], [])
         if any(other['work_key'] != entry['work_key'] or (other['category'] == 'km') == (entry['category'] == 'km') for other in same_day):
             raise TravelMapsError('Existem deslocações ou ajudas de custo incompatíveis na mesma data.')

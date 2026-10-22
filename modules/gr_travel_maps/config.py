@@ -1,7 +1,7 @@
 """Explicit, dated payroll mappings. Unknown categories are never assumed zero."""
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 import json
 import os
 
@@ -38,6 +38,31 @@ def period_bounds(year, month) -> tuple[date, date]:
         return start, end
     except (TypeError, ValueError):
         raise TravelMapsError("Indique um ano entre 2000 e 2100 e um mês entre 1 e 12.") from None
+
+
+def map_period(year, month):
+    """Operational cycle, labelled by its closing/payroll month; both dates inclusive."""
+    payroll_start, _ = period_bounds(year, month)
+    previous = payroll_start - timedelta(days=1)
+    return {'basis': '22_21', 'start': previous.replace(day=22).isoformat(),
+            'end': payroll_start.replace(day=21).isoformat()}
+
+
+def document_period(payroll):
+    """Missing metadata denotes a historical calendar-month map, never a new cycle."""
+    value = payroll.get('map_period')
+    if value is not None:
+        if value != map_period(payroll['year'], payroll['month']):
+            raise TravelMapsError('Período do mapa inválido.')
+        return dict(value)
+    start, end = period_bounds(payroll['year'], payroll['month'])
+    return {'basis': 'CALENDAR_MONTH', 'start': start.isoformat(), 'end': (end-timedelta(days=1)).isoformat()}
+
+
+def map_bounds(payroll):
+    """Half-open query/calendar bounds for the exact version being processed."""
+    value = document_period(payroll)
+    return date.fromisoformat(value['start']), date.fromisoformat(value['end'])+timedelta(days=1)
 
 
 def payroll_rule(database: str, start: date, end: date) -> dict | None:

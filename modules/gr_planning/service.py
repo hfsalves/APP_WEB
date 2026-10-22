@@ -34,6 +34,7 @@ LEGACY_SCRIPT_FILES = [
 TEAM_MANAGEMENT_SCRIPT_FILES = [
     "filter-state.js",
     "team-management.js",
+    "team-create.js",
     "team-absences.js",
     "team-roles.js",
     "team-regularizations.js",
@@ -84,6 +85,7 @@ PLANNING_API_PATTERNS = [
 ]
 
 TEAM_MANAGEMENT_API_PATTERNS = [
+    re.compile(r"^teams$"),
     re.compile(r"^team-memberships$"),
     re.compile(r"^team-absences$"),
     re.compile(r"^team-absences/[^/]+$"),

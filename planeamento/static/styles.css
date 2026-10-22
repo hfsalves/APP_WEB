@@ -3106,6 +3106,7 @@ body.monthly-editing-active .editing-bar {
     gap: 0.45rem;
 }
 .team-form-row select,
+.team-form-row input[type="text"],
 .team-form-row input[type="date"],
 .team-form-row input[type="month"],
 .team-form-row input[type="number"],
@@ -3122,6 +3123,7 @@ body.monthly-editing-active .editing-bar {
     transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
 }
 .team-form-row select:hover,
+.team-form-row input[type="text"]:hover,
 .team-form-row input[type="date"]:hover,
 .team-form-row input[type="month"]:hover,
 .team-form-row input[type="number"]:hover,
@@ -3130,6 +3132,7 @@ body.monthly-editing-active .editing-bar {
     background: rgba(21, 32, 48, 0.82);
 }
 .team-form-row select:focus,
+.team-form-row input[type="text"]:focus,
 .team-form-row input[type="date"]:focus,
 .team-form-row input[type="month"]:focus,
 .team-form-row input[type="number"]:focus,
@@ -3159,6 +3162,10 @@ body.monthly-editing-active .editing-bar {
     min-height: 5.4rem;
     resize: vertical;
     line-height: 1.4;
+}
+.team-create-form {
+    display: grid;
+    gap: 1rem;
 }
 @media (max-width: 840px) {
     .team-regularization-form-grid,

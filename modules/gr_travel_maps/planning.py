@@ -8,7 +8,7 @@ from flask import current_app
 
 from modules.gr_planning.service import _build_hsols_master_config
 from . import engine, service, sources
-from .config import SourceUnavailable, TravelMapsError, period_bounds
+from .config import SourceUnavailable, TravelMapsError, map_bounds
 
 
 @contextmanager
@@ -31,7 +31,7 @@ def reader():
 
 
 def read_rows(payroll):
-    start, end = period_bounds(payroll['year'], payroll['month'])
+    start, end = map_bounds(payroll)
     employee = payroll['employee']
     if not employee['identity_resolved']:
         raise TravelMapsError('Resolva a identidade PHC antes de consultar a equipa.')
@@ -137,7 +137,7 @@ def assemble(payroll, batches, data, catalogs):
         if evidence not in records:
             records.append(evidence)
             works[key]['planning_refs'].append(evidence)
-    start, end = period_bounds(payroll['year'], payroll['month'])
+    start, end = map_bounds(payroll)
     for absence in data['absences']:
         first = service.original(absence['DATAINI'])[:10]; last = service.original(absence['DATAFIM'])[:10]
         for offset in range((end-start).days):
@@ -174,12 +174,12 @@ def assemble(payroll, batches, data, catalogs):
                 'evidence': [deepcopy(auto) for batch in batches for auto in batch['rows'] if auto['has_positive_measurement'] and auto.get('work_stamp') == stamp],
                 'planning_refs': [], 'work_source': {'database': company['phc_db'], 'table': 'OPC', 'stamp': stamp}})['planning_refs'].append(evidence)
     if not records:
-        warnings.append('Sem ligação utilizável entre trabalhador, equipa, obra e data neste mês. Não são propostas viagens apenas para acertar o total PHC.')
+        warnings.append('Sem ligação utilizável entre trabalhador, equipa, obra e data neste período. Não são propostas viagens apenas para acertar o total PHC.')
     if not data['absence_identity_unique']:
         warnings.append('Ausências sem empresa de origem: número de trabalhador não único; não foram associadas automaticamente. Confirme os dias excluídos.')
     without_autos = sum(not work['evidence'] for work in works)
     if without_autos:
-        warnings.append(f'{without_autos} obra(s) associadas no planeamento sem auto positivo nas empresas selecionadas neste mês.')
+        warnings.append(f'{without_autos} obra(s) associadas no planeamento sem auto positivo nas empresas selecionadas neste período.')
     if blocked:
         warnings.append(f'{len(blocked)} dia(s) excluídos por ausência, conflito de equipa ou obra sem ligação segura.')
     original = {**data, 'catalogs': catalogs}

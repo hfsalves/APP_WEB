@@ -1,0 +1,309 @@
+{
+  "verified_post_commit": true,
+  "pf": {
+    "BOSTAMP": "APR26102147459,881000001 ",
+    "OBRANO": "9405",
+    "NOME": "SAS A2C GRANULAT                                       ",
+    "CCUSTO": "FR2035",
+    "ETOTALDEB": "145514.710000",
+    "ETOTAL": "174617.650000",
+    "FECHADA": false,
+    "LOGI1": true,
+    "FREF": "",
+    "ANULADO": false,
+    "ETOTALCIVA": "174617.650000",
+    "ETOTIVA": "29102.940000"
+  },
+  "purchase": {
+    "ADOC": "26I0131",
+    "EIVAIN": "145514.710000",
+    "ETTILIQ": "145514.710000",
+    "ETTIVA": "29102.940000",
+    "ETOTAL": "174617.650000",
+    "EIVAV2": "29102.940000",
+    "EBASEINC": "145514.710000",
+    "EVALOR": "29102.940000",
+    "FN_SUM": "145514.710000",
+    "FN_LINES": 13
+  },
+  "old_pf": [
+    {
+      "OBRANO": "9338",
+      "ETOTALDEB": "0.000000",
+      "ETOTAL": "0.000000",
+      "FECHADA": true,
+      "ANULADO": true,
+      "LINES": 0
+    },
+    {
+      "OBRANO": "9396",
+      "ETOTALDEB": "0.000000",
+      "ETOTAL": "0.000000",
+      "FECHADA": true,
+      "ANULADO": true,
+      "LINES": 0
+    },
+    {
+      "OBRANO": "9404",
+      "ETOTALDEB": "0.000000",
+      "ETOTAL": "0.000000",
+      "FECHADA": true,
+      "ANULADO": true,
+      "LINES": 0
+    }
+  ],
+  "quantities_by_ref_and_job": [
+    {
+      "REF": "LOG.REMISES       ",
+      "CCUSTO": "FR2035",
+      "N": 2,
+      "QTT": "2.0000",
+      "NET": "-628.000000"
+    },
+    {
+      "REF": "P.01.01.000.0202  ",
+      "CCUSTO": "FR2035",
+      "N": 56,
+      "QTT": "678.6000",
+      "NET": "13232.670000"
+    },
+    {
+      "REF": "P.01.01.000.0207  ",
+      "CCUSTO": "FR2035",
+      "N": 70,
+      "QTT": "847.7920",
+      "NET": "16531.950000"
+    },
+    {
+      "REF": "P.01.01.000.0211  ",
+      "CCUSTO": "FR2035",
+      "N": 111,
+      "QTT": "1336.8080",
+      "NET": "24730.980000"
+    },
+    {
+      "REF": "P.02.12.000.0002  ",
+      "CCUSTO": "FR2035",
+      "N": 1,
+      "QTT": "1.0000",
+      "NET": "320.000000"
+    },
+    {
+      "REF": "S.03.05.000.0089  ",
+      "CCUSTO": "FR2035",
+      "N": 2,
+      "QTT": "2.0000",
+      "NET": "1422.440000"
+    },
+    {
+      "REF": "S.03.05.000.0091  ",
+      "CCUSTO": "FR2035",
+      "N": 1,
+      "QTT": "1.0000",
+      "NET": "1145.280000"
+    },
+    {
+      "REF": "S.03.05.000.0094  ",
+      "CCUSTO": "FR2035",
+      "N": 1,
+      "QTT": "1.0000",
+      "NET": "658.540000"
+    },
+    {
+      "REF": "Z.00.00.000.0000  ",
+      "CCUSTO": "FR2035",
+      "N": 4,
+      "QTT": "4.0000",
+      "NET": "792.020000"
+    },
+    {
+      "REF": "LOG.REMISES       ",
+      "CCUSTO": "FR2053",
+      "N": 2,
+      "QTT": "2.0000",
+      "NET": "-628.000000"
+    },
+    {
+      "REF": "P.01.01.000.0202  ",
+      "CCUSTO": "FR2053",
+      "N": 56,
+      "QTT": "678.6000",
+      "NET": "13232.670000"
+    },
+    {
+      "REF": "P.01.01.000.0207  ",
+      "CCUSTO": "FR2053",
+      "N": 70,
+      "QTT": "847.7920",
+      "NET": "16531.950000"
+    },
+    {
+      "REF": "P.01.01.000.0211  ",
+      "CCUSTO": "FR2053",
+      "N": 111,
+      "QTT": "1336.8080",
+      "NET": "24730.980000"
+    },
+    {
+      "REF": "P.02.12.000.0002  ",
+      "CCUSTO": "FR2053",
+      "N": 1,
+      "QTT": "1.0000",
+      "NET": "320.000000"
+    },
+    {
+      "REF": "S.03.05.000.0089  ",
+      "CCUSTO": "FR2053",
+      "N": 2,
+      "QTT": "2.0000",
+      "NET": "1422.440000"
+    },
+    {
+      "REF": "S.03.05.000.0091  ",
+      "CCUSTO": "FR2053",
+      "N": 1,
+      "QTT": "1.0000",
+      "NET": "1145.280000"
+    },
+    {
+      "REF": "S.03.05.000.0094  ",
+      "CCUSTO": "FR2053",
+      "N": 1,
+      "QTT": "1.0000",
+      "NET": "658.540000"
+    },
+    {
+      "REF": "Z.00.00.000.0000  ",
+      "CCUSTO": "FR2053",
+      "N": 4,
+      "QTT": "4.0000",
+      "NET": "792.020000"
+    },
+    {
+      "REF": "LOG.REMISES       ",
+      "CCUSTO": "FR2201",
+      "N": 2,
+      "QTT": "2.0000",
+      "NET": "-314.000000"
+    },
+    {
+      "REF": "P.01.01.000.0202  ",
+      "CCUSTO": "FR2201",
+      "N": 56,
+      "QTT": "339.3000",
+      "NET": "6616.390000"
+    },
+    {
+      "REF": "P.01.01.000.0207  ",
+      "CCUSTO": "FR2201",
+      "N": 70,
+      "QTT": "423.8960",
+      "NET": "8265.990000"
+    },
+    {
+      "REF": "P.01.01.000.0211  ",
+      "CCUSTO": "FR2201",
+      "N": 111,
+      "QTT": "668.4040",
+      "NET": "12365.450000"
+    },
+    {
+      "REF": "P.02.12.000.0002  ",
+      "CCUSTO": "FR2201",
+      "N": 1,
+      "QTT": "1.0000",
+      "NET": "160.000000"
+    },
+    {
+      "REF": "S.03.05.000.0089  ",
+      "CCUSTO": "FR2201",
+      "N": 2,
+      "QTT": "2.0000",
+      "NET": "711.240000"
+    },
+    {
+      "REF": "S.03.05.000.0091  ",
+      "CCUSTO": "FR2201",
+      "N": 1,
+      "QTT": "1.0000",
+      "NET": "572.640000"
+    },
+    {
+      "REF": "S.03.05.000.0094  ",
+      "CCUSTO": "FR2201",
+      "N": 1,
+      "QTT": "1.0000",
+      "NET": "329.260000"
+    },
+    {
+      "REF": "Z.00.00.000.0000  ",
+      "CCUSTO": "FR2201",
+      "N": 4,
+      "QTT": "4.0000",
+      "NET": "395.980000"
+    }
+  ],
+  "charges_and_rounding": [
+    {
+      "DESIGN": "Annulation de commande apres 15h la veille",
+      "NET": "1800.000000",
+      "N": 3
+    },
+    {
+      "DESIGN": "Arrondi facture 26I0131 - total PDF",
+      "NET": "0.070000",
+      "N": 3
+    },
+    {
+      "DESIGN": "Arrondi ventilation materiaux par chantier",
+      "NET": "-0.050000",
+      "N": 3
+    },
+    {
+      "DESIGN": "Attente",
+      "NET": "180.000000",
+      "N": 3
+    },
+    {
+      "DESIGN": "Eco-participation / vrac - 0,40 EUR/t",
+      "NET": "2863.200000",
+      "N": 3
+    },
+    {
+      "DESIGN": "Remise exceptionnelle / annulation la veille",
+      "NET": "-1170.000000",
+      "N": 3
+    },
+    {
+      "DESIGN": "Remise exceptionnelle / retour a charge",
+      "NET": "-400.000000",
+      "N": 3
+    },
+    {
+      "DESIGN": "Retour a charge",
+      "NET": "800.000000",
+      "N": 3
+    },
+    {
+      "DESIGN": "Surcharge Energie / Granulats en vrac - 0,27 EUR/t",
+      "NET": "1932.660000",
+      "N": 3
+    },
+    {
+      "DESIGN": "Surcharge Energie / Transport 5,67%",
+      "NET": "1623.460000",
+      "N": 3
+    },
+    {
+      "DESIGN": "Taxe Generale sur Activites Polluantes - 0,23 EUR/t",
+      "NET": "1646.340000",
+      "N": 3
+    }
+  ],
+  "existing_material_stamps_preserved": 696,
+  "added_material_allocations": 15,
+  "material_tonnes": "7158",
+  "bl_closed": 711,
+  "bc_quantities_unchanged": true,
+  "no_purchase_link": true
+}

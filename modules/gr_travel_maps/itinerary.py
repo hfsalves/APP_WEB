@@ -6,10 +6,10 @@ from datetime import timedelta
 from decimal import Decimal, ROUND_CEILING
 
 from . import engine, scheduled
-from .config import TravelMapsError, period_bounds
+from .config import TravelMapsError, map_bounds
 
 D = Decimal
-VERSION = 'autos-calendar-v1'
+VERSION = 'autos-calendar-v2'
 MAX_OPTIONS = 100
 MAX_STATES = 1600
 
@@ -196,14 +196,14 @@ def build(payroll, batches, raw, graph, planning=None):
     document['inputs'].update(return_policy=policy, max_driving_hours=str(hours), locations=deepcopy(raw.get('locations', {})))
     if planning is not None:
         document['planning'] = deepcopy(planning)
-        document['engine_version'] = 'planning-calendar-v2'
+        document['engine_version'] = 'planning-calendar-v3'
         document['warnings'] = [w for w in document['warnings'] if not w.startswith(('As datas e a associação', 'Calendário convencional', 'Calendário inclui'))]
         document['warnings'].extend(planning['warnings'])
     document['warnings'] = [w for w in document['warnings'] if 'total PHC' in w or not w.startswith(('Sem percursos', 'ac_estrangeiro:', 'ac_nacional:'))]
     document['warnings'].extend(graph['warnings'])
     if planning is None:
         document['warnings'].append('Obras candidatas durante o mês pela data dos autos; a atividade em cada dia e a distribuição das viagens são inferidas.')
-    start, end = period_bounds(payroll['year'], payroll['month'])
+    start, end = map_bounds(payroll)
     days = scheduled.allowed(document)
     employee = payroll['employee']; target = D(employee['phc']['km']['quantity'] or '0')
     assigned_tours = None
@@ -358,7 +358,7 @@ def result_summary(document):
 
 
 def check_entries(document, validating=False):
-    start, end = period_bounds(document['payroll']['year'], document['payroll']['month'])
+    start, end = map_bounds(document['payroll'])
     days = set(scheduled.allowed(document))
     if document.get('planning') is not None:
         scheduled.check(document)
@@ -367,7 +367,7 @@ def check_entries(document, validating=False):
         if not entry['included']:
             continue
         if entry['date'] not in days:
-            raise TravelMapsError('Uma linha está fora dos dias permitidos do mês.')
+            raise TravelMapsError('Uma linha está fora dos dias permitidos do período do mapa.')
         if entry.get('driving_dates') and (any(day not in days for day in entry['driving_dates']) or
                 entry.get('daily_km') != daily_allocation(entry['quantity'], entry['driving_dates'])):
             raise TravelMapsError('Distribuição diária da viagem incoerente; reconstrua a proposta.')
@@ -420,7 +420,7 @@ def check_entries(document, validating=False):
 
 
 def calendar(document):
-    start, end = period_bounds(document['payroll']['year'], document['payroll']['month'])
+    start, end = map_bounds(document['payroll'])
     allowed = set(scheduled.allowed(document))
     result = []
     for offset in range((end-start).days):

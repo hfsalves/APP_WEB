@@ -16,7 +16,7 @@ from modules.gr_subcontractor_measurements.service import (
     SubcontractorMeasurementsError,
     SubcontractorMeasurementsNotFoundError,
     SubcontractorMeasurementsValidationError,
-    _company_for_user,
+    _company_for_user as _base_company_for_user,
     _client_conn_str,
     _currency_code,
     _date_iso,
@@ -49,6 +49,11 @@ APPROVAL_SERIES = frozenset({"devis", "etude et execution"})
 INTERSOL_RESTRICTED_BUDGET_NDOS = (115, 122)
 INTERSOL_OWN_BUDGET_SALESPERSONS = frozenset({10, 11, 12, 13, 14})
 INTERSOL_AGENCY_BUDGET_SALESPERSONS = {
+    10: ("INTERSOL-LORRAINE",),
+    11: ("INTERSOL-CHAMPAGNE",),
+    12: ("INTERSOL-ALSACE",),
+    13: ("INTERSOL-ALSACE",),
+    14: ("INTERSOL-ALSACE",),
     20: ("INTERSOL-ALSACE",),
     21: ("INTERSOL-LORRAINE",),
     22: ("INTERSOL-LORRAINE", "INTERSOL-CHAMPAGNE"),
@@ -79,6 +84,49 @@ class BudgetsCreditLimitError(BudgetsValidationError):
     def __init__(self, message: str, credit: dict[str, Any]):
         super().__init__(message)
         self.credit = credit
+
+
+def _budget_privileged(user) -> bool:
+    return bool(getattr(user, "ADMIN", False) or getattr(user, "DEV", False))
+
+
+def _company_for_user(feid: Any, user) -> dict[str, Any]:
+    company = _base_company_for_user(feid, user)
+    if _text_value(getattr(user, "LOGIN", "")).casefold() == "cbarthel" and int(company.get("feid") or 0) != 8:
+        raise BudgetsNotFoundError("Orçamento não encontrado no PHC desta empresa.")
+    return company
+
+
+def _budget_user_origins(company: dict[str, Any], user) -> tuple[str, ...]:
+    """Resolve agency grants from the live user record; never infer Barthel's scope from a URL."""
+    if _budget_privileged(user):
+        return ()
+    if _text_value(company.get("phc_db")).casefold() != "intersol":
+        return ()
+    login = _text_value(getattr(user, "LOGIN", "")).casefold()
+    stamp = _text_value(getattr(user, "USSTAMP", ""))
+    grants: set[str] = set()
+    if stamp:
+        with pyodbc.connect(_client_conn_str(), timeout=10) as conn:
+            rows = _fetch_rows(conn.cursor(), """
+                SELECT DISTINCT UPPER(LTRIM(RTRIM(ISNULL(ORIGEM, '')))) AS ORIGEM
+                FROM dbo.GR_MAPA_GESTAO_ACESSOS
+                WHERE USSTAMP = ? AND ISNULL(ATIVO, 0) = 1
+            """, (stamp,))
+        grants = {_text_value(row.get("ORIGEM")).upper() for row in rows}
+    if login == "cbarthel":
+        return ("INTERSOL-ALSACE",) if int(company.get("feid") or 0) == 8 and "INTERSOL-ALSACE" in grants else ()
+    if grants:
+        return tuple(sorted(origin for origin in grants if origin.startswith("INTERSOL-")))
+    salesperson = int(_number_value(getattr(user, "VENDEDOR", 0)))
+    return tuple(INTERSOL_AGENCY_BUDGET_SALESPERSONS.get(salesperson, ()))
+
+
+def _budget_owner(user, salesperson: Any) -> bool:
+    if _budget_privileged(user):
+        return True
+    own_number = int(_number_value(getattr(user, "VENDEDOR", 0)))
+    return own_number > 0 and own_number == int(_number_value(salesperson))
 
 
 def _company_logo_path(
@@ -442,27 +490,25 @@ def _intersol_budget_visibility_predicate(
     salesperson_number: Any,
     table_alias: str = "B",
 ) -> tuple[str, tuple[Any, ...]]:
+    """Compatibility helper for callers without a user grant; unknown users fail closed."""
     alias = table_alias if re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", table_alias or "") else "B"
     salesperson = int(_number_value(salesperson_number))
-    scope_sql = ""
-    scope_params: tuple[Any, ...] = ()
+    agencies = INTERSOL_AGENCY_BUDGET_SALESPERSONS.get(salesperson, ())
+    return _intersol_origin_predicate(agencies, alias)
 
-    if salesperson in INTERSOL_OWN_BUDGET_SALESPERSONS:
-        scope_sql = f"{alias}.VENDEDOR = ?"
-        scope_params = (salesperson,)
-    elif salesperson in INTERSOL_AGENCY_BUDGET_SALESPERSONS:
-        agencies = INTERSOL_AGENCY_BUDGET_SALESPERSONS[salesperson]
-        placeholders = ", ".join("?" for _ in agencies)
-        scope_sql = f"{alias}.MAQUINA IN ({placeholders})"
-        scope_params = tuple(agencies)
 
-    if not scope_sql:
-        return "1 = 1", ()
-
+def _intersol_origin_predicate(
+    agencies: tuple[str, ...], table_alias: str = "B",
+) -> tuple[str, tuple[Any, ...]]:
+    alias = table_alias if re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", table_alias or "") else "B"
     ndos_placeholders = ", ".join("?" for _ in INTERSOL_RESTRICTED_BUDGET_NDOS)
+    if not agencies:
+        return f"{alias}.NDOS NOT IN ({ndos_placeholders})", tuple(INTERSOL_RESTRICTED_BUDGET_NDOS)
+    placeholders = ", ".join("?" for _ in agencies)
     return (
-        f"({alias}.NDOS NOT IN ({ndos_placeholders}) OR ({scope_sql}))",
-        tuple(INTERSOL_RESTRICTED_BUDGET_NDOS) + scope_params,
+        f"({alias}.NDOS NOT IN ({ndos_placeholders}) OR "
+        f"UPPER(LTRIM(RTRIM(ISNULL({alias}.MAQUINA, '')))) IN ({placeholders}))",
+        tuple(INTERSOL_RESTRICTED_BUDGET_NDOS) + tuple(agencies),
     )
 
 
@@ -471,12 +517,33 @@ def _budget_visibility_predicate(
     user,
     table_alias: str = "B",
 ) -> tuple[str, tuple[Any, ...]]:
-    if _text_value(company.get("phc_db")).casefold() != "intersol":
+    if _budget_privileged(user) or _text_value(company.get("phc_db")).casefold() != "intersol":
         return "1 = 1", ()
-    return _intersol_budget_visibility_predicate(
-        getattr(user, "VENDEDOR", 0),
-        table_alias,
-    )
+    return _intersol_origin_predicate(_budget_user_origins(company, user), table_alias)
+
+
+def _budget_write_predicate(
+    company: dict[str, Any], user, table_alias: str = "B",
+) -> tuple[str, tuple[Any, ...]]:
+    scope_sql, scope_params = _budget_visibility_predicate(company, user, table_alias)
+    if _budget_privileged(user):
+        return scope_sql, scope_params
+    alias = table_alias if re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", table_alias or "") else "B"
+    salesperson = int(_number_value(getattr(user, "VENDEDOR", 0)))
+    if salesperson <= 0:
+        return "1 = 0", ()
+    return f"({scope_sql}) AND {alias}.VENDEDOR = ?", (*scope_params, salesperson)
+
+
+def _validate_budget_write_scope(company: dict[str, Any], user, header: dict[str, Any]) -> None:
+    if _budget_privileged(user):
+        return
+    if not _budget_owner(user, header.get("salesperson_number")):
+        raise BudgetsNotFoundError("Orçamento não encontrado no PHC desta empresa.")
+    if _text_value(company.get("phc_db")).casefold() == "intersol":
+        agency = _text_value(header.get("agency")).upper()
+        if agency not in _budget_user_origins(company, user):
+            raise BudgetsNotFoundError("Orçamento não encontrado no PHC desta empresa.")
 
 
 def _series_rows(cursor, company: dict[str, Any] | None = None) -> list[dict[str, Any]]:
@@ -736,6 +803,7 @@ def list_budgets(filters: dict[str, Any], user) -> dict[str, Any]:
             f"""
             SELECT TOP {MAX_RESULTS}
                 B.BOSTAMP,
+                B.VENDEDOR,
                 B.NDOS,
                 B.NMDOS,
                 B.OBRANO,
@@ -775,8 +843,18 @@ def list_budgets(filters: dict[str, Any], user) -> dict[str, Any]:
         "selected_ndos": ndos,
         "year": year,
         "limit": MAX_RESULTS,
-        "rows": [_budget_summary(row, company) for row in rows],
+        "rows": [_budget_list_summary(row, company, user) for row in rows],
     }
+
+
+def _budget_list_summary(row: dict[str, Any], company: dict[str, Any], user) -> dict[str, Any]:
+    summary = _budget_summary(row, company)
+    can_edit = _budget_owner(user, row.get("VENDEDOR"))
+    summary["can_edit"] = can_edit
+    summary["can_view_costs"] = can_edit
+    if not can_edit:
+        summary.pop("cost", None)
+    return summary
 
 
 def _budget_summary(row: dict[str, Any], company: dict[str, Any]) -> dict[str, Any]:
@@ -947,7 +1025,7 @@ def get_budget_detail(feid: Any, bostamp: str, user) -> dict[str, Any]:
     header["default_vat_table"] = default_vat_table
     header["default_vat_rate"] = _percent(default_vat_rate)
     work = _central_work_for_phc_process(company, header.get("process"))
-    return {
+    result = {
         "company": company,
         "header": header,
         "work": work,
@@ -956,6 +1034,19 @@ def get_budget_detail(feid: Any, bostamp: str, user) -> dict[str, Any]:
         "vat_rows": [_vat_payload(row) for row in tax_rows],
         "tax_rates": tax_rates,
     }
+    can_edit = _budget_owner(user, header.get("salesperson_number"))
+    result["can_edit"] = can_edit
+    result["can_view_costs"] = can_edit
+    if not can_edit:
+        for key in ("cost", "margin_percentage", "margin_value"):
+            header.pop(key, None)
+        for key in ("cost", "profit", "margin_percentage"):
+            result["totals"].pop(key, None)
+        for line in lines:
+            for key in ("unit_cost", "indirect_cost", "cost_total", "margin_percentage", "margin_per_unit", "margin_value", "profit"):
+                line.pop(key, None)
+            line.pop("technical_lines", None)
+    return result
 
 
 def get_budget_detail_by_number(feid: Any, number: Any, year: Any, user) -> dict[str, Any]:
@@ -1807,7 +1898,7 @@ def get_budget_line_oci(feid: Any, bistamp: Any, user) -> dict[str, Any]:
         cursor = conn.cursor()
         bi_columns = _phc_columns(cursor, "BI")
         bi2_columns = _phc_columns(cursor, "BI2")
-        visibility_sql, visibility_params = _budget_visibility_predicate(company, user, "B")
+        visibility_sql, visibility_params = _budget_write_predicate(company, user, "B")
         line_rows = _fetch_rows(
             cursor,
             f"""
@@ -2187,7 +2278,7 @@ def set_budget_approval(feid: Any, bostamp: str, approved: bool, user) -> dict[s
         conn.autocommit = False
         cursor = conn.cursor()
         try:
-            visibility_sql, visibility_params = _budget_visibility_predicate(company, user, "B")
+            visibility_sql, visibility_params = _budget_write_predicate(company, user, "B")
             rows = _fetch_rows(
                 cursor,
                 f"""
@@ -2428,7 +2519,7 @@ def assign_budget_work(feid: Any, bostamp: str, opcstamp: Any, user) -> dict[str
         conn.autocommit = False
         cursor = conn.cursor()
         try:
-            visibility_sql, visibility_params = _budget_visibility_predicate(company, user, "B")
+            visibility_sql, visibility_params = _budget_write_predicate(company, user, "B")
             rows = _fetch_rows(
                 cursor,
                 f"""
@@ -2536,7 +2627,7 @@ def convert_budget_to_execution(feid: Any, bostamp: str, target: Any, existing_o
             conn.autocommit = False
             cursor = conn.cursor()
             try:
-                visibility_sql, visibility_params = _budget_visibility_predicate(company, user, "B")
+                visibility_sql, visibility_params = _budget_write_predicate(company, user, "B")
                 rows = _fetch_rows(
                     cursor,
                     f"""
@@ -2674,7 +2765,7 @@ def mark_budget_as_lost(feid: Any, bostamp: str, user) -> dict[str, Any]:
         conn.autocommit = False
         cursor = conn.cursor()
         try:
-            visibility_sql, visibility_params = _budget_visibility_predicate(company, user, "B")
+            visibility_sql, visibility_params = _budget_write_predicate(company, user, "B")
             rows = _fetch_rows(
                 cursor,
                 f"""
@@ -3087,6 +3178,7 @@ def save_budget(payload: dict[str, Any], user) -> dict[str, Any]:
     header = payload.get("header") or {}
     if not isinstance(header, dict):
         raise BudgetsValidationError("Cabeçalho do orçamento inválido.")
+    _validate_budget_write_scope(company, user, header)
     payload_lines = payload.get("lines") or []
     if not isinstance(payload_lines, list):
         raise BudgetsValidationError("Linhas do orçamento inválidas.")
@@ -3116,7 +3208,7 @@ def save_budget(payload: dict[str, Any], user) -> dict[str, Any]:
                 boano = dataobra.year
                 obrano = _next_budget_number(cursor, ndos, boano)
             else:
-                visibility_sql, visibility_params = _budget_visibility_predicate(company, user, "B")
+                visibility_sql, visibility_params = _budget_write_predicate(company, user, "B")
                 rows = _fetch_rows(
                     cursor,
                     f"""
