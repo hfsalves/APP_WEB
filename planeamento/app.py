@@ -2150,6 +2150,7 @@ def team_management():
                            team_groups=team_groups,
                            team_options=team_options,
                            planning_options=planning_options,
+                           can_create_teams=session.get("can_create_teams") is True,
                            db_error=db_error)
 
 
@@ -2160,6 +2161,8 @@ def create_team():
         return jsonify({"error": "authentication_required"}), 401
     if not _can_access_team_management(user):
         return jsonify({"error": "team_access_denied"}), 403
+    if session.get("can_create_teams") is not True:
+        return jsonify({"error": "admin_required"}), 403
     payload = request.get_json(silent=True)
     if not isinstance(payload, dict):
         return jsonify({"error": "invalid_payload"}), 400

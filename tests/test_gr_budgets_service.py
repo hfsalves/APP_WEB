@@ -14,6 +14,14 @@ from modules.gr_budgets.service import (
     _budget_can_be_edited,
     _budget_can_link_to_work,
     _budget_visibility_predicate,
+    _budget_write_predicate,
+    _budget_list_summary,
+    _budget_origin_consistent,
+    _budget_user_origins,
+    _validate_budget_existing_agency,
+    _redact_budget_detail,
+    _validate_budget_write_scope,
+    BudgetsNotFoundError,
     _component_family_payload,
     _component_payload,
     duplicate_budget_between_companies,
@@ -39,6 +47,7 @@ from modules.gr_budgets.service import (
     _series_name_key,
     _series_supports_approval,
     _series_rows,
+    get_budget_series,
     _tax_rate_rows,
     _write_money,
     _write_budget_line_total,
@@ -402,23 +411,24 @@ class BudgetPayloadTests(unittest.TestCase):
         self.assertFalse(_approval_has_credit(credit, Decimal("90000")))
         self.assertTrue(_approval_has_credit(credit, Decimal("90000.01")))
 
-    def test_intersol_salespeople_10_to_14_only_see_their_own_devis(self):
+    def test_intersol_salespeople_see_devis_from_their_agency(self):
         sql, params = _intersol_budget_visibility_predicate(12)
 
-        self.assertIn("B.NDOS NOT IN (?, ?)", sql)
-        self.assertIn("B.VENDEDOR = ?", sql)
-        self.assertEqual(params, (115, 122, 12))
+        self.assertIn("B.MAQUINA", sql)
+        self.assertNotIn("B.NDOS", sql)  # Includes Devis Perdu and other budget series.
+        self.assertEqual(params, ("INTERSOL-ALSACE",))
 
     def test_intersol_agency_salespeople_are_filtered_by_machine(self):
         alsace_sql, alsace_params = _intersol_budget_visibility_predicate(20)
         regional_sql, regional_params = _intersol_budget_visibility_predicate(22)
 
-        self.assertIn("B.MAQUINA IN (?)", alsace_sql)
-        self.assertEqual(alsace_params, (115, 122, "INTERSOL-ALSACE"))
-        self.assertIn("B.MAQUINA IN (?, ?)", regional_sql)
+        self.assertIn("B.MAQUINA", alsace_sql)
+        self.assertEqual(alsace_params, ("INTERSOL-ALSACE",))
+        self.assertIn("B.MAQUINA", regional_sql)
+        self.assertIn("IN (?, ?)", regional_sql)
         self.assertEqual(
             regional_params,
-            (115, 122, "INTERSOL-LORRAINE", "INTERSOL-CHAMPAGNE"),
+            ("INTERSOL-LORRAINE", "INTERSOL-CHAMPAGNE"),
         )
 
     def test_intersol_visibility_uses_the_gr360_user_salesperson(self):
@@ -431,13 +441,94 @@ class BudgetPayloadTests(unittest.TestCase):
             SimpleNamespace(VENDEDOR=10),
         )
 
-        self.assertIn("B.VENDEDOR = ?", sql)
-        self.assertEqual(params, (115, 122, 10))
+        self.assertIn("B.MAQUINA", sql)
+        self.assertEqual(params, ("INTERSOL-LORRAINE",))
         self.assertEqual((unrestricted_sql, unrestricted_params), ("1 = 1", ()))
 
-    def test_users_without_a_restricted_salesperson_keep_full_visibility(self):
-        self.assertEqual(_intersol_budget_visibility_predicate(0), ("1 = 1", ()))
-        self.assertEqual(_intersol_budget_visibility_predicate(99), ("1 = 1", ()))
+    def test_users_without_an_agency_cannot_read_intersol_devis(self):
+        self.assertEqual(_intersol_budget_visibility_predicate(0), ("1 = 0", ()))
+        self.assertEqual(_intersol_budget_visibility_predicate(99), ("1 = 0", ()))
+
+    def test_write_scope_requires_the_author_even_within_the_same_agency(self):
+        user = SimpleNamespace(VENDEDOR=20, LOGIN="other", ADMIN=False, DEV=False)
+        sql, params = _budget_write_predicate({"phc_db": "INTERSOL"}, user)
+        self.assertIn("B.MAQUINA", sql)
+        self.assertIn("B.VENDEDOR = ?", sql)
+        self.assertEqual(params, ("INTERSOL-ALSACE", 20))
+
+    def test_own_devis_write_requires_allowed_agency_and_keeps_existing_agency(self):
+        user = SimpleNamespace(VENDEDOR=20, LOGIN="other", ADMIN=False, DEV=False)
+        company = {"phc_db": "INTERSOL"}
+        _validate_budget_write_scope(company, user, {"salesperson_number": 20, "agency": "INTERSOL-ALSACE"})
+        _validate_budget_existing_agency(company, user, "INTERSOL-ALSACE", "INTERSOL-ALSACE")
+        with self.assertRaises(BudgetsNotFoundError):
+            _validate_budget_write_scope(company, user, {"salesperson_number": 20, "agency": "INTERSOL-LORRAINE"})
+        with self.assertRaises(BudgetsNotFoundError):
+            _validate_budget_existing_agency(company, user, "INTERSOL-ALSACE", "INTERSOL-LORRAINE")
+
+    def test_budget_series_exposes_only_permitted_agencies_and_own_salesperson(self):
+        user = SimpleNamespace(VENDEDOR=20, LOGIN="other", ADMIN=False, DEV=False)
+        company = {"feid": 8, "phc_db": "INTERSOL"}
+        with patch("modules.gr_budgets.service._company_for_user", return_value=company), patch(
+            "modules.gr_budgets.service._phc_conn_str", return_value="test"
+        ), patch("modules.gr_budgets.service.pyodbc.connect"), patch(
+            "modules.gr_budgets.service._series_rows", return_value=[{"ndos": 115, "name": "Devis"}]
+        ), patch("modules.gr_budgets.service._tax_rate_rows", return_value=[]):
+            payload = get_budget_series(8, user)
+        self.assertEqual(payload["allowed_agencies"], ["INTERSOL-ALSACE"])
+        self.assertEqual(payload["default_salesperson_number"], 20)
+        self.assertFalse(payload["can_manage_all"])
+
+    def test_barthel_grant_is_exact_and_revocation_fails_closed(self):
+        user = SimpleNamespace(USSTAMP="BARTHEL", LOGIN="CBARTHEL", VENDEDOR=20, ADMIN=False, DEV=False)
+        company = {"feid": 8, "phc_db": "INTERSOL"}
+        with patch("modules.gr_budgets.service._client_conn_str", return_value="test"), patch("modules.gr_budgets.service.pyodbc.connect") as connect, patch("modules.gr_budgets.service._fetch_rows") as fetch:
+            connect.return_value.__enter__.return_value.cursor.return_value = MagicMock()
+            fetch.return_value = [{"ORIGEM": "INTERSOL-ALSACE"}, {"ORIGEM": "INTERSOL-LORRAINE"}]
+            self.assertEqual(_budget_user_origins(company, user), ("INTERSOL-ALSACE",))
+            fetch.return_value = []
+            self.assertEqual(_budget_user_origins(company, user), ())
+
+    def test_foreign_devis_omits_cost_and_cannot_be_written(self):
+        user = SimpleNamespace(VENDEDOR=20, LOGIN="other", ADMIN=False, DEV=False)
+        summary = _budget_list_summary({"VENDEDOR": 12, "ECUSTO": 500, "ETOTALDEB": 1000}, {"phc_db": "INTERSOL"}, user)
+        self.assertFalse(summary["can_edit"])
+        self.assertNotIn("cost", summary)
+        with self.assertRaises(BudgetsNotFoundError):
+            _validate_budget_write_scope({"phc_db": "INTERSOL"}, user, {"salesperson_number": 12, "agency": "INTERSOL-ALSACE"})
+
+    def test_foreign_devis_redaction_keeps_print_descriptions_only(self):
+        detail = {
+            "header": {"cost": 50, "margin_percentage": 25, "margin_value": 25, "total": 100},
+            "totals": {"total": 100, "cost": 50, "profit": 50, "margin_percentage": 50},
+            "lines": [{"designation": "Work", "total": 100, "cost_total": 50, "unit_cost": 5,
+                       "technical_lines": [{"designation": "Material", "purchase_price": 9, "quantity": 2}]}],
+        }
+        result = _redact_budget_detail(detail)
+        self.assertEqual(result["header"], {"total": 100})
+        self.assertEqual(result["totals"], {"total": 100})
+        self.assertEqual(result["lines"][0], {
+            "designation": "Work", "total": 100, "technical_lines": [{"designation": "Material"}],
+        })
+
+    def test_document_agency_must_agree_with_a_linked_central_work(self):
+        origins = {"IS2442": {"INTERSOL-LORRAINE"}}
+        self.assertFalse(_budget_origin_consistent("INTERSOL-ALSACE", "IS2442", origins))
+        self.assertTrue(_budget_origin_consistent("INTERSOL-LORRAINE", "IS2442", origins))
+        self.assertFalse(_budget_origin_consistent("", "IS2442", {}))
+
+    def test_superior_profile_keeps_full_read_and_write_scope(self):
+        admin = SimpleNamespace(VENDEDOR=0, ADMIN=True, DEV=False)
+        self.assertEqual(_budget_visibility_predicate({"phc_db": "INTERSOL"}, admin), ("1 = 1", ()))
+        self.assertEqual(_budget_write_predicate({"phc_db": "INTERSOL"}, admin), ("1 = 1", ()))
+        _validate_budget_write_scope({"phc_db": "INTERSOL"}, admin, {"salesperson_number": 12, "agency": "INTERSOL-LORRAINE"})
+
+    def test_barthel_rejects_another_company_even_with_a_company_grant(self):
+        from modules.gr_budgets.service import _company_for_user
+        user = SimpleNamespace(LOGIN="CBARTHEL", VENDEDOR=20, ADMIN=False, DEV=False)
+        with patch("modules.gr_budgets.service._base_company_for_user", return_value={"feid": 1, "phc_db": "HSOLS_FR"}):
+            with self.assertRaises(BudgetsNotFoundError):
+                _company_for_user(1, user)
 
     def test_uses_u_alt_as_variant_in_hsols_fr(self):
         line = _line_payload({"QTT": 1, "U_ALT": True, "U_VARIANTE": False})

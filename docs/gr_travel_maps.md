@@ -55,6 +55,26 @@ o contrato anterior mantém-se por compatibilidade. Os dados PHC e dos autos sã
 servidor. Campos enviados pelo cliente não substituem esses valores. A edição
 aceita apenas campos permitidos nas linhas existentes. Não há endpoint PDF.
 
+## Período do mapa: dia 22 ao dia 21
+
+O mês identifica o recibo PHC e o mês em que termina o mapa. Por exemplo, setembro
+de 2026 reconstrói KM e AC de **22/08/2026 a 21/09/2026**, ambos incluídos, usando
+os totais dos recibos de setembro. Janeiro começa em 22 de dezembro do ano anterior.
+
+`config.period_bounds` mantém o mês civil para leitura salarial, regras de rubricas
+e identidade do mapa. `config.map_period` define o ciclo operacional, guardado em
+`payroll.map_period` com `basis: "22_21"`, `start` e `end` inclusivos. As consultas
+de autos, equipas, planeamento e ausências, os cálculos, exclusões e edições usam
+`map_bounds`: início incluído e dia 22 do mês de fecho excluído. O calendário mostra
+todos os dias deste intervalo com dia/mês, incluindo a passagem de ano.
+
+Versões anteriores sem `map_period` conservam o mês civil original, incluindo a
+releitura das fontes para validação. A interface identifica o período anterior.
+Reconstruir cria outra versão do mesmo mapa empresa/trabalhador/mês, agora no ciclo
+22–21, sem alterar o histórico. Não há migração de tabelas nem atualização de
+documentos antigos. O servidor define o período de cada nova proposta e ignora
+tentativas de o substituir no pedido.
+
 ## Contrato de leitura salarial
 
 - O mês é selecionado por `PR.DATA >= início AND PR.DATA < mês_seguinte`.
@@ -115,7 +135,8 @@ Cópias com o mesmo stamp em várias empresas representam uma obra física; a fi
 da empregadora tem preferência. Duplicados dentro da mesma empresa são recusados.
 
 O calendário apresenta equipa/obra em cada data, mesmo sem viagem proposta.
-Só se propõem percursos e AC nas datas associadas; obras planeadas sem autos
+Só se propõem percursos nas datas associadas; as AC também admitem a permanência
+de fim de semana descrita abaixo. Obras planeadas sem autos
 positivos podem entrar, com aviso de ausência dessa evidência de produção.
 Sem ligação utilizável não há fallback silencioso para obras arbitrárias dos autos.
 Conflitos entre equipas, `U_TEAM.AUSENTE`, e obras sem ligação segura bloqueiam
@@ -127,6 +148,29 @@ O mapa guarda a fotografia dos registos, referências, bloqueios e fingerprint.
 Validar relê estas fontes; uma mudança exige reconstruir. A origem dos percursos
 continua INFERIDO, com associação de equipa/data documentada como PLANEAMENTO.
 Nem o planeamento nem a aprovação tornam a viagem comprovada.
+
+### AC: trabalho registado e permanência de fim de semana
+
+`allowances.eligible` cruza obra/data da própria equipa, exclusões e ausências.
+Dias úteis sem afetação não recebem AC. Para reconciliar o PHC, usam-se primeiro
+os dias registados; os dias restantes podem ser sábado/domingo quando a sexta e
+a segunda imediatamente adjacentes têm uma única obra em comum. Mudança de obra,
+ausência, exclusão ou regresso a casa incompatível nesse intervalo impede inferir
+a permanência. Fins de semana com trabalho explicitamente registado são datas
+normais elegíveis. Não se ultrapassa a quantidade PHC; faltas de dias elegíveis
+continuam como diferença por reconciliar.
+
+As AC de permanência têm `allowance_basis: PERMANENCIA_FIM_SEMANA`, confiança baixa
+e proveniência inferida com referências aos registos de sexta/segunda. A interface
+identifica a permanência sem a apresentar como trabalho registado. A elegibilidade
+é recalculada na geração, edição e validação; não autoriza KM nos dias inferidos.
+
+Se o início/fim de 22–21 cair num fim de semana, a leitura de equipas, planeamento
+e ausências abrange a sexta/segunda necessária fora do período. Esses registos
+ficam em `planning.context_records` / `context_blocked_dates`, entram no fingerprint
+e nunca criam linhas fora do mapa. A política `PLANNING_WORK_AND_WEEKEND_STAY_V1`
+fica no documento; versões antigas conservam a política e a janela de leitura
+originais. Reconstruir aplica a regra nova numa nova versão, sem migração de tabelas.
 
 A empresa dos autos pode diferir da empregadora, sempre dentro das empresas
 autorizadas. São consultadas séries `TS` com nome exato, sem diferenças de acento
@@ -274,7 +318,7 @@ e o país já estão identificados.
 
 ### Combinações e calendário
 
-Nas novas propostas `planning-calendar-v2`, `scheduled.py` procura combinações
+Nas novas propostas `planning-calendar-v4`, `scheduled.py` procura combinações
 de viagens já atribuídas a datas elegíveis, em vez de escolher obras livremente
 e espalhar visitas pelo mês. Programação dinâmica por data/total/base impede
 sobreposições e mudanças de base sem percurso. Limites: 80 alternativas por dia

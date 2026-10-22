@@ -68,6 +68,8 @@
     addressPlace: document.getElementById('budgetAddressPlace'),
     dateInput: document.getElementById('budgetDateInput'),
     salesperson: document.getElementById('budgetSalespersonSelect'),
+    agencyField: document.getElementById('budgetAgencyField'),
+    agency: document.getElementById('budgetAgencySelect'),
     attentionInput: document.getElementById('budgetAttentionInput'),
     contextbar: root.querySelector('.gr-budget-contextbar'),
     body: root.querySelector('.gr-budget-body'),
@@ -191,6 +193,10 @@
     series: [],
     taxRates: [],
     salespeople: [],
+    allowedAgencies: [],
+    defaultSalespersonNumber: 0,
+    canManageAll: false,
+    seriesCompany: null,
     budgets: [],
     clientRows: [],
     clientActiveIndex: -1,
@@ -455,6 +461,10 @@
       ]);
       state.series = seriesPayload.rows || [];
       state.taxRates = seriesPayload.tax_rates || [];
+      state.seriesCompany = seriesPayload.company || null;
+      state.allowedAgencies = seriesPayload.allowed_agencies || [];
+      state.defaultSalespersonNumber = Number(seriesPayload.default_salesperson_number || 0);
+      state.canManageAll = Boolean(seriesPayload.can_manage_all);
       state.salespeople = salespeoplePayload.rows || [];
       renderSalespeople();
       setOptions(elements.series, state.series, 'ndos', (row) => `${row.name} · ${row.ndos}`, seriesPayload.default_ndos);
@@ -588,6 +598,31 @@
     elements.salesperson.value = wanted;
   }
 
+  function isIntersolBudgetCompany() {
+    return String(state.seriesCompany?.phc_db || '').toUpperCase() === 'INTERSOL';
+  }
+
+  function renderAgencies(selectedAgency) {
+    const intersol = isIntersolBudgetCompany();
+    elements.agencyField.hidden = !intersol;
+    elements.agency.replaceChildren();
+    if (!intersol) return;
+    const selected = String(selectedAgency || '').trim().toUpperCase();
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = tr('gr_budgets.intercompany.agency_unselected');
+    elements.agency.appendChild(placeholder);
+    const agencies = new Set(state.allowedAgencies);
+    if (selected && !agencies.has(selected)) agencies.add(selected);
+    Array.from(agencies).sort().forEach((agency) => {
+      const option = document.createElement('option');
+      option.value = agency;
+      option.textContent = agency;
+      elements.agency.appendChild(option);
+    });
+    elements.agency.value = selected;
+  }
+
   function syncEditableHeaderToState() {
     if (!state.detail) return;
     const header = state.detail.header || {};
@@ -606,6 +641,7 @@
       date: elements.dateInput.value,
       salesperson_number: salespersonNumber,
       salesperson: salesperson ? salesperson.name : '',
+      agency: isIntersolBudgetCompany() ? elements.agency.value : header.agency,
       attention: elements.attentionInput.value.trim()
     };
   }
@@ -682,10 +718,14 @@
     setInputValue(elements.dateInput, header.date);
     setInputValue(elements.attentionInput, header.attention);
     renderSalespeople(header.salesperson_number, header.salesperson);
+    renderAgencies(header.agency);
     text('budgetTotal', money(totals.total, header.currency));
     text('budgetCost', canViewCosts ? money(totals.cost, header.currency) : '—');
     text('budgetMargin', canViewCosts ? `${percentFormatter.format(Number(totals.margin_percentage || 0))}%` : '—');
     text('budgetProfit', canViewCosts ? money(totals.profit, header.currency) : '—');
+    ['budgetCost', 'budgetMargin', 'budgetProfit'].forEach((id) => {
+      document.getElementById(id).closest('.gr-budget-total').hidden = !canViewCosts;
+    });
     document.getElementById('budgetMargin').closest('.gr-budget-total')
       .classList.toggle('is-threshold-alert', Number(totals.margin_percentage || 0) < 10);
     document.getElementById('budgetProfit').closest('.gr-budget-total')
@@ -1388,7 +1428,7 @@
       const plusValue = isPlusValue(line.reference);
       const commercialAdjustment = isBudgetAdjustmentLine(line);
       const nonTechnicalLine = plusValue || commercialAdjustment;
-      const technicalControl = nonTechnicalLine
+      const technicalControl = nonTechnicalLine || state.detail?.can_view_costs === false
         ? '<span class="sz_text_muted">—</span>'
         : `<button type="button" class="sz_button sz_button_ghost gr-budget-technical-button" data-technical-line="${index}" aria-label="${escapeHtml(tr('gr_budgets.action.technical_line_aria', { line: line.item_label || line.item || index + 1 }))}" title="${escapeHtml(tr('gr_budgets.action.technical_detail_title'))}">+</button>`;
       const duplicateControl = nonTechnicalLine || !budgetCanBeEdited()
@@ -2882,7 +2922,8 @@
     elements.actionsMenu.hidden = editing;
     elements.actionsToggle.disabled = busy || !state.detail || !selectedBudgetStamp() || !elements.company.value;
     elements.newBudget.hidden = editing;
-    elements.newBudget.disabled = busy || !elements.company.value || !elements.series.value;
+    elements.newBudget.disabled = busy || !elements.company.value || !elements.series.value
+      || (!state.canManageAll && (!state.defaultSalespersonNumber || (isIntersolBudgetCompany() && !state.allowedAgencies.length)));
     elements.back.hidden = editing || state.screen !== 'detail';
     elements.back.disabled = busy;
     elements.editBudget.hidden = editing || !budgetCanBeEdited() || !selectedBudgetStamp();
@@ -2898,7 +2939,8 @@
         input.readOnly = !editing;
         input.setAttribute('aria-readonly', editing ? 'false' : 'true');
       });
-    elements.salesperson.disabled = !editing || busy;
+    elements.salesperson.disabled = !editing || busy || !state.canManageAll;
+    elements.agency.disabled = !editing || state.mode !== 'new' || busy;
   }
 
   function todayForInput() {
@@ -2931,6 +2973,8 @@
         _draft: true,
         series: seriesName,
         date: todayForInput(),
+        salesperson_number: state.defaultSalespersonNumber,
+        agency: state.allowedAgencies.length === 1 ? state.allowedAgencies[0] : '',
         currency: (state.detail && state.detail.header && state.detail.header.currency) || 'EUR'
       },
       totals: {
@@ -3065,7 +3109,7 @@
   }
 
   async function openIntercompanyCopy() {
-    if (!state.canDuplicateBetweenCompanies || isEditing() || !state.detail || !selectedBudgetStamp()) return;
+    if (!state.canDuplicateBetweenCompanies || isEditing() || !state.detail || state.detail.can_edit === false || !selectedBudgetStamp()) return;
     const destinations = state.companies.filter((row) => String(row.feid) !== String(elements.company.value));
     setOptions(elements.intercompanyDestination, destinations, 'feid', (row) => row.name || row.phc_db, destinations[0]?.feid);
     elements.intercompanyClientSearch.value = '';
@@ -3134,7 +3178,7 @@
   }
 
   function startDuplicateBudget() {
-    if (isEditing() || state.loadingCount || !state.detail || !selectedBudgetStamp()) return;
+    if (isEditing() || state.loadingCount || !state.detail || state.detail.can_edit === false || !selectedBudgetStamp()) return;
     window.clearTimeout(state.searchTimer);
     state.requestVersion += 1;
     const sourceDetail = cloneData(state.detail);
@@ -3220,6 +3264,7 @@
         place: elements.addressPlace.value.trim(),
         date: elements.dateInput.value,
         salesperson_number: Number(elements.salesperson.value || 0),
+        agency: isIntersolBudgetCompany() ? elements.agency.value : (currentHeader.agency || ''),
         attention: elements.attentionInput.value.trim(),
         currency: currentHeader.currency || 'EUR',
         process: currentHeader.process || '',
@@ -3368,6 +3413,7 @@
     if (event.target === elements.addressModal) closeAddressModal();
   });
   elements.salesperson.addEventListener('change', syncEditableHeaderToState);
+  elements.agency.addEventListener('change', syncEditableHeaderToState);
   elements.clientSearch.addEventListener('focus', () => {
     if (!isEditing()) return;
     if (elements.clientSearch.value.trim()) scheduleClientSearch();

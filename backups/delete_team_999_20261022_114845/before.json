@@ -1,0 +1,36 @@
+{
+  "database": "HSOLS_MASTER",
+  "team": [
+    {
+      "frefstamp": "F3ACDE6695F1413F945AB2A74",
+      "fref": "999                 ",
+      "nmfref": "TESTE",
+      "inactivo": false,
+      "ousrinis": "jsousa",
+      "ousrdata": "2026-10-22 11:46:35.183000",
+      "ousrhora": "11:46:35",
+      "usrinis": "jsousa",
+      "usrdata": "2026-10-22 11:46:35.183000",
+      "usrhora": "11:46:35",
+      "marcada": false,
+      "u_nochefe": "0",
+      "u_nmchefe": "",
+      "u_wmuser": "",
+      "u_icone": "",
+      "u_icone2": "",
+      "u_plano": true,
+      "u_planning": "INTERSOL-ALSACE"
+    }
+  ],
+  "pending_sync_events": [
+    {
+      "u_syncstamp": "55976495-6C1A-49BD-87DD-9",
+      "tabela": "FREF",
+      "stamp": "F3ACDE6695F1413F945AB2A74",
+      "tipo": "INSERT",
+      "data": "2026-10-22 11:46:35.193000",
+      "tratado": false
+    }
+  ],
+  "references_found": []
+}

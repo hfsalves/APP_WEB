@@ -46,7 +46,6 @@ CLIENT_BUDGET_SERIES = (
     "devis perdu",
 )
 APPROVAL_SERIES = frozenset({"devis", "etude et execution"})
-INTERSOL_RESTRICTED_BUDGET_NDOS = (115, 122)
 INTERSOL_OWN_BUDGET_SALESPERSONS = frozenset({10, 11, 12, 13, 14})
 INTERSOL_AGENCY_BUDGET_SALESPERSONS = {
     10: ("INTERSOL-LORRAINE",),
@@ -501,14 +500,12 @@ def _intersol_origin_predicate(
     agencies: tuple[str, ...], table_alias: str = "B",
 ) -> tuple[str, tuple[Any, ...]]:
     alias = table_alias if re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", table_alias or "") else "B"
-    ndos_placeholders = ", ".join("?" for _ in INTERSOL_RESTRICTED_BUDGET_NDOS)
     if not agencies:
-        return f"{alias}.NDOS NOT IN ({ndos_placeholders})", tuple(INTERSOL_RESTRICTED_BUDGET_NDOS)
+        return "1 = 0", ()
     placeholders = ", ".join("?" for _ in agencies)
     return (
-        f"({alias}.NDOS NOT IN ({ndos_placeholders}) OR "
-        f"UPPER(LTRIM(RTRIM(ISNULL({alias}.MAQUINA, '')))) IN ({placeholders}))",
-        tuple(INTERSOL_RESTRICTED_BUDGET_NDOS) + tuple(agencies),
+        f"UPPER(LTRIM(RTRIM(ISNULL({alias}.MAQUINA, '')))) IN ({placeholders})",
+        tuple(agencies),
     )
 
 
@@ -544,6 +541,56 @@ def _validate_budget_write_scope(company: dict[str, Any], user, header: dict[str
         agency = _text_value(header.get("agency")).upper()
         if agency not in _budget_user_origins(company, user):
             raise BudgetsNotFoundError("Orçamento não encontrado no PHC desta empresa.")
+
+
+def _validate_budget_existing_agency(company: dict[str, Any], user, requested: Any, existing: Any) -> None:
+    if (
+        _text_value(company.get("phc_db")).casefold() == "intersol"
+        and not _budget_privileged(user)
+        and _text_value(requested).upper() != _text_value(existing).upper()
+    ):
+        raise BudgetsNotFoundError("Orçamento não encontrado no PHC desta empresa.")
+
+
+def _budget_process_origins(processes: list[Any]) -> dict[str, set[str]]:
+    """Cross-check a PHC process against the central work when one exists."""
+    candidates_by_process: dict[str, set[str]] = {}
+    for value in processes:
+        process = _text_value(value).upper()
+        if not process or process in {"IS0000", "IS0001"}:
+            continue
+        candidates = {process}
+        suffix = re.search(r"(\d+)$", process)
+        if suffix:
+            candidates.add(f"HS{suffix.group(1)}")
+        candidates_by_process[process] = candidates
+    if not candidates_by_process:
+        return {}
+    all_candidates = sorted(set().union(*candidates_by_process.values()))
+    origins_by_candidate: dict[str, set[str]] = defaultdict(set)
+    with pyodbc.connect(_client_conn_str(), timeout=15) as conn:
+        for offset in range(0, len(all_candidates), 500):
+            batch = all_candidates[offset:offset + 500]
+            rows = _fetch_rows(conn.cursor(), f"""
+                SELECT UPPER(LTRIM(RTRIM(ISNULL(PROCESSO, '')))) AS PROCESSO,
+                       UPPER(LTRIM(RTRIM(ISNULL(U_ORIGEM, '')))) AS U_ORIGEM
+                FROM dbo.OPC
+                WHERE UPPER(LTRIM(RTRIM(ISNULL(PROCESSO, '')))) IN ({', '.join('?' for _ in batch)})
+            """, tuple(batch))
+            for row in rows:
+                origins_by_candidate[_text_value(row.get("PROCESSO")).upper()].add(
+                    _text_value(row.get("U_ORIGEM")).upper()
+                )
+    return {
+        process: set().union(*(origins_by_candidate.get(candidate, set()) for candidate in candidates))
+        for process, candidates in candidates_by_process.items()
+    }
+
+
+def _budget_origin_consistent(agency: Any, process: Any, origins: dict[str, set[str]]) -> bool:
+    dossier_origin = _text_value(agency).upper()
+    work_origins = origins.get(_text_value(process).upper(), set())
+    return bool(dossier_origin) and (not work_origins or work_origins == {dossier_origin})
 
 
 def _series_rows(cursor, company: dict[str, Any] | None = None) -> list[dict[str, Any]]:
@@ -616,6 +663,13 @@ def get_budget_series(feid: Any, user) -> dict[str, Any]:
         "rows": rows,
         "default_ndos": _pick_default_series(rows),
         "tax_rates": tax_rates,
+        "allowed_agencies": (
+            sorted({agency for origins in INTERSOL_AGENCY_BUDGET_SALESPERSONS.values() for agency in origins})
+            if _budget_privileged(user) and _text_value(company.get("phc_db")).casefold() == "intersol"
+            else list(_budget_user_origins(company, user))
+        ),
+        "default_salesperson_number": int(_number_value(getattr(user, "VENDEDOR", 0))),
+        "can_manage_all": _budget_privileged(user),
     }
 
 
@@ -804,6 +858,7 @@ def list_budgets(filters: dict[str, Any], user) -> dict[str, Any]:
             SELECT TOP {MAX_RESULTS}
                 B.BOSTAMP,
                 B.VENDEDOR,
+                B.MAQUINA,
                 B.NDOS,
                 B.NMDOS,
                 B.OBRANO,
@@ -837,6 +892,12 @@ def list_budgets(filters: dict[str, Any], user) -> dict[str, Any]:
             tuple(params),
         )
 
+    if _text_value(company.get("phc_db")).casefold() == "intersol" and not _budget_privileged(user):
+        process_origins = _budget_process_origins([row.get("PROCESSO") for row in rows])
+        rows = [
+            row for row in rows
+            if _budget_origin_consistent(row.get("MAQUINA"), row.get("PROCESSO"), process_origins)
+        ]
     return {
         "company": company,
         "series": series,
@@ -855,6 +916,23 @@ def _budget_list_summary(row: dict[str, Any], company: dict[str, Any], user) -> 
     if not can_edit:
         summary.pop("cost", None)
     return summary
+
+
+def _redact_budget_detail(result: dict[str, Any]) -> dict[str, Any]:
+    header = result.get("header") or {}
+    for key in ("cost", "margin_percentage", "margin_value"):
+        header.pop(key, None)
+    totals = result.get("totals") or {}
+    for key in ("cost", "profit", "margin_percentage"):
+        totals.pop(key, None)
+    for line in result.get("lines") or []:
+        for key in ("unit_cost", "indirect_cost", "cost_total", "margin_percentage", "margin_per_unit", "margin_value", "profit"):
+            line.pop(key, None)
+        line["technical_lines"] = [
+            {"designation": _text_value(technical.get("designation"))}
+            for technical in line.get("technical_lines") or []
+        ]
+    return result
 
 
 def _budget_summary(row: dict[str, Any], company: dict[str, Any]) -> dict[str, Any]:
@@ -1014,6 +1092,10 @@ def get_budget_detail(feid: Any, bostamp: str, user) -> dict[str, Any]:
         company["e1"] = _load_e1_company(cursor)
 
     header = _header_payload(header_rows[0], company)
+    if _text_value(company.get("phc_db")).casefold() == "intersol" and not _budget_privileged(user):
+        origins = _budget_process_origins([header.get("process")])
+        if not _budget_origin_consistent(header.get("agency"), header.get("process"), origins):
+            raise BudgetsNotFoundError("Orçamento não encontrado no PHC desta empresa.")
     lines = sorted((_line_payload(row) for row in line_rows), key=_line_item_sort_key)
     oci_by_line: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for row in oci_rows:
@@ -1038,14 +1120,7 @@ def get_budget_detail(feid: Any, bostamp: str, user) -> dict[str, Any]:
     result["can_edit"] = can_edit
     result["can_view_costs"] = can_edit
     if not can_edit:
-        for key in ("cost", "margin_percentage", "margin_value"):
-            header.pop(key, None)
-        for key in ("cost", "profit", "margin_percentage"):
-            result["totals"].pop(key, None)
-        for line in lines:
-            for key in ("unit_cost", "indirect_cost", "cost_total", "margin_percentage", "margin_per_unit", "margin_value", "profit"):
-                line.pop(key, None)
-            line.pop("technical_lines", None)
+        _redact_budget_detail(result)
     return result
 
 
@@ -1904,6 +1979,7 @@ def get_budget_line_oci(feid: Any, bistamp: Any, user) -> dict[str, Any]:
             f"""
             SELECT
                 I.BOSTAMP, I.BISTAMP, I.LORDEM, I.LITEM, I.REF, I.DESIGN, I.DGERAL,
+                B.MAQUINA AS BO_MAQUINA, B2.PROCESSO AS BO_PROCESSO,
                 I.DESCONTO, I.DESC2, I.EDEBITO, I.ETTDEB, I.IVA, I.TABIVA,
                 I.QTT, I.EPCUSTO, I.ECUSTOIND, I.TEMOCI, I.UNIDADE,
                 {_optional_column(bi_columns, 'I', 'U_ESPESS', 'U_ESPESS', '0')},
@@ -1924,6 +2000,7 @@ def get_budget_line_oci(feid: Any, bistamp: Any, user) -> dict[str, Any]:
                 {_optional_column(bi2_columns, 'I2', 'U_DESAPRO', 'U_DESAPRO', '0')}
             FROM dbo.BI I
             INNER JOIN dbo.BO B ON B.BOSTAMP = I.BOSTAMP
+            LEFT JOIN dbo.BO2 B2 ON B2.BO2STAMP = B.BOSTAMP
             LEFT JOIN dbo.BI2 I2 ON I2.BI2STAMP = I.BISTAMP
             WHERE I.BISTAMP = ?
               AND {visibility_sql}
@@ -1932,6 +2009,11 @@ def get_budget_line_oci(feid: Any, bistamp: Any, user) -> dict[str, Any]:
         )
         if not line_rows:
             raise BudgetsNotFoundError("Linha do orçamento não encontrada no PHC desta empresa.")
+        if _text_value(company.get("phc_db")).casefold() == "intersol" and not _budget_privileged(user):
+            parent = line_rows[0]
+            origins = _budget_process_origins([parent.get("BO_PROCESSO")])
+            if not _budget_origin_consistent(parent.get("BO_MAQUINA"), parent.get("BO_PROCESSO"), origins):
+                raise BudgetsNotFoundError("Linha do orçamento não encontrada no PHC desta empresa.")
 
         oci_columns = _phc_columns(cursor, "OCI")
         if not oci_columns:
@@ -2467,11 +2549,15 @@ def search_budget_works(feid: Any, query: Any, user) -> dict[str, Any]:
     if len(clean_query) < 2:
         return {"rows": []}
     pattern = f"%{clean_query}%"
+    origins = _budget_user_origins(company, user) if _text_value(company.get("phc_db")).casefold() == "intersol" and not _budget_privileged(user) else ()
+    if _text_value(company.get("phc_db")).casefold() == "intersol" and not _budget_privileged(user) and not origins:
+        return {"rows": []}
+    origin_filter = f"AND UPPER(LTRIM(RTRIM(ISNULL(U_ORIGEM, '')))) IN ({', '.join('?' for _ in origins)})" if origins else ""
     with pyodbc.connect(_client_conn_str(), timeout=15) as conn:
         cursor = conn.cursor()
         rows = _fetch_rows(
             cursor,
-            """
+            f"""
             SELECT TOP 30
                 LTRIM(RTRIM(ISNULL(OPCSTAMP, ''))) AS OPCSTAMP,
                 LTRIM(RTRIM(ISNULL(PROCESSO, ''))) AS PROCESSO,
@@ -2479,12 +2565,13 @@ def search_budget_works(feid: Any, query: Any, user) -> dict[str, Any]:
                 LTRIM(RTRIM(ISNULL(NOME, ''))) AS NOME,
                 LTRIM(RTRIM(ISNULL(U_ORIGEM, ''))) AS U_ORIGEM
             FROM dbo.OPC
-            WHERE PROCESSO LIKE ?
+            WHERE (PROCESSO LIKE ?
                OR DESCRICAO LIKE ?
-               OR NOME LIKE ?
+               OR NOME LIKE ?)
+              {origin_filter}
             ORDER BY PROCESSO DESC
             """,
-            (pattern, pattern, pattern),
+            (pattern, pattern, pattern, *origins),
         )
     return {
         "rows": [
@@ -2504,6 +2591,9 @@ def assign_budget_work(feid: Any, bostamp: str, opcstamp: Any, user) -> dict[str
 
     with pyodbc.connect(_client_conn_str(), timeout=15) as client_conn:
         work_row = _opc_row_for_company(client_conn.cursor(), opcstamp, company)
+    if _text_value(company.get("phc_db")).casefold() == "intersol" and not _budget_privileged(user):
+        if _text_value(work_row.get("U_ORIGEM")).upper() not in _budget_user_origins(company, user):
+            raise BudgetsNotFoundError("A obra selecionada não está disponível nesta empresa.")
     work = _central_work_payload(work_row)
     phc_process = _phc_process_code(
         work["process"],
@@ -2664,6 +2754,9 @@ def convert_budget_to_execution(feid: Any, bostamp: str, target: Any, existing_o
                 else:
                     with pyodbc.connect(_client_conn_str(), timeout=15) as client_conn:
                         work = _opc_row_for_company(client_conn.cursor(), existing_opcstamp, company)
+                    if _text_value(company.get("phc_db")).casefold() == "intersol" and not _budget_privileged(user):
+                        if _text_value(work.get("U_ORIGEM")).upper() not in _budget_user_origins(company, user):
+                            raise BudgetsNotFoundError("A obra selecionada não está disponível nesta empresa.")
 
                 central_process = _text_value(work.get("process") or work.get("PROCESSO"))
                 work_origin = _text_value(work.get("origin") or work.get("U_ORIGEM") or company.get("name"))
@@ -2931,6 +3024,8 @@ def _intercompany_copy_preview(
         raise BudgetsValidationError("Selecione uma empresa de destino diferente da empresa de origem.")
 
     source = get_budget_detail(source_feid, bostamp, user)
+    if not source.get("can_edit"):
+        raise BudgetsNotFoundError("Orçamento não encontrado no PHC desta empresa.")
     source_header = source.get("header") or {}
     blockers: list[dict[str, Any]] = []
     warnings: list[dict[str, Any]] = []
@@ -3179,6 +3274,10 @@ def save_budget(payload: dict[str, Any], user) -> dict[str, Any]:
     if not isinstance(header, dict):
         raise BudgetsValidationError("Cabeçalho do orçamento inválido.")
     _validate_budget_write_scope(company, user, header)
+    if _text_value(company.get("phc_db")).casefold() == "intersol" and not _budget_privileged(user):
+        process = header.get("process")
+        if not _budget_origin_consistent(header.get("agency"), process, _budget_process_origins([process])):
+            raise BudgetsNotFoundError("Orçamento não encontrado no PHC desta empresa.")
     payload_lines = payload.get("lines") or []
     if not isinstance(payload_lines, list):
         raise BudgetsValidationError("Linhas do orçamento inválidas.")
@@ -3212,7 +3311,7 @@ def save_budget(payload: dict[str, Any], user) -> dict[str, Any]:
                 rows = _fetch_rows(
                     cursor,
                     f"""
-                    SELECT B.BOSTAMP, B.NDOS, B.NMDOS, B.OBRANO, B.BOANO,
+                    SELECT B.BOSTAMP, B.NDOS, B.NMDOS, B.OBRANO, B.BOANO, B.MAQUINA,
                            B.USRDATA, B.USRHORA, B.APROVADO, B.FECHADA,
                            ISNULL(B2.ADJUDICADO, 0) AS ADJUDICADO,
                            ISNULL(B2.ANULADO, 0) AS ANULADO
@@ -3227,6 +3326,7 @@ def save_budget(payload: dict[str, Any], user) -> dict[str, Any]:
                 if not rows:
                     raise BudgetsNotFoundError("O orçamento já não existe no PHC desta empresa.")
                 existing_header = rows[0]
+                _validate_budget_existing_agency(company, user, header.get("agency"), existing_header.get("MAQUINA"))
                 if not _budget_can_be_edited(existing_header):
                     raise BudgetsConflictError(
                         "O orçamento está fechado, adjudicado ou anulado e não pode ser alterado."

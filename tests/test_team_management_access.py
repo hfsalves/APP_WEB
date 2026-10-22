@@ -1,9 +1,13 @@
 from datetime import date
 from contextlib import contextmanager
+import json
 from types import SimpleNamespace
 import unittest
 from unittest.mock import MagicMock, patch
 
+from flask import Flask
+
+from modules.gr_planning import service as planning_service
 from modules.gr_planning.service import (
     _import_legacy_environment, get_api_access_scope, rewrite_team_management_body_html,
 )
@@ -166,9 +170,10 @@ class TeamCreationTests(unittest.TestCase):
         self.payload = {"code": "NEW", "description": "Nova equipa", "planning": "INTERSOL-ALSACE"}
         self.groups = [row["u_planning"] for row in TEAMS if row["u_planning"]]
 
-    def login(self):
+    def login(self, *, can_create_teams=True):
         with self.client.session_transaction() as session:
             session["user"] = self.user
+            session["can_create_teams"] = can_create_teams
 
     def create(self, payload=None, *, error=None):
         with patch.object(self.env.database, "fetch_team_planning_groups", return_value=self.groups), \
@@ -237,6 +242,16 @@ class TeamCreationTests(unittest.TestCase):
         response, create = self.create()
         self.assertEqual(response.status_code, 401)
         create.assert_not_called()
+
+    def test_legacy_admin_roles_do_not_grant_creation_permission(self):
+        for roles in ({"u_admin": True}, {"u_adminis": True}, {"u_teams": True}):
+            with self.subTest(roles=roles):
+                self.user.update(roles)
+                self.login(can_create_teams=False)
+                response, create = self.create()
+                self.assertEqual(response.status_code, 403)
+                self.assertEqual(response.get_json()["error"], "admin_required")
+                create.assert_not_called()
 
     def test_database_failure_does_not_report_a_created_team(self):
         with self.assertLogs(self.env.app.logger, level="ERROR"):
@@ -321,6 +336,67 @@ class TeamCreationDatabaseTests(unittest.TestCase):
             self.database.create_team("NEW", "Team", "PORTUGAL", "creator")
         self.connection.rollback.assert_called_once()
         self.connection.commit.assert_not_called()
+
+
+class TeamCreationApplicationAdminTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.env = _import_legacy_environment(("test-server", "test-db", "test-user", "test-password", ""))
+        cls.env.app.config["TESTING"] = True
+
+    def setUp(self):
+        self.host = Flask(__name__)
+        self.legacy_user = {"usercode": "creator", "username": "Creator", "u_teams": True, "u_ia": True}
+        self.payload = {"code": "NEW", "description": "Nova equipa", "planning": "INTERSOL-ALSACE"}
+
+    def request(self, application_user, path, *, method="GET", payload=None):
+        with self.host.test_request_context(path), \
+             patch.object(planning_service, "current_user", application_user), \
+             patch.object(planning_service, "get_legacy_environment", return_value=self.env), \
+             patch.object(self.env.database, "fetch_team_planning_groups", return_value=["INTERSOL-ALSACE", "SOUS-TRAITANTS"]), \
+             patch.object(self.env.database, "fetch_all_teams", return_value=TEAMS), \
+             patch.object(self.env.database, "fetch_team_members_for_date", return_value=[]), \
+             patch.object(self.env.database, "fetch_unassigned_employees", return_value=[]), \
+             patch.object(self.env.database, "create_team", return_value={**self.payload, "stamp": "NEWSTAMP"}) as create:
+            response = planning_service.open_legacy_request(
+                path, login_value="creator", method=method, access_mode="team_management",
+                data=json.dumps(payload or self.payload).encode() if method == "POST" else None,
+                content_type="application/json" if method == "POST" else None,
+                legacy_user=self.legacy_user,
+            )
+        return response, create
+
+    def test_application_us_admin_one_can_see_the_button_and_create(self):
+        user = SimpleNamespace(is_authenticated=True, ADMIN=1)
+        response, _ = self.request(user, "/teams")
+        self.assertIn("data-team-create-open", response.get_data(as_text=True))
+        self.assertIn('id="team-create-modal"', response.get_data(as_text=True))
+        response, create = self.request(user, "/api/teams", method="POST")
+        self.assertEqual(response.status_code, 201)
+        create.assert_called_once()
+
+    def test_non_admin_cannot_see_the_button_or_call_the_api_even_as_phc_admin(self):
+        self.legacy_user.update(u_admin=True, u_adminis=True)
+        for user in (SimpleNamespace(is_authenticated=True, ADMIN=0),
+                     SimpleNamespace(is_authenticated=True, DEV=1),
+                     SimpleNamespace(is_authenticated=False, ADMIN=1)):
+            with self.subTest(user=user):
+                response, _ = self.request(user, "/teams")
+                body = response.get_data(as_text=True)
+                self.assertNotIn("data-team-create-open", body)
+                self.assertNotIn('id="team-create-modal"', body)
+                self.assertIn("Team IA", body)
+                response, create = self.request(user, "/api/teams", method="POST")
+                self.assertEqual(response.status_code, 403)
+                self.assertEqual(response.get_json()["error"], "admin_required")
+                create.assert_not_called()
+
+    def test_client_payload_cannot_enable_the_admin_permission(self):
+        payload = {**self.payload, "ADMIN": 1, "can_create_teams": True, "u_admin": True}
+        response, create = self.request(SimpleNamespace(is_authenticated=True, ADMIN=0),
+                                        "/api/teams", method="POST", payload=payload)
+        self.assertEqual(response.status_code, 403)
+        create.assert_not_called()
 
 
 if __name__ == "__main__":

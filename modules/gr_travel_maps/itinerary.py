@@ -5,7 +5,7 @@ from copy import deepcopy
 from datetime import timedelta
 from decimal import Decimal, ROUND_CEILING
 
-from . import engine, scheduled
+from . import allowances, engine, scheduled
 from .config import TravelMapsError, map_bounds
 
 D = Decimal
@@ -196,7 +196,8 @@ def build(payroll, batches, raw, graph, planning=None):
     document['inputs'].update(return_policy=policy, max_driving_hours=str(hours), locations=deepcopy(raw.get('locations', {})))
     if planning is not None:
         document['planning'] = deepcopy(planning)
-        document['engine_version'] = 'planning-calendar-v3'
+        document['engine_version'] = 'planning-calendar-v4'
+        document['allowance_policy'] = allowances.POLICY
         document['warnings'] = [w for w in document['warnings'] if not w.startswith(('As datas e a associação', 'Calendário convencional', 'Calendário inclui'))]
         document['warnings'].extend(planning['warnings'])
     document['warnings'] = [w for w in document['warnings'] if 'total PHC' in w or not w.startswith(('Sem percursos', 'ac_estrangeiro:', 'ac_nacional:'))]
@@ -271,9 +272,12 @@ def build(payroll, batches, raw, graph, planning=None):
                 entry['provenance']['travel_days'] = {'kind': 'INFERIDO', 'dates': driving_dates,
                     'rule': 'Condução repartida por dias consecutivos dentro do limite diário; km repartidos uniformemente, sem localização de pernoita conhecida.'}
             document['entries'].append(entry)
-        legs = [e for e in document['entries'] if e.get('journey_id') == journey_id]
-        for day, work_keys_at_day in presence(legs, days).items():
-            occupied[day] = {'journey': journey_id, 'works': work_keys_at_day}
+    allowance_days = allowances.eligible(document) if planning is not None else {}
+    presence_days = sorted(set(days) | set(allowance_days))
+    for journey in document['journeys']:
+        legs = [e for e in document['entries'] if e.get('journey_id') == journey['id']]
+        for day, work_keys_at_day in presence(legs, presence_days).items():
+            occupied[day] = {'journey': journey['id'], 'works': work_keys_at_day}
     # Reuse compatible travel days for AC, then spread the remaining AC over free days.
     used_ac = set()
     international_works = {key for item in tours if item.get('international_trip') for key in item['path'] if key != 'home'}
@@ -294,12 +298,12 @@ def build(payroll, batches, raw, graph, planning=None):
                 day = free[((2*index+1)*len(free))//(2*min(needed, len(free)))]
                 candidates.append((day, eligible[index % len(eligible)]))
         if planning is not None:
-            # AC dates are restricted to the employee's dated team assignments.
-            planned = scheduled.assignments(planning)
-            candidates = [(day, next((s for s in eligible if s['key'] in planned.get(day, set()) and
+            # Work dates first; inferred weekend stays may cover the remaining PHC days.
+            candidates = [(day, next((s for s in eligible if s['key'] in allowance_days[day] and
                            (s['key'] not in international_works or day in occupied) and
-                           (day not in occupied or s['key'] in occupied[day]['works'])), None)) for day in days if day not in used_ac]
+                           (day not in occupied or s['key'] in occupied[day]['works'])), None)) for day in allowance_days if day not in used_ac]
             candidates = [(day, selection) for day, selection in candidates if selection]
+            candidates.sort(key=lambda item: (allowance_days[item[0]][item[1]['key']]['basis'] == allowances.WEEKEND, item[0]))
         for day, selection in candidates:
             if remaining <= 0:
                 break
@@ -360,13 +364,14 @@ def result_summary(document):
 def check_entries(document, validating=False):
     start, end = map_bounds(document['payroll'])
     days = set(scheduled.allowed(document))
+    ac_days = set(allowances.eligible(document)) if document.get('planning') is not None else days
     if document.get('planning') is not None:
         scheduled.check(document)
     groups, ac = {}, {}
     for entry in document['entries']:
         if not entry['included']:
             continue
-        if entry['date'] not in days:
+        if entry['date'] not in (days if entry['category'] == 'km' else ac_days):
             raise TravelMapsError('Uma linha está fora dos dias permitidos do período do mapa.')
         if entry.get('driving_dates') and (any(day not in days for day in entry['driving_dates']) or
                 entry.get('daily_km') != daily_allocation(entry['quantity'], entry['driving_dates'])):
@@ -405,7 +410,7 @@ def check_entries(document, validating=False):
                 seconds[day] = seconds.get(day, D(0))+D(entry['provenance']['distance']['seconds'])/len(dates)
         if any(value > D(document['inputs']['max_driving_hours'])*3600 for value in seconds.values()):
             raise TravelMapsError('Um dia excede o limite de horas de condução.')
-        for day, work_keys_at_day in presence(legs, days).items():
+        for day, work_keys_at_day in presence(legs, days | ac_days).items():
             if journey.get('international_trip'):
                 international_presence.setdefault(day, set()).update(work_keys_at_day)
             if legs[0].get('start_date', legs[0]['date']) <= day <= legs[-1]['date']:
@@ -422,10 +427,11 @@ def check_entries(document, validating=False):
 def calendar(document):
     start, end = map_bounds(document['payroll'])
     allowed = set(scheduled.allowed(document))
+    ac_allowed = set(allowances.eligible(document)) if document.get('planning') is not None else allowed
     result = []
     for offset in range((end-start).days):
         day = start+timedelta(days=offset); iso = day.isoformat()
         entries = [entry for entry in document['entries'] if iso in entry.get('driving_dates', [entry['date']])]
-        result.append({'date': iso, 'available': iso in allowed, 'entries': entries,
+        result.append({'date': iso, 'available': iso in allowed, 'allowance_available': iso in ac_allowed, 'entries': entries,
                        'km': str(sum((D(e.get('daily_km', {}).get(iso, e['quantity'])) for e in entries if e['included'] and e['category'] == 'km'), D(0)))})
     return result

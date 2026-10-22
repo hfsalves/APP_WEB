@@ -403,6 +403,21 @@ class BudgetPdfTests(unittest.TestCase):
         self.assertEqual(response.headers["Cache-Control"], "no-store, no-cache, must-revalidate, max-age=0")
         self.assertEqual(response.headers["X-PDF-Engine"], "weasyprint")
 
+    def test_pdf_endpoint_does_not_render_a_foreign_agency_budget(self):
+        from modules.gr_budgets.service import BudgetsNotFoundError
+
+        app = Flask(__name__)
+        user = SimpleNamespace(ADMIN=False, DEV=False, LOGIN="cbarthel")
+        with app.test_request_context("/api/gr_orcamentos/orcamento/FOREIGN/pdf?feid=8"):
+            with patch.object(budget_routes, "current_user", user), \
+                    patch.object(budget_routes, "_has_acl", return_value=True), \
+                    patch.object(budget_routes, "get_budget_detail", side_effect=BudgetsNotFoundError("not found")), \
+                    patch.object(budget_routes, "render_budget_pdf_html") as render_html:
+                response, status = budget_routes.api_budget_pdf.__wrapped__("FOREIGN")
+
+        self.assertEqual(status, 404)
+        render_html.assert_not_called()
+
     def test_browser_pdf_decorator_skips_terms_and_repeats_quote_furniture(self):
         import io
 

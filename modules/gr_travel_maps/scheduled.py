@@ -204,6 +204,7 @@ def international_options(graph, day, days, hours, planning, excluded):
 
 
 def annotate(document, *, preserve_declared=False):
+    from . import allowances
     planning = document['planning']
     for entry in document['entries']:
         refs = [row for row in planning['records'] if row['date'] in entry.get('driving_dates', [entry['date']]) and
@@ -233,15 +234,18 @@ def annotate(document, *, preserve_declared=False):
         warning = 'Há deslocações hipotéticas sem registo da viagem ou da presença noutra equipa. Confirme que ocorreram antes de validar; caso contrário, exclua-as.'
         if warning not in document['warnings']:
             document['warnings'].append(warning)
+    allowances.annotate(document, preserve_declared=preserve_declared)
 
 
 def check(document):
+    from . import allowances
     planning = document['planning']
     daily = assignments(planning)
+    ac_days = allowances.eligible(document)
     excluded = set(document['inputs']['blocked_dates']) | set(planning['blocked_dates'])
     for entry in document['entries']:
-        if entry['included'] and entry['category'] != 'km' and entry['work_key'] not in daily.get(entry['date'], set()):
-            raise TravelMapsError('Ajuda de custo fora da obra/data registada no planeamento da equipa.')
+        if entry['included'] and entry['category'] != 'km' and entry['work_key'] not in ac_days.get(entry['date'], {}):
+            raise TravelMapsError('Ajuda de custo sem trabalho registado ou permanência de fim de semana compatível com o planeamento, as ausências e as deslocações.')
     for journey in document['journeys']:
         legs = sorted((e for e in document['entries'] if e['included'] and e.get('journey_id') == journey['id']), key=lambda e: e['leg_index'])
         if not legs:

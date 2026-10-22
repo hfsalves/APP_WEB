@@ -157,7 +157,8 @@
     $('builderPeriodChanged').hidden=!next||(period.start===next.start&&period.end===next.end);
     $('builderPeriodChanged').textContent=next?`Esta versão conserva o período anterior. Reconstrua para criar uma nova versão de ${dateLabel(next.start)} a ${dateLabel(next.end)}.`:'';
     const plan=document?document.planning:context?.planning;
-    $('builderPlanningSummary').textContent=plan?`${plan.days_with_assignments} dias com associação de equipa · ${plan.works.length} obras da equipa · ${plan.extra_works?.length||0} obras de outras equipas para visitas hipotéticas · ${Object.keys(plan.blocked_dates).length} dias com impedimentos. Datas sem registos ficam sem sugestão.`:'Versão anterior baseada apenas nos autos. Uma nova reconstrução consulta o planeamento.';
+    const acCalendar=document?.allowance_calendar;
+    $('builderPlanningSummary').textContent=plan?`${plan.days_with_assignments} dias com associação de equipa · ${plan.works.length} obras da equipa · ${plan.extra_works?.length||0} obras de outras equipas para visitas hipotéticas · ${Object.keys(plan.blocked_dates).length} dias com impedimentos. ${acCalendar?`${acCalendar.weekend_days} dias de fim de semana elegíveis por permanência inferida. `:''}AC apenas com trabalho registado ou continuidade de sexta a segunda na mesma obra.`:'Versão anterior baseada apenas nos autos. Uma nova reconstrução consulta o planeamento.';
     $('builderSourceNotice').textContent=plan?'Obras e datas apoiadas no planeamento e no histórico das equipas. A presença individual, as deslocações e as ajudas de custo continuam sujeitas a confirmação.':'Proposta histórica baseada nos autos; as datas e a associação do trabalhador às obras foram inferidas.';
     $('builderWeekendsField').hidden=!!context?.planning;
     const outcome=document?.result,diagnostics=document?.routes?.diagnostics;
@@ -180,14 +181,16 @@
       if(excluded)tr.className='travel-calendar-excluded';
       const dateCell=cell(tr);dateCell.append(node('strong',`${day.slice(-2)}/${day.slice(5,7)}`),node('small',new Intl.DateTimeFormat('pt-PT',{weekday:'long',timeZone:'UTC'}).format(date)));
       const plannedCell=cell(tr);
+      const weekendStay=acCalendar?.days.find(item=>item.date===day&&item.basis==='PERMANENCIA_FIM_SEMANA');
       if(assignments.length)for(const item of assignments){const work=plan.works.find(w=>w.key===item.work_key);plannedCell.append(node('div',`${item.team} · ${work?.planning_work||work?.work||'Obra'}`,'travel-calendar-leg'));}
+      else if(weekendStay){const work=plan.works.find(w=>w.key===weekendStay.work_key);plannedCell.append(node('div',`Permanência inferida · ${work?.planning_work||work?.work||'Obra'}`,'travel-calendar-leg'),node('small','Sexta e segunda na mesma obra · sem trabalho registado neste dia','travel-muted'));}
       else plannedCell.append(node('span',plan?.blocked_dates[day]||(plan?'Sem associação registada':'Sem planeamento nesta versão'),'travel-muted'));
       const entries=(document?.entries||[]).filter(e=>onDay(e,day)),km=entries.filter(e=>e.category==='km'),ac=entries.filter(e=>e.category!=='km');
       const routeCell=cell(tr);if(km.length)for(const entry of km){const line=node('div',`${entry.from_label||entry.origin} → ${entry.to_label||entry.destination} · ${fmt(dailyKm(entry,day))} km${entry.driving_dates?` · em viagem (${entry.driving_dates.indexOf(day)+1}/${entry.driving_dates.length})`:''}${entry.approximate_distance?' · aproximado':''}`,'travel-calendar-leg');if(!entry.included)line.classList.add('travel-rejected');routeCell.append(line);if(entry.hypothesis){const tag=node('small','HIPÓTESE · sem registo da deslocação','travel-hypothesis');tag.title=entry.hypothesis_reason;routeCell.append(tag);}}
       else{let stay='';for(const journey of document?.journeys||[]){const legs=document.entries.filter(e=>e.included&&e.journey_id===journey.id).sort((a,b)=>a.leg_index-b.leg_index);if(legs.length&&legs[0].date<day&&legs[legs.length-1].date>day){const previous=legs.filter(e=>e.date<day).at(-1);if(previous)stay=`Permanência inferida: ${previous.to_label}`;}}
         routeCell.append(node('span',stay|| (excluded?'Dia excluído':document?'Sem deslocação proposta':'A aguardar reconstrução'),'travel-muted'));}
       cell(tr,km.length?fmt(km.filter(e=>e.included).reduce((sum,e)=>sum+Number(dailyKm(e,day)),0)):'—');
-      const acCell=cell(tr);if(ac.length)for(const entry of ac){const line=node('div',`${labels[entry.category]} · ${fmt(entry.quantity)} dia(s) · ${entry.work}`);if(!entry.included)line.className='travel-rejected';acCell.append(line);}else acCell.textContent='—';
+      const acCell=cell(tr);if(ac.length)for(const entry of ac){const line=node('div',`${labels[entry.category]} · ${fmt(entry.quantity)} dia(s) · ${entry.work}${entry.allowance_basis==='PERMANENCIA_FIM_SEMANA'?' · permanência de fim de semana':''}`);if(!entry.included)line.className='travel-rejected';acCell.append(line);}else acCell.textContent='—';
       const state=cell(tr);if(entries.length){state.append(node('small',`INFERIDO · ${saved&&!draft?saved.current.state.replaceAll('_',' '):'POR VALIDAR'}`));const button=node('button','Rever dia','sz_button sz_button_secondary');button.type='button';button.addEventListener('click',()=>openDay(day));state.append(button);}else state.textContent=excluded?'Excluído':'—';
       $('builderCalendar').append(tr);
     }
@@ -230,6 +233,7 @@
     const entries=document.entries.filter(e=>e.date===day||ids.has(e.journey_id));editRows.clear();$('calendarDayLines').replaceChildren();$('calendarDayTitle').textContent=`Rever ${day}`;$('calendarDayReason').value='';
     for(const entry of entries){const section=node('section',null,'travel-day-line');section.append(node('h3',entry.category==='km'?`${entry.from_label||entry.origin} → ${entry.to_label||entry.destination}`:`${labels[entry.category]} · ${entry.work}`));
       if(entry.hypothesis)section.append(node('p',entry.hypothesis_reason,'travel-hypothesis'));
+      if(entry.allowance_basis==='PERMANENCIA_FIM_SEMANA'){const basis=entry.provenance.allowance_calendar;section.append(node('p',`Permanência inferida pela mesma obra em ${dateLabel(basis.friday)} (sexta) e ${dateLabel(basis.monday)} (segunda). Presença no fim de semana por confirmar.`,'travel-muted'));}
       if(entry.driving_dates)section.append(node('p',`${entry.start_date} a ${entry.end_date} · ${fmt(entry.quantity)} km no total. Distribuição diária inferida; locais de pernoita desconhecidos. Para alterar o percurso ou as datas, ajuste os pressupostos e reconstrua.`,'travel-muted'));
       const row={};const grid=node('div',null,'travel-input-grid');
       for(const [key,label,type] of [['included','Incluir viagem','checkbox'],['date','Data','date'],['quantity',entry.category==='km'?'KM':'Dias','number'],['rate','Valor unitário','number'],['vehicle','Matrícula','text'],['owner','Proprietário','text'],['reason','Motivo','text']]){

@@ -62,7 +62,7 @@ Este documento descreve a implementação efetiva do Grupo, e não o modelo teó
 | CRM | Pipeline, entidades e importação comercial | StationZero e importação PHC | Objetos CRM e `CL` quando aplicável | Distinguir dados de prospeção de cliente PHC efetivo. |
 | Mapa de gestão | Controlo de gestão e análise transversal | StationZero e fontes PHC | Varia por indicador | Cada indicador deve ser lido com origem, período, entidade e regra de cálculo visíveis. |
 
-Na gestão de equipas, **Adicionar equipa** cria um registo em `HSOLS_MASTER.dbo.FREF` com `FREF` (código, até 20 caracteres), `NMFREF` (descrição, até 70) e `U_PLANNING` (grupo configurado e autorizado ao utilizador). O registo recebe um `FREFSTAMP` novo, `U_PLANO=1`, `INACTIVO=0` e os campos de auditoria de criação/alteração. O código é único. Depois de gravar, a equipa aparece no ecrã e nas opções de atribuição de colaboradores; esta operação não cria colaboradores nem altera atribuições existentes.
+Na gestão de equipas, **Adicionar equipa** está disponível apenas para utilizadores com `US.ADMIN=1` na aplicação. A autorização é verificada no servidor e controla o botão e a API; os perfis PHC `U_ADMIN`, `U_ADMINIS` e `U_TEAMS` não concedem, por si só, permissão para criar. Cria um registo em `HSOLS_MASTER.dbo.FREF` com `FREF` (código, até 20 caracteres), `NMFREF` (descrição, até 70) e `U_PLANNING` (grupo configurado e autorizado ao utilizador). O registo recebe um `FREFSTAMP` novo, `U_PLANO=1`, `INACTIVO=0` e os campos de auditoria de criação/alteração. O código é único. Depois de gravar, a equipa aparece no ecrã e nas opções de atribuição de colaboradores; esta operação não cria colaboradores nem altera atribuições existentes.
 
 ## 4. Dossiers internos PHC: convenções relevantes
 

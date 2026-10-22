@@ -61,7 +61,9 @@
                 </div>
                 <div class="filter-actions">
                     <button type="submit" class="filters-submit" disabled>{{ t.teams_filter_apply }}</button>
-                    <button type="button" class="table-export-button" data-team-create-open {% if not planning_options %}disabled{% endif %}>{{ t.teams_create_button }}</button>
+                    {% if can_create_teams %}
+                        <button type="button" class="table-export-button" data-team-create-open {% if not planning_options %}disabled{% endif %}>{{ t.teams_create_button }}</button>
+                    {% endif %}
                     <button type="button" class="table-export-button" data-team-absences-open>{{ t.get('teams_absences_button', 'Ausências') }}</button>
                     <button type="button" class="table-export-button" data-team-regularizations-open>{{ t.get('teams_regularizations_button', 'Regularizações de paie') }}</button>
                     <button type="button" class="table-export-button" data-team-roles-open>{{ t.get('teams_roles_button', 'Roles INTERSOL') }}</button>
@@ -272,6 +274,7 @@
     </div>
 </div>
 
+{% if can_create_teams %}
 <div id="team-create-modal" class="modal-overlay" hidden aria-hidden="true"
      data-error-map='{{ {
        "missing_code": t.teams_create_code_required,
@@ -281,7 +284,8 @@
        "code_too_long": t.teams_create_code_too_long,
        "description_too_long": t.teams_create_description_too_long,
        "team_code_exists": t.teams_create_duplicate,
-       "team_access_denied": t.teams_create_forbidden
+       "team_access_denied": t.teams_create_forbidden,
+       "admin_required": t.teams_create_admin_required
      }|tojson }}'
      data-error-generic="{{ t.teams_create_error }}"
      data-saving-label="{{ t.teams_create_saving }}">
@@ -317,6 +321,7 @@
         </div>
     </div>
 </div>
+{% endif %}
 
 <div id="team-absence-modal" class="modal-overlay" hidden aria-hidden="true"
      data-title="{{ t.get('teams_absences_title', 'Ausências') }}"

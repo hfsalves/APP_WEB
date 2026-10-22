@@ -226,7 +226,8 @@ def ensure_sources_current(document, user):
         operational = {k: v for k, v in current.items() if k != 'map_period'}
         if 'map_period' in original:
             operational['map_period'] = deepcopy(original['map_period'])
-        actual_plan = planning.snapshot(operational, document['measurements'], user)
+        actual_plan = planning.snapshot(operational, document['measurements'], user,
+                                       weekend_context=bool(document['planning'].get('weekend_context')))
         if actual_plan['fingerprint'] != document['planning']['fingerprint']:
             raise store.Conflict('As equipas, datas, obras ou ausências do planeamento mudaram. Reconstrua antes de validar.')
     for entry in document['entries']:

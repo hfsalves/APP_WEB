@@ -30,8 +30,16 @@ def reader():
                 conn.close()
 
 
-def read_rows(payroll):
+def read_rows(payroll, *, weekend_context=False):
     start, end = map_bounds(payroll)
+    query_start, query_end = start, end
+    if weekend_context:
+        # Only read the adjacent Friday/Monday needed to justify a boundary weekend.
+        if start.weekday() >= 5:
+            query_start -= timedelta(days=start.weekday()-4)
+        last = end-timedelta(days=1)
+        if last.weekday() >= 5:
+            query_end += timedelta(days=7-last.weekday())
     employee = payroll['employee']
     if not employee['identity_resolved']:
         raise TravelMapsError('Resolva a identidade PHC antes de consultar a equipa.')
@@ -42,7 +50,7 @@ def read_rows(payroll):
               AND CAST(DATAINI AS date) < ?
               AND (DATAFIM IS NULL OR CAST(DATAFIM AS date) = '19000101' OR CAST(DATAFIM AS date) >= ?)
             ORDER BY U_TEAMSTAMP
-        """, (employee['number'], payroll['company']['phc_db'], end, start))
+        """, (employee['number'], payroll['company']['phc_db'], query_end, query_start))
         assignments = sources.rows(cursor, """
             SELECT P.U_PLANOSTAMP, P.DATA, P.FREF, P.PROCESSO, T.U_TEAMSTAMP,
                    W.OPCSTAMP, W.WORK_MATCHES
@@ -55,7 +63,7 @@ def read_rows(payroll):
             WHERE T.NO = ? AND UPPER(LTRIM(RTRIM(T.ORIGEM))) = UPPER(?)
               AND P.DATA >= ? AND P.DATA < ?
             ORDER BY P.DATA, P.U_PLANOSTAMP, T.U_TEAMSTAMP
-        """, (employee['number'], payroll['company']['phc_db'], start, end))
+        """, (employee['number'], payroll['company']['phc_db'], query_start, query_end))
         other_assignments = sources.rows(cursor, """
             SELECT P.U_PLANOSTAMP, P.DATA, P.FREF, P.PROCESSO, W.OPCSTAMP, W.WORK_MATCHES
             FROM dbo.U_PLANO P OUTER APPLY (SELECT COUNT(*) AS WORK_MATCHES,
@@ -68,9 +76,12 @@ def read_rows(payroll):
         absence_identity = len(identities) == 1 and service.clean(identities[0]['BDADOS']).upper() == payroll['company']['phc_db'].upper() and service.clean(identities[0]['PESTAMP']) == employee['pestamp']
         absences = sources.rows(cursor, """SELECT U_AUSENCIASSTAMP, DATAINI, DATAFIM FROM dbo.U_AUSENCIAS
             WHERE NO = ? AND CAST(DATAINI AS date) < ? AND CAST(DATAFIM AS date) >= ?
-            ORDER BY U_AUSENCIASSTAMP""", (employee['number'], end, start)) if absence_identity else []
-    return {'memberships': memberships, 'assignments': assignments, 'other_assignments': other_assignments, 'absences': absences,
+            ORDER BY U_AUSENCIASSTAMP""", (employee['number'], query_end, query_start)) if absence_identity else []
+    result = {'memberships': memberships, 'assignments': assignments, 'other_assignments': other_assignments, 'absences': absences,
             'absence_identity_unique': absence_identity}
+    if weekend_context:
+        result['weekend_context'] = {'start': query_start.isoformat(), 'end_exclusive': query_end.isoformat()}
+    return result
 
 
 def serial(row):
@@ -81,8 +92,8 @@ def ref(table, stamp):
     return {'database': 'HSOLS_MASTER', 'table': table, 'stamp': service.clean(stamp)}
 
 
-def snapshot(payroll, batches, user):
-    data = read_rows(payroll)
+def snapshot(payroll, batches, user, *, weekend_context=True):
+    data = read_rows(payroll, weekend_context=weekend_context)
     stamps = sorted({service.clean(row['OPCSTAMP']) for row in data['assignments'] + data.get('other_assignments', []) if row['OPCSTAMP']})
     catalogs = []
     for batch in batches:
@@ -138,13 +149,31 @@ def assemble(payroll, batches, data, catalogs):
             records.append(evidence)
             works[key]['planning_refs'].append(evidence)
     start, end = map_bounds(payroll)
+    query_start = datetime.fromisoformat(data['weekend_context']['start']).date() if data.get('weekend_context') else start
+    query_end = datetime.fromisoformat(data['weekend_context']['end_exclusive']).date() if data.get('weekend_context') else end
+    if data.get('weekend_context'):
+        # An absent membership also rules out an inferred weekend with no U_PLANO row.
+        for member in data['memberships']:
+            if not member['AUSENTE'] or not member.get('DATAINI'):
+                continue
+            first = service.original(member['DATAINI'])[:10]
+            last = service.original(member.get('DATAFIM'))
+            last = last[:10] if last and not last.startswith('1900-01-01') else query_end.isoformat()
+            for offset in range((query_end-query_start).days):
+                day = (query_start+timedelta(days=offset)).isoformat()
+                if first <= day <= last:
+                    blocked[day] = 'O registo de pertença à equipa está assinalado como ausente.'
     for absence in data['absences']:
         first = service.original(absence['DATAINI'])[:10]; last = service.original(absence['DATAFIM'])[:10]
-        for offset in range((end-start).days):
-            day = (start+timedelta(days=offset)).isoformat()
+        for offset in range((query_end-query_start).days):
+            day = (query_start+timedelta(days=offset)).isoformat()
             if first <= day <= last:
                 blocked[day] = 'Ausência registada no período.'
     records = [r for r in records if r['date'] not in blocked]
+    context_records = [r for r in records if not start.isoformat() <= r['date'] < end.isoformat()]
+    context_blocked = {day: reason for day, reason in blocked.items() if not start.isoformat() <= day < end.isoformat()}
+    records = [r for r in records if start.isoformat() <= r['date'] < end.isoformat()]
+    blocked = {day: reason for day, reason in blocked.items() if start.isoformat() <= day < end.isoformat()}
     used = {r['work_key'] for r in records}
     works = [works[key] for key in sorted(used)]
     for work in works:
@@ -184,7 +213,7 @@ def assemble(payroll, batches, data, catalogs):
         warnings.append(f'{len(blocked)} dia(s) excluídos por ausência, conflito de equipa ou obra sem ligação segura.')
     original = {**data, 'catalogs': catalogs}
     # Preserve only authorized work records. Omitted assignments expose no work identifiers.
-    authorized_stamps = {s['stamp'] for r in records for s in r['sources'] if s['table'] == 'U_PLANO'}
+    authorized_stamps = {s['stamp'] for r in records+context_records for s in r['sources'] if s['table'] == 'U_PLANO'}
     original['assignments'] = [r for r in data['assignments'] if clean(r['U_PLANOSTAMP']) in authorized_stamps]
     extra_stamps = {s['stamp'] for r in extra_records for s in r['sources'] if s['table'] == 'U_PLANO'}
     serialized = {'memberships': [serial(r) for r in data['memberships']],
@@ -196,5 +225,10 @@ def assemble(payroll, batches, data, catalogs):
               'original': serialized, 'warnings': warnings, 'read_at': datetime.now(timezone.utc).isoformat(),
               'days_with_assignments': len({r['date'] for r in records}),
               'extra_works': list(extra_works.values()), 'extra_records': extra_records}
-    result['fingerprint'] = engine.digest({'original': serialized, 'blocked_dates': blocked, 'records': records, 'extra_records': extra_records})
+    fingerprint = {'original': serialized, 'blocked_dates': blocked, 'records': records, 'extra_records': extra_records}
+    if data.get('weekend_context'):
+        context = {'weekend_context': data['weekend_context'], 'context_records': context_records, 'context_blocked_dates': context_blocked}
+        result.update(context)
+        fingerprint.update(context)
+    result['fingerprint'] = engine.digest(fingerprint)
     return result

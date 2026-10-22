@@ -280,7 +280,7 @@ def api_works():
 @bp.route("/api/gr_orcamentos/opcoes-tecnicas")
 @login_required
 def api_technical_options():
-    if not _has_acl():
+    if not (_has_write_acl(True) or _has_write_acl(False)):
         return _forbidden()
     try:
         return jsonify({"ok": True, **get_budget_technical_options(request.args.get("feid"), current_user)})

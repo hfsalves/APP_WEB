@@ -121554,6 +121554,7 @@ _translation_overrides['pt'].update({
     'teams_create_description_too_long': 'A descrição pode ter até 70 caracteres.',
     'teams_create_duplicate': 'Já existe uma equipa com este código.',
     'teams_create_forbidden': 'Não tem acesso a este grupo de planeamento.',
+    'teams_create_admin_required': 'Apenas administradores podem criar equipas.',
     'teams_create_error': 'Não foi possível criar a equipa. Tente novamente.',
 })
 _translation_overrides['en'].update({
@@ -121571,6 +121572,7 @@ _translation_overrides['en'].update({
     'teams_create_description_too_long': 'The description can contain up to 70 characters.',
     'teams_create_duplicate': 'A team with this code already exists.',
     'teams_create_forbidden': 'You do not have access to this planning group.',
+    'teams_create_admin_required': 'Only administrators can create teams.',
     'teams_create_error': 'Unable to create the team. Please try again.',
 })
 _translation_overrides['fr'].update({
@@ -121588,6 +121590,7 @@ _translation_overrides['fr'].update({
     'teams_create_description_too_long': 'La description peut contenir au maximum 70 caractères.',
     'teams_create_duplicate': 'Une équipe avec ce code existe déjà.',
     'teams_create_forbidden': "Vous n’avez pas accès à ce groupe de planning.",
+    'teams_create_admin_required': 'Seuls les administrateurs peuvent créer des équipes.',
     'teams_create_error': "Impossible de créer l’équipe. Veuillez réessayer.",
 })
 _translation_overrides['es'].update({
@@ -121605,6 +121608,7 @@ _translation_overrides['es'].update({
     'teams_create_description_too_long': 'La descripción puede tener hasta 70 caracteres.',
     'teams_create_duplicate': 'Ya existe un equipo con este código.',
     'teams_create_forbidden': 'No tiene acceso a este grupo de planificación.',
+    'teams_create_admin_required': 'Solo los administradores pueden crear equipos.',
     'teams_create_error': 'No se ha podido crear el equipo. Inténtelo de nuevo.',
 })
 for _lang, _values in _translation_overrides.items():

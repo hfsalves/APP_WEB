@@ -11,6 +11,7 @@ from types import ModuleType
 from typing import Any
 
 from flask import current_app, request
+from flask_login import current_user
 from sqlalchemy import text
 
 from models import db
@@ -549,9 +550,15 @@ def open_legacy_request(
         if not allowed or not resolved_legacy_user:
             raise PermissionError("Utilizador sem permissao para aceder ao modulo GR Planning.")
     env = get_legacy_environment()
+    # Creation uses the application US.ADMIN, independently of PHC planning roles.
+    can_create_teams = bool(
+        getattr(current_user, "is_authenticated", False)
+        and getattr(current_user, "ADMIN", False) == 1
+    )
     with env.app.test_client() as client:
         with client.session_transaction() as sess:
             sess["user"] = resolved_legacy_user
+            sess["can_create_teams"] = can_create_teams
             sess["language"] = "pt"
         return client.open(
             legacy_path,

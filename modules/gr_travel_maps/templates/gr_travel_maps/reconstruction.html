@@ -37,7 +37,7 @@
               <label class="sz_field">AC estrangeiro / dia (€)<input class="sz_input" id="builderForeignRate" type="number" min="0" step="0.000001" data-sz-decimals="6" placeholder="Taxa do PHC"></label>
             </div>
             <label class="travel-review-check" id="builderWeekendsField"><input type="checkbox" id="builderWeekends"> Incluir fins de semana como datas possíveis.</label>
-            <p class="travel-muted">Com planeamento, só são usadas datas associadas à equipa, incluindo fins de semana registados. Os dias excluídos continuam a ser respeitados.</p>
+            <p class="travel-muted">Os KM usam datas associadas à equipa. As AC usam primeiro dias com trabalho registado e podem incluir sábado/domingo por permanência inferida, se sexta e segunda forem na mesma obra. Ausências, dias excluídos e deslocações incompatíveis impedem essa permanência.</p>
             <label class="sz_field">Nota / fonte das correções<textarea class="sz_input" id="builderNote" rows="2" maxlength="1000" placeholder="Explique alterações ou restrições conhecidas."></textarea></label>
           </details>
           <div class="travel-actions"><button class="sz_button sz_button_primary" type="submit" id="builderGenerate" disabled>Reconstruir calendário automaticamente</button><span class="travel-muted">Casa–obra e obra–obra · distâncias rodoviárias · regressos ligados à ida</span></div>
@@ -84,5 +84,5 @@
 {% endblock %}
 {% block scripts %}
 {{ super() }}
-<script src="{{ url_for('gr_travel_maps.static', filename='reconstruction.js') }}?v={{ static_version|default(1) }}-9" defer></script>
+<script src="{{ url_for('gr_travel_maps.static', filename='reconstruction.js') }}?v={{ static_version|default(1) }}-10" defer></script>
 {% endblock %}
