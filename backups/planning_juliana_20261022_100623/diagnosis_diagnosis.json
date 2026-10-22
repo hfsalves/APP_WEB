@@ -1,0 +1,452 @@
+{
+  "planning_columns": [
+    {
+      "TABLE_NAME": "u_lplano",
+      "COLUMN_NAME": "u_lplanostamp",
+      "DATA_TYPE": "varchar"
+    },
+    {
+      "TABLE_NAME": "u_lplano",
+      "COLUMN_NAME": "u_planostamp",
+      "DATA_TYPE": "varchar"
+    },
+    {
+      "TABLE_NAME": "u_lplano",
+      "COLUMN_NAME": "bistamp",
+      "DATA_TYPE": "varchar"
+    },
+    {
+      "TABLE_NAME": "u_lplano",
+      "COLUMN_NAME": "litem",
+      "DATA_TYPE": "numeric"
+    },
+    {
+      "TABLE_NAME": "u_lplano",
+      "COLUMN_NAME": "dgeral",
+      "DATA_TYPE": "text"
+    },
+    {
+      "TABLE_NAME": "u_lplano",
+      "COLUMN_NAME": "fref",
+      "DATA_TYPE": "varchar"
+    },
+    {
+      "TABLE_NAME": "u_lplano",
+      "COLUMN_NAME": "processo",
+      "DATA_TYPE": "varchar"
+    },
+    {
+      "TABLE_NAME": "u_lplano",
+      "COLUMN_NAME": "data",
+      "DATA_TYPE": "date"
+    },
+    {
+      "TABLE_NAME": "u_lplano",
+      "COLUMN_NAME": "fixo",
+      "DATA_TYPE": "numeric"
+    },
+    {
+      "TABLE_NAME": "u_plano",
+      "COLUMN_NAME": "u_planostamp",
+      "DATA_TYPE": "varchar"
+    },
+    {
+      "TABLE_NAME": "u_plano",
+      "COLUMN_NAME": "data",
+      "DATA_TYPE": "date"
+    },
+    {
+      "TABLE_NAME": "u_plano",
+      "COLUMN_NAME": "fref",
+      "DATA_TYPE": "varchar"
+    },
+    {
+      "TABLE_NAME": "u_plano",
+      "COLUMN_NAME": "processo",
+      "DATA_TYPE": "varchar"
+    },
+    {
+      "TABLE_NAME": "u_plano",
+      "COLUMN_NAME": "fixo",
+      "DATA_TYPE": "numeric"
+    },
+    {
+      "TABLE_NAME": "u_plano",
+      "COLUMN_NAME": "rep",
+      "DATA_TYPE": "numeric"
+    },
+    {
+      "TABLE_NAME": "u_plano",
+      "COLUMN_NAME": "premio",
+      "DATA_TYPE": "numeric"
+    }
+  ],
+  "plans": [
+    {
+      "u_planostamp": "53672F051AD54647878FFFAA7",
+      "data": "2026-08-18",
+      "fref": "352",
+      "processo": "HS2344",
+      "fixo": "0.00",
+      "rep": "0",
+      "premio": "0.00"
+    },
+    {
+      "u_planostamp": "7341BE89D6074E0089D9FC0DC",
+      "data": "2026-08-19",
+      "fref": "351",
+      "processo": "HS2344",
+      "fixo": "0.00",
+      "rep": "0",
+      "premio": "0.00"
+    },
+    {
+      "u_planostamp": "FF6759FF678E4798A5660BB9A",
+      "data": "2026-09-03",
+      "fref": "353",
+      "processo": "HS2357",
+      "fixo": "0.00",
+      "rep": "0",
+      "premio": "0.00"
+    },
+    {
+      "u_planostamp": "92E985DEA57242EF9710C5504",
+      "data": "2026-09-14",
+      "fref": "353",
+      "processo": "HS2412",
+      "fixo": "0.00",
+      "rep": "0",
+      "premio": "0.00"
+    },
+    {
+      "u_planostamp": "52E4BC333CEA4EF5A71727CEE",
+      "data": "2026-09-25",
+      "fref": "352",
+      "processo": "HS2412",
+      "fixo": "0.00",
+      "rep": "0",
+      "premio": "0.00"
+    },
+    {
+      "u_planostamp": "1297BAD2C1E14A3BADAD4AFAB",
+      "data": "2026-09-19",
+      "fref": "355",
+      "processo": "HS2413",
+      "fixo": "0.00",
+      "rep": "0",
+      "premio": "0.00"
+    },
+    {
+      "u_planostamp": "8EADB2A60C27433F870EA3035",
+      "data": "2026-10-13",
+      "fref": "355",
+      "processo": "HS2413",
+      "fixo": "0.00",
+      "rep": "0",
+      "premio": "0.00"
+    }
+  ],
+  "production": [],
+  "HSOLS_MASTER_dossiers": [],
+  "HSOLS_MASTER_lines": [],
+  "INTERSOL_dossiers": [
+    {
+      "BOSTAMP": "RN26081455108,884000002  ",
+      "NDOS": "102",
+      "NMDOS": "Bon Commande Fournisseur",
+      "OBRANO": "1528",
+      "BOANO": "2026",
+      "DATAOBRA": "2026-08-14 00:00:00",
+      "NOME": "ALMAX SARL                                             ",
+      "FECHADA": true,
+      "PROCESSO": "IS2344",
+      "LINES": 4
+    },
+    {
+      "BOSTAMP": "CE48DB0473304E75B8B21255C",
+      "NDOS": "118",
+      "NMDOS": "Situation de Travaux",
+      "OBRANO": "538",
+      "BOANO": "2026",
+      "DATAOBRA": "2026-08-17 00:00:00",
+      "NOME": "M. STAHL Vincent                                       ",
+      "FECHADA": true,
+      "PROCESSO": "IS2344",
+      "LINES": 1
+    },
+    {
+      "BOSTAMP": "SRF26081450381,403000001 ",
+      "NDOS": "122",
+      "NMDOS": "Étude et Exécution",
+      "OBRANO": "500",
+      "BOANO": "2026",
+      "DATAOBRA": "2026-08-14 00:00:00",
+      "NOME": "M. STAHL Vincent                                       ",
+      "FECHADA": false,
+      "PROCESSO": "IS2344",
+      "LINES": 1
+    },
+    {
+      "BOSTAMP": "SF26090839928,596000001  ",
+      "NDOS": "124",
+      "NMDOS": "S. Travaux Avoir",
+      "OBRANO": "52",
+      "BOANO": "2026",
+      "DATAOBRA": "2026-08-31 00:00:00",
+      "NOME": "M. STAHL Vincent                                       ",
+      "FECHADA": true,
+      "PROCESSO": "IS2344",
+      "LINES": 2
+    },
+    {
+      "BOSTAMP": "03CC17A03A974CC8A7024ACCD",
+      "NDOS": "130",
+      "NMDOS": "Bon Livraison Fourn.",
+      "OBRANO": "5477",
+      "BOANO": "2026",
+      "DATAOBRA": "2026-08-18 00:00:00",
+      "NOME": "EQIOM STEINBOURG                                       ",
+      "FECHADA": true,
+      "PROCESSO": "IS2344",
+      "LINES": 6
+    },
+    {
+      "BOSTAMP": "51DF9BBB69AC46B188BCA6DDB",
+      "NDOS": "130",
+      "NMDOS": "Bon Livraison Fourn.",
+      "OBRANO": "5478",
+      "BOANO": "2026",
+      "DATAOBRA": "2026-08-18 00:00:00",
+      "NOME": "EQIOM STEINBOURG                                       ",
+      "FECHADA": true,
+      "PROCESSO": "IS2344",
+      "LINES": 6
+    },
+    {
+      "BOSTAMP": "5673DBC77FEF455F916BB186F",
+      "NDOS": "130",
+      "NMDOS": "Bon Livraison Fourn.",
+      "OBRANO": "5479",
+      "BOANO": "2026",
+      "DATAOBRA": "2026-08-18 00:00:00",
+      "NOME": "EQIOM STEINBOURG                                       ",
+      "FECHADA": true,
+      "PROCESSO": "IS2344",
+      "LINES": 6
+    },
+    {
+      "BOSTAMP": "289CE130762D475989ABFD25D",
+      "NDOS": "130",
+      "NMDOS": "Bon Livraison Fourn.",
+      "OBRANO": "5480",
+      "BOANO": "2026",
+      "DATAOBRA": "2026-08-18 00:00:00",
+      "NOME": "EQIOM STEINBOURG                                       ",
+      "FECHADA": true,
+      "PROCESSO": "IS2344",
+      "LINES": 6
+    },
+    {
+      "BOSTAMP": "MS26091762742,357000001  ",
+      "NDOS": "218",
+      "NMDOS": "Pré-Facture",
+      "OBRANO": "1625",
+      "BOANO": "2026",
+      "DATAOBRA": "2026-08-14 00:00:00",
+      "NOME": "ALMAX SARL                                             ",
+      "FECHADA": true,
+      "PROCESSO": "IS2344",
+      "LINES": 4
+    },
+    {
+      "BOSTAMP": "9C0DCA939E9A4EAAAD43BAC0C",
+      "NDOS": "218",
+      "NMDOS": "Pré-Facture",
+      "OBRANO": "1587",
+      "BOANO": "2026",
+      "DATAOBRA": "2026-08-31 00:00:00",
+      "NOME": "EQIOM STEINBOURG                                       ",
+      "FECHADA": true,
+      "PROCESSO": "IS2344",
+      "LINES": 25
+    },
+    {
+      "BOSTAMP": "DDCF9B0318594FC9AD7F49CD5",
+      "NDOS": "118",
+      "NMDOS": "Situation de Travaux",
+      "OBRANO": "643",
+      "BOANO": "2026",
+      "DATAOBRA": "2026-09-25 00:00:00",
+      "NOME": "CONSTRUCTIONS BLEYER SARL                              ",
+      "FECHADA": true,
+      "PROCESSO": "IS2412",
+      "LINES": 3
+    },
+    {
+      "BOSTAMP": "SF26100151695,393000001  ",
+      "NDOS": "122",
+      "NMDOS": "Étude et Exécution",
+      "OBRANO": "571",
+      "BOANO": "2026",
+      "DATAOBRA": "2026-10-01 00:00:00",
+      "NOME": "CONSTRUCTIONS BLEYER SARL                              ",
+      "FECHADA": false,
+      "PROCESSO": "IS2412",
+      "LINES": 3
+    },
+    {
+      "BOSTAMP": "FC5ACADA761D4937BAA7C4A88",
+      "NDOS": "118",
+      "NMDOS": "Situation de Travaux",
+      "OBRANO": "644",
+      "BOANO": "2026",
+      "DATAOBRA": "2026-09-25 00:00:00",
+      "NOME": "CONSTRUCTIONS BLEYER SARL                              ",
+      "FECHADA": true,
+      "PROCESSO": "IS2413",
+      "LINES": 2
+    },
+    {
+      "BOSTAMP": "BD1E3056155F4651866531B7E",
+      "NDOS": "118",
+      "NMDOS": "Situation de Travaux",
+      "OBRANO": "683",
+      "BOANO": "2026",
+      "DATAOBRA": "2026-10-15 00:00:00",
+      "NOME": "CONSTRUCTIONS BLEYER SARL                              ",
+      "FECHADA": true,
+      "PROCESSO": "IS2413",
+      "LINES": 2
+    },
+    {
+      "BOSTAMP": "SF26100152233,787000002  ",
+      "NDOS": "122",
+      "NMDOS": "Étude et Exécution",
+      "OBRANO": "572",
+      "BOANO": "2026",
+      "DATAOBRA": "2026-10-01 00:00:00",
+      "NOME": "CONSTRUCTIONS BLEYER SARL                              ",
+      "FECHADA": false,
+      "PROCESSO": "IS2413",
+      "LINES": 2
+    },
+    {
+      "BOSTAMP": "APR26100242728,205000002 ",
+      "NDOS": "128",
+      "NMDOS": "Contrat Sous-Traitant",
+      "OBRANO": "125",
+      "BOANO": "2026",
+      "DATAOBRA": "2026-09-21 00:00:00",
+      "NOME": "BETAOCONCEPT LDA                                       ",
+      "FECHADA": false,
+      "PROCESSO": "IS2413",
+      "LINES": 2
+    },
+    {
+      "BOSTAMP": "F1232734671A4B51B25D75AE6",
+      "NDOS": "129",
+      "NMDOS": "Situation Travaux ST",
+      "OBRANO": "160",
+      "BOANO": "2026",
+      "DATAOBRA": "2026-09-21 00:00:00",
+      "NOME": "BETAOCONCEPT LDA                                       ",
+      "FECHADA": false,
+      "PROCESSO": "IS2413",
+      "LINES": 1
+    },
+    {
+      "BOSTAMP": "MS26101337600,264000001  ",
+      "NDOS": "218",
+      "NMDOS": "Pré-Facture",
+      "OBRANO": "1854",
+      "BOANO": "2026",
+      "DATAOBRA": "2026-09-30 00:00:00",
+      "NOME": "BETAOCONCEPT LDA                                       ",
+      "FECHADA": true,
+      "PROCESSO": "IS2413",
+      "LINES": 2
+    }
+  ],
+  "INTERSOL_lines": [
+    {
+      "PROCESSO": "IS2344",
+      "BOSTAMP": "SRF26081450381,403000001 ",
+      "BISTAMP": "SRF26081450381,432000001 ",
+      "NDOS": "122",
+      "LITEM": "",
+      "REF": "V.01.01.000.0021  ",
+      "DGERAL": "",
+      "QTT": "126.0000",
+      "QTT2": "0.0000",
+      "UNIDADE": " ",
+      "OBISTAMP": "                         "
+    },
+    {
+      "PROCESSO": "IS2412",
+      "BOSTAMP": "SF26100151695,393000001  ",
+      "BISTAMP": "SF26100151695,487000001  ",
+      "NDOS": "122",
+      "LITEM": "",
+      "REF": "V.01.01.000.0021  ",
+      "DGERAL": "",
+      "QTT": "289.0000",
+      "QTT2": "0.0000",
+      "UNIDADE": " ",
+      "OBISTAMP": "                         "
+    },
+    {
+      "PROCESSO": "IS2412",
+      "BOSTAMP": "SF26100151695,393000001  ",
+      "BISTAMP": "SF26100152025,140000003  ",
+      "NDOS": "122",
+      "LITEM": "",
+      "REF": "V.01.01.000.0021  ",
+      "DGERAL": "",
+      "QTT": "838.0000",
+      "QTT2": "0.0000",
+      "UNIDADE": " ",
+      "OBISTAMP": "                         "
+    },
+    {
+      "PROCESSO": "IS2412",
+      "BOSTAMP": "SF26100151695,393000001  ",
+      "BISTAMP": "SF26100151807,762000002  ",
+      "NDOS": "122",
+      "LITEM": "",
+      "REF": "                  ",
+      "DGERAL": "",
+      "QTT": "0.0000",
+      "QTT2": "0.0000",
+      "UNIDADE": "",
+      "OBISTAMP": "                         "
+    },
+    {
+      "PROCESSO": "IS2413",
+      "BOSTAMP": "SF26100152233,787000002  ",
+      "BISTAMP": "SF26100152233,869000001  ",
+      "NDOS": "122",
+      "LITEM": "",
+      "REF": "V.01.01.000.0021  ",
+      "DGERAL": "",
+      "QTT": "1814.0000",
+      "QTT2": "0.0000",
+      "UNIDADE": " ",
+      "OBISTAMP": "                         "
+    },
+    {
+      "PROCESSO": "IS2413",
+      "BOSTAMP": "SF26100152233,787000002  ",
+      "BISTAMP": "SF26100152301,311000002  ",
+      "NDOS": "122",
+      "LITEM": "",
+      "REF": "                  ",
+      "DGERAL": "",
+      "QTT": "0.0000",
+      "QTT2": "0.0000",
+      "UNIDADE": "",
+      "OBISTAMP": "                         "
+    }
+  ],
+  "HSOLS_FR_dossiers": [],
+  "HSOLS_FR_lines": []
+}

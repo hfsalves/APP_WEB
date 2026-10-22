@@ -1,0 +1,111 @@
+{
+  "HS2344": {
+    "status": 200,
+    "real_items": [
+      {
+        "bistamp": "SRF26081450381,432000001",
+        "dgeral": "BÉTON DESACTIVÉ EP. 15 CM",
+        "litem": "1",
+        "obram": "IS2344",
+        "qtt": 126.0,
+        "qtt2": 0.0,
+        "unidade": " "
+      }
+    ],
+    "auxiliary_items": 8
+  },
+  "HS2412": {
+    "status": 200,
+    "real_items": [
+      {
+        "bistamp": "SF26100151695,487000001",
+        "dgeral": "Coulage dallage porté Bât A GUEBWILLER",
+        "litem": "1",
+        "obram": "IS2412",
+        "qtt": 289.0,
+        "qtt2": 0.0,
+        "unidade": " "
+      },
+      {
+        "bistamp": "SF26100152025,140000003",
+        "dgeral": "Coulage dallage porté Bât B GUEBWILLER",
+        "litem": "2",
+        "obram": "IS2412",
+        "qtt": 838.0,
+        "qtt2": 0.0,
+        "unidade": " "
+      }
+    ],
+    "auxiliary_items": 8
+  },
+  "HS2413": {
+    "status": 200,
+    "real_items": [
+      {
+        "bistamp": "SF26100152233,869000001",
+        "dgeral": "Coulage dallage Bât C",
+        "litem": "1",
+        "obram": "IS2413",
+        "qtt": 1814.0,
+        "qtt2": 0.0,
+        "unidade": " "
+      }
+    ],
+    "auxiliary_items": 8
+  },
+  "HS2357": {
+    "status": 200,
+    "real_items": [
+      {
+        "bistamp": "SRF26082734346,550000001",
+        "dgeral": "ST Dallage XA3 C35/45 ép 18 MOYENNE",
+        "litem": "1",
+        "obram": "FR2357",
+        "qtt": 55.0,
+        "qtt2": 0.0,
+        "unidade": " "
+      },
+      {
+        "bistamp": "SRF26082734441,828000002",
+        "dgeral": "ST Dallage PV finition quartz /M2",
+        "litem": "2",
+        "obram": "FR2357",
+        "qtt": 55.0,
+        "qtt2": 0.0,
+        "unidade": " "
+      }
+    ],
+    "auxiliary_items": 8
+  },
+  "access": {
+    "planning_user": "jsousa",
+    "hsols_france_permission": false,
+    "external_project_visible": true
+  },
+  "u_plano_unchanged": true,
+  "u_lplano_unchanged": true,
+  "u_am_unchanged": true,
+  "u_aml_unchanged": true,
+  "production_calculations": "No production records or allocations exist for these four projects; actual quantities per day and worker must be entered before payroll calculations can be reconciled.",
+  "tests": {
+    "budget_item_regression_tests": 6,
+    "intersol_existing_tests": 44,
+    "result": "all passed"
+  },
+  "deployment": {
+    "phc_data_repair": "applied and committed",
+    "application_change": "local, tested, not published"
+  },
+  "date_discrepancies": [
+    {
+      "project": "HS2357",
+      "email": "2026-09-19",
+      "planning": "2026-09-03"
+    },
+    {
+      "project": "HS2413",
+      "email": "2026-10-12",
+      "planning": "2026-10-13"
+    }
+  ]
+}

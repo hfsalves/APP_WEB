@@ -1,0 +1,109 @@
+{
+  "HS2344": {
+    "status": 200,
+    "items": []
+  },
+  "HS2412": {
+    "status": 200,
+    "items": []
+  },
+  "HS2413": {
+    "status": 200,
+    "items": []
+  },
+  "HS2357": {
+    "status": 200,
+    "items": [
+      {
+        "bistamp": "SRF26082734346,550000001",
+        "dgeral": "ST Dallage XA3 C35/45 ép 18 MOYENNE",
+        "litem": "1",
+        "obram": "FR2357",
+        "qtt": 55.0,
+        "qtt2": 0.0,
+        "unidade": " "
+      },
+      {
+        "bistamp": "SRF26082734441,828000002",
+        "dgeral": "ST Dallage PV finition quartz /M2",
+        "litem": "2",
+        "obram": "FR2357",
+        "qtt": 55.0,
+        "qtt2": 0.0,
+        "unidade": " "
+      },
+      {
+        "bistamp": "FIXO_980",
+        "dgeral": "IMOBILIZACAO",
+        "litem": "980",
+        "obram": "FR2357",
+        "qtt": 0.0,
+        "qtt2": 0.0,
+        "unidade": ""
+      },
+      {
+        "bistamp": "FIXO_990",
+        "dgeral": "VIAGEM",
+        "litem": "990",
+        "obram": "FR2357",
+        "qtt": 0.0,
+        "qtt2": 0.0,
+        "unidade": ""
+      },
+      {
+        "bistamp": "FIXO_994",
+        "dgeral": "LAVAGE",
+        "litem": "994",
+        "obram": "FR2357",
+        "qtt": 0.0,
+        "qtt2": 0.0,
+        "unidade": ""
+      },
+      {
+        "bistamp": "FIXO_995",
+        "dgeral": "OUTROS",
+        "litem": "995",
+        "obram": "FR2357",
+        "qtt": 0.0,
+        "qtt2": 0.0,
+        "unidade": ""
+      },
+      {
+        "bistamp": "FIXO_996",
+        "dgeral": "FERRO",
+        "litem": "996",
+        "obram": "FR2357",
+        "qtt": 0.0,
+        "qtt2": 0.0,
+        "unidade": ""
+      },
+      {
+        "bistamp": "FIXO_997",
+        "dgeral": "REPARAÇÃO",
+        "litem": "997",
+        "obram": "FR2357",
+        "qtt": 0.0,
+        "qtt2": 0.0,
+        "unidade": ""
+      },
+      {
+        "bistamp": "FIXO_998",
+        "dgeral": "COULIS",
+        "litem": "998",
+        "obram": "FR2357",
+        "qtt": 0.0,
+        "qtt2": 0.0,
+        "unidade": ""
+      },
+      {
+        "bistamp": "FIXO_999",
+        "dgeral": "PREPARAÇÃO",
+        "litem": "999",
+        "obram": "FR2357",
+        "qtt": 0.0,
+        "qtt2": 0.0,
+        "unidade": ""
+      }
+    ]
+  }
+}

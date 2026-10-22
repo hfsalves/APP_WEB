@@ -1121,20 +1121,21 @@ class Database:
             "AND UPPER(SUBSTRING(LTRIM(RTRIM(ISNULL(OBRAM, ''))), 3, 8000)) = ? "
             "ORDER BY LITEM"
         )
-        intersol_query = (
+        source_query = (
             "WITH BASE AS ("
             "    SELECT "
             "        CAST(0 AS bit) AS MARCADA, "
             "        BO2.PROCESSO AS OBRAM, "
             "        TRY_CONVERT(numeric(10,0), BI.LITEM) AS LITEM, "
-            "        BI.DGERAL, BI.QTT, BI.UNIDADE, BI.QTT2, BI.BISTAMP "
-            "    FROM INTERSOL.dbo.BI AS BI "
-            "    INNER JOIN INTERSOL.dbo.BO2 AS BO2 ON BO2.BO2STAMP = BI.BOSTAMP "
+            "        COALESCE(NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(max), BI.DGERAL))), ''), BI.DESIGN) AS DGERAL, "
+            "        BI.QTT, BI.UNIDADE, BI.QTT2, BI.BISTAMP "
+            "    FROM {source_database}.dbo.BI AS BI "
+            "    INNER JOIN {source_database}.dbo.BO2 AS BO2 ON BO2.BO2STAMP = BI.BOSTAMP "
             "    WHERE BI.NDOS = 122 "
             "      AND BI.LITEM <> 'ZZ' "
             "      AND CHARINDEX('.', BI.LITEM) = 0 "
             "      AND TRY_CONVERT(numeric(10,0), BI.LITEM) IS NOT NULL "
-            "      AND UPPER(SUBSTRING(LTRIM(RTRIM(BO2.PROCESSO)), 3, 8000)) = ?"
+            "      AND UPPER(LTRIM(RTRIM(BO2.PROCESSO))) = ?"
             "), SEED AS ("
             "    SELECT OBRAM, MIN(BISTAMP) AS BISTAMP FROM BASE GROUP BY OBRAM"
             "), FIXOS AS ("
@@ -1184,10 +1185,19 @@ class Database:
                     (full_project_code,),
                 )
                 project_origin = str((cursor.fetchone() or [''])[0] or '').strip().upper()
-                if not project_origin.startswith('INTERSOL'):
+                # Central planning uses HS codes; PHC keeps each entity's prefix.
+                # Only these known sources may supply missing central budget lines.
+                if project_origin.startswith('INTERSOL'):
+                    source_database, source_prefix = 'INTERSOL', 'IS'
+                elif project_origin == 'HSOLS FRANCE':
+                    source_database, source_prefix = 'HSOLS_FR', 'FR'
+                else:
                     return []
 
-                cursor.execute(intersol_query, (core_code,))
+                cursor.execute(
+                    source_query.format(source_database=source_database),
+                    (source_prefix + core_code,),
+                )
                 rows = cursor.fetchall()
                 columns = [col[0].lower() for col in cursor.description]
                 return serialize_rows(rows, columns)

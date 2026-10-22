@@ -1,0 +1,148 @@
+{
+  "all_production": [],
+  "all_plans": [
+    {
+      "u_planostamp": "53672F051AD54647878FFFAA7",
+      "data": "2026-08-18",
+      "fref": "352",
+      "processo": "HS2344",
+      "fixo": "0.00",
+      "rep": "0",
+      "premio": "0.00"
+    },
+    {
+      "u_planostamp": "7341BE89D6074E0089D9FC0DC",
+      "data": "2026-08-19",
+      "fref": "351",
+      "processo": "HS2344",
+      "fixo": "0.00",
+      "rep": "0",
+      "premio": "0.00"
+    },
+    {
+      "u_planostamp": "FF6759FF678E4798A5660BB9A",
+      "data": "2026-09-03",
+      "fref": "353",
+      "processo": "HS2357",
+      "fixo": "0.00",
+      "rep": "0",
+      "premio": "0.00"
+    },
+    {
+      "u_planostamp": "92E985DEA57242EF9710C5504",
+      "data": "2026-09-14",
+      "fref": "353",
+      "processo": "HS2412",
+      "fixo": "0.00",
+      "rep": "0",
+      "premio": "0.00"
+    },
+    {
+      "u_planostamp": "52E4BC333CEA4EF5A71727CEE",
+      "data": "2026-09-25",
+      "fref": "352",
+      "processo": "HS2412",
+      "fixo": "0.00",
+      "rep": "0",
+      "premio": "0.00"
+    },
+    {
+      "u_planostamp": "1297BAD2C1E14A3BADAD4AFAB",
+      "data": "2026-09-19",
+      "fref": "355",
+      "processo": "HS2413",
+      "fixo": "0.00",
+      "rep": "0",
+      "premio": "0.00"
+    },
+    {
+      "u_planostamp": "8EADB2A60C27433F870EA3035",
+      "data": "2026-10-13",
+      "fref": "355",
+      "processo": "HS2413",
+      "fixo": "0.00",
+      "rep": "0",
+      "premio": "0.00"
+    }
+  ],
+  "hsols_lines": [
+    {
+      "BISTAMP": "SRF26082734346,550000001 ",
+      "BOSTAMP": "SRF26082734346,506000001 ",
+      "LITEM": "1",
+      "LORDEM": "10000",
+      "REF": "V.01.01.000.0021  ",
+      "DESIGN": "ST Dallage XA3 C35/45 ép 18 MOYENNE",
+      "DGERAL": "",
+      "QTT": "55.0000",
+      "QTT2": "0.0000",
+      "UNIDADE": " ",
+      "PROCESSO": "FR2357"
+    },
+    {
+      "BISTAMP": "SRF26082734441,828000002 ",
+      "BOSTAMP": "SRF26082734346,506000001 ",
+      "LITEM": "2",
+      "LORDEM": "20000",
+      "REF": "V.01.01.000.0021  ",
+      "DESIGN": "ST Dallage PV finition quartz /M2",
+      "DGERAL": "",
+      "QTT": "55.0000",
+      "QTT2": "0.0000",
+      "UNIDADE": " ",
+      "PROCESSO": "FR2357"
+    }
+  ],
+  "master_2357_lines": [],
+  "intersol_header_metadata": {
+    "error": "('42S22', \"[42S22] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Invalid column name 'U_ORIGEM'. (207) (SQLExecDirectW)\")"
+  },
+  "bi_triggers": [
+    {
+      "db": "INTERSOL",
+      "name": "tr_bi_insert",
+      "definition": null
+    },
+    {
+      "db": "INTERSOL",
+      "name": "tr_bi_delete",
+      "definition": null
+    },
+    {
+      "db": "INTERSOL",
+      "name": "tr_bi_update",
+      "definition": null
+    },
+    {
+      "db": "INTERSOL",
+      "name": "uTRI_BI_EQUIPAMENTO",
+      "definition": "CREATE   TRIGGER uTRI_BI_EQUIPAMENTO ON BI AFTER INSERT AS \r\nBEGIN \r\n\tPRINT 'TRIGGER: uTRI_BI_EQUIPAMENTO'\r\n\r\n\tDECLARE @MATRICULA VARCHAR(40) \r\n\r\n\tDECLARE crsTMP CURSOR LOCAL FAST_FORWARD FOR \r\n\t\tSELECT TRIM(I.LOBS) FROM INSERTED AS I WHERE I.NDOS = 216 AND I.REF <> '' AND I.LOBS <> ''\r\n\r\n\tOPEN crsTMP\r\n\t\tFETCH NEXT FROM crsTMP INTO @MATRICULA\r\n\r\n\t\tWHILE @@FETCH_STATUS = 0\r\n\t\t\tBEGIN \r\n\t\t\t\tEXEC uSP_SET_EQUIPAMENTO @IN_MATRICULA = @MATRICULA\r\n\r\n\t\t\t\tFETCH NEXT FROM crsTMP INTO @MATRICULA\r\n\t\t\tEND\r\n\tCLOSE crsTMP\r\n\tDEALLOCATE crsTMP \r\nEND\r\n"
+    },
+    {
+      "db": "INTERSOL",
+      "name": "uTRU_BI_EQUIPAMENTO",
+      "definition": "\r\nCREATE   TRIGGER uTRU_BI_EQUIPAMENTO ON BI AFTER UPDATE AS \r\nBEGIN \r\n\tPRINT 'TRIGGER: uTRU_BI_EQUIPAMENTO'\r\n\r\n\tDECLARE @MATRICULA VARCHAR(40) \r\n\r\n\tDECLARE crsTMP CURSOR LOCAL FAST_FORWARD FOR \r\n\t\tSELECT TRIM(I.LOBS) FROM INSERTED AS I WHERE I.NDOS = 216 AND I.REF <> '' AND I.LOBS <> ''\r\n\t\tUNION \r\n\t\tSELECT TRIM(D.LOBS) FROM DELETED AS D WHERE D.NDOS = 216 AND D.REF <> '' AND D.LOBS <> ''\r\n\r\n\tOPEN crsTMP\r\n\t\tFETCH NEXT FROM crsTMP INTO @MATRICULA\r\n\r\n\t\tWHILE @@FETCH_STATUS = 0\r\n\t\t\tBEGIN \r\n\t\t\t\tEXEC uSP_SET_EQUIPAMENTO @IN_MATRICULA = @MATRICULA\r\n\r\n\t\t\t\tFETCH NEXT FROM crsTMP INTO @MATRICULA\r\n\t\t\tEND\r\n\tCLOSE crsTMP\r\n\tDEALLOCATE crsTMP \r\nEND\r\n"
+    },
+    {
+      "db": "INTERSOL",
+      "name": "uTRD_BI_EQUIPAMENTO",
+      "definition": "\r\nCREATE   TRIGGER uTRD_BI_EQUIPAMENTO ON BI AFTER DELETE AS \r\nBEGIN \r\n\tPRINT 'TRIGGER: uTRD_BI_EQUIPAMENTO'\r\n\r\n\tDECLARE @MATRICULA VARCHAR(40) \r\n\r\n\tDECLARE crsTMP CURSOR LOCAL FAST_FORWARD FOR \r\n\t\tSELECT TRIM(D.LOBS) FROM DELETED AS D WHERE D.NDOS = 216 AND D.REF <> '' AND D.LOBS <> ''\r\n\r\n\tOPEN crsTMP\r\n\t\tFETCH NEXT FROM crsTMP INTO @MATRICULA\r\n\r\n\t\tWHILE @@FETCH_STATUS = 0\r\n\t\t\tBEGIN \r\n\t\t\t\tEXEC uSP_SET_EQUIPAMENTO @IN_MATRICULA = @MATRICULA\r\n\r\n\t\t\t\tFETCH NEXT FROM crsTMP INTO @MATRICULA\r\n\t\t\tEND\r\n\tCLOSE crsTMP\r\n\tDEALLOCATE crsTMP \r\nEND\r\n"
+    },
+    {
+      "db": "HSOLS_MASTER",
+      "name": "tr_bi_insert",
+      "definition": null
+    },
+    {
+      "db": "HSOLS_MASTER",
+      "name": "tr_bi_delete",
+      "definition": null
+    },
+    {
+      "db": "HSOLS_MASTER",
+      "name": "tr_bi_update",
+      "definition": null
+    }
+  ],
+  "master_sync_jobs": []
+}

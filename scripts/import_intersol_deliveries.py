@@ -243,13 +243,43 @@ def allocate(excel: list[dict[str, Any]], source: list[dict[str, Any]]) -> list[
     return result
 
 
-def assert_no_duplicates(cursor, excel: list[dict[str, Any]]) -> None:
+def dossier_key(external: str, header: dict[str, Any]) -> tuple[str, int, int, str]:
+    """An external supplier document may contain allocations to several jobs."""
+    return (external, int(decimal(header.get("NO"))), int(decimal(header.get("ESTAB"))),
+            clean(header.get("CCUSTO")))
+
+
+def document_groups(allocations, headers):
+    deliveries = defaultdict(list)
+    invoices = defaultdict(list)
+    for item in allocations:
+        header = headers[item["source"]["bc"]]
+        row = item["excel"]
+        if not row.get("direct_pf"):
+            deliveries[dossier_key(row["delivery"], header)].append(item)
+        invoices[dossier_key(row["invoice"], header)].append(item)
+    return deliveries, invoices
+
+
+def assert_no_duplicates(cursor, excel: list[dict[str, Any]], headers=None) -> None:
     # The external delivery number is the durable, user-visible id.  FREF is
     # intentionally never used by these imports, including on pre-invoices.
     checks = ((BL_NDOS, "MAQUINA", {row["delivery"] for row in excel if row["delivery"]}),)
     for ndos, field, values in checks:
+        if not values:
+            continue
         placeholders = ",".join("?" for _ in values)
-        found = rows(cursor, f"SELECT OBRANO,{field} FROM dbo.BO WITH (UPDLOCK,HOLDLOCK) WHERE NDOS=? AND LTRIM(RTRIM(ISNULL({field},''))) IN ({placeholders})", tuple([ndos, *sorted(values)]))
+        found = rows(cursor, f"""
+            SELECT DISTINCT B.OBRANO,B.{field},B.NO,B.ESTAB,
+                COALESCE(NULLIF(LTRIM(RTRIM(I.CCUSTO)),''),LTRIM(RTRIM(B.CCUSTO))) CCUSTO
+            FROM dbo.BO B WITH (UPDLOCK,HOLDLOCK)
+            LEFT JOIN dbo.BI I ON I.BOSTAMP=B.BOSTAMP AND LTRIM(RTRIM(I.REF))<>''
+            WHERE B.NDOS=? AND LTRIM(RTRIM(ISNULL(B.{field},''))) IN ({placeholders})
+        """, tuple([ndos, *sorted(values)]))
+        if headers is not None:
+            requested = {dossier_key(row["delivery"], headers[row["bc"]])
+                         for row in excel if row["delivery"]}
+            found = [row for row in found if dossier_key(clean(row[field]), row) in requested]
         if found:
             raise ImportValidationError(f"Já existem {len(found)} documento(s) {ndos}: " + ", ".join(clean(x[field]) for x in found))
 
@@ -357,16 +387,12 @@ def create_line(cursor, *, item: dict[str, Any], stamp: str, ndos: int, name: st
 
 
 def execute(cursor, allocations: list[dict[str, Any]], headers: dict[int, dict[str, Any]], names: dict[int, str], initials: str, *, progress=None) -> dict[str, int]:
-    by_delivery: dict[str, list[dict[str, Any]]] = defaultdict(list)
-    by_invoice: dict[str, list[dict[str, Any]]] = defaultdict(list)
-    for item in allocations:
-        if not item["excel"].get("direct_pf"):
-            by_delivery[item["excel"]["delivery"]].append(item)
-        by_invoice[item["excel"]["invoice"]].append(item)
+    by_delivery, by_invoice = document_groups(allocations, headers)
     bl_lines: dict[int, str] = {}
-    bl_headers: dict[str, tuple[str, int]] = {}
+    bl_headers: dict[tuple[str, int, int, str], tuple[str, int]] = {}
     created_headers: list[str] = []
-    for delivery, items in sorted(by_delivery.items(), key=lambda pair: (pair[1][0]["excel"]["delivery_date"], pair[0])):
+    for delivery_key, items in sorted(by_delivery.items(), key=lambda pair: (pair[1][0]["excel"]["delivery_date"], pair[0])):
+        delivery = delivery_key[0]
         row, origin = items[0]["excel"], headers[items[0]["source"]["bc"]]
         when = row["delivery_date"]; number = next_number(cursor, BL_NDOS, when.year); stamp = _new_stamp()
         net = money(sum((item["qty"] * item["excel"]["price"] for item in items), ZERO))
@@ -374,7 +400,7 @@ def execute(cursor, allocations: list[dict[str, Any]], headers: dict[int, dict[s
         create_header(cursor, stamp=stamp, ndos=BL_NDOS, name=names[BL_NDOS], number=number, when=when, origin=origin, external=delivery, net=net, tax=tax, closed=False, initials=initials)
         create_tax(cursor, stamp, items, initials)
         created_headers.append(stamp)
-        bl_headers[delivery] = (stamp, number)
+        bl_headers[delivery_key] = (stamp, number)
         last_origin = ""
         position = 0
         for item in items:
@@ -394,7 +420,8 @@ def execute(cursor, allocations: list[dict[str, Any]], headers: dict[int, dict[s
             bl_lines[id(item)] = line
         if progress is not None:
             progress("BL", len(bl_headers), len(by_delivery))
-    for invoice, items in sorted(by_invoice.items(), key=lambda pair: (pair[1][0]["excel"]["invoice_date"], pair[0])):
+    for invoice_key, items in sorted(by_invoice.items(), key=lambda pair: (pair[1][0]["excel"]["invoice_date"], pair[0])):
+        invoice = invoice_key[0]
         row, origin = items[0]["excel"], headers[items[0]["source"]["bc"]]
         when = row["invoice_date"]; number = next_number(cursor, PF_NDOS, when.year); stamp = _new_stamp()
         net = money(sum((item["qty"] * item["excel"]["price"] for item in items), ZERO))
@@ -409,7 +436,7 @@ def execute(cursor, allocations: list[dict[str, Any]], headers: dict[int, dict[s
             source_header = headers[item["source"]["bc"]]
             if not item["excel"].get("direct_pf"):
                 delivery = item["excel"]["delivery"]
-                bl_stamp, bl_number = bl_headers[delivery]
+                bl_stamp, bl_number = bl_headers[dossier_key(delivery, source_header)]
                 if bl_stamp != last_bl:
                     position += 1
                     create_origin_line(cursor, stamp=stamp, ndos=PF_NDOS, name=names[PF_NDOS], number=number,
@@ -483,9 +510,10 @@ def main() -> int:
             for row in excel:
                 supplier_names[row["bc"]].update(row["supplier_names"])
             headers, source, names = load_source(cursor, {row["bc"] for row in excel}, supplier_names)
-            assert_no_duplicates(cursor, excel)
+            assert_no_duplicates(cursor, excel, headers)
             allocations = allocate(excel, source)
-            summary = {"bl": len({row["delivery"] for row in excel if row["delivery"]}), "pf": len({row["invoice"] for row in excel}), "lines": len(allocations)}
+            delivery_groups, invoice_groups = document_groups(allocations, headers)
+            summary = {"bl": len(delivery_groups), "pf": len(invoice_groups), "lines": len(allocations)}
             print(f"VALIDAÇÃO OK: {summary['bl']} BL, {summary['pf']} PF, {summary['lines']} linhas.")
             if not args.execute:
                 connection.rollback(); print("DRY-RUN concluído. Sem alterações."); return 0

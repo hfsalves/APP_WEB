@@ -1,0 +1,316 @@
+{
+  "pdf": "/Users/hugoalves/Projects/APP_WEB/output/pdf/A2C_26I0131_original.pdf",
+  "pdf_sha256": "4cafad4d0ad5cc0fc6f5fc42b6d9ac925983a8470f2a690e6148df9f69b2f130",
+  "target_pf": 9405,
+  "old_pf": [
+    9338,
+    9396,
+    9404
+  ],
+  "materials": 711,
+  "retained_material_stamps": 696,
+  "moved_material_stamps": 15,
+  "explicit_invoice_fee_and_rounding_lines": 33,
+  "net": "145514.71",
+  "vat": "29102.94",
+  "gross": "174617.65",
+  "charges": [
+    {
+      "code": "REAC",
+      "ref": "LOG.REMISES",
+      "design": "Remise exceptionnelle / retour a charge",
+      "job": "FR2035",
+      "amount": "-160.00",
+      "note": "26I0131 - quote-part 40%",
+      "unit": "FF"
+    },
+    {
+      "code": "REAC",
+      "ref": "LOG.REMISES",
+      "design": "Remise exceptionnelle / retour a charge",
+      "job": "FR2053",
+      "amount": "-160.00",
+      "note": "26I0131 - quote-part 40%",
+      "unit": "FF"
+    },
+    {
+      "code": "REAC",
+      "ref": "LOG.REMISES",
+      "design": "Remise exceptionnelle / retour a charge",
+      "job": "FR2201",
+      "amount": "-80.00",
+      "note": "26I0131 - quote-part 20%",
+      "unit": "FF"
+    },
+    {
+      "code": "REAV",
+      "ref": "LOG.REMISES",
+      "design": "Remise exceptionnelle / annulation la veille",
+      "job": "FR2035",
+      "amount": "-468.00",
+      "note": "26I0131 - quote-part 40%",
+      "unit": "FF"
+    },
+    {
+      "code": "REAV",
+      "ref": "LOG.REMISES",
+      "design": "Remise exceptionnelle / annulation la veille",
+      "job": "FR2053",
+      "amount": "-468.00",
+      "note": "26I0131 - quote-part 40%",
+      "unit": "FF"
+    },
+    {
+      "code": "REAV",
+      "ref": "LOG.REMISES",
+      "design": "Remise exceptionnelle / annulation la veille",
+      "job": "FR2201",
+      "amount": "-234.00",
+      "note": "26I0131 - quote-part 20%",
+      "unit": "FF"
+    },
+    {
+      "code": "T04",
+      "ref": "P.02.12.000.0002",
+      "design": "Retour a charge",
+      "job": "FR2035",
+      "amount": "320.00",
+      "note": "26I0131 - quote-part 40%",
+      "unit": "FF"
+    },
+    {
+      "code": "T04",
+      "ref": "P.02.12.000.0002",
+      "design": "Retour a charge",
+      "job": "FR2053",
+      "amount": "320.00",
+      "note": "26I0131 - quote-part 40%",
+      "unit": "FF"
+    },
+    {
+      "code": "T04",
+      "ref": "P.02.12.000.0002",
+      "design": "Retour a charge",
+      "job": "FR2201",
+      "amount": "160.00",
+      "note": "26I0131 - quote-part 20%",
+      "unit": "FF"
+    },
+    {
+      "code": "T05",
+      "ref": "Z.00.00.000.0000",
+      "design": "Attente",
+      "job": "FR2035",
+      "amount": "72.00",
+      "note": "26I0131 - quote-part 40%",
+      "unit": "FF"
+    },
+    {
+      "code": "T05",
+      "ref": "Z.00.00.000.0000",
+      "design": "Attente",
+      "job": "FR2053",
+      "amount": "72.00",
+      "note": "26I0131 - quote-part 40%",
+      "unit": "FF"
+    },
+    {
+      "code": "T05",
+      "ref": "Z.00.00.000.0000",
+      "design": "Attente",
+      "job": "FR2201",
+      "amount": "36.00",
+      "note": "26I0131 - quote-part 20%",
+      "unit": "FF"
+    },
+    {
+      "code": "T31",
+      "ref": "Z.00.00.000.0000",
+      "design": "Annulation de commande apres 15h la veille",
+      "job": "FR2035",
+      "amount": "720.00",
+      "note": "26I0131 - quote-part 40%",
+      "unit": "FF"
+    },
+    {
+      "code": "T31",
+      "ref": "Z.00.00.000.0000",
+      "design": "Annulation de commande apres 15h la veille",
+      "job": "FR2053",
+      "amount": "720.00",
+      "note": "26I0131 - quote-part 40%",
+      "unit": "FF"
+    },
+    {
+      "code": "T31",
+      "ref": "Z.00.00.000.0000",
+      "design": "Annulation de commande apres 15h la veille",
+      "job": "FR2201",
+      "amount": "360.00",
+      "note": "26I0131 - quote-part 20%",
+      "unit": "FF"
+    },
+    {
+      "code": "ECO",
+      "ref": "S.03.05.000.0091",
+      "design": "Eco-participation / vrac - 0,40 EUR/t",
+      "job": "FR2035",
+      "amount": "1145.28",
+      "note": "26I0131 - quote-part 40%",
+      "unit": "FF"
+    },
+    {
+      "code": "ECO",
+      "ref": "S.03.05.000.0091",
+      "design": "Eco-participation / vrac - 0,40 EUR/t",
+      "job": "FR2053",
+      "amount": "1145.28",
+      "note": "26I0131 - quote-part 40%",
+      "unit": "FF"
+    },
+    {
+      "code": "ECO",
+      "ref": "S.03.05.000.0091",
+      "design": "Eco-participation / vrac - 0,40 EUR/t",
+      "job": "FR2201",
+      "amount": "572.64",
+      "note": "26I0131 - quote-part 20%",
+      "unit": "FF"
+    },
+    {
+      "code": "ENT",
+      "ref": "S.03.05.000.0089",
+      "design": "Surcharge Energie / Transport 5,67%",
+      "job": "FR2035",
+      "amount": "649.38",
+      "note": "26I0131 - quote-part 40%",
+      "unit": "FF"
+    },
+    {
+      "code": "ENT",
+      "ref": "S.03.05.000.0089",
+      "design": "Surcharge Energie / Transport 5,67%",
+      "job": "FR2053",
+      "amount": "649.38",
+      "note": "26I0131 - quote-part 40%",
+      "unit": "FF"
+    },
+    {
+      "code": "ENT",
+      "ref": "S.03.05.000.0089",
+      "design": "Surcharge Energie / Transport 5,67%",
+      "job": "FR2201",
+      "amount": "324.70",
+      "note": "26I0131 - quote-part 20%",
+      "unit": "FF"
+    },
+    {
+      "code": "TGAP",
+      "ref": "S.03.05.000.0094",
+      "design": "Taxe Generale sur Activites Polluantes - 0,23 EUR/t",
+      "job": "FR2035",
+      "amount": "658.54",
+      "note": "26I0131 - quote-part 40%",
+      "unit": "FF"
+    },
+    {
+      "code": "TGAP",
+      "ref": "S.03.05.000.0094",
+      "design": "Taxe Generale sur Activites Polluantes - 0,23 EUR/t",
+      "job": "FR2053",
+      "amount": "658.54",
+      "note": "26I0131 - quote-part 40%",
+      "unit": "FF"
+    },
+    {
+      "code": "TGAP",
+      "ref": "S.03.05.000.0094",
+      "design": "Taxe Generale sur Activites Polluantes - 0,23 EUR/t",
+      "job": "FR2201",
+      "amount": "329.26",
+      "note": "26I0131 - quote-part 20%",
+      "unit": "FF"
+    },
+    {
+      "code": "ENG",
+      "ref": "S.03.05.000.0089",
+      "design": "Surcharge Energie / Granulats en vrac - 0,27 EUR/t",
+      "job": "FR2035",
+      "amount": "773.06",
+      "note": "26I0131 - quote-part 40%",
+      "unit": "FF"
+    },
+    {
+      "code": "ENG",
+      "ref": "S.03.05.000.0089",
+      "design": "Surcharge Energie / Granulats en vrac - 0,27 EUR/t",
+      "job": "FR2053",
+      "amount": "773.06",
+      "note": "26I0131 - quote-part 40%",
+      "unit": "FF"
+    },
+    {
+      "code": "ENG",
+      "ref": "S.03.05.000.0089",
+      "design": "Surcharge Energie / Granulats en vrac - 0,27 EUR/t",
+      "job": "FR2201",
+      "amount": "386.54",
+      "note": "26I0131 - quote-part 20%",
+      "unit": "FF"
+    },
+    {
+      "code": "SPLIT",
+      "ref": "Z.00.00.000.0000",
+      "job": "FR2035",
+      "amount": "-0.01",
+      "design": "Arrondi ventilation materiaux par chantier",
+      "note": "Prix PDF 18,50 / 19,50 EUR/t conserves",
+      "unit": "FF"
+    },
+    {
+      "code": "SPLIT",
+      "ref": "Z.00.00.000.0000",
+      "job": "FR2053",
+      "amount": "-0.01",
+      "design": "Arrondi ventilation materiaux par chantier",
+      "note": "Prix PDF 18,50 / 19,50 EUR/t conserves",
+      "unit": "FF"
+    },
+    {
+      "code": "SPLIT",
+      "ref": "Z.00.00.000.0000",
+      "job": "FR2201",
+      "amount": "-0.03",
+      "design": "Arrondi ventilation materiaux par chantier",
+      "note": "Prix PDF 18,50 / 19,50 EUR/t conserves",
+      "unit": "FF"
+    },
+    {
+      "code": "PDF",
+      "ref": "Z.00.00.000.0000",
+      "job": "FR2035",
+      "amount": "0.03",
+      "design": "Arrondi facture 26I0131 - total PDF",
+      "note": "Ecart detail / bases finales PDF: 0,07",
+      "unit": "FF"
+    },
+    {
+      "code": "PDF",
+      "ref": "Z.00.00.000.0000",
+      "job": "FR2053",
+      "amount": "0.03",
+      "design": "Arrondi facture 26I0131 - total PDF",
+      "note": "Ecart detail / bases finales PDF: 0,07",
+      "unit": "FF"
+    },
+    {
+      "code": "PDF",
+      "ref": "Z.00.00.000.0000",
+      "job": "FR2201",
+      "amount": "0.01",
+      "design": "Arrondi facture 26I0131 - total PDF",
+      "note": "Ecart detail / bases finales PDF: 0,07",
+      "unit": "FF"
+    }
+  ]
+}
