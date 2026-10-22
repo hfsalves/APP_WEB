@@ -196,6 +196,7 @@
     allowedAgencies: [],
     defaultSalespersonNumber: 0,
     canManageAll: false,
+    canCreateAllAgencies: false,
     seriesCompany: null,
     budgets: [],
     clientRows: [],
@@ -465,6 +466,7 @@
       state.allowedAgencies = seriesPayload.allowed_agencies || [];
       state.defaultSalespersonNumber = Number(seriesPayload.default_salesperson_number || 0);
       state.canManageAll = Boolean(seriesPayload.can_manage_all);
+      state.canCreateAllAgencies = Boolean(seriesPayload.can_create_all_agencies);
       state.salespeople = salespeoplePayload.rows || [];
       renderSalespeople();
       setOptions(elements.series, state.series, 'ndos', (row) => `${row.name} · ${row.ndos}`, seriesPayload.default_ndos);
@@ -2922,8 +2924,14 @@
     elements.actionsMenu.hidden = editing;
     elements.actionsToggle.disabled = busy || !state.detail || !selectedBudgetStamp() || !elements.company.value;
     elements.newBudget.hidden = editing;
+    const selectedSeries = state.series.find((row) => String(row.ndos) === String(elements.series.value));
+    const canCreateIntersolDevis = state.canCreateAllAgencies
+      && String(selectedSeries?.name || '').trim().toLowerCase() === 'devis';
     elements.newBudget.disabled = busy || !elements.company.value || !elements.series.value
-      || (!state.canManageAll && (!state.defaultSalespersonNumber || (isIntersolBudgetCompany() && !state.allowedAgencies.length)));
+      || (!state.canManageAll && (
+        (!state.defaultSalespersonNumber && !canCreateIntersolDevis)
+        || (isIntersolBudgetCompany() && !state.allowedAgencies.length)
+      ));
     elements.back.hidden = editing || state.screen !== 'detail';
     elements.back.disabled = busy;
     elements.editBudget.hidden = editing || !budgetCanBeEdited() || !selectedBudgetStamp();
@@ -2939,7 +2947,7 @@
         input.readOnly = !editing;
         input.setAttribute('aria-readonly', editing ? 'false' : 'true');
       });
-    elements.salesperson.disabled = !editing || busy || !state.canManageAll;
+    elements.salesperson.disabled = !editing || busy || (!state.canManageAll && !(state.mode === 'new' && canCreateIntersolDevis));
     elements.agency.disabled = !editing || state.mode !== 'new' || busy;
   }
 

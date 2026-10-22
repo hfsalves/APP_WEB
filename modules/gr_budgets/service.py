@@ -57,7 +57,12 @@ INTERSOL_AGENCY_BUDGET_SALESPERSONS = {
     21: ("INTERSOL-LORRAINE",),
     22: ("INTERSOL-LORRAINE", "INTERSOL-CHAMPAGNE"),
 }
-ALL_AGENCIES_READ_ACL = "GR_ORCAMENTOS_TODAS_AGENCIAS"
+ALL_AGENCIES_BUDGET_ACL = "GR_ORCAMENTOS_TODAS_AGENCIAS"
+INTERSOL_BUDGET_AGENCIES = tuple(sorted({
+    agency
+    for origins in INTERSOL_AGENCY_BUDGET_SALESPERSONS.values()
+    for agency in origins
+}))
 _APP_ROOT = Path(__file__).resolve().parents[2]
 _COMPANY_LOGO_EXTENSIONS = frozenset({".png", ".jpg", ".jpeg", ".webp"})
 
@@ -90,25 +95,35 @@ def _budget_privileged(user) -> bool:
     return bool(getattr(user, "ADMIN", False) or getattr(user, "DEV", False))
 
 
-def _budget_all_agencies_read(company: dict[str, Any], user) -> bool:
-    """A budget-only, read-only grant; it must not widen PHC write or map access."""
+def _budget_all_agencies_acl(company: dict[str, Any], user) -> dict[str, Any]:
+    """Return only this company's budget grant, never map or admin permissions."""
     if _text_value(company.get("phc_db")).casefold() != "intersol":
-        return False
+        return {}
     if _text_value(getattr(user, "LOGIN", "")).casefold() == "cbarthel":
-        return False
+        return {}
     stamp = _text_value(getattr(user, "USSTAMP", ""))
     feid = int(_number_value(company.get("feid")))
     if not stamp or feid <= 0:
-        return False
+        return {}
     with pyodbc.connect(_client_conn_str(), timeout=10) as conn:
         rows = _fetch_rows(conn.cursor(), """
-            SELECT TOP 1 1 AS GRANTED
+            SELECT TOP 1 CONSULTAR, INSERIR
             FROM dbo.ACESSOS
             WHERE USSTAMP = ? AND FEID = ?
               AND UPPER(LTRIM(RTRIM(ISNULL(TABELA, '')))) = ?
               AND ISNULL(CONSULTAR, 0) = 1
-        """, (stamp, feid, ALL_AGENCIES_READ_ACL))
-    return bool(rows)
+            ORDER BY ISNULL(INSERIR, 0) DESC
+        """, (stamp, feid, ALL_AGENCIES_BUDGET_ACL))
+    return rows[0] if rows else {}
+
+
+def _budget_all_agencies_read(company: dict[str, Any], user) -> bool:
+    return bool(_budget_all_agencies_acl(company, user).get("CONSULTAR"))
+
+
+def _budget_all_agencies_create(company: dict[str, Any], user) -> bool:
+    grant = _budget_all_agencies_acl(company, user)
+    return bool(grant.get("CONSULTAR") and grant.get("INSERIR"))
 
 
 def _company_for_user(feid: Any, user) -> dict[str, Any]:
@@ -559,8 +574,15 @@ def _budget_write_predicate(
     return f"({scope_sql}) AND {alias}.VENDEDOR = ?", (*scope_params, salesperson)
 
 
-def _validate_budget_write_scope(company: dict[str, Any], user, header: dict[str, Any]) -> None:
+def _validate_budget_write_scope(
+    company: dict[str, Any], user, header: dict[str, Any], *, creating: bool = False,
+) -> None:
     if _budget_privileged(user):
+        return
+    if creating and _budget_all_agencies_create(company, user):
+        if (_text_value(header.get("agency")).upper() not in INTERSOL_BUDGET_AGENCIES
+                or int(_number_value(header.get("salesperson_number"))) <= 0):
+            raise BudgetsNotFoundError("Orçamento não encontrado no PHC desta empresa.")
         return
     if not _budget_owner(user, header.get("salesperson_number")):
         raise BudgetsNotFoundError("Orçamento não encontrado no PHC desta empresa.")
@@ -681,6 +703,7 @@ def _series_payload(row: dict[str, Any]) -> dict[str, Any]:
 
 def get_budget_series(feid: Any, user) -> dict[str, Any]:
     company = _company_for_user(feid, user)
+    can_create_all_agencies = _budget_all_agencies_create(company, user)
     with pyodbc.connect(_phc_conn_str(company["phc_db"], company.get("phc_server", "")), timeout=15) as conn:
         cursor = conn.cursor()
         rows = _series_rows(cursor, company)
@@ -691,12 +714,14 @@ def get_budget_series(feid: Any, user) -> dict[str, Any]:
         "default_ndos": _pick_default_series(rows),
         "tax_rates": tax_rates,
         "allowed_agencies": (
-            sorted({agency for origins in INTERSOL_AGENCY_BUDGET_SALESPERSONS.values() for agency in origins})
-            if _budget_privileged(user) and _text_value(company.get("phc_db")).casefold() == "intersol"
+            list(INTERSOL_BUDGET_AGENCIES)
+            if (_budget_privileged(user) or can_create_all_agencies)
+            and _text_value(company.get("phc_db")).casefold() == "intersol"
             else list(_budget_user_origins(company, user))
         ),
         "default_salesperson_number": int(_number_value(getattr(user, "VENDEDOR", 0))),
         "can_manage_all": _budget_privileged(user),
+        "can_create_all_agencies": can_create_all_agencies,
     }
 
 
@@ -3308,7 +3333,9 @@ def save_budget(payload: dict[str, Any], user) -> dict[str, Any]:
     header = payload.get("header") or {}
     if not isinstance(header, dict):
         raise BudgetsValidationError("Cabeçalho do orçamento inválido.")
-    _validate_budget_write_scope(company, user, header)
+    clean_bostamp = _text_value(payload.get("bostamp") or header.get("bostamp"))
+    creating = not clean_bostamp
+    _validate_budget_write_scope(company, user, header, creating=creating)
     if _text_value(company.get("phc_db")).casefold() == "intersol" and not _budget_privileged(user):
         process = header.get("process")
         if not _budget_origin_consistent(header.get("agency"), process, _budget_process_origins([process])):
@@ -3317,8 +3344,6 @@ def save_budget(payload: dict[str, Any], user) -> dict[str, Any]:
     if not isinstance(payload_lines, list):
         raise BudgetsValidationError("Linhas do orçamento inválidas.")
 
-    clean_bostamp = _text_value(payload.get("bostamp") or header.get("bostamp"))
-    creating = not clean_bostamp
     dataobra = _parse_budget_write_date(header.get("date"))
     now_sql = datetime.now()
     audit_date = now_sql.date()
@@ -3334,6 +3359,8 @@ def save_budget(payload: dict[str, Any], user) -> dict[str, Any]:
             ndos = _parse_ndos(payload.get("ndos") or header.get("ndos"), series)
             selected_series = next(row for row in series if int(row.get("ndos") or 0) == ndos)
             nmdos = _text_value(selected_series.get("name"))
+            if creating and _budget_all_agencies_create(company, user) and _series_name_key(nmdos) != "devis":
+                raise BudgetsNotFoundError("Orçamento não encontrado no PHC desta empresa.")
 
             existing_header: dict[str, Any] | None = None
             existing_line_stamps: set[str] = set()

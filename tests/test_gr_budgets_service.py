@@ -14,6 +14,7 @@ from modules.gr_budgets.service import (
     _budget_can_be_edited,
     _budget_can_link_to_work,
     _budget_all_agencies_read,
+    _budget_all_agencies_create,
     _budget_visibility_predicate,
     _budget_write_predicate,
     _budget_list_summary,
@@ -49,6 +50,7 @@ from modules.gr_budgets.service import (
     _series_supports_approval,
     _series_rows,
     get_budget_series,
+    save_budget,
     _tax_rate_rows,
     _write_money,
     _write_budget_line_total,
@@ -458,19 +460,51 @@ class BudgetPayloadTests(unittest.TestCase):
             self.assertEqual(_budget_write_predicate(company, silvia), ("1 = 0", ()))
         self.assertFalse(_budget_list_summary({"VENDEDOR": 23, "ECUSTO": 500}, company, silvia)["can_view_costs"])
 
+    def test_estimator_can_read_and_create_in_three_agencies_but_not_edit_existing(self):
+        company = {"feid": 8, "phc_db": "INTERSOL"}
+        adrien = SimpleNamespace(USSTAMP="ADRIEN", LOGIN="abontempelli", VENDEDOR=0, ADMIN=False, DEV=False)
+        with patch("modules.gr_budgets.service._budget_all_agencies_read", return_value=True), patch(
+            "modules.gr_budgets.service._budget_all_agencies_create", return_value=True
+        ):
+            self.assertEqual(_budget_visibility_predicate(company, adrien), ("1 = 1", ()))
+            self.assertEqual(_budget_write_predicate(company, adrien), ("1 = 0", ()))
+            for agency in ("INTERSOL-ALSACE", "INTERSOL-CHAMPAGNE", "INTERSOL-LORRAINE"):
+                _validate_budget_write_scope(company, adrien, {"agency": agency, "salesperson_number": 23}, creating=True)
+            for agency, seller in (("INTERSOL-OTHER", 23), ("INTERSOL-ALSACE", 0)):
+                with self.assertRaises(BudgetsNotFoundError):
+                    _validate_budget_write_scope(company, adrien, {"agency": agency, "salesperson_number": seller}, creating=True)
+            with self.assertRaises(BudgetsNotFoundError):
+                _validate_budget_write_scope(company, adrien, {"agency": "INTERSOL-LORRAINE", "salesperson_number": 23})
+        self.assertFalse(_budget_list_summary({"VENDEDOR": 23, "ECUSTO": 500}, company, adrien)["can_view_costs"])
+
+    def test_estimator_create_grant_is_limited_to_devis_series(self):
+        company = {"feid": 8, "phc_db": "INTERSOL"}
+        adrien = SimpleNamespace(USSTAMP="ADRIEN", LOGIN="abontempelli", VENDEDOR=0, ADMIN=False, DEV=False)
+        payload = {"feid": 8, "ndos": 122, "header": {"agency": "INTERSOL-ALSACE", "salesperson_number": 23, "date": "2026-10-22"}}
+        with patch("modules.gr_budgets.service._company_for_user", return_value=company), patch(
+            "modules.gr_budgets.service._budget_all_agencies_create", return_value=True
+        ), patch("modules.gr_budgets.service._budget_process_origins", return_value={}), patch(
+            "modules.gr_budgets.service._budget_origin_consistent", return_value=True
+        ), patch("modules.gr_budgets.service._phc_conn_str", return_value="test"), patch(
+            "modules.gr_budgets.service.pyodbc.connect"
+        ), patch("modules.gr_budgets.service._series_rows", return_value=[{"ndos": 122, "name": "Étude et Exécution"}]):
+            with self.assertRaises(BudgetsNotFoundError):
+                save_budget(payload, adrien)
+
     def test_budget_all_agencies_grant_is_fe_specific_and_barthel_cannot_use_it(self):
         company = {"feid": 8, "phc_db": "INTERSOL"}
         silvia = SimpleNamespace(USSTAMP="SILVIA", LOGIN="sferreira", VENDEDOR=0, ADMIN=False, DEV=False)
         barthel = SimpleNamespace(USSTAMP="BARTHEL", LOGIN="CBARTHEL", VENDEDOR=20, ADMIN=False, DEV=False)
         with patch("modules.gr_budgets.service._client_conn_str", return_value="test"), patch(
             "modules.gr_budgets.service.pyodbc.connect"
-        ) as connect, patch("modules.gr_budgets.service._fetch_rows", return_value=[{"GRANTED": 1}]) as fetch:
+        ) as connect, patch("modules.gr_budgets.service._fetch_rows", return_value=[{"CONSULTAR": 1, "INSERIR": 0}]) as fetch:
             connect.return_value.__enter__.return_value.cursor.return_value = MagicMock()
             self.assertTrue(_budget_all_agencies_read(company, silvia))
             self.assertEqual(fetch.call_args.args[2], ("SILVIA", 8, "GR_ORCAMENTOS_TODAS_AGENCIAS"))
+            self.assertFalse(_budget_all_agencies_create(company, silvia))
             self.assertFalse(_budget_all_agencies_read(company, barthel))
             self.assertFalse(_budget_all_agencies_read({"feid": 1, "phc_db": "HSOLS_FR"}, silvia))
-            self.assertEqual(fetch.call_count, 1)
+            self.assertEqual(fetch.call_count, 2)
 
     def test_write_scope_requires_the_author_even_within_the_same_agency(self):
         user = SimpleNamespace(VENDEDOR=20, LOGIN="other", ADMIN=False, DEV=False)
@@ -501,6 +535,23 @@ class BudgetPayloadTests(unittest.TestCase):
         self.assertEqual(payload["allowed_agencies"], ["INTERSOL-ALSACE"])
         self.assertEqual(payload["default_salesperson_number"], 20)
         self.assertFalse(payload["can_manage_all"])
+        self.assertFalse(payload["can_create_all_agencies"])
+
+    def test_estimator_series_allows_agency_and_salesperson_selection_without_admin(self):
+        user = SimpleNamespace(USSTAMP="ADRIEN", LOGIN="abontempelli", VENDEDOR=0, ADMIN=False, DEV=False)
+        company = {"feid": 8, "phc_db": "INTERSOL"}
+        with patch("modules.gr_budgets.service._company_for_user", return_value=company), patch(
+            "modules.gr_budgets.service._budget_all_agencies_create", return_value=True
+        ), patch("modules.gr_budgets.service._phc_conn_str", return_value="test"), patch(
+            "modules.gr_budgets.service.pyodbc.connect"
+        ), patch("modules.gr_budgets.service._series_rows", return_value=[{"ndos": 115, "name": "Devis"}]), patch(
+            "modules.gr_budgets.service._tax_rate_rows", return_value=[]
+        ):
+            payload = get_budget_series(8, user)
+        self.assertEqual(payload["allowed_agencies"], ["INTERSOL-ALSACE", "INTERSOL-CHAMPAGNE", "INTERSOL-LORRAINE"])
+        self.assertTrue(payload["can_create_all_agencies"])
+        self.assertFalse(payload["can_manage_all"])
+        self.assertEqual(payload["default_salesperson_number"], 0)
 
     def test_barthel_grant_is_exact_and_revocation_fails_closed(self):
         user = SimpleNamespace(USSTAMP="BARTHEL", LOGIN="CBARTHEL", VENDEDOR=20, ADMIN=False, DEV=False)
