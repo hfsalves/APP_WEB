@@ -57,6 +57,7 @@ INTERSOL_AGENCY_BUDGET_SALESPERSONS = {
     21: ("INTERSOL-LORRAINE",),
     22: ("INTERSOL-LORRAINE", "INTERSOL-CHAMPAGNE"),
 }
+ALL_AGENCIES_READ_ACL = "GR_ORCAMENTOS_TODAS_AGENCIAS"
 _APP_ROOT = Path(__file__).resolve().parents[2]
 _COMPANY_LOGO_EXTENSIONS = frozenset({".png", ".jpg", ".jpeg", ".webp"})
 
@@ -87,6 +88,27 @@ class BudgetsCreditLimitError(BudgetsValidationError):
 
 def _budget_privileged(user) -> bool:
     return bool(getattr(user, "ADMIN", False) or getattr(user, "DEV", False))
+
+
+def _budget_all_agencies_read(company: dict[str, Any], user) -> bool:
+    """A budget-only, read-only grant; it must not widen PHC write or map access."""
+    if _text_value(company.get("phc_db")).casefold() != "intersol":
+        return False
+    if _text_value(getattr(user, "LOGIN", "")).casefold() == "cbarthel":
+        return False
+    stamp = _text_value(getattr(user, "USSTAMP", ""))
+    feid = int(_number_value(company.get("feid")))
+    if not stamp or feid <= 0:
+        return False
+    with pyodbc.connect(_client_conn_str(), timeout=10) as conn:
+        rows = _fetch_rows(conn.cursor(), """
+            SELECT TOP 1 1 AS GRANTED
+            FROM dbo.ACESSOS
+            WHERE USSTAMP = ? AND FEID = ?
+              AND UPPER(LTRIM(RTRIM(ISNULL(TABELA, '')))) = ?
+              AND ISNULL(CONSULTAR, 0) = 1
+        """, (stamp, feid, ALL_AGENCIES_READ_ACL))
+    return bool(rows)
 
 
 def _company_for_user(feid: Any, user) -> dict[str, Any]:
@@ -516,19 +538,24 @@ def _budget_visibility_predicate(
 ) -> tuple[str, tuple[Any, ...]]:
     if _budget_privileged(user) or _text_value(company.get("phc_db")).casefold() != "intersol":
         return "1 = 1", ()
+    if _budget_all_agencies_read(company, user):
+        return "1 = 1", ()
     return _intersol_origin_predicate(_budget_user_origins(company, user), table_alias)
 
 
 def _budget_write_predicate(
     company: dict[str, Any], user, table_alias: str = "B",
 ) -> tuple[str, tuple[Any, ...]]:
-    scope_sql, scope_params = _budget_visibility_predicate(company, user, table_alias)
     if _budget_privileged(user):
-        return scope_sql, scope_params
-    alias = table_alias if re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", table_alias or "") else "B"
+        return "1 = 1", ()
     salesperson = int(_number_value(getattr(user, "VENDEDOR", 0)))
     if salesperson <= 0:
         return "1 = 0", ()
+    if _text_value(company.get("phc_db")).casefold() == "intersol":
+        scope_sql, scope_params = _intersol_origin_predicate(_budget_user_origins(company, user), table_alias)
+    else:
+        scope_sql, scope_params = "1 = 1", ()
+    alias = table_alias if re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", table_alias or "") else "B"
     return f"({scope_sql}) AND {alias}.VENDEDOR = ?", (*scope_params, salesperson)
 
 
@@ -892,7 +919,11 @@ def list_budgets(filters: dict[str, Any], user) -> dict[str, Any]:
             tuple(params),
         )
 
-    if _text_value(company.get("phc_db")).casefold() == "intersol" and not _budget_privileged(user):
+    if (
+        _text_value(company.get("phc_db")).casefold() == "intersol"
+        and not _budget_privileged(user)
+        and visibility_sql != "1 = 1"
+    ):
         process_origins = _budget_process_origins([row.get("PROCESSO") for row in rows])
         rows = [
             row for row in rows
@@ -1092,7 +1123,11 @@ def get_budget_detail(feid: Any, bostamp: str, user) -> dict[str, Any]:
         company["e1"] = _load_e1_company(cursor)
 
     header = _header_payload(header_rows[0], company)
-    if _text_value(company.get("phc_db")).casefold() == "intersol" and not _budget_privileged(user):
+    if (
+        _text_value(company.get("phc_db")).casefold() == "intersol"
+        and not _budget_privileged(user)
+        and visibility_sql != "1 = 1"
+    ):
         origins = _budget_process_origins([header.get("process")])
         if not _budget_origin_consistent(header.get("agency"), header.get("process"), origins):
             raise BudgetsNotFoundError("Orçamento não encontrado no PHC desta empresa.")

@@ -13,6 +13,7 @@ from modules.gr_budgets.service import (
     _budget_is_in_preparation,
     _budget_can_be_edited,
     _budget_can_link_to_work,
+    _budget_all_agencies_read,
     _budget_visibility_predicate,
     _budget_write_predicate,
     _budget_list_summary,
@@ -448,6 +449,28 @@ class BudgetPayloadTests(unittest.TestCase):
     def test_users_without_an_agency_cannot_read_intersol_devis(self):
         self.assertEqual(_intersol_budget_visibility_predicate(0), ("1 = 0", ()))
         self.assertEqual(_intersol_budget_visibility_predicate(99), ("1 = 0", ()))
+
+    def test_budget_only_office_grant_reads_all_agencies_but_cannot_write(self):
+        company = {"feid": 8, "phc_db": "INTERSOL"}
+        silvia = SimpleNamespace(USSTAMP="SILVIA", LOGIN="sferreira", VENDEDOR=0, ADMIN=False, DEV=False)
+        with patch("modules.gr_budgets.service._budget_all_agencies_read", return_value=True):
+            self.assertEqual(_budget_visibility_predicate(company, silvia), ("1 = 1", ()))
+            self.assertEqual(_budget_write_predicate(company, silvia), ("1 = 0", ()))
+        self.assertFalse(_budget_list_summary({"VENDEDOR": 23, "ECUSTO": 500}, company, silvia)["can_view_costs"])
+
+    def test_budget_all_agencies_grant_is_fe_specific_and_barthel_cannot_use_it(self):
+        company = {"feid": 8, "phc_db": "INTERSOL"}
+        silvia = SimpleNamespace(USSTAMP="SILVIA", LOGIN="sferreira", VENDEDOR=0, ADMIN=False, DEV=False)
+        barthel = SimpleNamespace(USSTAMP="BARTHEL", LOGIN="CBARTHEL", VENDEDOR=20, ADMIN=False, DEV=False)
+        with patch("modules.gr_budgets.service._client_conn_str", return_value="test"), patch(
+            "modules.gr_budgets.service.pyodbc.connect"
+        ) as connect, patch("modules.gr_budgets.service._fetch_rows", return_value=[{"GRANTED": 1}]) as fetch:
+            connect.return_value.__enter__.return_value.cursor.return_value = MagicMock()
+            self.assertTrue(_budget_all_agencies_read(company, silvia))
+            self.assertEqual(fetch.call_args.args[2], ("SILVIA", 8, "GR_ORCAMENTOS_TODAS_AGENCIAS"))
+            self.assertFalse(_budget_all_agencies_read(company, barthel))
+            self.assertFalse(_budget_all_agencies_read({"feid": 1, "phc_db": "HSOLS_FR"}, silvia))
+            self.assertEqual(fetch.call_count, 1)
 
     def test_write_scope_requires_the_author_even_within_the_same_agency(self):
         user = SimpleNamespace(VENDEDOR=20, LOGIN="other", ADMIN=False, DEV=False)

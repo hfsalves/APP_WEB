@@ -50,6 +50,16 @@ class DocumentAiExtractSummaryFrontendTests(unittest.TestCase):
         self.assertNotIn("state.documentData.customer.ged_folder = previous.folder", self.script)
         self.assertIn("'<i class=\"fa-solid fa-pen\"></i><span>Alterar agência</span>'", self.script)
 
+    def test_document_date_calendar_uses_the_same_display_format_as_flatpickr(self):
+        self.assertIn(
+            "defaultDate: documentData.document_date ? formatDate(documentData.document_date) : null",
+            self.script,
+        )
+        self.assertNotIn(
+            "defaultDate: documentData.document_date || null",
+            self.script,
+        )
+
     def test_missing_header_values_use_business_prompts(self):
         self.assertIn("normalizedDocumentType !== 'unknown'", self.script)
         for label in ('Tipo de documento', 'Tipo de fatura', 'Nº do documento', 'Data do documento'):

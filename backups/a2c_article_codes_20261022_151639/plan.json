@@ -1,0 +1,252 @@
+[
+  {
+    "table": "FN",
+    "key": "FNSTAMP",
+    "stamp": "997DBD13F9254513B54812BF8",
+    "design": "Sable 0/4 recomposé mixte lavé",
+    "old_ref": "Z.00.00.000.0000  ",
+    "new_ref": "P.01.01.000.0211",
+    "new_family": "3.1.01",
+    "stns": true
+  },
+  {
+    "table": "FN",
+    "key": "FNSTAMP",
+    "stamp": "23A58B4CF3784D1CBF55CB16A",
+    "design": "Gravillon 4/10 concassé calcaire lavé",
+    "old_ref": "Z.00.00.000.0000  ",
+    "new_ref": "P.01.01.000.0202",
+    "new_family": "3.1.01",
+    "stns": true
+  },
+  {
+    "table": "FN",
+    "key": "FNSTAMP",
+    "stamp": "F475E7BCE2B746C7BF59D7049",
+    "design": "Gravillon 10/20 concassé calcaire lavé",
+    "old_ref": "Z.00.00.000.0000  ",
+    "new_ref": "P.01.01.000.0207",
+    "new_family": "3.1.01",
+    "stns": true
+  },
+  {
+    "table": "FN",
+    "key": "FNSTAMP",
+    "stamp": "B90039D964A94D1699C91D4E6",
+    "design": "Remise exceptionnelle / retour a charge",
+    "old_ref": "Z.00.00.000.0000  ",
+    "new_ref": "LOG.REMISES",
+    "new_family": "3.1.17",
+    "stns": true
+  },
+  {
+    "table": "FN",
+    "key": "FNSTAMP",
+    "stamp": "864477F4101942268D63043B0",
+    "design": "Remise exceptionnelle / annulation la veille",
+    "old_ref": "Z.00.00.000.0000  ",
+    "new_ref": "LOG.REMISES",
+    "new_family": "3.1.17",
+    "stns": true
+  },
+  {
+    "table": "FN",
+    "key": "FNSTAMP",
+    "stamp": "E5D4B4D3FA604E9D80F571073",
+    "design": "Retour a charge",
+    "old_ref": "Z.00.00.000.0000  ",
+    "new_ref": "P.02.12.000.0002",
+    "new_family": "3.2.12",
+    "stns": true
+  },
+  {
+    "table": "FN",
+    "key": "FNSTAMP",
+    "stamp": "C40F3F46935D4D50838A4E4F6",
+    "design": "Attente",
+    "old_ref": "Z.00.00.000.0000  ",
+    "new_ref": "P.02.12.000.0002",
+    "new_family": "3.2.12",
+    "stns": true
+  },
+  {
+    "table": "FN",
+    "key": "FNSTAMP",
+    "stamp": "7A0BAEFFD15A40BF861E9B54A",
+    "design": "Annulation de commande apres 15h la veille",
+    "old_ref": "Z.00.00.000.0000  ",
+    "new_ref": "P.02.12.000.0002",
+    "new_family": "3.2.12",
+    "stns": true
+  },
+  {
+    "table": "FN",
+    "key": "FNSTAMP",
+    "stamp": "FC43C0BEBFB2434CB8099A345",
+    "design": "Eco-participation / vrac - 0,40 EUR/t",
+    "old_ref": "Z.00.00.000.0000  ",
+    "new_ref": "S.03.05.000.0091",
+    "new_family": "4.3.05",
+    "stns": true
+  },
+  {
+    "table": "FN",
+    "key": "FNSTAMP",
+    "stamp": "057152335D3E4473BB1CFE7F4",
+    "design": "Surcharge Energie / Transport 5,67%",
+    "old_ref": "Z.00.00.000.0000  ",
+    "new_ref": "S.03.05.000.0089",
+    "new_family": "4.3.05",
+    "stns": true
+  },
+  {
+    "table": "FN",
+    "key": "FNSTAMP",
+    "stamp": "77A8D53D617C4089BC8F464E0",
+    "design": "Taxe Generale sur Activites Polluantes - 0,23 EUR/t",
+    "old_ref": "Z.00.00.000.0000  ",
+    "new_ref": "S.03.05.000.0094",
+    "new_family": "4.3.05",
+    "stns": true
+  },
+  {
+    "table": "FN",
+    "key": "FNSTAMP",
+    "stamp": "A3220C008F97499EAB28E7F81",
+    "design": "Surcharge Energie / Granulats en vrac - 0,27 EUR/t",
+    "old_ref": "Z.00.00.000.0000  ",
+    "new_ref": "S.03.05.000.0089",
+    "new_family": "4.3.05",
+    "stns": true
+  },
+  {
+    "table": "FN",
+    "key": "FNSTAMP",
+    "stamp": "6A66CA3FF6C24ABEA150FD9FF",
+    "design": "Arrondi facture 26I0131 - total PDF",
+    "old_ref": "Z.00.00.000.0000  ",
+    "new_ref": "AJUSTEMENT",
+    "new_family": "7.1.1",
+    "stns": true
+  },
+  {
+    "table": "BI",
+    "key": "BISTAMP",
+    "stamp": "B5362D48E25F431DB032333E3",
+    "design": "Attente",
+    "old_ref": "Z.00.00.000.0000  ",
+    "new_ref": "P.02.12.000.0002",
+    "new_family": "3.2.12",
+    "stns": true
+  },
+  {
+    "table": "BI",
+    "key": "BISTAMP",
+    "stamp": "B1F43F1D3D4A4DF688207F143",
+    "design": "Annulation de commande apres 15h la veille",
+    "old_ref": "Z.00.00.000.0000  ",
+    "new_ref": "P.02.12.000.0002",
+    "new_family": "3.2.12",
+    "stns": true
+  },
+  {
+    "table": "BI",
+    "key": "BISTAMP",
+    "stamp": "685E474DBA4B47A099A979E24",
+    "design": "Arrondi ventilation materiaux par chantier",
+    "old_ref": "Z.00.00.000.0000  ",
+    "new_ref": "AJUSTEMENT",
+    "new_family": "7.1.1",
+    "stns": true
+  },
+  {
+    "table": "BI",
+    "key": "BISTAMP",
+    "stamp": "DC7D2D3536E6490EB08B31B4F",
+    "design": "Arrondi facture 26I0131 - total PDF",
+    "old_ref": "Z.00.00.000.0000  ",
+    "new_ref": "AJUSTEMENT",
+    "new_family": "7.1.1",
+    "stns": true
+  },
+  {
+    "table": "BI",
+    "key": "BISTAMP",
+    "stamp": "A68C9B57B1CA4789ACB121D34",
+    "design": "Attente",
+    "old_ref": "Z.00.00.000.0000  ",
+    "new_ref": "P.02.12.000.0002",
+    "new_family": "3.2.12",
+    "stns": true
+  },
+  {
+    "table": "BI",
+    "key": "BISTAMP",
+    "stamp": "FC5E50177BD14C2793DE030F4",
+    "design": "Annulation de commande apres 15h la veille",
+    "old_ref": "Z.00.00.000.0000  ",
+    "new_ref": "P.02.12.000.0002",
+    "new_family": "3.2.12",
+    "stns": true
+  },
+  {
+    "table": "BI",
+    "key": "BISTAMP",
+    "stamp": "5D871EFCE92C43A8AE9D60C21",
+    "design": "Arrondi ventilation materiaux par chantier",
+    "old_ref": "Z.00.00.000.0000  ",
+    "new_ref": "AJUSTEMENT",
+    "new_family": "7.1.1",
+    "stns": true
+  },
+  {
+    "table": "BI",
+    "key": "BISTAMP",
+    "stamp": "C5A4855AEE014A49BC8F99D3F",
+    "design": "Arrondi facture 26I0131 - total PDF",
+    "old_ref": "Z.00.00.000.0000  ",
+    "new_ref": "AJUSTEMENT",
+    "new_family": "7.1.1",
+    "stns": true
+  },
+  {
+    "table": "BI",
+    "key": "BISTAMP",
+    "stamp": "3E64010F487149C6B9ADE4384",
+    "design": "Attente",
+    "old_ref": "Z.00.00.000.0000  ",
+    "new_ref": "P.02.12.000.0002",
+    "new_family": "3.2.12",
+    "stns": true
+  },
+  {
+    "table": "BI",
+    "key": "BISTAMP",
+    "stamp": "223F18DF293A42C88509AE65E",
+    "design": "Annulation de commande apres 15h la veille",
+    "old_ref": "Z.00.00.000.0000  ",
+    "new_ref": "P.02.12.000.0002",
+    "new_family": "3.2.12",
+    "stns": true
+  },
+  {
+    "table": "BI",
+    "key": "BISTAMP",
+    "stamp": "9C29158D14A846AABB901BB39",
+    "design": "Arrondi ventilation materiaux par chantier",
+    "old_ref": "Z.00.00.000.0000  ",
+    "new_ref": "AJUSTEMENT",
+    "new_family": "7.1.1",
+    "stns": true
+  },
+  {
+    "table": "BI",
+    "key": "BISTAMP",
+    "stamp": "4D280593DFA04C5198FA9F15A",
+    "design": "Arrondi facture 26I0131 - total PDF",
+    "old_ref": "Z.00.00.000.0000  ",
+    "new_ref": "AJUSTEMENT",
+    "new_family": "7.1.1",
+    "stns": true
+  }
+]

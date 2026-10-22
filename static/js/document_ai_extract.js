@@ -1559,7 +1559,11 @@ document.addEventListener('DOMContentLoaded', () => {
     els.documentSummary.innerHTML = parts.join('<span class="docai-header-separator"> · </span>');
     const editor = els.documentSummary.querySelector('[data-header-input]');
     if (editor && editing === 'document_date' && window.flatpickr) window.flatpickr(editor, {
-      dateFormat: 'd/m/Y', allowInput: true, defaultDate: documentData.document_date || null,
+      dateFormat: 'd/m/Y', allowInput: true,
+      // The input and Flatpickr both use DD/MM/YYYY. Passing the ISO value
+      // (YYYY-MM-DD) here made Flatpickr parse, for example, 2026-07-09 as
+      // 20/06/2026 and silently overwrite an otherwise correct invoice date.
+      defaultDate: documentData.document_date ? formatDate(documentData.document_date) : null,
       locale: window.flatpickr.l10ns?.pt || { firstDayOfWeek: 1 },
       onReady: (_, __, instance) => {
         if (instance.calendarContainer.querySelector('.docai-calendar-actions')) return;

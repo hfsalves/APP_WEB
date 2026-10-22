@@ -1,0 +1,93 @@
+{
+  "database": "HSOLS_FR",
+  "invoice": "26I0131",
+  "pf": 9405,
+  "invoice_lines_corrected": 13,
+  "pf_lines_corrected": 12,
+  "provisional_codes_remaining": 0,
+  "net": "145514.71",
+  "vat": "29102.94",
+  "gross": "174617.65",
+  "amounts_quantities_line_order_and_links_unchanged": true,
+  "document_flags_unchanged": true,
+  "references": [
+    {
+      "design": "Sable 0/4 recomposé mixte lavé",
+      "ref": "P.01.01.000.0211",
+      "family": "3.1.01",
+      "net": "61827.370000"
+    },
+    {
+      "design": "Gravillon 4/10 concassé calcaire lavé",
+      "ref": "P.01.01.000.0202",
+      "family": "3.1.01",
+      "net": "33081.750000"
+    },
+    {
+      "design": "Gravillon 10/20 concassé calcaire lavé",
+      "ref": "P.01.01.000.0207",
+      "family": "3.1.01",
+      "net": "41329.860000"
+    },
+    {
+      "design": "Remise exceptionnelle / retour a charge",
+      "ref": "LOG.REMISES",
+      "family": "3.1.17",
+      "net": "-400.000000"
+    },
+    {
+      "design": "Remise exceptionnelle / annulation la veille",
+      "ref": "LOG.REMISES",
+      "family": "3.1.17",
+      "net": "-1170.000000"
+    },
+    {
+      "design": "Retour a charge",
+      "ref": "P.02.12.000.0002",
+      "family": "3.2.12",
+      "net": "800.000000"
+    },
+    {
+      "design": "Attente",
+      "ref": "P.02.12.000.0002",
+      "family": "3.2.12",
+      "net": "180.000000"
+    },
+    {
+      "design": "Annulation de commande apres 15h la veille",
+      "ref": "P.02.12.000.0002",
+      "family": "3.2.12",
+      "net": "1800.000000"
+    },
+    {
+      "design": "Eco-participation / vrac - 0,40 EUR/t",
+      "ref": "S.03.05.000.0091",
+      "family": "4.3.05",
+      "net": "2863.200000"
+    },
+    {
+      "design": "Surcharge Energie / Transport 5,67%",
+      "ref": "S.03.05.000.0089",
+      "family": "4.3.05",
+      "net": "1623.460000"
+    },
+    {
+      "design": "Taxe Generale sur Activites Polluantes - 0,23 EUR/t",
+      "ref": "S.03.05.000.0094",
+      "family": "4.3.05",
+      "net": "1646.340000"
+    },
+    {
+      "design": "Surcharge Energie / Granulats en vrac - 0,27 EUR/t",
+      "ref": "S.03.05.000.0089",
+      "family": "4.3.05",
+      "net": "1932.660000"
+    },
+    {
+      "design": "Arrondi facture 26I0131 - total PDF",
+      "ref": "AJUSTEMENT",
+      "family": "7.1.1",
+      "net": "0.070000"
+    }
+  ]
+}
