@@ -425,6 +425,7 @@ class BudgetPayloadTests(unittest.TestCase):
     def test_intersol_agency_salespeople_are_filtered_by_machine(self):
         alsace_sql, alsace_params = _intersol_budget_visibility_predicate(20)
         regional_sql, regional_params = _intersol_budget_visibility_predicate(22)
+        nicolas_sql, nicolas_params = _intersol_budget_visibility_predicate(23)
 
         self.assertIn("B.MAQUINA", alsace_sql)
         self.assertEqual(alsace_params, ("INTERSOL-ALSACE",))
@@ -434,6 +435,8 @@ class BudgetPayloadTests(unittest.TestCase):
             regional_params,
             ("INTERSOL-LORRAINE", "INTERSOL-CHAMPAGNE"),
         )
+        self.assertIn("B.MAQUINA", nicolas_sql)
+        self.assertEqual(nicolas_params, regional_params)
 
     def test_intersol_visibility_uses_the_gr360_user_salesperson(self):
         sql, params = _budget_visibility_predicate(
