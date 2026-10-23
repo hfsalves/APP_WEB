@@ -364,6 +364,26 @@ class BudgetPdfTests(unittest.TestCase):
         self.assertNotIn('<span class="label">Adresse:</span>', html)
         self.assertNotIn('<div class="sub">Address:</div>', html)
 
+    def test_attention_is_printed_below_client_only_when_present(self):
+        detail = self._detail_1415()
+        detail["company"]["phc_db"] = "HSOLS_PT"
+        detail["header"].update({
+            "client_name": "GO FORWARD SERVICES ENGINEERING UNIPESSOAL, LDA",
+            "attention": "Eng. Paulo Oliveira",
+        })
+        app = Flask(__name__, template_folder="../modules/gr_budgets/templates")
+        with app.app_context():
+            portuguese_html = render_budget_pdf_html(detail)
+            detail["company"]["phc_db"] = "INTERSOL"
+            french_html = render_budget_pdf_html(detail)
+            detail["header"]["attention"] = ""
+            without_attention_html = render_budget_pdf_html(detail)
+
+        self.assertIn('<div class="attention-line"><span class="label">A/C:</span> Eng. Paulo Oliveira</div>', portuguese_html)
+        self.assertIn("À l&#39;attention de :", french_html)
+        self.assertIn("Eng. Paulo Oliveira", french_html)
+        self.assertNotIn('class="attention-line"', without_attention_html)
+
     def test_approved_document_uses_compact_header_state(self):
         detail = self._detail_1415()
         detail["header"]["approved"] = True
