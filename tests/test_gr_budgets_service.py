@@ -15,7 +15,7 @@ from modules.gr_budgets.service import (
     _budget_can_link_to_work,
     _budget_all_agencies_read,
     _budget_all_agencies_create,
-    _budget_unassigned_devis_creator,
+    _budget_non_intersol_unassigned_creator,
     _budget_visibility_predicate,
     _budget_write_predicate,
     _budget_list_summary,
@@ -25,6 +25,7 @@ from modules.gr_budgets.service import (
     _redact_budget_detail,
     _validate_budget_write_scope,
     BudgetsNotFoundError,
+    BudgetsValidationError,
     _component_family_payload,
     _component_payload,
     duplicate_budget_between_companies,
@@ -510,43 +511,44 @@ class BudgetPayloadTests(unittest.TestCase):
             self.assertFalse(_budget_all_agencies_read({"feid": 1, "phc_db": "HSOLS_FR"}, silvia))
             self.assertEqual(fetch.call_count, 2)
 
-    def test_prior_non_intersol_creator_can_create_devis_for_a_salesperson_but_not_edit(self):
+    def test_prior_non_intersol_creator_can_create_and_edit_regardless_of_salesperson(self):
         company = {"feid": 1, "phc_db": "HSOLS_FR"}
         helder = SimpleNamespace(USSTAMP="HELDER", LOGIN="hgaspar", VENDEDOR=0, ADMIN=False, DEV=False)
-        with patch("modules.gr_budgets.service._budget_unassigned_devis_creator", return_value=True):
-            _validate_budget_write_scope(company, helder, {"salesperson_number": 1}, creating=True)
-            self.assertEqual(_budget_write_predicate(company, helder), ("1 = 0", ()))
-            with self.assertRaises(BudgetsNotFoundError):
-                _validate_budget_write_scope(company, helder, {"salesperson_number": 1})
+        _validate_budget_write_scope(company, helder, {"salesperson_number": 1}, creating=True)
+        _validate_budget_write_scope(company, helder, {"salesperson_number": 1})
+        self.assertEqual(_budget_write_predicate(company, helder), ("1 = 1", ()))
+        self.assertTrue(_budget_list_summary({"VENDEDOR": 1, "ECUSTO": 500}, company, helder)["can_edit"])
 
-    def test_unassigned_creator_grant_is_company_specific_and_never_applies_to_intersol(self):
+    def test_non_intersol_unassigned_creator_uses_existing_base_write_acl(self):
         helder = SimpleNamespace(USSTAMP="HELDER", LOGIN="hgaspar", VENDEDOR=0, ADMIN=False, DEV=False)
         with patch("modules.gr_budgets.service._client_conn_str", return_value="test"), patch(
             "modules.gr_budgets.service.pyodbc.connect"
         ) as connect, patch("modules.gr_budgets.service._fetch_rows", return_value=[{"GRANTED": 1}]) as fetch:
             connect.return_value.__enter__.return_value.cursor.return_value = MagicMock()
-            self.assertTrue(_budget_unassigned_devis_creator({"feid": 1, "phc_db": "HSOLS_FR"}, helder))
-            self.assertEqual(fetch.call_args.args[2], ("HELDER", 1, "GR_ORCAMENTOS_CRIAR_DEVIS"))
-            self.assertFalse(_budget_unassigned_devis_creator({"feid": 8, "phc_db": "INTERSOL"}, helder))
-            self.assertEqual(fetch.call_count, 1)
+            self.assertTrue(_budget_non_intersol_unassigned_creator({"feid": 1, "phc_db": "HSOLS_FR"}, helder))
+            self.assertEqual(fetch.call_args.args[2], ("HELDER",))
+            self.assertFalse(_budget_non_intersol_unassigned_creator({"feid": 8, "phc_db": "INTERSOL"}, helder))
+            fetch.return_value = []
+            self.assertFalse(_budget_non_intersol_unassigned_creator({"feid": 7, "phc_db": "HSOLS_MA"}, helder))
+            self.assertEqual(fetch.call_count, 2)
 
-    def test_unassigned_creator_grant_is_limited_to_devis_series(self):
+    def test_non_intersol_creator_is_not_limited_to_devis_series(self):
         company = {"feid": 1, "phc_db": "HSOLS_FR"}
         helder = SimpleNamespace(USSTAMP="HELDER", LOGIN="hgaspar", VENDEDOR=0, ADMIN=False, DEV=False)
         payload = {"feid": 1, "ndos": 122, "header": {"salesperson_number": 1, "date": "2026-10-22"}}
         with patch("modules.gr_budgets.service._company_for_user", return_value=company), patch(
-            "modules.gr_budgets.service._budget_unassigned_devis_creator", return_value=True
+            "modules.gr_budgets.service._budget_non_intersol_unassigned_creator", return_value=True
         ), patch("modules.gr_budgets.service._phc_conn_str", return_value="test"), patch(
             "modules.gr_budgets.service.pyodbc.connect"
         ), patch("modules.gr_budgets.service._series_rows", return_value=[{"ndos": 122, "name": "Étude et Exécution"}]):
-            with self.assertRaises(BudgetsNotFoundError):
+            with self.assertRaises(BudgetsValidationError):
                 save_budget(payload, helder)
 
     def test_unassigned_creator_series_enables_salesperson_choice_without_admin(self):
         company = {"feid": 1, "phc_db": "HSOLS_FR"}
         helder = SimpleNamespace(USSTAMP="HELDER", LOGIN="hgaspar", VENDEDOR=0, ADMIN=False, DEV=False)
         with patch("modules.gr_budgets.service._company_for_user", return_value=company), patch(
-            "modules.gr_budgets.service._budget_unassigned_devis_creator", return_value=True
+            "modules.gr_budgets.service._budget_non_intersol_unassigned_creator", return_value=True
         ), patch("modules.gr_budgets.service._phc_conn_str", return_value="test"), patch(
             "modules.gr_budgets.service.pyodbc.connect"
         ), patch("modules.gr_budgets.service._series_rows", return_value=[{"ndos": 115, "name": "Devis"}]), patch(

@@ -196,6 +196,7 @@
     allowedAgencies: [],
     defaultSalespersonNumber: 0,
     canManageAll: false,
+    canCreateBudget: false,
     canCreateAllAgencies: false,
     canCreateWithoutSalesperson: false,
     seriesCompany: null,
@@ -450,6 +451,7 @@
     window.localStorage.setItem('gr-budgets-feid', feid);
     showLoading(true);
     showError('');
+    state.canCreateBudget = false;
     try {
       closeClientLookup();
       if (state.technicalOptionsFeid !== String(feid)) {
@@ -467,6 +469,7 @@
       state.allowedAgencies = seriesPayload.allowed_agencies || [];
       state.defaultSalespersonNumber = Number(seriesPayload.default_salesperson_number || 0);
       state.canManageAll = Boolean(seriesPayload.can_manage_all);
+      state.canCreateBudget = Boolean(seriesPayload.can_create_budget);
       state.canCreateAllAgencies = Boolean(seriesPayload.can_create_all_agencies);
       state.canCreateWithoutSalesperson = Boolean(seriesPayload.can_create_without_salesperson);
       state.salespeople = salespeoplePayload.rows || [];
@@ -2929,11 +2932,10 @@
     const selectedSeries = state.series.find((row) => String(row.ndos) === String(elements.series.value));
     const canCreateIntersolDevis = state.canCreateAllAgencies
       && String(selectedSeries?.name || '').trim().toLowerCase() === 'devis';
-    const canCreateUnassignedDevis = state.canCreateWithoutSalesperson
-      && String(selectedSeries?.name || '').trim().toLowerCase() === 'devis';
-    elements.newBudget.disabled = busy || !elements.company.value || !elements.series.value
+    const canCreateUnassignedBudget = state.canCreateWithoutSalesperson && !isIntersolBudgetCompany();
+    elements.newBudget.disabled = busy || !state.canCreateBudget || !elements.company.value || !elements.series.value
       || (!state.canManageAll && (
-        (!state.defaultSalespersonNumber && !canCreateIntersolDevis && !canCreateUnassignedDevis)
+        (!state.defaultSalespersonNumber && !canCreateIntersolDevis && !canCreateUnassignedBudget)
         || (isIntersolBudgetCompany() && !state.allowedAgencies.length)
       ));
     elements.back.hidden = editing || state.screen !== 'detail';
@@ -2951,8 +2953,8 @@
         input.readOnly = !editing;
         input.setAttribute('aria-readonly', editing ? 'false' : 'true');
       });
-    elements.salesperson.disabled = !editing || busy || (!state.canManageAll
-      && !(state.mode === 'new' && (canCreateIntersolDevis || canCreateUnassignedDevis)));
+    elements.salesperson.disabled = !editing || busy || (isIntersolBudgetCompany() && !state.canManageAll
+      && !(state.mode === 'new' && canCreateIntersolDevis));
     elements.agency.disabled = !editing || state.mode !== 'new' || busy;
   }
 

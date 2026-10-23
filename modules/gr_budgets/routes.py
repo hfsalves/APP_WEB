@@ -221,7 +221,8 @@ def api_series():
     if not _has_acl():
         return _forbidden()
     try:
-        return jsonify({"ok": True, **get_budget_series(request.args.get("feid"), current_user)})
+        payload = get_budget_series(request.args.get("feid"), current_user)
+        return jsonify({"ok": True, **payload, "can_create_budget": _has_write_acl(True)})
     except Exception as exc:
         return _handle_error(exc)
 
