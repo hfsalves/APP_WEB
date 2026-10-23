@@ -77,7 +77,7 @@ class DocumentAiPhcOriginTests(unittest.TestCase):
             datetime(2026, 9, 1, 14, 23, 45, 123456),
         )
 
-        self.assertEqual(effective_at, datetime(2026, 8, 18, 14, 23, 45, 123456))
+        self.assertEqual(effective_at, datetime(2026, 8, 18))
 
     def test_provisional_date_after_year_end_closing_uses_next_calendar_day(self):
         cursor = MagicMock()
@@ -90,7 +90,7 @@ class DocumentAiPhcOriginTests(unittest.TestCase):
             datetime(2027, 1, 3, 8, 5, 6),
         )
 
-        self.assertEqual(effective_at, datetime(2027, 1, 1, 8, 5, 6))
+        self.assertEqual(effective_at, datetime(2027, 1, 1))
 
     def test_document_draft_updates_persistent_result_and_cached_extraction(self):
         moment = datetime(2026, 9, 1, 10, 30, 0)

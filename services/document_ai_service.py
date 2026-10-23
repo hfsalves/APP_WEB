@@ -2616,18 +2616,15 @@ def _phc_provisional_effective_datetime(cursor, database_name: str, document_dat
                     f'A data de fecho PHC GE_FECHO de {database_name} é inválida.'
                 )
 
-    original = document_date.replace(
-        hour=received_at.hour,
-        minute=received_at.minute,
-        second=received_at.second,
-        microsecond=received_at.microsecond,
-    )
+    # PHC's FO.DATA is a business date. Never propagate the reception time to
+    # it: PHC screens and accounting routines expect the date at midnight.
+    original = datetime.combine(document_date.date(), datetime.min.time())
     if closed_until is None or document_date.date() > closed_until:
         return original
     if closed_until.year >= 9999:
         raise ValueError(f'Não existe um período contabilístico aberto posterior em {database_name}.')
     first_open_day = closed_until + timedelta(days=1)
-    return datetime.combine(first_open_day, received_at.time())
+    return datetime.combine(first_open_day, datetime.min.time())
 
 
 def _phc_money(value: Any) -> Decimal:
