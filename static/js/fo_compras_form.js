@@ -32,7 +32,76 @@ let tabivaOptions = [];
 let ccustoOptions = [];
 let tabivaLoaded = false;
 let linesLoaded = false;
+let headerLoaded = false;
+let storedIvaValidationDone = false;
 const foIsAdmin = Number(window.FO_IS_ADMIN || 0) === 1;
+
+// Amounts are compared and calculated in cents.  The supplier imports contain
+// already-validated line IVA amounts, therefore a floating point recomputation
+// must never replace them merely while displaying an existing document.
+const MONEY_EPSILON_CENTS = 1;
+function toCents(value) { return Math.round(parseNum(value) * 100); }
+function fromCents(value) { return (Number(value || 0) / 100).toFixed(2); }
+function hasMoneyValue(value) {
+  return value !== null && value !== undefined && String(value).trim() !== '' && Number.isFinite(parseNum(value));
+}
+function lineUsesIvaIncl(line) {
+  return line?.IVAINCL === 1 || line?.IVAINCL === '1' || line?.IVAINCL === true;
+}
+function calculatedLineMoney(line) {
+  const qtt = parseNum(line?.QTT);
+  const epv = parseNum(line?.EPV);
+  const grossOrBaseCents = Number.isFinite(qtt) && Number.isFinite(epv)
+    ? toCents(qtt * epv)
+    : toCents(line?.ETILIQUIDO);
+  const taxa = parseNum(line?.TAXAIVA);
+  const ivaCents = taxa > 0
+    ? (lineUsesIvaIncl(line)
+      ? Math.round(grossOrBaseCents * taxa / (100 + taxa))
+      : Math.round(grossOrBaseCents * taxa / 100))
+    : 0;
+  const baseCents = lineUsesIvaIncl(line) ? grossOrBaseCents - ivaCents : grossOrBaseCents;
+  return { baseCents, ivaCents, totalCents: baseCents + ivaCents };
+}
+function markLineFinanciallyChanged(line) {
+  if (!line) return;
+  line.__financialDirty = true;
+  line.__preserveStoredIva = false;
+  const money = calculatedLineMoney(line);
+  line.IVA = fromCents(money.ivaCents);
+  line.ETILIQUIDO = fromCents(money.baseCents);
+}
+function reconcileStoredIvaWhenReady() {
+  if (storedIvaValidationDone || isNewRecord || !headerLoaded || !linesLoaded) return;
+  storedIvaValidationDone = true;
+  if (!foLoadedData || !Array.isArray(linesData) || !linesData.length) return;
+  const headerBase = toCents(foLoadedData.ETTILIQ);
+  const headerIva = toCents(foLoadedData.ETTIVA);
+  const headerTotal = toCents(foLoadedData.ETOTAL);
+  let bases = 0;
+  let iva = 0;
+  let valid = true;
+  linesData.forEach((line) => {
+    if (!hasMoneyValue(line.IVA)) { valid = false; return; }
+    const calculated = calculatedLineMoney(line);
+    const storedIva = toCents(line.IVA);
+    // An old PHC percentage in FN.IVA will fail this per-line check.
+    if (Math.abs(storedIva - calculated.ivaCents) > MONEY_EPSILON_CENTS) valid = false;
+    iva += storedIva;
+    bases += lineUsesIvaIncl(line)
+      ? toCents(parseNum(line.QTT) * parseNum(line.EPV)) - storedIva
+      : toCents(line.ETILIQUIDO);
+  });
+  if (Math.abs(iva - headerIva) > MONEY_EPSILON_CENTS
+      || Math.abs(bases - headerBase) > MONEY_EPSILON_CENTS
+      || Math.abs(headerBase + headerIva - headerTotal) > MONEY_EPSILON_CENTS) valid = false;
+  if (!valid) return;
+  linesData.forEach((line) => {
+    line.__storedIvaCents = toCents(line.IVA);
+    line.__preserveStoredIva = true;
+    line.__financialDirty = false;
+  });
+}
 
 function normalizeLineOrder() {
   const toNum = (v) => {
@@ -149,6 +218,7 @@ function setFoFormValues(data = {}) {
     if (foStampInput) foStampInput.value = currentFoStamp;
   }
   foLoadedData = data || {};
+  headerLoaded = true;
   foSyncValue = Number(data.SYNC || 0);
   foPlanoValue = Number(data.PLANO || 0);
   foFields.forEach(f => {
@@ -1819,6 +1889,7 @@ async function loadLines() {
     linesData = (await res.json()).map(l => ({ ...l, __new: false }));
     normalizeLineOrder();
     linesLoaded = true;
+    reconcileStoredIvaWhenReady();
     deletedLineIds = [];
     renderLines();
     recalcTotals();
@@ -2076,12 +2147,9 @@ function renderLines() {
     r.DESIGN = (r.DESIGN ?? '').toString().trim();
     r.DTCUSTO = toDateInputValue(r.DTCUSTO) || null;
     r.FAMILIA = (r.FAMILIA ?? '').toString().trim();
-    // garantir ETILIQUIDO calculado localmente se possível
-    const qtt = parseNum(r.QTT);
-    const epv = parseNum(r.EPV);
-    if (Number.isFinite(qtt) && Number.isFinite(epv)) {
-      r.ETILIQUIDO = (qtt * epv).toFixed(2);
-    }
+    // Existing imported lines keep their recorded monetary IVA/base.  Only
+    // new or financially edited lines are recalculated.
+    if (isNewLine(r) || r.__financialDirty) markLineFinanciallyChanged(r);
     if (!r.FNCCUSTO) {
       const cabCcusto = document.getElementById('CCUSTO');
       r.FNCCUSTO = cabCcusto?.value || '';
@@ -2165,10 +2233,8 @@ function updateLineField(lineId, field, value) {
   } else {
     line[field] = value;
   }
-  const qtt = parseNum(line.QTT);
-  const epv = parseNum(line.EPV);
-  if (Number.isFinite(qtt) && Number.isFinite(epv)) {
-    line.ETILIQUIDO = (qtt * epv).toFixed(2);
+  if (['QTT', 'EPV', 'ETILIQUIDO', 'TABIVA', 'TAXAIVA', 'IVAINCL'].includes(field)) {
+    markLineFinanciallyChanged(line);
   }
   linesData[idx] = line;
   recalcTotals();
@@ -2326,7 +2392,12 @@ async function saveLine() {
   }
   const idx = linesData.findIndex(l => l.FNSTAMP === payload.FNSTAMP);
   if (idx >= 0) {
-    linesData[idx] = { ...linesData[idx], ...payload };
+    const before = linesData[idx];
+    const merged = { ...before, ...payload };
+    const financialFields = ['QTT', 'EPV', 'ETILIQUIDO', 'TABIVA', 'TAXAIVA', 'IVAINCL'];
+    const financialChanged = financialFields.some(field => String(before[field] ?? '') !== String(merged[field] ?? ''));
+    if (financialChanged) markLineFinanciallyChanged(merged);
+    linesData[idx] = merged;
   } else {
     linesData.push(payload);
   }
@@ -2400,7 +2471,7 @@ function normalizeLineForSave(line) {
     }
   });
   // numeric conversions
-  ['QTT', 'EPV', 'ETILIQUIDO', 'TAXAIVA', 'TABIVA'].forEach(f => {
+  ['QTT', 'EPV', 'ETILIQUIDO', 'IVA', 'TAXAIVA', 'TABIVA'].forEach(f => {
     if (body[f] === '' || body[f] === null || body[f] === undefined) {
       body[f] = null;
       return;
@@ -2425,35 +2496,29 @@ function recalcModalEtiliq() {
 }
 
 function recalcTotals() {
-  const toNum = (v) => parseNum(v);
-  let totalLiquido = 0;
-  let totalIva = 0;
+  // The header and lines arrive independently.  Do not replace persisted
+  // totals with zero while only one request has completed.
+  if (!isNewRecord && (!headerLoaded || !linesLoaded)) return;
+  reconcileStoredIvaWhenReady();
+  let totalLiquidoCents = 0;
+  let totalIvaCents = 0;
   linesData.forEach(line => {
-    const qtt = toNum(line.QTT);
-    const epv = toNum(line.EPV);
-    const base = Number.isFinite(qtt) && Number.isFinite(epv) ? qtt * epv : toNum(line.ETILIQUIDO);
-    const taxa = toNum(line.TAXAIVA);
-    const ivaincl = line.IVAINCL === 1 || line.IVAINCL === '1' || line.IVAINCL === true;
-    let ivaCalc = 0;
-    let liquidoLinha = base;
-    if (taxa > 0) {
-      if (ivaincl) {
-        ivaCalc = base * (taxa / (100 + taxa));
-        liquidoLinha = base - ivaCalc;
-      } else {
-        ivaCalc = base * (taxa / 100);
-      }
-    }
-    totalLiquido += liquidoLinha;
-    totalIva += ivaCalc;
+    const calculated = calculatedLineMoney(line);
+    const useStoredIva = line.__preserveStoredIva && !line.__financialDirty;
+    const ivaCents = useStoredIva ? line.__storedIvaCents : calculated.ivaCents;
+    const baseCents = useStoredIva
+      ? (lineUsesIvaIncl(line) ? calculated.totalCents - ivaCents : toCents(line.ETILIQUIDO))
+      : calculated.baseCents;
+    totalLiquidoCents += baseCents;
+    totalIvaCents += ivaCents;
   });
-  const total = totalLiquido + totalIva;
+  const totalCents = totalLiquidoCents + totalIvaCents;
   const ettliqEl = document.getElementById('ETTILIQ');
   const ettivaEl = document.getElementById('ETTIVA');
   const etotalEl = document.getElementById('ETOTAL');
-  if (ettliqEl) ettliqEl.value = totalLiquido.toFixed(2);
-  if (ettivaEl) ettivaEl.value = totalIva.toFixed(2);
-  if (etotalEl) etotalEl.value = total.toFixed(2);
+  if (ettliqEl) ettliqEl.value = fromCents(totalLiquidoCents);
+  if (ettivaEl) ettivaEl.value = fromCents(totalIvaCents);
+  if (etotalEl) etotalEl.value = fromCents(totalCents);
   syncFoPreviewAll();
 }
 
